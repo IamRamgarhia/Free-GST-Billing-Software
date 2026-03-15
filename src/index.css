@@ -263,6 +263,31 @@ body {
   line-height: 1.6;
   margin-bottom: 1.5rem;
 }
+.server-start-btn {
+  display: inline-block;
+  padding: 0.85rem 2.5rem;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: white;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  text-decoration: none;
+  margin-bottom: 1.5rem;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 15px rgba(37,99,235,0.3);
+}
+.server-start-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(37,99,235,0.4);
+  color: white;
+}
+.server-down-hint {
+  color: #64748b !important;
+  font-size: 0.8rem !important;
+  margin-bottom: 0.5rem !important;
+}
 .server-down-steps {
   text-align: left;
   background: #0f172a;

@@ -174,17 +174,20 @@ function App() {
             FreeGSTBill runs entirely on <strong>your computer</strong> — your data never leaves your machine.
             But the local server needs to be started first.
           </p>
+          <a href="freegstbill://start" className="server-start-btn">
+            Start FreeGSTBill Server
+          </a>
           <div className="server-down-steps">
-            <h3>How to start:</h3>
+            <p className="server-down-hint">Button not working? Start manually:</p>
             <ol>
               <li>Double-click <strong>FreeGSTBill</strong> on your Desktop</li>
-              <li>Or search <strong>"FreeGSTBill"</strong> in the Start Menu</li>
+              <li>Or search <strong>"FreeGSTBill"</strong> in Start Menu</li>
               <li>Or double-click <strong>FreeGSTBill.vbs</strong> in the app folder</li>
             </ol>
           </div>
           <div className="server-down-waiting">
             <div className="server-down-spinner" />
-            <span>Waiting for server to start... This page will load automatically.</span>
+            <span>Waiting for server... This page will load automatically.</span>
           </div>
         </div>
       </div>

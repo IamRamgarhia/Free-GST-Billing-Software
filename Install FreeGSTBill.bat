@@ -192,6 +192,25 @@ if exist "%STARTMENU_SHORTCUT%" (
 echo.
 
 :: ========================================
+:: Step 5: Register freegstbill:// protocol
+:: ========================================
+echo  [5/5] Registering app protocol...
+
+set "REG_VBS=%TEMP%\reg_protocol.vbs"
+(
+    echo Set WshShell = CreateObject("WScript.Shell"^)
+    echo On Error Resume Next
+    echo WshShell.RegWrite "HKCU\Software\Classes\freegstbill\", "URL:FreeGSTBill Protocol", "REG_SZ"
+    echo WshShell.RegWrite "HKCU\Software\Classes\freegstbill\URL Protocol", "", "REG_SZ"
+    echo WshShell.RegWrite "HKCU\Software\Classes\freegstbill\shell\open\command\", "wscript.exe ""%TARGET_PATH%""", "REG_SZ"
+) > "%REG_VBS%"
+
+cscript //nologo "%REG_VBS%" 2>nul
+del "%REG_VBS%" 2>nul
+echo         Protocol registered (freegstbill://)
+echo.
+
+:: ========================================
 :: Done!
 :: ========================================
 echo.
