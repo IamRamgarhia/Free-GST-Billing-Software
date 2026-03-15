@@ -9,7 +9,7 @@ import ReportsView from './components/ReportsView';
 import ExpenseTracker from './components/ExpenseTracker';
 import RecurringInvoices from './components/RecurringInvoices';
 import ReceiptVoucher from './components/ReceiptVoucher';
-import GSTFilingGuide from './components/GSTFilingGuide';
+import GSTReturns from './components/GSTReturns';
 import WelcomeGuide from './components/WelcomeGuide';
 import ToastContainer from './components/Toast';
 
@@ -160,8 +160,8 @@ function App() {
     { id: 'expenses', icon: Wallet, label: 'Expenses' },
     { id: 'recurring', icon: RefreshCw, label: 'Recurring' },
     { id: 'receipts', icon: Receipt, label: 'Receipts' },
-    { id: 'reports', icon: BarChart3, label: 'Reports & P&L' },
-    { id: 'filing', icon: BookOpen, label: 'GST Filing' },
+    { id: 'reports', icon: BarChart3, label: 'P&L Report' },
+    { id: 'filing', icon: BookOpen, label: 'GST Returns' },
   ];
 
   if (serverDown) {
@@ -289,7 +289,7 @@ function App() {
           <ReportsView />
         )}
         {currentView === 'filing' && (
-          <GSTFilingGuide />
+          <GSTReturns />
         )}
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />

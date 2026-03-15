@@ -316,6 +316,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     setTotals({
       subtotal,
       totalDiscount,
+      taxableAmount: subtotal - totalDiscount,
       cgst: isInterstate ? 0 : taxTotal / 2,
       sgst: isInterstate ? 0 : taxTotal / 2,
       igst: isInterstate ? taxTotal : 0,
@@ -579,14 +580,8 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     const amount = formatCurrency(items.reduce((s, i) => s + (i.quantity * i.rate), 0));
     const msg = `*Invoice: ${details.invoiceNumber}*\nClient: ${client?.name || ''}\nAmount: ${amount}\nDate: ${details.invoiceDate}`;
     const encoded = encodeURIComponent(msg);
-    const waUrl = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-    const a = document.createElement('a');
-    a.href = waUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.location.href = waUrl;
   };
 
   const exportEWayBill = () => {

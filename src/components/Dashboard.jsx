@@ -152,14 +152,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
     const encoded = encodeURIComponent(msg);
-    const waUrl = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-    const a = document.createElement('a');
-    a.href = waUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.location.href = waUrl;
   };
 
   const shareEmail = (bill) => {
