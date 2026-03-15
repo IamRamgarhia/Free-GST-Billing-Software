@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import DOMPurify from 'dompurify';
 import { numberToWords, formatCurrency, INVOICE_TYPES } from '../utils';
 
 const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
@@ -77,52 +78,98 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     'bill-of-supply': '#0f766e',
     'credit-note': '#be123c',
   };
-  const accent = accentColors[invoiceType] || accentColors['tax-invoice'];
+  const accent = options.accentColor || accentColors[invoiceType] || accentColors['tax-invoice'];
+  const pdfStyle = options.pdfStyle || 'classic';
 
   // Check if any item has discount
   const hasAnyDiscount = showDiscount && items.some(item => (item.discount || 0) > 0);
 
-  return (
-    <div className="invoice-preview-container" ref={ref} id="invoice-preview">
-      <div style={{ height: '6px', background: `linear-gradient(90deg, ${accent}, ${accent}cc, ${accent}88)` }} />
+  // Header renderers per style
+  const renderModernHeader = () => (
+    <>
+      <div style={{ background: accent, padding: '1.5rem 2rem', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          {showLogo && profile?.logo && (
+            <img src={profile.logo} alt="Logo" style={{ maxHeight: '44px', maxWidth: '140px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block', filter: 'brightness(0) invert(1)' }} />
+          )}
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, letterSpacing: '0.08em' }}>{customTitle}</h1>
+          {invoiceType === 'proforma' && (
+            <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', margin: '0.25rem 0 0' }}>For estimation purposes only</p>
+          )}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.25rem' }}>{profile?.businessName || 'Your Business'}</h2>
+          <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+            {profile?.address && <p style={{ margin: 0 }}>{profile.address}</p>}
+            {showState && profile?.state && <p style={{ margin: 0 }}>{profile.state}</p>}
+            {showGSTIN && profile?.gstin && <p style={{ margin: 0 }}>GSTIN: {profile.gstin}</p>}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 2rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.78rem' }}>
+          <span><strong style={{ color: '#64748b' }}>No.</strong> {details?.invoiceNumber}</span>
+          <span><strong style={{ color: '#64748b' }}>Date</strong> {details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</span>
+          {showDueDate && details?.dueDate && <span><strong style={{ color: '#64748b' }}>Due</strong> {new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+        </div>
+        {invoiceType === 'credit-note' && details?.originalInvoiceRef && (
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Against: <strong style={{ color: '#334155' }}>{details.originalInvoiceRef}</strong></span>
+        )}
+      </div>
+    </>
+  );
 
-      {/* Header */}
+  const renderMinimalHeader = () => (
+    <div style={{ padding: '2rem 2rem 1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+        <div>
+          {showLogo && profile?.logo && (
+            <img src={profile.logo} alt="Logo" style={{ maxHeight: '40px', maxWidth: '140px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block' }} />
+          )}
+          <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>{profile?.businessName || 'Your Business'}</h2>
+          <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.6, marginTop: '0.25rem' }}>
+            {profile?.address && <p style={{ margin: 0 }}>{profile.address}</p>}
+            {showState && profile?.state && <p style={{ margin: 0 }}>{profile.state}</p>}
+            {showGSTIN && profile?.gstin && <p style={{ margin: 0 }}>GSTIN: {profile.gstin}</p>}
+            {profile?.email && <p style={{ margin: 0 }}>{profile.email}</p>}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <h1 style={{ fontSize: '1.1rem', fontWeight: 700, color: accent, margin: '0 0 0.5rem', letterSpacing: '0.05em' }}>{customTitle}</h1>
+          <div style={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.8 }}>
+            <p style={{ margin: 0 }}>{details?.invoiceNumber}</p>
+            <p style={{ margin: 0 }}>{details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</p>
+            {showDueDate && details?.dueDate && <p style={{ margin: 0 }}>Due: {new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+          </div>
+        </div>
+      </div>
+      {invoiceType === 'proforma' && (
+        <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', margin: '0 0 0.5rem' }}>This is not a tax invoice. For estimation purposes only.</p>
+      )}
+      <div style={{ borderBottom: `1.5px solid ${accent}`, marginBottom: '0' }} />
+    </div>
+  );
+
+  const renderClassicHeader = () => (
+    <>
+      <div style={{ height: '6px', background: `linear-gradient(90deg, ${accent}, ${accent}cc, ${accent}88)` }} />
       <div className="inv-header">
         <div className="inv-header-left">
           {showLogo && profile?.logo && (
-            <img src={profile.logo} alt="Logo" style={{
-              maxHeight: '52px', maxWidth: '160px', objectFit: 'contain', marginBottom: '0.75rem', display: 'block'
-            }} />
+            <img src={profile.logo} alt="Logo" style={{ maxHeight: '52px', maxWidth: '160px', objectFit: 'contain', marginBottom: '0.75rem', display: 'block' }} />
           )}
           <h1 className="inv-title" style={{ color: accent }}>{customTitle}</h1>
           {invoiceType === 'proforma' && (
-            <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', marginBottom: '0.75rem' }}>
-              This is not a tax invoice. For estimation purposes only.
-            </p>
+            <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', marginBottom: '0.75rem' }}>This is not a tax invoice. For estimation purposes only.</p>
           )}
           {invoiceType === 'credit-note' && details?.originalInvoiceRef && (
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
-              Against Invoice: <strong style={{ color: '#334155' }}>{details.originalInvoiceRef}</strong>
-            </p>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>Against Invoice: <strong style={{ color: '#334155' }}>{details.originalInvoiceRef}</strong></p>
           )}
           <div className="inv-meta">
-            <div className="inv-meta-row">
-              <span className="inv-meta-label">No.</span>
-              <span className="inv-meta-value">{details?.invoiceNumber}</span>
-            </div>
-            <div className="inv-meta-row">
-              <span className="inv-meta-label">Date</span>
-              <span className="inv-meta-value">
-                {details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
-              </span>
-            </div>
+            <div className="inv-meta-row"><span className="inv-meta-label">No.</span><span className="inv-meta-value">{details?.invoiceNumber}</span></div>
+            <div className="inv-meta-row"><span className="inv-meta-label">Date</span><span className="inv-meta-value">{details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</span></div>
             {showDueDate && details?.dueDate && (
-              <div className="inv-meta-row">
-                <span className="inv-meta-label">Due Date</span>
-                <span className="inv-meta-value">
-                  {new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>
-              </div>
+              <div className="inv-meta-row"><span className="inv-meta-label">Due Date</span><span className="inv-meta-value">{new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
             )}
           </div>
         </div>
@@ -137,9 +184,14 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           </div>
         </div>
       </div>
+    </>
+  );
 
-      {/* Billing parties */}
-      <div className="inv-parties">
+  // Billing parties section (shared but styled per variant)
+  const renderParties = () => {
+    const padStyle = pdfStyle === 'modern' ? { padding: '1rem 2rem' } : pdfStyle === 'minimal' ? { padding: '0 2rem 1rem', border: 'none' } : {};
+    return (
+      <div className="inv-parties" style={padStyle}>
         <div className="inv-party">
           <h4 className="inv-section-label">BILL TO</h4>
           <p className="inv-party-name">{client?.name || 'Client Name'}</p>
@@ -158,9 +210,19 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           </div>
         )}
       </div>
+    );
+  };
+
+  return (
+    <div className="invoice-preview-container" ref={ref} id="invoice-preview">
+      {pdfStyle === 'modern' && renderModernHeader()}
+      {pdfStyle === 'minimal' && renderMinimalHeader()}
+      {pdfStyle === 'classic' && renderClassicHeader()}
+
+      {renderParties()}
 
       {/* Items table */}
-      <table className="inv-table" style={{ tableLayout: 'auto' }}>
+      <table className="inv-table" style={{ tableLayout: 'auto', ...(pdfStyle === 'modern' ? { margin: '0 2rem', width: 'calc(100% - 4rem)' } : pdfStyle === 'minimal' ? { margin: '0 2rem', width: 'calc(100% - 4rem)', borderTop: 'none' } : {}) }}>
         <thead>
           {showGST ? (
             isInterstate ? (
@@ -253,7 +315,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       </table>
 
       {/* Totals section */}
-      <div className="inv-totals-section">
+      <div className="inv-totals-section" style={pdfStyle !== 'classic' ? { padding: '1rem 2rem' } : {}}>
         <div className="inv-words">
           {showAmountWords && (
             <>
@@ -307,15 +369,22 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               </>
             )
           )}
-          <div className="inv-total-row inv-total-final">
-            <span>{invoiceType === 'credit-note' ? 'Credit Amount' : 'Total Due'}</span>
-            <span style={{ color: accent }}>{fmt(totals.total)}</span>
-          </div>
+          {pdfStyle === 'modern' ? (
+            <div className="inv-total-row inv-total-final inv-total-modern" style={{ background: accent, color: '#fff', borderRadius: '6px', padding: '0.6rem 0.75rem', marginTop: '0.25rem' }}>
+              <span style={{ color: '#fff' }}>{invoiceType === 'credit-note' ? 'Credit Amount' : 'Total Due'}</span>
+              <span style={{ color: '#fff' }}>{fmt(totals.total)}</span>
+            </div>
+          ) : (
+            <div className="inv-total-row inv-total-final">
+              <span>{invoiceType === 'credit-note' ? 'Credit Amount' : 'Total Due'}</span>
+              <span style={{ color: accent }}>{fmt(totals.total)}</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Footer */}
-      <div className="inv-footer">
+      <div className="inv-footer" style={pdfStyle !== 'classic' ? { padding: '1rem 2rem' } : {}}>
         <div className="inv-footer-left">
           {showBankDetails && profile?.bankName && (
             <div className="inv-footer-block">
@@ -368,7 +437,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             </div>
             {section.title && <h4 className="inv-section-label" style={{ marginBottom: '0.75rem' }}>{section.title.toUpperCase()}</h4>}
             {section.content && (
-              <div className="inv-extra-content" dangerouslySetInnerHTML={{ __html: section.content }} />
+              <div className="inv-extra-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(section.content) }} />
             )}
           </div>
         ));
@@ -379,11 +448,16 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         <div style={{
           position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%) rotate(-35deg)',
-          fontSize: '5rem', fontWeight: 800, color: 'rgba(124, 58, 237, 0.04)',
+          fontSize: '5rem', fontWeight: 800, color: `${accent}0a`,
           pointerEvents: 'none', whiteSpace: 'nowrap'
         }}>
           ESTIMATE
         </div>
+      )}
+
+      {/* Bottom bar for modern style */}
+      {pdfStyle === 'modern' && (
+        <div style={{ height: '4px', background: accent, marginTop: 'auto' }} />
       )}
     </div>
   );

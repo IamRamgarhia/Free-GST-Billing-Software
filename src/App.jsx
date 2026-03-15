@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Home, FileText, Settings, Plus, Users } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SettingsView from './components/SettingsView';
 import ClientsView from './components/ClientsView';
+import InventoryView from './components/InventoryView';
+import ReportsView from './components/ReportsView';
+import ExpenseTracker from './components/ExpenseTracker';
+import RecurringInvoices from './components/RecurringInvoices';
+import ReceiptVoucher from './components/ReceiptVoucher';
+import GSTFilingGuide from './components/GSTFilingGuide';
 import ToastContainer from './components/Toast';
 import { getProfile } from './store';
 
@@ -17,6 +23,9 @@ function App() {
       const saved = sessionStorage.getItem('gst_editingBill');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
+  });
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('billkaro_theme') === 'dark';
   });
 
   useEffect(() => {
@@ -34,6 +43,11 @@ function App() {
       sessionStorage.removeItem('gst_editingBill');
     }
   }, [editingBill]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('billkaro_theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   const handleNewInvoice = () => {
     sessionStorage.removeItem('gst_invoiceDraft');
@@ -55,10 +69,25 @@ function App() {
     setCurrentView('new');
   };
 
+  const handleConvertToInvoice = (bill) => {
+    sessionStorage.removeItem('gst_invoiceDraft');
+    const clone = JSON.parse(JSON.stringify(bill));
+    clone._isDuplicate = true;
+    clone._convertToType = 'tax-invoice';
+    setEditingBill(clone);
+    setCurrentView('new');
+  };
+
   const navItems = [
     { id: 'dashboard', icon: Home, label: 'Dashboard' },
     { id: 'new', icon: Plus, label: 'New Invoice', onClick: handleNewInvoice },
     { id: 'clients', icon: Users, label: 'Clients' },
+    { id: 'inventory', icon: Package, label: 'Products' },
+    { id: 'expenses', icon: Wallet, label: 'Expenses' },
+    { id: 'recurring', icon: RefreshCw, label: 'Recurring' },
+    { id: 'receipts', icon: Receipt, label: 'Receipts' },
+    { id: 'reports', icon: BarChart3, label: 'Reports & P&L' },
+    { id: 'filing', icon: BookOpen, label: 'GST Filing' },
   ];
 
   return (
@@ -84,18 +113,28 @@ function App() {
               <item.icon size={18} /> {item.label}
             </button>
           ))}
-          <button
-            className={`nav-btn nav-btn-bottom ${currentView === 'settings' ? 'nav-btn-active' : ''}`}
-            onClick={() => setCurrentView('settings')}
-          >
-            <Settings size={18} /> Settings
-          </button>
+          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <button
+              className="nav-btn"
+              onClick={() => setDarkMode(!darkMode)}
+              title={darkMode ? 'Light Mode' : 'Dark Mode'}
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              {darkMode ? 'Light Mode' : 'Dark Mode'}
+            </button>
+            <button
+              className={`nav-btn ${currentView === 'settings' ? 'nav-btn-active' : ''}`}
+              onClick={() => setCurrentView('settings')}
+            >
+              <Settings size={18} /> Settings
+            </button>
+          </div>
         </nav>
       </div>
 
       <div className="main-content">
         {currentView === 'dashboard' && (
-          <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
+          <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onConvert={handleConvertToInvoice} />
         )}
         {currentView === 'new' && (
           <InvoiceGenerator
@@ -105,6 +144,24 @@ function App() {
         )}
         {currentView === 'clients' && (
           <ClientsView onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
+        )}
+        {currentView === 'inventory' && (
+          <InventoryView />
+        )}
+        {currentView === 'expenses' && (
+          <ExpenseTracker />
+        )}
+        {currentView === 'recurring' && (
+          <RecurringInvoices onEdit={handleEditInvoice} />
+        )}
+        {currentView === 'receipts' && (
+          <ReceiptVoucher />
+        )}
+        {currentView === 'reports' && (
+          <ReportsView />
+        )}
+        {currentView === 'filing' && (
+          <GSTFilingGuide />
         )}
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />

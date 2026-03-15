@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, Trash2, Download, Save, UserPlus, Users, Settings, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Download, UserPlus, Users, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile } from '../store';
-import { INDIAN_STATES, INVOICE_TYPES } from '../utils';
+import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
+import { INDIAN_STATES, INVOICE_TYPES, generateEWayBillJSON } from '../utils';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
+import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
 import { toast } from './Toast';
 
@@ -15,7 +16,7 @@ function RichEditor({ value, onChange, placeholder }) {
 
   useEffect(() => {
     if (ref.current && !isInitialized.current) {
-      ref.current.innerHTML = value || '';
+      ref.current.innerHTML = DOMPurify.sanitize(value || '');
       isInitialized.current = true;
     }
   }, []);
@@ -23,7 +24,7 @@ function RichEditor({ value, onChange, placeholder }) {
   // Update if value changes externally (e.g. draft restore, editing bill)
   useEffect(() => {
     if (ref.current && isInitialized.current && ref.current.innerHTML !== value) {
-      ref.current.innerHTML = value || '';
+      ref.current.innerHTML = DOMPurify.sanitize(value || '');
     }
   }, [value]);
 
@@ -68,7 +69,26 @@ const DEFAULT_OPTIONS = {
   showItemQty: true,
   customTitle: '',
   currency: 'INR',
+  accentColor: '',
+  pdfStyle: 'classic',
 };
+
+const ACCENT_PRESETS = [
+  { color: '#1e40af', label: 'Blue' },
+  { color: '#7c3aed', label: 'Purple' },
+  { color: '#0f766e', label: 'Teal' },
+  { color: '#be123c', label: 'Red' },
+  { color: '#c2410c', label: 'Orange' },
+  { color: '#15803d', label: 'Green' },
+  { color: '#0369a1', label: 'Sky' },
+  { color: '#1e293b', label: 'Dark' },
+];
+
+const PDF_STYLES = [
+  { id: 'classic', label: 'Classic', desc: 'Clean with top accent bar' },
+  { id: 'modern', label: 'Modern', desc: 'Bold header with color block' },
+  { id: 'minimal', label: 'Minimal', desc: 'Simple, borderless layout' },
+];
 
 export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   const draft = loadDraft();
@@ -92,22 +112,89 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   const [selectedTermsId, setSelectedTermsId] = useState(draft?.selectedTermsId || '');
   const [customTerms, setCustomTerms] = useState(draft?.customTerms || '');
   const [customNotes, setCustomNotes] = useState(draft?.customNotes || '');
+  const [internalNote, setInternalNote] = useState(draft?.internalNote || '');
   const [extraSections, setExtraSections] = useState(draft?.extraSections || []);
   const [savedClients, setSavedClients] = useState([]);
   const [showClientPicker, setShowClientPicker] = useState(false);
-  const [invoiceOptions, setInvoiceOptions] = useState(draft?.invoiceOptions || { ...DEFAULT_OPTIONS });
+  const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState({ itemId: null, query: '' });
+  const [invoiceOptions, setInvoiceOptions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('billkaro_invoiceOptions');
+      const persisted = saved ? JSON.parse(saved) : {};
+      // Persisted options are the user's defaults, draft can override for in-progress work
+      return { ...DEFAULT_OPTIONS, ...persisted, ...(draft?.invoiceOptions || {}) };
+    } catch { return draft?.invoiceOptions || { ...DEFAULT_OPTIONS }; }
+  });
   const [showOptions, setShowOptions] = useState(false);
   const printRef = useRef(null);
   const draftInitialized = useRef(!!draft);
+  const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
+  const autoSaveTimer = useRef(null);
+  const stockDeducted = useRef(!!editingBill); // skip stock deduction for existing invoices
+  const hasInitialized = useRef(false); // prevent auto-save during initial load
 
   const typeConfig = INVOICE_TYPES[invoiceType];
   const showGST = invoiceOptions.showGST;
 
+  // Persist options to both localStorage (instant) and server (durable)
+  useEffect(() => {
+    localStorage.setItem('billkaro_invoiceOptions', JSON.stringify(invoiceOptions));
+    if (hasInitialized.current) {
+      saveInvoiceDisplayOptions(invoiceOptions).catch(() => {});
+    }
+  }, [invoiceOptions]);
+
+  // Load saved display options from server on mount (overrides localStorage if available)
+  useEffect(() => {
+    getInvoiceDisplayOptions().then(serverOpts => {
+      if (serverOpts) {
+        const merged = { ...DEFAULT_OPTIONS, ...serverOpts };
+        setInvoiceOptions(prev => {
+          // Only update if different to avoid unnecessary re-renders
+          const changed = Object.keys(merged).some(k => merged[k] !== prev[k]);
+          if (changed) {
+            localStorage.setItem('billkaro_invoiceOptions', JSON.stringify(merged));
+            return merged;
+          }
+          return prev;
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
   // Auto-save draft to sessionStorage
   useEffect(() => {
-    const draftData = { invoiceType, client, details, items, customTerms, customNotes, extraSections, selectedTermsId, invoiceOptions };
+    const draftData = { invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, selectedTermsId, invoiceOptions };
     sessionStorage.setItem('gst_invoiceDraft', JSON.stringify(draftData));
-  }, [invoiceType, client, details, items, customTerms, customNotes, extraSections, selectedTermsId, invoiceOptions]);
+  }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, selectedTermsId, invoiceOptions]);
+
+  // Mark initialized after first render cycle so auto-save doesn't trigger on load
+  useEffect(() => {
+    const t = setTimeout(() => { hasInitialized.current = true; }, 1500);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Debounced auto-save to server (2s after last change)
+  useEffect(() => {
+    if (!hasInitialized.current) return;
+    if (!details.invoiceNumber) return;
+
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        setAutoSaveStatus('saving');
+        await saveInvoiceToDB(true);
+        setAutoSaveStatus('saved');
+        setTimeout(() => setAutoSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+        setAutoSaveStatus('idle');
+      }
+    }, 2000);
+
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, invoiceOptions]);
 
   const clearDraft = () => {
     sessionStorage.removeItem('gst_invoiceDraft');
@@ -123,6 +210,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
       }
     });
     getAllClients().then(setSavedClients);
+    getAllProducts().then(setProducts);
   }, []);
 
   // Initialize from editing bill or generate new number (skip if restoring from draft)
@@ -138,11 +226,25 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
       setInvoiceType(d.invoiceType || 'tax-invoice');
       if (d.customTerms !== undefined) setCustomTerms(d.customTerms);
       if (d.customNotes !== undefined) setCustomNotes(d.customNotes);
+      if (d.internalNote !== undefined) setInternalNote(d.internalNote);
       if (d.extraSections) setExtraSections(d.extraSections);
-      if (d.invoiceOptions) setInvoiceOptions(d.invoiceOptions);
+      if (d.invoiceOptions) {
+        // User's persisted defaults as base, bill options overlay
+        try {
+          const saved = localStorage.getItem('billkaro_invoiceOptions');
+          const persisted = saved ? JSON.parse(saved) : {};
+          setInvoiceOptions({ ...DEFAULT_OPTIONS, ...persisted, ...d.invoiceOptions });
+        } catch { setInvoiceOptions({ ...DEFAULT_OPTIONS, ...d.invoiceOptions }); }
+      }
 
       if (editingBill._isDuplicate) {
-        const type = d.invoiceType || 'tax-invoice';
+        const convertType = editingBill._convertToType;
+        const type = convertType || d.invoiceType || 'tax-invoice';
+        if (convertType) {
+          setInvoiceType(convertType);
+          const config = INVOICE_TYPES[convertType];
+          if (config) setInvoiceOptions(prev => ({ ...prev, showGST: config.showGST, showPlaceOfSupply: config.showGST }));
+        }
         const prefix = INVOICE_TYPES[type]?.prefix || 'INV';
         getNextInvoiceNumber(prefix).then(num => {
           setDetails({ ...d.details, invoiceNumber: num, invoiceDate: new Date().toISOString().split('T')[0] });
@@ -209,6 +311,29 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
 
   const handleItemChange = (id, field, value) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    if (field === 'name') {
+      setProductSearch({ itemId: id, query: value });
+    }
+  };
+
+  const selectProduct = (itemId, product) => {
+    setItems(prev => prev.map(item => item.id === itemId ? {
+      ...item,
+      name: product.name,
+      hsn: product.hsn || '',
+      rate: product.rate || 0,
+      taxPercent: product.taxPercent ?? 18,
+      productId: product.id,
+    } : item));
+    setProductSearch({ itemId: null, query: '' });
+  };
+
+  const getProductSuggestions = (itemId) => {
+    if (productSearch.itemId !== itemId || !productSearch.query.trim()) return [];
+    const q = productSearch.query.toLowerCase();
+    return products.filter(p =>
+      p.name?.toLowerCase().includes(q) || p.hsn?.toLowerCase().includes(q)
+    ).slice(0, 5);
   };
 
   const addItem = () => {
@@ -241,7 +366,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     setSavedClients(await getAllClients());
   };
 
-  const saveInvoiceToDB = async () => {
+  const saveInvoiceToDB = async (skipStockDeduction = false) => {
     const bill = {
       id: details.invoiceNumber,
       clientName: client.name,
@@ -253,9 +378,38 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
       status: editingBill?.status || 'unpaid',
       paidAmount: editingBill?.paidAmount || 0,
       payments: editingBill?.payments || [],
-      data: { profile, client, details, items, totals, invoiceType, customTerms, customNotes, extraSections, invoiceOptions }
+      data: { profile, client, details, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions }
     };
     await saveBill(bill);
+
+    // Auto-deduct stock only once for new invoices (not edits, not auto-saves)
+    if (!skipStockDeduction && !stockDeducted.current) {
+      stockDeducted.current = true;
+      const currentProducts = await getAllProducts();
+      const lowStockWarnings = [];
+
+      for (const item of items) {
+        if (!item.productId) continue;
+        const product = currentProducts.find(p => p.id === item.productId);
+        if (!product) continue;
+
+        const updatedStock = (product.stock || 0) - (item.quantity || 0);
+        await saveProduct({ ...product, stock: updatedStock });
+
+        if (updatedStock <= 0) {
+          lowStockWarnings.push(`${product.name} is now out of stock!`);
+        } else if (updatedStock <= 5) {
+          lowStockWarnings.push(`${product.name} has only ${updatedStock} left in stock`);
+        }
+      }
+
+      const refreshed = await getAllProducts();
+      setProducts(refreshed);
+
+      for (const warning of lowStockWarnings) {
+        toast(warning, 'warning');
+      }
+    }
   };
 
   // Upload PDF to Google Drive if configured
@@ -393,33 +547,41 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     }
   };
 
-  const handleSaveOnly = async () => {
-    try {
-      setSaving(true);
-      await saveInvoiceToDB();
-      clearDraft();
-      toast('Invoice saved!', 'success');
-      onBack();
-    } catch (err) {
-      console.error(err);
-      toast('Failed to save.', 'error');
-    } finally {
-      setSaving(false);
-    }
+  const exportEWayBill = () => {
+    if (!profile?.gstin) { toast('Set your GSTIN in Settings first', 'warning'); return; }
+    const ewb = generateEWayBillJSON(profile, client, details, items, totals, invoiceType);
+    const blob = new Blob([JSON.stringify(ewb, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `EWB-${details.invoiceNumber?.replace(/\//g, '-') || 'draft'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('E-Way Bill JSON downloaded', 'success');
   };
 
   return (
     <div className="generator-container">
       <div className="generator-toolbar">
-        <button className="btn btn-secondary" onClick={() => { clearDraft(); onBack(); }}><ArrowLeft size={18} /> Back</button>
+        <div className="flex gap-2 items-center">
+          <button className="btn btn-secondary" onClick={() => { clearDraft(); onBack(); }}><ArrowLeft size={18} /> Back</button>
+          <span style={{ fontSize: '0.78rem', color: autoSaveStatus === 'saving' ? 'var(--text-muted)' : '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
+            {autoSaveStatus === 'saving' && <><Loader size={13} className="spin" /> Saving...</>}
+            {autoSaveStatus === 'saved' && <><Check size={13} /> All changes saved</>}
+          </span>
+        </div>
         <div className="flex gap-2">
-          <button className="btn btn-secondary" onClick={handleSaveOnly} disabled={saving}><Save size={18} /> Save Only</button>
           <button className="btn btn-primary" onClick={generatePDF} disabled={saving}>
             <Download size={18} /> {saving ? 'Generating...' : 'Download PDF'}
           </button>
           <button className="btn btn-secondary" onClick={shareWhatsApp} disabled={saving} style={{ background: '#25d366', color: '#fff', borderColor: '#25d366' }}>
             <MessageCircle size={18} /> WhatsApp
           </button>
+          {(invoiceType === 'tax-invoice' || invoiceType === 'delivery-challan') && (
+            <button className="btn btn-secondary" onClick={exportEWayBill} title="Download E-Way Bill JSON for NIC portal upload">
+              <Truck size={18} /> E-Way Bill
+            </button>
+          )}
         </div>
       </div>
 
@@ -465,6 +627,34 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
                     <option value="SGD">SGD (Singapore Dollar)</option>
                     <option value="AED">AED (UAE Dirham)</option>
                   </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label className="form-label">PDF Style</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {PDF_STYLES.map(s => (
+                      <button key={s.id} type="button"
+                        className={`type-chip ${(invoiceOptions.pdfStyle || 'classic') === s.id ? 'type-chip-active' : ''}`}
+                        onClick={() => setInvoiceOptions(prev => ({ ...prev, pdfStyle: s.id }))}
+                        title={s.desc}>{s.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label className="form-label">Accent Color</label>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button type="button" title="Auto (match invoice type)"
+                      style={{ width: '28px', height: '28px', borderRadius: '50%', border: !invoiceOptions.accentColor ? '2.5px solid #334155' : '2px solid #cbd5e1', background: 'conic-gradient(#1e40af, #7c3aed, #0f766e, #be123c, #1e40af)', cursor: 'pointer', position: 'relative' }}
+                      onClick={() => setInvoiceOptions(prev => ({ ...prev, accentColor: '' }))}>
+                      {!invoiceOptions.accentColor && <span style={{ position: 'absolute', inset: '3px', borderRadius: '50%', border: '2px solid white' }} />}
+                    </button>
+                    {ACCENT_PRESETS.map(p => (
+                      <button key={p.color} type="button" title={p.label}
+                        style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: p.color, border: invoiceOptions.accentColor === p.color ? '2.5px solid #334155' : '2px solid #cbd5e1', cursor: 'pointer', position: 'relative' }}
+                        onClick={() => setInvoiceOptions(prev => ({ ...prev, accentColor: p.color }))}>
+                        {invoiceOptions.accentColor === p.color && <span style={{ position: 'absolute', inset: '3px', borderRadius: '50%', border: '2px solid white' }} />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="options-grid">
                   {[
@@ -598,10 +788,25 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
             <h3 className="section-title">Line Items</h3>
             {items.map((item) => (
               <div key={item.id} className="line-item-row">
-                <div className="line-item-field" style={{ flex: 2.5 }}>
+                <div className="line-item-field" style={{ flex: 2.5, position: 'relative' }}>
                   <label className="form-label">Description</label>
                   <input type="text" className="form-input" value={item.name}
-                    onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} />
+                    onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
+                    onBlur={() => setTimeout(() => setProductSearch({ itemId: null, query: '' }), 200)}
+                    autoComplete="off" />
+                  {getProductSuggestions(item.id).length > 0 && (
+                    <div className="product-suggestions">
+                      {getProductSuggestions(item.id).map(p => (
+                        <div key={p.id} className="product-suggestion-item"
+                          onMouseDown={() => selectProduct(item.id, p)}>
+                          <span className="product-suggestion-name">{p.name}</span>
+                          <span className="product-suggestion-meta">
+                            {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? `₹${p.rate}` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {invoiceOptions.showHSN && (
                   <div className="line-item-field" style={{ flex: 1 }}>
@@ -672,6 +877,16 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
                 onChange={(e) => setCustomNotes(e.target.value)}
                 placeholder="Project details, special instructions, additional notes..." />
             </div>
+            <div className="form-group" style={{ background: '#fefce8', border: '1px dashed #ca8a04', borderRadius: 8, padding: '0.75rem 1rem' }}>
+              <label className="form-label" style={{ color: '#92400e', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v4m0 4h.01"/></svg>
+                Private Note (not shown on invoice)
+              </label>
+              <textarea rows="2" className="form-input" value={internalNote}
+                onChange={(e) => setInternalNote(e.target.value)}
+                style={{ background: '#fffef5', fontSize: '0.82rem' }}
+                placeholder="e.g. Client asked for 15-day credit, follow up on 20th, referred by Ravi..." />
+            </div>
           </div>
 
           {/* Extra Sections */}
@@ -717,6 +932,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
 
         {/* Live Preview */}
         <div className="preview-pane">
+          <div className="preview-pane-label">PDF Preview — This is how your invoice will look</div>
           <div className="preview-scaler">
             <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
               items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}

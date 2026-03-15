@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail } from 'lucide-react';
-import { getAllBills, deleteBill, saveBill } from '../store';
+import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote } from 'lucide-react';
+import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';
 
@@ -22,7 +22,7 @@ function getFYOptions() {
   return options;
 }
 
-export default function Dashboard({ onNew, onEdit, onDuplicate }) {
+export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const [bills, setBills] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [stats, setStats] = useState({ total: 0, tax: 0, count: 0, unpaid: 0 });
@@ -62,6 +62,17 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
   const loadBills = async () => {
     try {
       const data = await getAllBills();
+      const today = new Date().toISOString().split('T')[0];
+
+      // Auto-detect overdue: if due date passed and not paid, mark as overdue
+      for (const bill of data) {
+        const dueDate = bill.data?.details?.dueDate;
+        if (dueDate && dueDate < today && bill.status !== 'paid' && bill.status !== 'overdue') {
+          bill.status = 'overdue';
+          await saveBill(bill);
+        }
+      }
+
       setBills(data);
       const totalAmount = data.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
       const totalTax = data.reduce((sum, b) => sum + (b.totalTaxAmount || 0), 0);
@@ -72,10 +83,23 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (bill) => {
     if (confirm('Delete this invoice? This cannot be undone.')) {
-      try { await deleteBill(id); toast('Invoice deleted', 'success'); loadBills(); }
-      catch { toast('Failed to delete', 'error'); }
+      try {
+        // Restore stock for products used in this invoice
+        if (bill.data?.items) {
+          const products = await getAllProducts();
+          for (const item of bill.data.items) {
+            if (!item.productId) continue;
+            const product = products.find(p => p.id === item.productId);
+            if (!product) continue;
+            await saveProduct({ ...product, stock: (product.stock || 0) + (item.quantity || 0) });
+          }
+        }
+        await deleteBill(bill.id);
+        toast('Invoice deleted & stock restored', 'success');
+        loadBills();
+      } catch { toast('Failed to delete', 'error'); }
     }
   };
 
@@ -127,7 +151,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
     const webUrl = `https://web.whatsapp.com/send?${phone ? `phone=${phone}&` : ''}text=${encoded}`;
 
     // Try desktop app, fall back to web after timeout
-    const w = window.open(desktopUrl, '_self');
+    window.open(desktopUrl, '_self');
     setTimeout(() => {
       // If we're still here, desktop app didn't open — use web
       if (!document.hidden) {
@@ -148,6 +172,9 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
 
   const hasFilters = search || typeFilter !== 'all' || statusFilter !== 'all' || fyFilter !== 'all' || dateFrom || dateTo;
 
+  const overdueBills = bills.filter(b => b.status === 'overdue');
+  const overdueTotal = overdueBills.reduce((sum, b) => sum + (b.totalAmount || 0) - (b.paidAmount || 0), 0);
+
   return (
     <div className="dashboard-container">
       <div className="page-header">
@@ -157,6 +184,22 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
         </div>
         <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> New Invoice</button>
       </div>
+
+      {overdueBills.length > 0 && (
+        <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}
+          style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '0.85rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <AlertTriangle size={20} style={{ color: '#dc2626', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 700, color: '#dc2626' }}>
+              {overdueBills.length} overdue invoice{overdueBills.length > 1 ? 's' : ''}
+            </span>
+            <span style={{ color: '#991b1b', marginLeft: 8, fontSize: '0.85rem' }}>
+              — {formatCurrency(overdueTotal)} outstanding
+            </span>
+          </div>
+          <span style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 500 }}>View all &rarr;</span>
+        </div>
+      )}
 
       <div className="stats-grid stats-grid-4">
         <div className="stat-card">
@@ -231,12 +274,20 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
                   const status = bill.status || 'unpaid';
                   const sc = STATUS_CONFIG[status] || STATUS_CONFIG.unpaid;
                   const isOverdue = status !== 'paid' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
+                  const daysOverdue = isOverdue ? Math.floor((new Date() - new Date(bill.data.details.dueDate)) / 86400000) : 0;
                   return (
-                    <tr key={bill.id} style={isOverdue && status !== 'overdue' ? { background: '#fef2f2' } : {}}>
+                    <tr key={bill.id} style={isOverdue || status === 'overdue' ? { background: '#fef2f2' } : {}}>
                       <td className="text-muted">{new Date(bill.invoiceDate).toLocaleDateString('en-IN')}</td>
                       <td><span className="invoice-badge">{bill.invoiceNumber}</span></td>
                       <td><span className="type-badge">{(INVOICE_TYPES[bill.invoiceType || 'tax-invoice'])?.label}</span></td>
-                      <td className="font-medium td-client" title={bill.clientName}>{bill.clientName}</td>
+                      <td className="font-medium td-client" title={bill.clientName}>
+                        {bill.clientName}
+                        {bill.data?.internalNote && (
+                          <span title={bill.data.internalNote} style={{ marginLeft: 4, cursor: 'help', verticalAlign: 'middle' }}>
+                            <StickyNote size={13} style={{ color: '#ca8a04' }} />
+                          </span>
+                        )}
+                      </td>
                       <td className="font-bold">{formatCurrency(bill.totalAmount)}</td>
                       <td className="text-muted">{(bill.paidAmount || 0) > 0 ? formatCurrency(bill.paidAmount) : '-'}</td>
                       <td>
@@ -247,15 +298,19 @@ export default function Dashboard({ onNew, onEdit, onDuplicate }) {
                             <option key={key} value={key}>{val.label}</option>
                           ))}
                         </select>
+                        {daysOverdue > 0 && <span style={{ fontSize: '0.7rem', color: '#dc2626', display: 'block', marginTop: 2 }}>{daysOverdue}d overdue</span>}
                       </td>
                       <td>
                         <div className="table-actions">
                           <button className="icon-btn icon-btn-blue" onClick={() => handleView(bill)} title="Edit"><Edit3 size={15} /></button>
                           <button className="icon-btn icon-btn-blue" onClick={() => onDuplicate(bill)} title="Duplicate"><Copy size={15} /></button>
+                          {(bill.invoiceType === 'proforma' || bill.invoiceType === 'delivery-challan') && (
+                            <button className="icon-btn icon-btn-green" onClick={() => onConvert(bill)} title="Convert to Tax Invoice"><FileText size={15} /></button>
+                          )}
                           <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)} title="Payment"><IndianRupee size={15} /></button>
                           <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)} title="WhatsApp"><MessageCircle size={15} /></button>
                           <button className="icon-btn icon-btn-blue" onClick={() => shareEmail(bill)} title="Email"><Mail size={15} /></button>
-                          <button className="icon-btn icon-btn-red" onClick={() => handleDelete(bill.id)} title="Delete"><Trash2 size={15} /></button>
+                          <button className="icon-btn icon-btn-red" onClick={() => handleDelete(bill)} title="Delete"><Trash2 size={15} /></button>
                         </div>
                       </td>
                     </tr>

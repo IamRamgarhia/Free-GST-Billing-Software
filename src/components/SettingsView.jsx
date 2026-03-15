@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { getProfile, saveProfile, exportAllData, importData, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllClients, deleteClient } from '../store';
+import { getProfile, saveProfile, exportAllData, importData, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllClients, deleteClient, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings } from '../store';
 import { INDIAN_STATES } from '../utils';
-import { Save, Upload, Download, Plus, Trash2, Image, PenTool, Cloud, CloudOff } from 'lucide-react';
+import { Save, Upload, Download, Plus, Trash2, Image, PenTool, Cloud, CloudOff, Building2, Hash } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
 
@@ -17,6 +17,11 @@ export default function SettingsView({ onSaved }) {
   const [savedClients, setSavedClients] = useState([]);
   const [driveConnected, setDriveConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [businessProfiles, setBusinessProfiles] = useState([]);
+  const [invNumSettings, setInvNumSettings] = useState({
+    format: 'branded', brandPrefix: '', separator: '/', showFinYear: true, startNumber: 1, padDigits: 4,
+  });
+  const [invNumSaving, setInvNumSaving] = useState(false);
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const sigInputRef = useRef(null);
@@ -25,11 +30,14 @@ export default function SettingsView({ onSaved }) {
     getProfile().then(setProfile);
     loadTemplates();
     loadClients();
+    loadBusinessProfiles();
     setDriveConnected(isConnected());
+    getInvoiceNumberSettings().then(setInvNumSettings);
   }, []);
 
   const loadTemplates = async () => setTermsTemplates(await getTermsTemplates());
   const loadClients = async () => setSavedClients(await getAllClients());
+  const loadBusinessProfiles = async () => setBusinessProfiles(await getAllProfiles());
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,6 +64,36 @@ export default function SettingsView({ onSaved }) {
       toast('Profile saved!', 'success');
     } catch { toast('Failed to save profile', 'error'); }
     finally { setSaving(false); }
+  };
+
+  // Invoice Number Settings
+  const handleInvNumChange = (field, value) => {
+    setInvNumSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveInvNumSettings = async () => {
+    setInvNumSaving(true);
+    try {
+      await saveInvoiceNumberSettings(invNumSettings);
+      toast('Invoice number settings saved!', 'success');
+    } catch { toast('Failed to save settings', 'error'); }
+    finally { setInvNumSaving(false); }
+  };
+
+  const getInvNumPreview = () => {
+    const s = invNumSettings;
+    const pfx = s.brandPrefix || 'INV';
+    const sep = s.separator || '/';
+    const padded = String(s.startNumber || 1).padStart(s.padDigits || 4, '0');
+    if (s.format === 'random') {
+      return `${pfx}${sep}A3X9K2`;
+    }
+    if (s.showFinYear) {
+      const yr = new Date().getFullYear();
+      const ny = (yr + 1).toString().slice(-2);
+      return `${pfx}${sep}${yr}-${ny}${sep}${padded}`;
+    }
+    return `${pfx}${sep}${padded}`;
   };
 
   // Google Drive
@@ -130,6 +168,31 @@ export default function SettingsView({ onSaved }) {
 
   const handleDeleteTemplate = async (id) => {
     if (confirm('Delete this template?')) { await deleteTermsTemplate(id); toast('Deleted', 'success'); loadTemplates(); }
+  };
+
+  // Multi-business profiles
+  const handleSaveAsProfile = async () => {
+    if (!profile.businessName.trim()) { toast('Save profile first (business name required)', 'warning'); return; }
+    await saveBusinessProfile({ ...profile, id: undefined });
+    toast('Business profile saved! You can switch between profiles anytime.', 'success');
+    loadBusinessProfiles();
+  };
+
+  const handleLoadProfile = async (bp) => {
+    const loaded = { ...bp };
+    delete loaded.id;
+    setProfile(loaded);
+    await saveProfile(loaded);
+    if (onSaved) onSaved(loaded);
+    toast(`Switched to ${bp.businessName}`, 'success');
+  };
+
+  const handleDeleteProfile = async (id) => {
+    if (confirm('Delete this saved business profile?')) {
+      await deleteBusinessProfile(id);
+      toast('Profile deleted', 'success');
+      loadBusinessProfiles();
+    }
   };
 
   // Saved clients
@@ -208,6 +271,86 @@ export default function SettingsView({ onSaved }) {
               placeholder="e.g. yourbusiness@upi or 9876543210@paytm" />
             <p className="field-hint">If set, a QR code will appear on invoices for instant UPI payment.</p>
           </div>
+        </div>
+
+        {/* Invoice Number Format */}
+        <h3 className="section-title mt-8"><Hash size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />Invoice Number Format</h3>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem' }}>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>Preview:</p>
+          <p style={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--accent)', margin: 0 }}>{getInvNumPreview()}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="form-group full-width">
+            <label className="form-label">Format Style</label>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {[
+                { id: 'branded', label: 'Branded Sequential', desc: 'PREFIX/2026-27/0001' },
+                { id: 'sequential', label: 'Simple Sequential', desc: 'PREFIX/0001' },
+                { id: 'random', label: 'Random', desc: 'PREFIX/A3X9K2' },
+              ].map(f => (
+                <button key={f.id} type="button"
+                  className={`type-chip ${invNumSettings.format === f.id ? 'type-chip-active' : ''}`}
+                  onClick={() => {
+                    const updates = { format: f.id };
+                    if (f.id === 'sequential') updates.showFinYear = false;
+                    if (f.id === 'branded') updates.showFinYear = true;
+                    setInvNumSettings(prev => ({ ...prev, ...updates }));
+                  }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Brand Prefix</label>
+            <input type="text" className="form-input" value={invNumSettings.brandPrefix}
+              onChange={e => handleInvNumChange('brandPrefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              placeholder="e.g. ACME, BK (leave empty for INV/EST/CN)" maxLength={10} />
+            <p className="field-hint">Your brand name or abbreviation. Leave empty to use default type prefix (INV, EST, CN, BOS).</p>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Separator</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {['/', '-', '#'].map(sep => (
+                <button key={sep} type="button"
+                  className={`type-chip ${invNumSettings.separator === sep ? 'type-chip-active' : ''}`}
+                  style={{ minWidth: 44, fontFamily: 'monospace', fontWeight: 700 }}
+                  onClick={() => handleInvNumChange('separator', sep)}>
+                  {sep}
+                </button>
+              ))}
+            </div>
+          </div>
+          {invNumSettings.format !== 'random' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Include Financial Year</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 4 }}>
+                  <button type="button"
+                    className={`type-chip ${invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
+                    onClick={() => handleInvNumChange('showFinYear', true)}>Yes (2026-27)</button>
+                  <button type="button"
+                    className={`type-chip ${!invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
+                    onClick={() => handleInvNumChange('showFinYear', false)}>No</button>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Number Padding</label>
+                <select className="form-input" value={invNumSettings.padDigits}
+                  onChange={e => handleInvNumChange('padDigits', Number(e.target.value))}>
+                  <option value={3}>3 digits (001)</option>
+                  <option value={4}>4 digits (0001)</option>
+                  <option value={5}>5 digits (00001)</option>
+                  <option value={6}>6 digits (000001)</option>
+                </select>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button type="button" className="btn btn-primary" onClick={handleSaveInvNumSettings} disabled={invNumSaving}>
+            <Save size={16} /> {invNumSaving ? 'Saving...' : 'Save Number Format'}
+          </button>
         </div>
 
         {/* Logo & Signature */}
@@ -372,6 +515,49 @@ export default function SettingsView({ onSaved }) {
                   </div>
                 </div>
                 <p className="template-card-preview">{tpl.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ---- Multi-Business Profiles ---- */}
+      <div className="glass-panel p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="section-title" style={{ margin: 0 }}>Business Profiles</h3>
+          <button type="button" className="btn btn-primary" onClick={handleSaveAsProfile}>
+            <Building2 size={16} /> Save Current as Profile
+          </button>
+        </div>
+        <p className="page-subtitle mb-4">
+          Save multiple business profiles and switch between them. Useful if you manage invoicing for more than one business.
+        </p>
+        {businessProfiles.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+            No saved profiles yet. Fill in your business details above and click "Save Current as Profile".
+          </p>
+        ) : (
+          <div className="template-list">
+            {businessProfiles.map(bp => (
+              <div key={bp.id} className="template-card">
+                <div className="template-card-header">
+                  <div>
+                    <strong>{bp.businessName}</strong>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                      {bp.state}{bp.gstin ? ` | ${bp.gstin}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                      onClick={() => handleLoadProfile(bp)}>
+                      Switch
+                    </button>
+                    <button className="icon-btn icon-btn-red" onClick={() => handleDeleteProfile(bp.id)} title="Delete">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                {bp.address && <p className="template-card-preview">{bp.address}</p>}
               </div>
             ))}
           </div>

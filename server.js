@@ -10,10 +10,10 @@ const PORT = 3001;
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Ensure data directory and sub-directories exist
-const DIRS = ['bills', 'clients', 'templates'];
+const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles'];
 for (const dir of DIRS) {
   const dirPath = path.join(DATA_DIR, dir);
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -24,17 +24,24 @@ function safeFileName(id) {
   return String(id).replace(/[/\\:*?"<>|]/g, '_');
 }
 
-// Helper: read all JSON files from a directory
+// In-memory cache for directory reads — invalidated on write/delete
+const dirCache = {};
+function invalidateCache(dir) { delete dirCache[dir]; }
+
+// Helper: read all JSON files from a directory (cached)
 function readAllFromDir(dir) {
+  if (dirCache[dir]) return dirCache[dir];
   const dirPath = path.join(DATA_DIR, dir);
   if (!fs.existsSync(dirPath)) return [];
-  return fs.readdirSync(dirPath)
+  const results = fs.readdirSync(dirPath)
     .filter(f => f.endsWith('.json'))
     .map(f => {
       try { return JSON.parse(fs.readFileSync(path.join(dirPath, f), 'utf-8')); }
       catch { return null; }
     })
     .filter(Boolean);
+  dirCache[dir] = results;
+  return results;
 }
 
 // Helper: read a single JSON file
@@ -45,9 +52,19 @@ function readJSON(filePath, fallback = null) {
   return fallback;
 }
 
-// Helper: write JSON file
+// Helper: write JSON file (with cache invalidation)
 function writeJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  // Invalidate cache for the parent directory
+  const parentDir = path.basename(path.dirname(filePath));
+  if (DIRS.includes(parentDir)) invalidateCache(parentDir);
+}
+
+// Helper: delete file (with cache invalidation)
+function deleteFile(filePath) {
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  const parentDir = path.basename(path.dirname(filePath));
+  if (DIRS.includes(parentDir)) invalidateCache(parentDir);
 }
 
 // ========================
@@ -69,7 +86,7 @@ app.post('/api/bills', (req, res) => {
 
 app.delete('/api/bills/:id', (req, res) => {
   const filePath = path.join(DATA_DIR, 'bills', safeFileName(req.params.id) + '.json');
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  deleteFile(filePath);
   res.json({ success: true });
 });
 
@@ -80,7 +97,7 @@ const PROFILE_PATH = path.join(DATA_DIR, 'profile.json');
 const DEFAULT_PROFILE = {
   businessName: '', address: '', state: '', gstin: '', pan: '',
   email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
-  logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Biller Invoices',
+  logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'BillKaro Invoices',
 };
 
 app.get('/api/profile', (req, res) => {
@@ -111,7 +128,7 @@ app.post('/api/clients', (req, res) => {
 
 app.delete('/api/clients/:id', (req, res) => {
   const filePath = path.join(DATA_DIR, 'clients', safeFileName(req.params.id) + '.json');
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  deleteFile(filePath);
   res.json({ success: true });
 });
 
@@ -144,7 +161,122 @@ app.post('/api/templates', (req, res) => {
 
 app.delete('/api/templates/:id', (req, res) => {
   const filePath = path.join(DATA_DIR, 'templates', safeFileName(req.params.id) + '.json');
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
+// ========================
+// PRODUCTS / INVENTORY
+// ========================
+app.get('/api/products', (req, res) => {
+  const products = readAllFromDir('products');
+  products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  res.json(products);
+});
+
+app.post('/api/products', (req, res) => {
+  const product = req.body;
+  if (!product.id) product.id = 'prod_' + Date.now();
+  const filePath = path.join(DATA_DIR, 'products', safeFileName(product.id) + '.json');
+  writeJSON(filePath, product);
+  res.json({ success: true, id: product.id });
+});
+
+app.delete('/api/products/:id', (req, res) => {
+  const filePath = path.join(DATA_DIR, 'products', safeFileName(req.params.id) + '.json');
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
+// ========================
+// EXPENSES
+// ========================
+app.get('/api/expenses', (req, res) => {
+  const expenses = readAllFromDir('expenses');
+  expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+  res.json(expenses);
+});
+
+app.post('/api/expenses', (req, res) => {
+  const expense = req.body;
+  if (!expense.id) expense.id = 'exp_' + Date.now();
+  const filePath = path.join(DATA_DIR, 'expenses', safeFileName(expense.id) + '.json');
+  writeJSON(filePath, expense);
+  res.json({ success: true, id: expense.id });
+});
+
+app.delete('/api/expenses/:id', (req, res) => {
+  const filePath = path.join(DATA_DIR, 'expenses', safeFileName(req.params.id) + '.json');
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
+// ========================
+// RECURRING INVOICES
+// ========================
+app.get('/api/recurring', (req, res) => {
+  const items = readAllFromDir('recurring');
+  items.sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''));
+  res.json(items);
+});
+
+app.post('/api/recurring', (req, res) => {
+  const item = req.body;
+  if (!item.id) item.id = 'rec_' + Date.now();
+  const filePath = path.join(DATA_DIR, 'recurring', safeFileName(item.id) + '.json');
+  writeJSON(filePath, item);
+  res.json({ success: true, id: item.id });
+});
+
+app.delete('/api/recurring/:id', (req, res) => {
+  const filePath = path.join(DATA_DIR, 'recurring', safeFileName(req.params.id) + '.json');
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
+// ========================
+// RECEIPTS / PAYMENT VOUCHERS
+// ========================
+app.get('/api/receipts', (req, res) => {
+  const receipts = readAllFromDir('receipts');
+  receipts.sort((a, b) => new Date(b.date) - new Date(a.date));
+  res.json(receipts);
+});
+
+app.post('/api/receipts', (req, res) => {
+  const receipt = req.body;
+  if (!receipt.id) receipt.id = 'rcp_' + Date.now();
+  const filePath = path.join(DATA_DIR, 'receipts', safeFileName(receipt.id) + '.json');
+  writeJSON(filePath, receipt);
+  res.json({ success: true, id: receipt.id });
+});
+
+app.delete('/api/receipts/:id', (req, res) => {
+  const filePath = path.join(DATA_DIR, 'receipts', safeFileName(req.params.id) + '.json');
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
+// ========================
+// BUSINESS PROFILES (multi-business)
+// ========================
+app.get('/api/profiles', (req, res) => {
+  const profiles = readAllFromDir('profiles');
+  profiles.sort((a, b) => (a.businessName || '').localeCompare(b.businessName || ''));
+  res.json(profiles);
+});
+
+app.post('/api/profiles', (req, res) => {
+  const prof = req.body;
+  if (!prof.id) prof.id = 'biz_' + Date.now();
+  const filePath = path.join(DATA_DIR, 'profiles', safeFileName(prof.id) + '.json');
+  writeJSON(filePath, prof);
+  res.json({ success: true, id: prof.id });
+});
+
+app.delete('/api/profiles/:id', (req, res) => {
+  const filePath = path.join(DATA_DIR, 'profiles', safeFileName(req.params.id) + '.json');
+  deleteFile(filePath);
   res.json({ success: true });
 });
 
@@ -174,6 +306,11 @@ app.get('/api/export', (req, res) => {
     profile: readJSON(PROFILE_PATH, DEFAULT_PROFILE),
     clients: readAllFromDir('clients'),
     termsTemplates: readAllFromDir('templates'),
+    products: readAllFromDir('products'),
+    expenses: readAllFromDir('expenses'),
+    recurring: readAllFromDir('recurring'),
+    receipts: readAllFromDir('receipts'),
+    profiles: readAllFromDir('profiles'),
     meta: readJSON(META_PATH, {}),
     exportedAt: new Date().toISOString(),
   };
@@ -182,7 +319,7 @@ app.get('/api/export', (req, res) => {
 
 app.post('/api/import', (req, res) => {
   const data = req.body;
-  let billCount = 0, clientCount = 0, templateCount = 0;
+  let billCount = 0, clientCount = 0, templateCount = 0, productCount = 0;
 
   if (data.profile) {
     writeJSON(PROFILE_PATH, data.profile);
@@ -211,11 +348,47 @@ app.post('/api/import', (req, res) => {
       }
     }
   }
+  if (data.products && Array.isArray(data.products)) {
+    for (const prod of data.products) {
+      if (prod.id) {
+        writeJSON(path.join(DATA_DIR, 'products', safeFileName(prod.id) + '.json'), prod);
+        productCount++;
+      }
+    }
+  }
+  if (data.expenses && Array.isArray(data.expenses)) {
+    for (const exp of data.expenses) {
+      if (exp.id) {
+        writeJSON(path.join(DATA_DIR, 'expenses', safeFileName(exp.id) + '.json'), exp);
+      }
+    }
+  }
+  if (data.recurring && Array.isArray(data.recurring)) {
+    for (const rec of data.recurring) {
+      if (rec.id) {
+        writeJSON(path.join(DATA_DIR, 'recurring', safeFileName(rec.id) + '.json'), rec);
+      }
+    }
+  }
+  if (data.receipts && Array.isArray(data.receipts)) {
+    for (const rcp of data.receipts) {
+      if (rcp.id) {
+        writeJSON(path.join(DATA_DIR, 'receipts', safeFileName(rcp.id) + '.json'), rcp);
+      }
+    }
+  }
+  if (data.profiles && Array.isArray(data.profiles)) {
+    for (const prof of data.profiles) {
+      if (prof.id) {
+        writeJSON(path.join(DATA_DIR, 'profiles', safeFileName(prof.id) + '.json'), prof);
+      }
+    }
+  }
   if (data.meta) {
     writeJSON(META_PATH, data.meta);
   }
 
-  res.json({ billCount, clientCount, templateCount, hasProfile: !!data.profile });
+  res.json({ billCount, clientCount, templateCount, productCount, hasProfile: !!data.profile });
 });
 
 // ========================
@@ -233,6 +406,6 @@ if (fs.existsSync(distPath)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`\n  GST Biller server running at http://localhost:${PORT}`);
+  console.log(`\n  BillKaro server running at http://localhost:${PORT}`);
   console.log(`  Data stored in: ${DATA_DIR}\n`);
 });
