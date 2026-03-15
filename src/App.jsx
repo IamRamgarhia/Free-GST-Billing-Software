@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, AlertTriangle } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SettingsView from './components/SettingsView';
@@ -168,26 +168,26 @@ function App() {
     return (
       <div className="server-down-overlay">
         <div className="server-down-modal">
-          <AlertTriangle size={48} color="#f59e0b" />
-          <h2>Local Server is Not Running</h2>
+          <FileText size={48} color="#3b82f6" />
+          <h2>FreeGSTBill Needs a Quick Start</h2>
           <p>
-            FreeGSTBill runs entirely on <strong>your computer</strong> — your data never leaves your machine.
-            But the local server needs to be started first.
+            Your data is <strong>100% safe</strong> on your computer — nothing is lost.
+            The app just needs to be started once.
           </p>
           <a href="freegstbill://start" className="server-start-btn">
-            Start FreeGSTBill Server
+            Open FreeGSTBill
           </a>
           <div className="server-down-steps">
-            <p className="server-down-hint">Button not working? Start manually:</p>
+            <p className="server-down-hint">Or start manually:</p>
             <ol>
               <li>Double-click <strong>FreeGSTBill</strong> on your Desktop</li>
               <li>Or search <strong>"FreeGSTBill"</strong> in Start Menu</li>
-              <li>Or double-click <strong>Start FreeGSTBill.bat</strong> in the app folder</li>
             </ol>
           </div>
+          <p className="server-down-safe">All your invoices, clients, and data are safely stored on your computer. They are never deleted or shared.</p>
           <div className="server-down-waiting">
             <div className="server-down-spinner" />
-            <span>Waiting for server... This page will load automatically.</span>
+            <span>Starting... this page will open automatically.</span>
           </div>
         </div>
       </div>
