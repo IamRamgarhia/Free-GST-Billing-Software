@@ -152,19 +152,14 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
     const encoded = encodeURIComponent(msg);
-
-    // Try whatsapp:// protocol first (opens desktop app if installed)
-    const desktopUrl = `whatsapp://send?${phone ? `phone=${phone}&` : ''}text=${encoded}`;
-    const webUrl = `https://web.whatsapp.com/send?${phone ? `phone=${phone}&` : ''}text=${encoded}`;
-
-    // Try desktop app, fall back to web after timeout
-    window.open(desktopUrl, '_self');
-    setTimeout(() => {
-      // If we're still here, desktop app didn't open — use web
-      if (!document.hidden) {
-        window.open(webUrl, '_blank');
-      }
-    }, 1500);
+    const waUrl = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    const a = document.createElement('a');
+    a.href = waUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const shareEmail = (bill) => {

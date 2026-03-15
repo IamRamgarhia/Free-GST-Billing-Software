@@ -101,6 +101,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.25rem' }}>{profile?.businessName || 'Your Business'}</h2>
           <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
             {profile?.address && <p style={{ margin: 0 }}>{profile.address}</p>}
+            {(profile?.city || profile?.pin) && <p style={{ margin: 0 }}>{[profile.city, profile.pin].filter(Boolean).join(' - ')}</p>}
             {showState && profile?.state && <p style={{ margin: 0 }}>{profile.state}</p>}
             {showGSTIN && profile?.gstin && <p style={{ margin: 0 }}>GSTIN: {profile.gstin}</p>}
           </div>
@@ -129,6 +130,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>{profile?.businessName || 'Your Business'}</h2>
           <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.6, marginTop: '0.25rem' }}>
             {profile?.address && <p style={{ margin: 0 }}>{profile.address}</p>}
+            {(profile?.city || profile?.pin) && <p style={{ margin: 0 }}>{[profile.city, profile.pin].filter(Boolean).join(' - ')}</p>}
             {showState && profile?.state && <p style={{ margin: 0 }}>{profile.state}</p>}
             {showGSTIN && profile?.gstin && <p style={{ margin: 0 }}>GSTIN: {profile.gstin}</p>}
             {profile?.email && <p style={{ margin: 0 }}>{profile.email}</p>}
@@ -177,6 +179,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <h2 className="inv-business-name">{profile?.businessName || 'Your Business'}</h2>
           <div className="inv-business-details">
             {profile?.address && <p>{profile.address}</p>}
+            {(profile?.city || profile?.pin) && <p>{[profile.city, profile.pin].filter(Boolean).join(' - ')}</p>}
             {showState && profile?.state && <p>{profile.state}</p>}
             {showGSTIN && profile?.gstin && <p>GSTIN: <strong>{profile.gstin}</strong></p>}
             {profile?.email && <p>{profile.email}</p>}
@@ -196,7 +199,8 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <h4 className="inv-section-label">BILL TO</h4>
           <p className="inv-party-name">{client?.name || 'Client Name'}</p>
           <div className="inv-party-details">
-            {client?.address && <p style={{ whiteSpace: 'pre-line' }}>{client.address}</p>}
+            {client?.address && <p>{client.address}</p>}
+            {(client?.city || client?.pin) && <p>{[client.city, client.pin].filter(Boolean).join(' - ')}</p>}
             {showState && client?.state && <p>{client.state}</p>}
             {showGSTIN && client?.gstin && <p>GSTIN: <strong>{client.gstin}</strong></p>}
           </div>
@@ -400,7 +404,11 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           {showTerms && customTerms && (
             <div className="inv-footer-block">
               <h4 className="inv-section-label">TERMS & CONDITIONS</h4>
-              <p className="inv-terms">{customTerms}</p>
+              <div className="inv-terms">
+                {customTerms.split('\n').filter(l => l.trim()).map((line, i) => (
+                  <span key={i}>{line.trim()}{i < customTerms.split('\n').filter(l => l.trim()).length - 1 ? ' | ' : ''}</span>
+                ))}
+              </div>
             </div>
           )}
           {showNotes && customNotes && (

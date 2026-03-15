@@ -7,6 +7,7 @@ import { INDIAN_STATES, INVOICE_TYPES, generateEWayBillJSON } from '../utils';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
+import ClientModal from './ClientModal';
 import { toast } from './Toast';
 
 // Rich text editor component that works with contentEditable properly
@@ -93,7 +94,7 @@ const PDF_STYLES = [
 export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   const draft = loadDraft();
   const [invoiceType, setInvoiceType] = useState(draft?.invoiceType || 'tax-invoice');
-  const [client, setClient] = useState(draft?.client || { name: '', address: '', state: '', gstin: '' });
+  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '' });
   const [details, setDetails] = useState(draft?.details || {
     invoiceNumber: '',
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -117,9 +118,11 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   const [savedClients, setSavedClients] = useState([]);
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState(null);
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [modalClient, setModalClient] = useState(null);
+  const [isEditingClient, setIsEditingClient] = useState(false);
   const clientNameRef = useRef(null);
   const clientSuggestionsRef = useRef(null);
-  const clientAutoSaveTimer = useRef(null);
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState({ itemId: null, query: '' });
   const [invoiceOptions, setInvoiceOptions] = useState(() => {
@@ -365,43 +368,51 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   };
 
   const selectSavedClient = (cli) => {
-    setClient({ name: cli.name, address: cli.address, state: cli.state, gstin: cli.gstin });
+    setClient({ name: cli.name, address: cli.address || '', city: cli.city || '', pin: cli.pin || '', state: cli.state || '', gstin: cli.gstin || '' });
     setSelectedClientId(cli.id);
     setShowClientSuggestions(false);
     toast(`Loaded client: ${cli.name}`, 'info');
   };
 
-  const handleSaveClient = async () => {
-    if (!client.name.trim()) { toast('Enter client name first', 'warning'); return; }
-    const clientData = { name: client.name, address: client.address, state: client.state, gstin: client.gstin };
-    if (selectedClientId) clientData.id = selectedClientId;
-    await saveClient(clientData);
-    const updated = await getAllClients();
-    setSavedClients(updated);
-    if (!selectedClientId) {
-      const found = updated.find(c => c.name.toLowerCase() === client.name.trim().toLowerCase());
-      if (found) setSelectedClientId(found.id);
-    }
-    toast(`Client "${client.name}" saved!`, 'success');
+  // Open modal to add new client (pre-fill from current invoice fields)
+  const openAddClientModal = () => {
+    setModalClient({ name: client.name || '', address: client.address || '', city: client.city || '', pin: client.pin || '', state: client.state || '', gstin: client.gstin || '' });
+    setIsEditingClient(false);
+    setShowClientModal(true);
     setShowClientSuggestions(false);
   };
 
-  // Auto-update saved client when user edits fields (debounced 1.5s)
-  useEffect(() => {
-    if (!selectedClientId || !client.name.trim()) return;
-    clearTimeout(clientAutoSaveTimer.current);
-    clientAutoSaveTimer.current = setTimeout(async () => {
-      await saveClient({ id: selectedClientId, name: client.name, address: client.address, state: client.state, gstin: client.gstin });
-      setSavedClients(await getAllClients());
-    }, 1500);
-    return () => clearTimeout(clientAutoSaveTimer.current);
-  }, [client.name, client.address, client.state, client.gstin, selectedClientId]);
+  // Open modal to edit existing saved client
+  const openEditClientModal = (cli) => {
+    setModalClient(cli);
+    setIsEditingClient(true);
+    setShowClientModal(true);
+  };
+
+  // Save from modal (add or update)
+  const handleClientModalSave = async (formData) => {
+    const data = { ...formData };
+    if (isEditingClient && modalClient?.id) data.id = modalClient.id;
+    await saveClient(data);
+    const updated = await getAllClients();
+    setSavedClients(updated);
+    // Also update the invoice form fields
+    setClient({ name: data.name, address: data.address, city: data.city || '', pin: data.pin || '', state: data.state, gstin: data.gstin });
+    if (isEditingClient && modalClient?.id) {
+      setSelectedClientId(modalClient.id);
+      toast(`Client "${data.name}" updated!`, 'success');
+    } else {
+      const found = updated.find(c => c.name === data.name.trim() && !savedClients.some(old => old.id === c.id));
+      if (found) setSelectedClientId(found.id);
+      toast(`Client "${data.name}" saved!`, 'success');
+    }
+    setShowClientModal(false);
+  };
 
   // Filter saved clients based on typed name
   const filteredClients = client.name.trim()
     ? savedClients.filter(cli => cli.name.toLowerCase().includes(client.name.trim().toLowerCase()))
     : savedClients;
-  const exactMatch = savedClients.some(cli => cli.name.toLowerCase() === client.name.trim().toLowerCase());
 
   // Close suggestions on click outside
   useEffect(() => {
@@ -502,7 +513,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
       onclone: (clonedDoc) => {
         clonedDoc.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; });
         const inv = clonedDoc.getElementById('invoice-preview');
-        if (inv) { inv.style.width = '210mm'; inv.style.overflow = 'visible'; inv.style.minHeight = 'unset'; }
+        if (inv) { inv.style.width = '210mm'; inv.style.overflow = 'visible'; inv.style.minHeight = 'unset'; inv.style.border = 'none'; inv.style.boxShadow = 'none'; inv.style.borderRadius = '0'; }
         clonedDoc.querySelectorAll('[data-pdf-page]').forEach(el => el.style.display = 'none');
       }
     });
@@ -511,13 +522,13 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     // Add main invoice page(s)
     const mainImg = mainCanvas.toDataURL('image/jpeg', 0.92);
     const mainImgHeight = (mainCanvas.height * pdfWidth) / mainCanvas.width;
-    if (mainImgHeight <= pdfPageHeight) {
-      pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, mainImgHeight);
+    if (mainImgHeight <= pdfPageHeight + 2) {
+      pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight));
     } else {
       let heightLeft = mainImgHeight, position = 0;
       pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight);
       heightLeft -= pdfPageHeight;
-      while (heightLeft > 0) { position -= pdfPageHeight; pdf.addPage(); pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight); heightLeft -= pdfPageHeight; }
+      while (heightLeft > 2) { position -= pdfPageHeight; pdf.addPage(); pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight); heightLeft -= pdfPageHeight; }
     }
 
     // Capture each extra section as a separate PDF page
@@ -563,52 +574,19 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     }
   };
 
-  const shareWhatsApp = async () => {
-    if (!printRef.current) return;
-    try {
-      setSaving(true);
-      const pdf = await buildPDF();
-      const fileName = `${typeConfig.prefix}_${details.invoiceNumber.replace(/\//g, '-')}.pdf`;
-      const pdfBlob = pdf.output('blob');
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-      // Try Web Share API with PDF attachment
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        const msg = `Invoice: ${details.invoiceNumber}\nClient: ${client?.name || ''}\nAmount: ${formatCurrency(items.reduce((s, i) => s + (i.quantity * i.rate), 0))}`;
-        await navigator.share({ title: `Invoice ${details.invoiceNumber}`, text: msg, files: [pdfFile] });
-        toast('Shared successfully!', 'success');
-      } else {
-        // Fallback: open WhatsApp with text
-        const phone = client?.phone ? client.phone.replace(/\D/g, '') : '';
-        const msg = `*Invoice: ${details.invoiceNumber}*\nClient: ${client?.name || ''}\nAmount: ${formatCurrency(items.reduce((s, i) => s + (i.quantity * i.rate), 0))}\nDate: ${details.invoiceDate}`;
-        const encoded = encodeURIComponent(msg);
-        const desktopUrl = `whatsapp://send?${phone ? `phone=${phone}&` : ''}text=${encoded}`;
-        const webUrl = `https://web.whatsapp.com/send?${phone ? `phone=${phone}&` : ''}text=${encoded}`;
-
-        window.open(desktopUrl, '_self');
-        setTimeout(() => {
-          if (!document.hidden) window.open(webUrl, '_blank');
-        }, 1500);
-        toast('PDF not attached — use Download + share manually, or try on mobile.', 'info', 5000);
-      }
-
-      // Save to local "Saved Invoices" folder
-      const invoiceDate = details.invoiceDate ? new Date(details.invoiceDate) : new Date();
-      const monthName = invoiceDate.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-      const clientName = client?.name || 'General';
-      const params = new URLSearchParams({ name: fileName, client: clientName, month: monthName });
-      fetch(`/api/save-pdf?${params}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: pdfBlob }).catch(() => {});
-
-      await saveInvoiceToDB();
-      clearDraft();
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error(err);
-        toast('Failed to share.', 'error');
-      }
-    } finally {
-      setSaving(false);
-    }
+  const shareWhatsApp = () => {
+    const phone = client?.phone ? client.phone.replace(/\D/g, '') : '';
+    const amount = formatCurrency(items.reduce((s, i) => s + (i.quantity * i.rate), 0));
+    const msg = `*Invoice: ${details.invoiceNumber}*\nClient: ${client?.name || ''}\nAmount: ${amount}\nDate: ${details.invoiceDate}`;
+    const encoded = encodeURIComponent(msg);
+    const waUrl = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    const a = document.createElement('a');
+    a.href = waUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const exportEWayBill = () => {
@@ -748,6 +726,9 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
             )}
           </div>
 
+          {/* Client Modal */}
+          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} />
+
           {/* Client Details */}
           <div className="glass-panel p-6 mb-6">
             <div className="flex justify-between items-center mb-4">
@@ -757,39 +738,39 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group full-width" style={{ position: 'relative' }}>
                 <label className="form-label">Client Name</label>
-                <div style={{ position: 'relative' }}>
-                  <input type="text" className="form-input" value={client.name} ref={clientNameRef}
-                    style={selectedClientId ? { paddingRight: '6.5rem' } : undefined}
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <input type="text" className="form-input" style={{ flex: 1 }} value={client.name} ref={clientNameRef}
                     onChange={(e) => {
-                      const val = e.target.value;
-                      setClient({ ...client, name: val });
-                      // If user clears or types something totally different, unlink from saved client
-                      if (selectedClientId) {
-                        const linked = savedClients.find(c => c.id === selectedClientId);
-                        if (linked && !val.toLowerCase().startsWith(linked.name.toLowerCase().substring(0, 2))) {
-                          setSelectedClientId(null);
-                        }
-                      }
+                      setClient({ ...client, name: e.target.value });
+                      setSelectedClientId(null);
                       setShowClientSuggestions(true);
                     }}
-                    onFocus={() => { if (savedClients.length > 0 && !selectedClientId) setShowClientSuggestions(true); }}
+                    onFocus={() => { if (savedClients.length > 0) setShowClientSuggestions(true); }}
                     placeholder="Type client name to search or add new" autoComplete="off" />
                   {selectedClientId && (
-                    <span className="client-linked-badge" title="Linked to saved client — edits auto-sync">
-                      <Pencil size={12} /> Saved
-                    </span>
+                    <button type="button" className="btn-client-edit" onClick={() => openEditClientModal(savedClients.find(c => c.id === selectedClientId))} title="Edit saved client">
+                      <Pencil size={14} />
+                    </button>
                   )}
                 </div>
-                {showClientSuggestions && savedClients.length > 0 && !selectedClientId && (
+                {showClientSuggestions && savedClients.length > 0 && (
                   <div className="client-suggestions" ref={clientSuggestionsRef}>
                     {filteredClients.length > 0 && filteredClients.map(cli => (
-                      <button key={cli.id} type="button" className="client-suggestion-item" onClick={() => selectSavedClient(cli)}>
-                        <strong>{cli.name}</strong>
-                        <span>{cli.state}{cli.gstin ? ` · ${cli.gstin}` : ''}</span>
-                      </button>
+                      <div key={cli.id} className="client-suggestion-row">
+                        <button type="button" className="client-suggestion-item" onClick={() => selectSavedClient(cli)}>
+                          <div className="client-suggestion-main">
+                            <strong>{cli.name}</strong>
+                            {(cli.city || cli.address) && <small className="client-suggestion-addr">{cli.city || cli.address.substring(0, 30)}{!cli.city && cli.address.length > 30 ? '...' : ''}</small>}
+                          </div>
+                          <span>{cli.state}{cli.gstin ? ` · ${cli.gstin}` : ''}</span>
+                        </button>
+                        <button type="button" className="client-suggestion-edit" onClick={() => { openEditClientModal(cli); setShowClientSuggestions(false); }} title="Edit client">
+                          <Pencil size={12} />
+                        </button>
+                      </div>
                     ))}
-                    {client.name.trim() && !exactMatch && (
-                      <button type="button" className="client-suggestion-save" onClick={handleSaveClient}>
+                    {client.name.trim() && (
+                      <button type="button" className="client-suggestion-save" onClick={openAddClientModal}>
                         <UserPlus size={14} /> Save "{client.name.trim()}" as new client
                       </button>
                     )}
@@ -801,8 +782,18 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
               </div>
               <div className="form-group full-width">
                 <label className="form-label">Billing Address</label>
-                <textarea rows="2" className="form-input" value={client.address}
-                  onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Full billing address" />
+                <input type="text" className="form-input" value={client.address}
+                  onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Street address, locality" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">City</label>
+                <input type="text" className="form-input" value={client.city}
+                  onChange={(e) => setClient({ ...client, city: e.target.value })} placeholder="e.g. Mumbai" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">PIN Code</label>
+                <input type="text" className="form-input" value={client.pin}
+                  onChange={(e) => setClient({ ...client, pin: e.target.value.replace(/\D/g, '') })} placeholder="e.g. 400001" maxLength={6} />
               </div>
               {invoiceOptions.showState && (
                 <div className="form-group">
