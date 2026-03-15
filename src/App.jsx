@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SettingsView from './components/SettingsView';
@@ -29,15 +29,31 @@ function App() {
     return localStorage.getItem('freegstbill_theme') === 'dark';
   });
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const deferredPrompt = useRef(null);
 
   useEffect(() => {
     getProfile().then(p => {
       setProfile(p);
-      // Show welcome guide if first time (no business name and not previously dismissed)
       if (!p.businessName && !localStorage.getItem('freegstbill_onboarded')) {
         setShowWelcome(true);
       }
     });
+  }, []);
+
+  // Capture PWA install prompt
+  useEffect(() => {
+    const dismissed = localStorage.getItem('freegstbill_pwa_dismissed');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (dismissed || isStandalone) return;
+
+    const handler = (e) => {
+      e.preventDefault();
+      deferredPrompt.current = e;
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   useEffect(() => {
@@ -75,6 +91,21 @@ function App() {
     clone._isDuplicate = true;
     setEditingBill(clone);
     setCurrentView('new');
+  };
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt.current) return;
+    deferredPrompt.current.prompt();
+    const result = await deferredPrompt.current.userChoice;
+    if (result.outcome === 'accepted') {
+      setShowInstallBanner(false);
+    }
+    deferredPrompt.current = null;
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem('freegstbill_pwa_dismissed', '1');
   };
 
   const handleConvertToInvoice = (bill) => {
@@ -152,6 +183,14 @@ function App() {
         </nav>
       </div>
 
+      {showInstallBanner && (
+        <div className="pwa-install-banner">
+          <Download size={18} />
+          <span><strong>Install FreeGSTBill</strong> as a desktop app — opens instantly, no browser needed!</span>
+          <button className="pwa-install-btn" onClick={handleInstallPWA}>Install App</button>
+          <button className="pwa-dismiss-btn" onClick={dismissInstallBanner} title="Dismiss"><X size={16} /></button>
+        </div>
+      )}
       <div className="main-content">
         {currentView === 'dashboard' && (
           <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onConvert={handleConvertToInvoice} />
