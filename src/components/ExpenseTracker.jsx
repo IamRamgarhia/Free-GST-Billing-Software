@@ -50,11 +50,6 @@ export default function ExpenseTracker() {
 
   const fyOptions = getFYOptions();
 
-  useEffect(() => {
-    if (fyOptions[0]) setFyFilter(fyOptions[0].value);
-    loadExpenses();
-  }, []);
-
   const loadExpenses = async () => {
     try {
       setExpenses(await getAllExpenses());
@@ -62,6 +57,11 @@ export default function ExpenseTracker() {
       toast('Failed to load expenses', 'error');
     }
   };
+
+  useEffect(() => {
+    if (fyOptions[0]) setFyFilter(fyOptions[0].value);
+    loadExpenses();
+  }, []);
 
   const filtered = expenses.filter(exp => {
     if (search.trim()) {

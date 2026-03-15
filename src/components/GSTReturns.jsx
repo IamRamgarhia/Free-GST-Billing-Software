@@ -374,6 +374,13 @@ export default function GSTReturns() {
   const yearOptions = [];
   for (let y = currentYear; y >= currentYear - 5; y--) yearOptions.push(y);
 
+  const loadData = async () => {
+    try {
+      const [b, e, p] = await Promise.all([getAllBills(), getAllExpenses(), getProfile()]);
+      setBills(b); setExpenses(e); setProfile(p || {});
+    } catch { toast('Failed to load data', 'error'); }
+  };
+
   useEffect(() => {
     const now = new Date();
     const fy = fyOptions[0];
@@ -386,13 +393,6 @@ export default function GSTReturns() {
     if (q) setQuarterFilter(q.id);
     loadData();
   }, []);
-
-  const loadData = async () => {
-    try {
-      const [b, e, p] = await Promise.all([getAllBills(), getAllExpenses(), getProfile()]);
-      setBills(b); setExpenses(e); setProfile(p || {});
-    } catch { toast('Failed to load data', 'error'); }
-  };
 
   // ========== Period filtering ==========
   const filterByPeriod = (date) => {

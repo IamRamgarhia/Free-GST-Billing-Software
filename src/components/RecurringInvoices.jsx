@@ -18,14 +18,12 @@ const emptyForm = {
   notes: '', nextDate: '', active: true,
 };
 
-export default function RecurringInvoices({ onEdit }) {
+export default function RecurringInvoices() {
   const [templates, setTemplates] = useState([]);
   const [clients, setClients] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
-
-  useEffect(() => { load(); }, []);
 
   const load = async () => {
     try {
@@ -36,6 +34,8 @@ export default function RecurringInvoices({ onEdit }) {
       toast('Failed to load data', 'error');
     }
   };
+
+  useEffect(() => { load(); }, []);
 
   const openAdd = () => {
     const nextMonth = new Date();

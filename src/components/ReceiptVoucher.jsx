@@ -28,10 +28,6 @@ export default function ReceiptVoucher() {
   const [previewReceipt, setPreviewReceipt] = useState(null);
   const receiptRef = useRef(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     try {
       const [recs, bls, prof] = await Promise.all([getAllReceipts(), getAllBills(), getProfile()]);
@@ -42,6 +38,10 @@ export default function ReceiptVoucher() {
       toast('Failed to load data', 'error');
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const getNextReceiptNo = () => {
     const count = receipts.length + 1;

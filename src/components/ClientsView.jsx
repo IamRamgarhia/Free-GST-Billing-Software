@@ -21,10 +21,6 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const [modalClient, setModalClient] = useState(null);
   const [editingClientId, setEditingClientId] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     try {
       const [c, b] = await Promise.all([getAllClients(), getAllBills()]);
@@ -34,6 +30,10 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       toast('Failed to load data', 'error');
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // Group bills by client name
   const getClientBills = (clientName) => {

@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
-import { INDIAN_STATES, INVOICE_TYPES, generateEWayBillJSON } from '../utils';
+import { INDIAN_STATES, INVOICE_TYPES, generateEWayBillJSON, formatCurrency } from '../utils';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';

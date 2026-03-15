@@ -16,10 +16,6 @@ export default function InventoryView() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
   const loadProducts = async () => {
     try {
       const data = await getAllProducts();
@@ -28,6 +24,10 @@ export default function InventoryView() {
       toast('Failed to load products', 'error');
     }
   };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   const filtered = search.trim()
     ? products.filter(p =>

@@ -33,15 +33,6 @@ export default function ReportsView() {
   const yearOptions = [];
   for (let y = currentYear; y >= currentYear - 5; y--) yearOptions.push(y);
 
-  useEffect(() => {
-    const now = new Date();
-    const fy = fyOptions[0];
-    if (fy) setFyFilter(fy.value);
-    setYearFilter(String(now.getFullYear()));
-    setMonthFilter(String(now.getMonth()));
-    loadData();
-  }, []);
-
   const loadData = async () => {
     try {
       const [billData, expData] = await Promise.all([getAllBills(), getAllExpenses()]);
@@ -51,6 +42,15 @@ export default function ReportsView() {
       toast('Failed to load data', 'error');
     }
   };
+
+  useEffect(() => {
+    const now = new Date();
+    const fy = fyOptions[0];
+    if (fy) setFyFilter(fy.value);
+    setYearFilter(String(now.getFullYear()));
+    setMonthFilter(String(now.getMonth()));
+    loadData();
+  }, []);
 
   const filterByPeriod = (date) => {
     if (!date) return false;

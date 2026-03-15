@@ -37,28 +37,6 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
 
   const fyOptions = getFYOptions();
 
-  useEffect(() => { loadBills(); }, []);
-
-  useEffect(() => {
-    let result = bills;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(b =>
-        (b.clientName || '').toLowerCase().includes(q) ||
-        (b.invoiceNumber || '').toLowerCase().includes(q)
-      );
-    }
-    if (typeFilter !== 'all') result = result.filter(b => (b.invoiceType || 'tax-invoice') === typeFilter);
-    if (statusFilter !== 'all') result = result.filter(b => (b.status || 'unpaid') === statusFilter);
-    if (fyFilter !== 'all') {
-      const fy = fyOptions.find(f => f.value === fyFilter);
-      if (fy) result = result.filter(b => b.invoiceDate >= fy.from && b.invoiceDate <= fy.to);
-    }
-    if (dateFrom) result = result.filter(b => b.invoiceDate >= dateFrom);
-    if (dateTo) result = result.filter(b => b.invoiceDate <= dateTo);
-    setFiltered(result);
-  }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo]);
-
   const loadBills = async () => {
     try {
       const data = await getAllBills();
@@ -82,6 +60,28 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       toast('Failed to load invoices', 'error');
     }
   };
+
+  useEffect(() => { loadBills(); }, []);
+
+  useEffect(() => {
+    let result = bills;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(b =>
+        (b.clientName || '').toLowerCase().includes(q) ||
+        (b.invoiceNumber || '').toLowerCase().includes(q)
+      );
+    }
+    if (typeFilter !== 'all') result = result.filter(b => (b.invoiceType || 'tax-invoice') === typeFilter);
+    if (statusFilter !== 'all') result = result.filter(b => (b.status || 'unpaid') === statusFilter);
+    if (fyFilter !== 'all') {
+      const fy = fyOptions.find(f => f.value === fyFilter);
+      if (fy) result = result.filter(b => b.invoiceDate >= fy.from && b.invoiceDate <= fy.to);
+    }
+    if (dateFrom) result = result.filter(b => b.invoiceDate >= dateFrom);
+    if (dateTo) result = result.filter(b => b.invoiceDate <= dateTo);
+    setFiltered(result);
+  }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo]);
 
   const handleDelete = async (bill) => {
     if (confirm('Delete this invoice? This cannot be undone.')) {
