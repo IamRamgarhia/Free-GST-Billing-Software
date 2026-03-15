@@ -190,10 +190,45 @@ if exist "%STARTMENU_SHORTCUT%" (
 echo.
 
 :: ========================================
-:: Step 5: Register freegstbill:// protocol
+:: Step 5: Auto-start on Windows login + Protocol
 :: ========================================
-echo  [5/5] Registering app protocol...
+echo  [5/5] Setting up auto-start...
 
+:: Add to Windows Startup folder (server starts silently on login)
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "STARTUP_SHORTCUT=%STARTUP_DIR%\FreeGSTBill Server.lnk"
+set "SERVER_BAT=%~dp0start-server-silent.bat"
+
+:: Create a silent server starter (no window, just runs node)
+(
+    echo @echo off
+    echo cd /d "%~dp0"
+    echo if not exist "node_modules" exit /b
+    echo if not exist "dist\index.html" exit /b
+    echo start "" /min cmd /c "node server.js"
+) > "%SERVER_BAT%"
+
+:: Create startup shortcut
+set "TEMP_VBS2=%TEMP%\create_startup.vbs"
+(
+    echo Set WshShell = WScript.CreateObject("WScript.Shell"^)
+    echo Set startupShortcut = WshShell.CreateShortcut("%STARTUP_SHORTCUT%"^)
+    echo startupShortcut.TargetPath = "%SERVER_BAT%"
+    echo startupShortcut.WorkingDirectory = "%~dp0"
+    echo startupShortcut.Description = "FreeGSTBill Server Auto-Start"
+    echo startupShortcut.WindowStyle = 7
+    echo startupShortcut.Save
+) > "%TEMP_VBS2%"
+cscript //nologo "%TEMP_VBS2%" 2>nul
+del "%TEMP_VBS2%" 2>nul
+
+if exist "%STARTUP_SHORTCUT%" (
+    echo         Auto-start on login enabled
+) else (
+    echo         Could not enable auto-start
+)
+
+:: Register freegstbill:// protocol
 set "REG_VBS=%TEMP%\reg_protocol.vbs"
 (
     echo Set WshShell = CreateObject("WScript.Shell"^)
@@ -205,7 +240,7 @@ set "REG_VBS=%TEMP%\reg_protocol.vbs"
 
 cscript //nologo "%REG_VBS%" 2>nul
 del "%REG_VBS%" 2>nul
-echo         Protocol registered (freegstbill://)
+echo         Start button registered
 echo.
 
 :: ========================================
@@ -215,13 +250,6 @@ echo.
 echo  ========================================================
 echo.
 echo     Installation Complete!
-echo.
-echo     To start FreeGSTBill:
-echo       - Double-click "FreeGSTBill" on Desktop
-echo       - Or double-click "Start FreeGSTBill.bat" here
-echo.
-echo     To install as PWA (optional):
-echo       - When app opens, click "Install App" blue bar
 echo.
 echo  ========================================================
 echo.
@@ -236,12 +264,14 @@ echo  ========================================================
 echo.
 echo     FreeGSTBill is running!
 echo.
-echo     Next time, just:
-echo       - Double-click "FreeGSTBill" on your Desktop
+echo     HOW IT WORKS:
+echo       - Server starts automatically when you turn on PC
+echo       - Just click "FreeGSTBill" on Desktop to open
 echo       - Or search "FreeGSTBill" in Start Menu
+echo       - Your data is always safe on your computer
 echo.
-echo     Tip: When the app opens, click "Install App" in the
-echo     blue bar to add it as a desktop app (recommended).
+echo     Tip: When the app opens, click "Install App"
+echo     to use it like a normal desktop application.
 echo.
 echo  ========================================================
 echo.
