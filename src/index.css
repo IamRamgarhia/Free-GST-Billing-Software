@@ -474,6 +474,18 @@ body {
   letter-spacing: -0.01em;
 }
 
+.update-available-box {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+.update-available-box p { margin: 0.25rem 0; }
+.spin { animation: spin 1s linear infinite; }
+
 /* ========= Forms ========= */
 .form-group { margin-bottom: 1rem; }
 .form-group.full-width { grid-column: span 2; }

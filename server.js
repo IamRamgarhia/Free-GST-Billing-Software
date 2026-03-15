@@ -450,6 +450,26 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
 });
 
 // ========================
+// Version check
+// ========================
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+
+app.get('/api/version', (req, res) => {
+  res.json({ current: pkg.version });
+});
+
+app.get('/api/check-update', async (req, res) => {
+  try {
+    const response = await fetch('https://raw.githubusercontent.com/IamRamgarhia/freegstbill/main/package.json');
+    if (!response.ok) throw new Error('GitHub fetch failed');
+    const remote = await response.json();
+    res.json({ current: pkg.version, latest: remote.version, updateAvailable: remote.version !== pkg.version });
+  } catch {
+    res.json({ current: pkg.version, latest: null, updateAvailable: false, error: 'Could not check for updates' });
+  }
+});
+
+// ========================
 // Serve production build
 // ========================
 const distPath = path.join(__dirname, 'dist');

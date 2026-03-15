@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getProfile, saveProfile, exportAllData, importData, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllClients, deleteClient, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings } from '../store';
 import { INDIAN_STATES } from '../utils';
-import { Save, Upload, Download, Plus, Trash2, Image, PenTool, Cloud, CloudOff, Building2, Hash } from 'lucide-react';
+import { Save, Upload, Download, Plus, Trash2, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
 
@@ -22,6 +22,8 @@ export default function SettingsView({ onSaved }) {
     format: 'branded', brandPrefix: '', separator: '/', showFinYear: true, startNumber: 1, padDigits: 4,
   });
   const [invNumSaving, setInvNumSaving] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const sigInputRef = useRef(null);
@@ -565,6 +567,44 @@ export default function SettingsView({ onSaved }) {
       </div>
 
       {/* ---- Data Management ---- */}
+      <div className="glass-panel p-6 mb-6">
+        <h3 className="section-title">App Updates</h3>
+        <p className="page-subtitle mb-4">Check if a newer version of FreeGSTBill is available.</p>
+        <div className="flex gap-4 items-center">
+          <button type="button" className="btn btn-secondary" disabled={checkingUpdate} onClick={async () => {
+            setCheckingUpdate(true);
+            try {
+              const res = await fetch('/api/check-update');
+              const data = await res.json();
+              setUpdateInfo(data);
+              if (data.updateAvailable) {
+                toast(`Update available: v${data.latest}`, 'info');
+              } else if (data.error) {
+                toast('Could not check for updates. Check internet connection.', 'warning');
+              } else {
+                toast('You are on the latest version!', 'success');
+              }
+            } catch {
+              toast('Could not check for updates.', 'error');
+            }
+            setCheckingUpdate(false);
+          }}>
+            <RefreshCw size={18} className={checkingUpdate ? 'spin' : ''} /> {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+          </button>
+          {updateInfo && (
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Current: v{updateInfo.current}{updateInfo.latest ? ` | Latest: v${updateInfo.latest}` : ''}
+            </span>
+          )}
+        </div>
+        {updateInfo?.updateAvailable && (
+          <div className="update-available-box">
+            <p><strong>New version v{updateInfo.latest} is available!</strong></p>
+            <p>To update, double-click <strong>Update FreeGSTBill.bat</strong> in the app folder. Your data will not be affected.</p>
+          </div>
+        )}
+      </div>
+
       <div className="glass-panel p-6">
         <h3 className="section-title">Data Management</h3>
         <p className="page-subtitle mb-6">Export all data (invoices, profile, clients, templates) as a backup, or import from one.</p>
