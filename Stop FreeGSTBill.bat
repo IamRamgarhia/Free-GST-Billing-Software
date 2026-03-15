@@ -1,8 +1,8 @@
 @echo off
-title Stop BillKaro
-echo Stopping BillKaro server...
+title Stop FreeGSTBill
+echo Stopping FreeGSTBill server...
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3001 ^| findstr LISTENING') do (
     taskkill /f /pid %%a >nul 2>nul
 )
-echo BillKaro server stopped.
+echo FreeGSTBill server stopped.
 timeout /t 2 /nobreak >nul

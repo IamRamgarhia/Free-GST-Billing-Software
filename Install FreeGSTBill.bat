@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
-title BillKaro Installer
+title FreeGSTBill Installer
 color 0B
 
 echo.
 echo  ╔══════════════════════════════════════════════╗
 echo  ║                                              ║
-echo  ║     BillKaro - GST Billing Software          ║
+echo  ║     FreeGSTBill - GST Billing Software          ║
 echo  ║     Free • Offline • Open Source              ║
 echo  ║     by DiceCodes                              ║
 echo  ║                                              ║
@@ -25,7 +25,7 @@ if %errorlevel% neq 0 (
     echo.
     echo  ❌ Node.js is NOT installed on your system.
     echo.
-    echo  BillKaro needs Node.js to run. Please install it:
+    echo  FreeGSTBill needs Node.js to run. Please install it:
     echo.
     echo     1. Go to: https://nodejs.org
     echo     2. Download the LTS version (recommended)
@@ -86,8 +86,8 @@ echo.
 :: ========================================
 echo  [4/4] Creating desktop shortcut...
 
-set "SHORTCUT_PATH=%USERPROFILE%\Desktop\BillKaro.lnk"
-set "TARGET_PATH=%~dp0BillKaro.vbs"
+set "SHORTCUT_PATH=%USERPROFILE%\Desktop\FreeGSTBill.lnk"
+set "TARGET_PATH=%~dp0FreeGSTBill.vbs"
 set "ICON_DIR=%~dp0"
 
 :: Create VBS shortcut creator script
@@ -98,7 +98,7 @@ set "TEMP_VBS=%TEMP%\create_shortcut.vbs"
     echo shortcut.TargetPath = "wscript.exe"
     echo shortcut.Arguments = """%TARGET_PATH%"""
     echo shortcut.WorkingDirectory = "%~dp0"
-    echo shortcut.Description = "BillKaro - Free GST Billing Software"
+    echo shortcut.Description = "FreeGSTBill - Free GST Billing Software"
     echo shortcut.WindowStyle = 7
     echo shortcut.Save
 ) > "%TEMP_VBS%"
@@ -109,7 +109,7 @@ del "%TEMP_VBS%" 2>nul
 if exist "%SHORTCUT_PATH%" (
     echo         Desktop shortcut created ✓
 ) else (
-    echo         Could not create shortcut (you can manually create one to BillKaro.vbs)
+    echo         Could not create shortcut (you can manually create one to FreeGSTBill.vbs)
 )
 echo.
 
@@ -121,9 +121,9 @@ echo  ╔═══════════════════════�
 echo  ║                                              ║
 echo  ║     ✅ Installation Complete!                 ║
 echo  ║                                              ║
-echo  ║     To start BillKaro:                        ║
-echo  ║       • Double-click "BillKaro" on Desktop    ║
-echo  ║       • Or double-click BillKaro.vbs here     ║
+echo  ║     To start FreeGSTBill:                        ║
+echo  ║       • Double-click "FreeGSTBill" on Desktop    ║
+echo  ║       • Or double-click FreeGSTBill.vbs here     ║
 echo  ║                                              ║
 echo  ║     To install as PWA (optional):             ║
 echo  ║       • Open Chrome/Edge to localhost:3001    ║
@@ -131,12 +131,12 @@ echo  ║       • Click install icon in address bar     ║
 echo  ║                                              ║
 echo  ╚══════════════════════════════════════════════╝
 echo.
-echo  Would you like to start BillKaro now? (Y/N)
+echo  Would you like to start FreeGSTBill now? (Y/N)
 set /p START_NOW="> "
 if /i "%START_NOW%"=="Y" (
     echo.
-    echo  Starting BillKaro...
-    start "" wscript.exe "%~dp0BillKaro.vbs"
+    echo  Starting FreeGSTBill...
+    start "" wscript.exe "%~dp0FreeGSTBill.vbs"
     timeout /t 3 /nobreak >nul
     start http://localhost:3001
 )

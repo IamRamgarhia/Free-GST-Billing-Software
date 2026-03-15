@@ -113,7 +113,7 @@ export const INDIAN_STATES = [
 ];
 
 // GST State Codes (as per GST portal) — used in GSTR-1 JSON export
-export const GST_STATE_CODES = {
+const GST_STATE_CODES = {
   'jammu and kashmir': '01', 'himachal pradesh': '02', 'punjab': '03',
   'chandigarh': '04', 'uttarakhand': '05', 'haryana': '06',
   'delhi': '07', 'rajasthan': '08', 'uttar pradesh': '09',

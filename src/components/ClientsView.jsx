@@ -1,21 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Users, Search, FileText, IndianRupee, Clock, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail } from 'lucide-react';
-import { getAllClients, getAllBills, deleteClient } from '../store';
-import { formatCurrency, INVOICE_TYPES } from '../utils';
+import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy } from 'lucide-react';
+import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill } from '../store';
+import { formatCurrency, INVOICE_TYPES, INDIAN_STATES } from '../utils';
 import { toast } from './Toast';
 
 const STATUS_COLORS = {
-  unpaid: { color: '#f59e0b', bg: '#fffbeb' },
-  partial: { color: '#8b5cf6', bg: '#f5f3ff' },
-  paid: { color: '#059669', bg: '#ecfdf5' },
-  overdue: { color: '#dc2626', bg: '#fef2f2' },
+  unpaid: { label: 'Unpaid', color: '#f59e0b', bg: '#fffbeb' },
+  partial: { label: 'Partial', color: '#8b5cf6', bg: '#f5f3ff' },
+  paid: { label: 'Paid', color: '#059669', bg: '#ecfdf5' },
+  overdue: { label: 'Overdue', color: '#dc2626', bg: '#fef2f2' },
 };
+
+const emptyClient = { name: '', address: '', state: '', gstin: '', email: '', phone: '' };
 
 export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const [clients, setClients] = useState([]);
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState('');
   const [expandedClient, setExpandedClient] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ ...emptyClient });
+  const [editingClientId, setEditingClientId] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -74,6 +79,49 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
     }
   };
 
+  const handleDeleteBill = async (id) => {
+    if (confirm('Delete this invoice? This cannot be undone.')) {
+      try { await deleteBill(id); toast('Invoice deleted', 'success'); loadData(); }
+      catch { toast('Failed to delete', 'error'); }
+    }
+  };
+
+  const changeStatus = async (bill, newStatus) => {
+    const updated = { ...bill, status: newStatus };
+    if (newStatus === 'paid') updated.paidAmount = bill.totalAmount;
+    await saveBill(updated);
+    toast(`Marked as ${STATUS_COLORS[newStatus]?.label || newStatus}`, 'info');
+    loadData();
+  };
+
+  const openAddClient = () => {
+    setForm({ ...emptyClient });
+    setEditingClientId(null);
+    setShowForm(true);
+  };
+
+  const openEditClient = (client) => {
+    setForm({ name: client.name || '', address: client.address || '', state: client.state || '', gstin: client.gstin || '', email: client.email || '', phone: client.phone || '' });
+    setEditingClientId(client.id);
+    setShowForm(true);
+  };
+
+  const closeForm = () => { setShowForm(false); setForm({ ...emptyClient }); setEditingClientId(null); };
+
+  const handleSaveClient = async () => {
+    if (!form.name.trim()) { toast('Client name is required', 'warning'); return; }
+    try {
+      const data = { ...form };
+      if (editingClientId) data.id = editingClientId;
+      await saveClient(data);
+      toast(editingClientId ? 'Client updated' : 'Client added', 'success');
+      closeForm();
+      loadData();
+    } catch {
+      toast('Failed to save client', 'error');
+    }
+  };
+
   const shareWhatsApp = (bill) => {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice ${bill.invoiceNumber}*\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
@@ -103,10 +151,60 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
           <h1 className="page-title">Clients</h1>
           <p className="page-subtitle">Client-wise invoice ledger and outstanding</p>
         </div>
-        <button className="btn btn-primary" onClick={onNew}>
-          <FileText size={18} /> New Invoice
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary" onClick={openAddClient}>
+            <Plus size={18} /> Add Client
+          </button>
+          <button className="btn btn-primary" onClick={onNew}>
+            <FileText size={18} /> New Invoice
+          </button>
+        </div>
       </div>
+
+      {/* Add/Edit Client Modal */}
+      {showForm && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="section-title" style={{ margin: 0 }}>{editingClientId ? 'Edit Client' : 'Add New Client'}</h3>
+              <button className="icon-btn" onClick={closeForm} title="Close"><X size={18} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label className="form-label">Client / Business Name *</label>
+                <input type="text" className="form-input" value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} placeholder="e.g. Acme Corp" />
+              </div>
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label className="form-label">Address</label>
+                <textarea className="form-input" rows={2} value={form.address} onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Street, City, PIN" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">State</label>
+                <select className="form-input" value={form.state} onChange={e => setForm(prev => ({ ...prev, state: e.target.value }))}>
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">GSTIN</label>
+                <input type="text" className="form-input" value={form.gstin} onChange={e => setForm(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }))} placeholder="e.g. 03AXXXX1234X1ZB" maxLength={15} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input type="email" className="form-input" value={form.email} onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))} placeholder="client@example.com" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Phone</label>
+                <input type="tel" className="form-input" value={form.phone} onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="+91 98765 43210" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button className="btn btn-secondary" onClick={closeForm}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveClient}>{editingClientId ? 'Update Client' : 'Save Client'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="glass-panel p-4 mb-6">
@@ -124,6 +222,9 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
           <div className="empty-state">
             <Users size={48} />
             <p>No clients found.</p>
+            <button className="btn btn-secondary" onClick={openAddClient} style={{ marginTop: '0.5rem' }}>
+              <Plus size={16} /> Add Your First Client
+            </button>
           </div>
         </div>
       ) : (
@@ -166,8 +267,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                         {formatCurrency(stats.unpaid)}
                       </span>
                     </div>
-                    <div style={{ marginLeft: '0.5rem' }}>
-                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <div style={{ marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {isExpanded ? 'Hide' : 'View'} {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </div>
                   </div>
                 </div>
@@ -175,66 +276,103 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                 {/* Expanded: invoice list */}
                 {isExpanded && (
                   <div className="client-invoices">
-                    {clientBills.length === 0 ? (
-                      <p className="text-muted" style={{ padding: '1rem 1.5rem', fontSize: '0.85rem' }}>No invoices for this client.</p>
-                    ) : (
-                      <table className="data-table" style={{ marginBottom: 0 }}>
-                        <thead>
-                          <tr>
-                            <th>Date</th>
-                            <th>Invoice No.</th>
-                            <th>Type</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {clientBills.map(bill => {
-                            const sc = STATUS_COLORS[bill.status || 'unpaid'] || STATUS_COLORS.unpaid;
-                            const isOverdue = (bill.status || 'unpaid') !== 'paid' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
-                            return (
-                              <tr key={bill.id} style={isOverdue ? { background: '#fef2f2' } : {}}>
-                                <td className="text-muted">{new Date(bill.invoiceDate).toLocaleDateString('en-IN')}</td>
-                                <td><span className="invoice-badge">{bill.invoiceNumber}</span></td>
-                                <td><span className="type-badge">{(INVOICE_TYPES[bill.invoiceType || 'tax-invoice'])?.label}</span></td>
-                                <td className="font-bold">{formatCurrency(bill.totalAmount)}</td>
-                                <td>
-                                  <span className="status-badge" style={{ background: sc.bg, color: sc.color }}>
-                                    {isOverdue ? 'Overdue' : (bill.status || 'unpaid').charAt(0).toUpperCase() + (bill.status || 'unpaid').slice(1)}
-                                  </span>
-                                </td>
-                                <td>
-                                  <div className="table-actions">
-                                    {bill.data && (
-                                      <button className="icon-btn icon-btn-blue" onClick={() => onEdit(bill)} title="Edit">
-                                        <FileText size={14} />
-                                      </button>
-                                    )}
-                                    <button className="icon-btn icon-btn-blue" onClick={() => onDuplicate(bill)} title="Duplicate">
-                                      <FileText size={14} />
-                                    </button>
-                                    <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)} title="WhatsApp">
-                                      <MessageCircle size={14} />
-                                    </button>
-                                    <button className="icon-btn icon-btn-blue" onClick={() => shareEmail(bill)} title="Email">
-                                      <Mail size={14} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                    {savedClient && (
-                      <div className="client-actions-bar">
-                        <button className="icon-btn icon-btn-red" onClick={() => handleDeleteClient(savedClient.id)} title="Remove saved client">
-                          <Trash2 size={14} /> Remove Client
-                        </button>
+                    {/* Client details */}
+                    {savedClient && (savedClient.address || savedClient.email || savedClient.phone) && (
+                      <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {savedClient.address && <span>{savedClient.address}</span>}
+                        {savedClient.email && <span>{savedClient.email}</span>}
+                        {savedClient.phone && <span>{savedClient.phone}</span>}
                       </div>
                     )}
+                    {clientBills.length === 0 ? (
+                      <div style={{ padding: '1.5rem', textAlign: 'center' }}>
+                        <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>No invoices for this client yet.</p>
+                        <button className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 1rem' }} onClick={onNew}>
+                          <Plus size={15} /> Create Invoice
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="table-scroll">
+                        <table className="data-table" style={{ marginBottom: 0, minWidth: '750px' }}>
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Invoice No.</th>
+                              <th>Type</th>
+                              <th style={{ textAlign: 'right' }}>Amount</th>
+                              <th>Status</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clientBills.map(bill => {
+                              const status = bill.status || 'unpaid';
+                              const sc = STATUS_COLORS[status] || STATUS_COLORS.unpaid;
+                              const isOverdue = status !== 'paid' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
+                              return (
+                                <tr key={bill.id} style={isOverdue ? { background: '#fef2f2' } : {}}>
+                                  <td className="text-muted">{new Date(bill.invoiceDate).toLocaleDateString('en-IN')}</td>
+                                  <td><span className="invoice-badge">{bill.invoiceNumber}</span></td>
+                                  <td><span className="type-badge">{(INVOICE_TYPES[bill.invoiceType || 'tax-invoice'])?.label}</span></td>
+                                  <td className="font-bold" style={{ textAlign: 'right' }}>{formatCurrency(bill.totalAmount)}</td>
+                                  <td>
+                                    <select className="status-select" value={isOverdue && status !== 'overdue' ? 'overdue' : status}
+                                      style={{ background: sc.bg, color: sc.color, borderColor: sc.color + '44', fontSize: '0.75rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid', cursor: 'pointer', fontWeight: 600 }}
+                                      onClick={e => e.stopPropagation()}
+                                      onChange={e => changeStatus(bill, e.target.value)}>
+                                      {Object.entries(STATUS_COLORS).map(([key, val]) => (
+                                        <option key={key} value={key}>{val.label}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td>
+                                    <div className="table-actions">
+                                      {bill.data && (
+                                        <button className="icon-btn icon-btn-blue" onClick={() => onEdit(bill)} title="Edit Invoice">
+                                          <Edit3 size={14} />
+                                        </button>
+                                      )}
+                                      <button className="icon-btn icon-btn-blue" onClick={() => onDuplicate(bill)} title="Duplicate Invoice">
+                                        <Copy size={14} />
+                                      </button>
+                                      <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)} title="WhatsApp">
+                                        <MessageCircle size={14} />
+                                      </button>
+                                      <button className="icon-btn icon-btn-blue" onClick={() => shareEmail(bill)} title="Email">
+                                        <Mail size={14} />
+                                      </button>
+                                      <button className="icon-btn icon-btn-red" onClick={() => handleDeleteBill(bill.id)} title="Delete Invoice">
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <div className="client-actions-bar" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.75rem 1.5rem', borderTop: '1px solid var(--border)' }}>
+                      {savedClient ? (
+                        <>
+                          <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }} onClick={() => openEditClient(savedClient)}>
+                            <Edit3 size={13} /> Edit Client
+                          </button>
+                          <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', color: '#dc2626', borderColor: '#fecaca' }} onClick={() => handleDeleteClient(savedClient.id)}>
+                            <Trash2 size={13} /> Delete Client
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }} onClick={() => {
+                          setForm({ ...emptyClient, name: clientName });
+                          setEditingClientId(null);
+                          setShowForm(true);
+                        }}>
+                          <Plus size={13} /> Save as Client
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -1,7 +1,7 @@
 {
-  "name": "billkaro",
+  "name": "freegstbill",
   "version": "1.0.0",
-  "description": "BillKaro — Free, open-source GST invoice & billing software. Tax Invoice, Proforma, Credit Note, Bill of Supply with multi-currency support (USD, EUR, GBP). Offline, no signup. By DiceCodes.",
+  "description": "FreeGSTBill — Free, open-source GST invoice & billing software. Tax Invoice, Proforma, Credit Note, Bill of Supply with multi-currency support (USD, EUR, GBP). Offline, no signup. By DiceCodes.",
   "author": "DiceCodes <Contact@dicecodes.com>",
   "license": "MIT",
   "repository": {
@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
+    "dompurify": "^3.3.3",
     "express": "^5.2.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",

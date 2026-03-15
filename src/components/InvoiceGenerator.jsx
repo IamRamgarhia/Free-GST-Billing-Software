@@ -120,7 +120,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   const [productSearch, setProductSearch] = useState({ itemId: null, query: '' });
   const [invoiceOptions, setInvoiceOptions] = useState(() => {
     try {
-      const saved = localStorage.getItem('billkaro_invoiceOptions');
+      const saved = localStorage.getItem('freegstbill_invoiceOptions');
       const persisted = saved ? JSON.parse(saved) : {};
       // Persisted options are the user's defaults, draft can override for in-progress work
       return { ...DEFAULT_OPTIONS, ...persisted, ...(draft?.invoiceOptions || {}) };
@@ -139,7 +139,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
 
   // Persist options to both localStorage (instant) and server (durable)
   useEffect(() => {
-    localStorage.setItem('billkaro_invoiceOptions', JSON.stringify(invoiceOptions));
+    localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(invoiceOptions));
     if (hasInitialized.current) {
       saveInvoiceDisplayOptions(invoiceOptions).catch(() => {});
     }
@@ -154,7 +154,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
           // Only update if different to avoid unnecessary re-renders
           const changed = Object.keys(merged).some(k => merged[k] !== prev[k]);
           if (changed) {
-            localStorage.setItem('billkaro_invoiceOptions', JSON.stringify(merged));
+            localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(merged));
             return merged;
           }
           return prev;
@@ -231,7 +231,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
       if (d.invoiceOptions) {
         // User's persisted defaults as base, bill options overlay
         try {
-          const saved = localStorage.getItem('billkaro_invoiceOptions');
+          const saved = localStorage.getItem('freegstbill_invoiceOptions');
           const persisted = saved ? JSON.parse(saved) : {};
           setInvoiceOptions({ ...DEFAULT_OPTIONS, ...persisted, ...d.invoiceOptions });
         } catch { setInvoiceOptions({ ...DEFAULT_OPTIONS, ...d.invoiceOptions }); }
@@ -417,7 +417,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     try {
       const latestProfile = await getProfile();
       const clientId = latestProfile.googleClientId;
-      const folderName = latestProfile.googleDriveFolder || 'BillKaro Invoices';
+      const folderName = latestProfile.googleDriveFolder || 'FreeGSTBill Invoices';
       if (!clientId) return;
 
       const hasToken = await ensureToken(clientId);

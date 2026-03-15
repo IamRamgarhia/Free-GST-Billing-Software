@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'og-preview.png'],
       manifest: {
-        name: 'BillKaro',
-        short_name: 'BillKaro',
+        name: 'FreeGSTBill',
+        short_name: 'FreeGSTBill',
         description: 'Free GST Invoice Generator & Billing Software',
         theme_color: '#1e40af',
         background_color: '#f8fafc',
@@ -73,6 +73,17 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'pdf': ['jspdf', 'html2canvas'],
+          'icons': ['lucide-react'],
+          'qr': ['qrcode'],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {

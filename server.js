@@ -97,7 +97,7 @@ const PROFILE_PATH = path.join(DATA_DIR, 'profile.json');
 const DEFAULT_PROFILE = {
   businessName: '', address: '', state: '', gstin: '', pan: '',
   email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
-  logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'BillKaro Invoices',
+  logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'FreeGSTBill Invoices',
 };
 
 app.get('/api/profile', (req, res) => {
@@ -406,6 +406,6 @@ if (fs.existsSync(distPath)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`\n  BillKaro server running at http://localhost:${PORT}`);
+  console.log(`\n  FreeGSTBill server running at http://localhost:${PORT}`);
   console.log(`  Data stored in: ${DATA_DIR}\n`);
 });

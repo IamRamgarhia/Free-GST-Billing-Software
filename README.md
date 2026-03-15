@@ -1,20 +1,32 @@
-# BillKaro
+# FreeGSTBill
 
 ### Free, Open-Source GST Invoice & Billing Software
 
-Create GST-compliant invoices for Indian and international clients. Runs offline on your machine — no signup, no subscription, no cloud. Your financial data stays private.
+Create GST-compliant invoices for Indian and international clients. Runs 100% locally on your computer — no signup, no subscription, no cloud. Every invoice, client record, and report stays on YOUR machine. Nobody else can see your financial data. Ever.
 
 **Built by [DiceCodes](mailto:Contact@dicecodes.com)**
 
 ---
 
+## Why FreeGSTBill?
+
+Most billing software stores your data on their servers, charges you monthly, and locks you in. FreeGSTBill is different:
+
+- **Your data never leaves your computer** — Everything is stored as local JSON files in a `data/` folder on your machine. No cloud, no third-party servers, no analytics, no tracking. Your invoices, client details, GSTIN, bank info — all stays with you. Period.
+- **GST compliance on autopilot** — Just create invoices normally. FreeGSTBill auto-generates your GSTR-1 (B2B + B2C), GSTR-3B summary, HSN reports, and Document Summary. When filing day comes, your data is ready — download CSVs, follow the built-in step-by-step filing guide, and you're done. No CA needed for basic filing.
+- **Works without internet** — Once installed, the entire app runs on localhost. No internet required to create invoices, generate PDFs, or view reports. Only Google Drive backup (optional) needs connectivity.
+- **Install once, use forever** — No monthly fees. No "free tier" limits. No premium upsell. MIT licensed. You own the software.
+- **Install as a desktop app (PWA)** — Works like a native Windows/Mac app. One-click install from your browser. Opens instantly, no browser tabs needed.
+
+---
+
 ## Key Highlights
 
-- **Offline & Private** — Runs on localhost. No data leaves your machine.
+- **100% Local & Private** — Runs on localhost. All data stored as files on your machine. Zero cloud dependency.
 - **Multi-Currency** — Bill in INR, USD, EUR, GBP, AUD, CAD, SGD, AED with proper formatting and amount-in-words.
 - **GST Compliant** — Auto CGST/SGST (intra-state) and IGST (inter-state) calculation.
-- **GST Filing Ready** — GSTR-1, GSTR-3B summaries, HSN reports, CSV export, step-by-step filing guide.
-- **Expense Tracker** — Track expenses, claim ITC, auto-generate P&L reports.
+- **GST Filing Ready** — GSTR-1, GSTR-3B summaries, HSN reports, CSV export, step-by-step filing guide. All compliance data auto-generated from your invoices.
+- **Expense Tracker + ITC** — Track expenses with GST, auto-calculate Input Tax Credit, feeds into GSTR-3B and P&L.
 - **Professional PDFs** — Download or auto-upload to Google Drive.
 - **Dark Mode** — Full dark theme support.
 - **Free Forever** — MIT licensed, no hidden costs.
@@ -23,7 +35,7 @@ Create GST-compliant invoices for Indian and international clients. Runs offline
 
 ## Who Is This For?
 
-BillKaro replaces paid billing software for anyone who sends invoices. If you're paying for Zoho, Tally, Vyapar, or any SaaS billing tool — you don't have to.
+FreeGSTBill replaces paid billing software for anyone who sends invoices. If you're paying for Zoho, Tally, Vyapar, or any SaaS billing tool — you don't have to.
 
 | Industry | How They Use It |
 |----------|----------------|
@@ -43,7 +55,7 @@ BillKaro replaces paid billing software for anyone who sends invoices. If you're
 | **Real Estate & Construction** | Multi-page invoices with payment milestones and terms. |
 | **NGOs & Trusts** | Receipt generation and bill of supply for exempt services. |
 
-**Bottom line:** If you send invoices and don't want to pay monthly for billing software, BillKaro is for you.
+**Bottom line:** If you send invoices and don't want to pay monthly for billing software, FreeGSTBill is for you.
 
 ---
 
@@ -102,15 +114,19 @@ Show or hide any section on the invoice:
 - CSV export for expenses
 - Feeds into GSTR-3B ITC and P&L reports
 
-### GST Reports & Filing
+### GST Reports & Filing (Auto-Generated)
+All compliance data is generated automatically from your invoices and expenses. No manual entry needed.
+
 - **GSTR-1 B2B** — all invoices with client GSTIN, broken down by taxable amount, CGST, SGST, IGST
 - **GSTR-1 B2C** — invoices without GSTIN, aggregated by tax rate
-- **GSTR-3B Summary** — output tax, ITC from expenses, net tax payable
+- **GSTR-3B Summary** — output tax, ITC from expenses, net tax payable — ready to copy into GST portal
 - **HSN Summary** — grouped by HSN code with quantity, taxable value, and tax breakup
 - **Document Summary** — invoice number ranges and counts (Table 13)
 - **CSV Export** — download B2B, B2C, and HSN reports as `.csv` files ready for GST portal upload
 - **NIL Return Detection** — auto-detects periods with no activity
 - Filter by fiscal year or specific month
+
+> **How it works:** Create invoices → FreeGSTBill auto-calculates all GST breakdowns → Go to Reports page → Download CSVs → Upload to GST portal. That's it. Your CA can use these reports directly.
 
 ### GST Filing Guide
 - **Step-by-step instructions** for filing GSTR-1 on the GST portal
@@ -166,10 +182,26 @@ Show or hide any section on the invoice:
 - Logo & digital signature upload
 - Reusable terms & conditions templates
 
-### Data Safety
-- **Export** — download all data as JSON backup
+### Data Safety — Everything Stays Local
+- All data stored as plain JSON files in `data/` folder on your machine
+- **No cloud, no database, no external server** — your GSTIN, bank details, client info never leave your computer
+- **Export** — download all data as JSON backup (move to another PC anytime)
 - **Import** — restore from backup on any machine
 - Auto-save drafts — never lose work mid-invoice
+- Data persists even if you uninstall — just keep the `data/` folder
+
+---
+
+## Before You Install — What You Should Know
+
+| Question | Answer |
+|----------|--------|
+| **Where does my data go?** | Nowhere. It stays in a `data/` folder on your computer as plain JSON files. No server, no cloud, no database. |
+| **Can anyone access my invoices?** | No. The app runs on `localhost` (your machine only). It's not accessible from the internet or other computers on your network. |
+| **What happens if I uninstall?** | Your `data/` folder remains untouched. Reinstall anytime and everything is still there. You can also export a full JSON backup from Settings. |
+| **Do I need internet?** | Only for the first install (`npm install`). After that, everything works offline — invoicing, PDF generation, reports, everything. |
+| **Will it handle my GST compliance?** | Yes. Create invoices normally and FreeGSTBill auto-generates: GSTR-1 B2B & B2C reports, GSTR-3B summary with ITC from expenses, HSN summary, Document Summary (Table 13), and CSV exports ready for the GST portal. It even has a step-by-step filing guide. |
+| **Is it really free?** | Yes. MIT licensed. No premium tier, no ads, no tracking, no signup wall. Fork it, modify it, use it commercially — no restrictions. |
 
 ---
 
@@ -196,12 +228,34 @@ Opens at **http://localhost:5173** — API server runs on port 3001.
 2. Upload logo & signature (optional)
 3. Add terms templates you reuse
 4. **New Invoice** → start billing
+5. Create a few invoices → go to **Reports** → see your GSTR-1, GSTR-3B, HSN data auto-generated
 
 ### Production
 ```bash
 npm run build && npm start
 ```
 Serves from port 3001.
+
+### Install as Desktop App (PWA)
+
+FreeGSTBill can be installed as a standalone desktop app — no browser tab needed.
+
+**How to install:**
+1. Open `http://localhost:5173` (dev) or `http://localhost:3001` (production) in **Chrome** or **Edge**
+2. Look for the **install icon** (⊕) in the address bar (right side)
+3. Click it → **Install**
+4. The app opens in its own window — works like a native desktop app
+
+**How to verify PWA is working:**
+1. After installing, close the browser completely
+2. Open the app from your Start Menu / Desktop shortcut
+3. It should open in its own window (no browser UI)
+4. Disconnect from internet → create an invoice → generate PDF — everything should work
+5. Check Chrome DevTools → Application → Service Workers → should show "activated and running"
+
+**To uninstall:** Right-click the app title bar → "Uninstall FreeGSTBill", or go to `chrome://apps` and remove it.
+
+> **Note:** The PWA caches all frontend assets. The backend server (`node server.js`) still needs to be running for data to save. For a fully portable setup, use the provided `.bat` / `.vbs` launchers on Windows.
 
 ---
 
@@ -234,7 +288,7 @@ PDFs auto-upload after every download.
 ## Project Structure
 
 ```
-billkaro/
+freegstbill/
 ├── server.js                     # Express API (port 3001)
 ├── src/
 │   ├── App.jsx                   # Root + sidebar navigation + dark mode
@@ -338,7 +392,7 @@ Yes. Select any of the 8 supported currencies (USD, EUR, GBP, AUD, CAD, SGD, AED
 Yes. Only Google Drive upload needs internet.
 
 **How do I file my GST returns?**
-Go to the GST Filing Guide page in BillKaro. It provides step-by-step instructions for filing GSTR-1 and GSTR-3B. Use the Reports page to get all the numbers you need.
+Go to the GST Filing Guide page in FreeGSTBill. It provides step-by-step instructions for filing GSTR-1 and GSTR-3B. Use the Reports page to get all the numbers you need.
 
 **Can I track expenses and see profit/loss?**
 Yes. Use the Expenses page to record business expenses. The Reports page auto-generates a P&L statement from your invoices and expenses.
@@ -374,4 +428,4 @@ We welcome contributions! Report bugs, suggest features, or submit pull requests
 
 ---
 
-**BillKaro** by [DiceCodes](mailto:Contact@dicecodes.com) — Free billing software. Made in India.
+**FreeGSTBill** by [DiceCodes](mailto:Contact@dicecodes.com) — Free billing software. Made in India.

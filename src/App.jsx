@@ -10,6 +10,7 @@ import ExpenseTracker from './components/ExpenseTracker';
 import RecurringInvoices from './components/RecurringInvoices';
 import ReceiptVoucher from './components/ReceiptVoucher';
 import GSTFilingGuide from './components/GSTFilingGuide';
+import WelcomeGuide from './components/WelcomeGuide';
 import ToastContainer from './components/Toast';
 import { getProfile } from './store';
 
@@ -25,11 +26,18 @@ function App() {
     } catch { return null; }
   });
   const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('billkaro_theme') === 'dark';
+    return localStorage.getItem('freegstbill_theme') === 'dark';
   });
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    getProfile().then(setProfile);
+    getProfile().then(p => {
+      setProfile(p);
+      // Show welcome guide if first time (no business name and not previously dismissed)
+      if (!p.businessName && !localStorage.getItem('freegstbill_onboarded')) {
+        setShowWelcome(true);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -46,7 +54,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-    localStorage.setItem('billkaro_theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('freegstbill_theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
   const handleNewInvoice = () => {
@@ -90,6 +98,18 @@ function App() {
     { id: 'filing', icon: BookOpen, label: 'GST Filing' },
   ];
 
+  if (showWelcome) {
+    return (
+      <>
+        <WelcomeGuide onComplete={(p) => {
+          if (p) setProfile(p);
+          setShowWelcome(false);
+        }} />
+        <ToastContainer />
+      </>
+    );
+  }
+
   return (
     <div className="app-layout">
       <div className="sidebar">
@@ -98,7 +118,7 @@ function App() {
             <FileText size={22} />
           </div>
           <div>
-            <h2 className="sidebar-title">BillKaro</h2>
+            <h2 className="sidebar-title">FreeGSTBill</h2>
             <p className="sidebar-subtitle">by DiceCodes</p>
           </div>
         </div>

@@ -1,5 +1,5 @@
-' BillKaro Silent Launcher
-' Starts the BillKaro server without showing a console window
+' FreeGSTBill Silent Launcher
+' Starts the FreeGSTBill server without showing a console window
 ' and opens the app in the default browser.
 
 Set WshShell = CreateObject("WScript.Shell")
@@ -13,8 +13,8 @@ On Error Resume Next
 WshShell.Run "cmd /c where node >nul 2>nul", 0, True
 If Err.Number <> 0 Then
     MsgBox "Node.js is not installed." & vbCrLf & vbCrLf & _
-           "Please run 'Install BillKaro.bat' first, or install Node.js from https://nodejs.org", _
-           vbExclamation, "BillKaro"
+           "Please run 'Install FreeGSTBill.bat' first, or install Node.js from https://nodejs.org", _
+           vbExclamation, "FreeGSTBill"
     WScript.Quit 1
 End If
 On Error GoTo 0
@@ -22,8 +22,8 @@ On Error GoTo 0
 ' Check if node_modules exists
 If Not fso.FolderExists(scriptDir & "\node_modules") Then
     MsgBox "Dependencies not installed." & vbCrLf & vbCrLf & _
-           "Please run 'Install BillKaro.bat' first.", _
-           vbExclamation, "BillKaro"
+           "Please run 'Install FreeGSTBill.bat' first.", _
+           vbExclamation, "FreeGSTBill"
     WScript.Quit 1
 End If
 

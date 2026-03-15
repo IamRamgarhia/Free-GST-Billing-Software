@@ -79,11 +79,6 @@ export const saveBill = async (bill) => {
   return apiFetch(`${API}/bills`, { method: 'POST', body: JSON.stringify(bill) });
 };
 
-export const getBill = async (id) => {
-  const bills = await getAllBills();
-  return bills.find(b => b.id === id) || null;
-};
-
 export const getAllBills = async () => {
   return apiFetch(`${API}/bills`);
 };
