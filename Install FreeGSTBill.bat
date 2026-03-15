@@ -4,44 +4,102 @@ title FreeGSTBill Installer
 color 0B
 
 echo.
-echo  ╔══════════════════════════════════════════════╗
-echo  ║                                              ║
-echo  ║     FreeGSTBill - GST Billing Software          ║
-echo  ║     Free • Offline • Open Source              ║
-echo  ║     by DiceCodes                              ║
-echo  ║                                              ║
-echo  ╚══════════════════════════════════════════════╝
+echo  ========================================================
+echo.
+echo     FreeGSTBill - Free GST Billing Software
+echo     Free - Offline - Open Source
+echo     by DiceCodes
+echo.
+echo  ========================================================
 echo.
 
 cd /d "%~dp0"
 
 :: ========================================
-:: Step 1: Check Node.js
+:: Step 1: Check / Install Node.js
 :: ========================================
 echo  [1/4] Checking Node.js...
 
 where node >nul 2>nul
 if %errorlevel% neq 0 (
     echo.
-    echo  ❌ Node.js is NOT installed on your system.
+    echo         Node.js not found. Installing automatically...
     echo.
-    echo  FreeGSTBill needs Node.js to run. Please install it:
+
+    :: Try winget first (Windows 10 1709+ and Windows 11)
+    where winget >nul 2>nul
+    if %errorlevel% equ 0 (
+        echo         Installing Node.js LTS via winget...
+        echo         (This may take 1-2 minutes, please wait)
+        echo.
+        winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent
+        if %errorlevel% equ 0 (
+            echo.
+            echo         Node.js installed successfully!
+            echo.
+            echo         IMPORTANT: Please close this window and run the installer again.
+            echo         (Windows needs to refresh the PATH to find Node.js)
+            echo.
+            pause
+            exit /b 0
+        ) else (
+            echo         winget install failed. Trying alternative method...
+        )
+    )
+
+    :: Try chocolatey
+    where choco >nul 2>nul
+    if %errorlevel% equ 0 (
+        echo         Installing Node.js LTS via Chocolatey...
+        choco install nodejs-lts -y --no-progress
+        if %errorlevel% equ 0 (
+            echo.
+            echo         Node.js installed successfully!
+            echo         Please close this window and run the installer again.
+            echo.
+            pause
+            exit /b 0
+        )
+    )
+
+    :: Fallback: download MSI installer directly
     echo.
-    echo     1. Go to: https://nodejs.org
-    echo     2. Download the LTS version (recommended)
-    echo     3. Run the installer (click Next through all steps)
-    echo     4. Restart your computer
-    echo     5. Run this installer again
+    echo         Automatic install not available. Downloading Node.js installer...
     echo.
-    echo  Opening Node.js download page...
-    start https://nodejs.org/en/download/
-    echo.
-    pause
-    exit /b 1
+
+    set "NODE_MSI=%TEMP%\node-install.msi"
+    echo         Downloading Node.js LTS...
+    powershell -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $url = (Invoke-WebRequest -Uri 'https://nodejs.org/dist/latest-v22.x/' -UseBasicParsing).Links | Where-Object { $_.href -match 'x64\.msi$' } | Select-Object -First 1 -ExpandProperty href; Invoke-WebRequest -Uri ('https://nodejs.org/dist/latest-v22.x/' + $url) -OutFile '%NODE_MSI%' -UseBasicParsing; Write-Host 'Download complete' } catch { Write-Host 'DOWNLOAD_FAILED' }" 2>nul
+
+    if exist "%NODE_MSI%" (
+        echo         Running Node.js installer...
+        echo         (Follow the installer steps - click Next through all)
+        echo.
+        start /wait msiexec /i "%NODE_MSI%"
+        del "%NODE_MSI%" 2>nul
+        echo.
+        echo         Please close this window and run the installer again.
+        echo         (Windows needs to refresh the PATH to find Node.js)
+        echo.
+        pause
+        exit /b 0
+    ) else (
+        echo  [!] Could not download Node.js automatically.
+        echo.
+        echo      Please install Node.js manually:
+        echo        1. Go to: https://nodejs.org
+        echo        2. Download the LTS version
+        echo        3. Run the installer
+        echo        4. Run this installer again
+        echo.
+        start https://nodejs.org/en/download/
+        pause
+        exit /b 1
+    )
 )
 
 for /f "tokens=*" %%v in ('node -v') do set NODE_VER=%%v
-echo         Found Node.js %NODE_VER% ✓
+echo         Found Node.js %NODE_VER%
 echo.
 
 :: ========================================
@@ -50,16 +108,16 @@ echo.
 echo  [2/4] Installing dependencies...
 
 if exist "node_modules" (
-    echo         Dependencies already installed ✓
+    echo         Dependencies already installed
 ) else (
     echo         Running npm install (this may take 1-2 minutes)...
     npm install --silent 2>nul
     if %errorlevel% neq 0 (
-        echo  ❌ Failed to install dependencies. Check your internet connection.
+        echo  [!] Failed to install dependencies. Check your internet connection.
         pause
         exit /b 1
     )
-    echo         Dependencies installed ✓
+    echo         Dependencies installed
 )
 echo.
 
@@ -69,15 +127,15 @@ echo.
 echo  [3/4] Building application...
 
 if exist "dist\index.html" (
-    echo         Application already built ✓
+    echo         Application already built
 ) else (
     npm run build --silent 2>nul
     if %errorlevel% neq 0 (
-        echo  ❌ Build failed. Please check for errors above.
+        echo  [!] Build failed. Please check for errors above.
         pause
         exit /b 1
     )
-    echo         Build complete ✓
+    echo         Build complete
 )
 echo.
 
@@ -107,7 +165,7 @@ cscript //nologo "%TEMP_VBS%" 2>nul
 del "%TEMP_VBS%" 2>nul
 
 if exist "%SHORTCUT_PATH%" (
-    echo         Desktop shortcut created ✓
+    echo         Desktop shortcut created
 ) else (
     echo         Could not create shortcut (you can manually create one to FreeGSTBill.vbs)
 )
@@ -117,19 +175,19 @@ echo.
 :: Done!
 :: ========================================
 echo.
-echo  ╔══════════════════════════════════════════════╗
-echo  ║                                              ║
-echo  ║     ✅ Installation Complete!                 ║
-echo  ║                                              ║
-echo  ║     To start FreeGSTBill:                        ║
-echo  ║       • Double-click "FreeGSTBill" on Desktop    ║
-echo  ║       • Or double-click FreeGSTBill.vbs here     ║
-echo  ║                                              ║
-echo  ║     To install as PWA (optional):             ║
-echo  ║       • Open Chrome/Edge to localhost:3001    ║
-echo  ║       • Click install icon in address bar     ║
-echo  ║                                              ║
-echo  ╚══════════════════════════════════════════════╝
+echo  ========================================================
+echo.
+echo     Installation Complete!
+echo.
+echo     To start FreeGSTBill:
+echo       - Double-click "FreeGSTBill" on Desktop
+echo       - Or double-click FreeGSTBill.vbs here
+echo.
+echo     To install as PWA (optional):
+echo       - Open Chrome/Edge to localhost:3001
+echo       - Click install icon in address bar
+echo.
+echo  ========================================================
 echo.
 echo  Would you like to start FreeGSTBill now? (Y/N)
 set /p START_NOW="> "
