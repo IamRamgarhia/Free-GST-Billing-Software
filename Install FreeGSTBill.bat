@@ -228,18 +228,8 @@ if exist "%STARTUP_SHORTCUT%" (
     echo         Could not enable auto-start
 )
 
-:: Register freegstbill:// protocol
-set "REG_VBS=%TEMP%\reg_protocol.vbs"
-(
-    echo Set WshShell = CreateObject("WScript.Shell"^)
-    echo On Error Resume Next
-    echo WshShell.RegWrite "HKCU\Software\Classes\freegstbill\", "URL:FreeGSTBill Protocol", "REG_SZ"
-    echo WshShell.RegWrite "HKCU\Software\Classes\freegstbill\URL Protocol", "", "REG_SZ"
-    echo WshShell.RegWrite "HKCU\Software\Classes\freegstbill\shell\open\command\", "cmd /c ""%TARGET_PATH%""", "REG_SZ"
-) > "%REG_VBS%"
-
-cscript //nologo "%REG_VBS%" 2>nul
-del "%REG_VBS%" 2>nul
+:: Register freegstbill:// protocol (so browser "Start Server" button works)
+powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill' -Name '(default)' -Value 'URL:FreeGSTBill Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill\shell\open\command' -Name '(default)' -Value '%TARGET_PATH%'" 2>nul
 echo         Start button registered
 echo.
 
