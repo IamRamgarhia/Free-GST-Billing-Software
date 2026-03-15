@@ -115,22 +115,6 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 
 ---
 
-## Screenshots
-
-<div align="center">
-
-| Dashboard | Invoice Generator |
-|:---------:|:-----------------:|
-| ![Dashboard](screenshot.png) | ![Invoice Generator](screenshot-invoice.png) |
-
-| GST Returns | Reports |
-|:-----------:|:-------:|
-| ![GST Returns](screenshot-gst.png) | ![Reports](screenshot-reports.png) |
-
-</div>
-
----
-
 ## Quick Start / Installation
 
 ### Prerequisites
