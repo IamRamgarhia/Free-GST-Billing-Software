@@ -1,7 +1,23 @@
 {
-  "name": "empty-mare",
-  "private": true,
-  "version": "0.0.0",
+  "name": "gst-biller",
+  "version": "1.0.0",
+  "description": "Free, open-source offline GST invoice generator for Indian businesses. Create Tax Invoices, Proforma, Bill of Supply & Credit Notes with automatic CGST/SGST/IGST calculation.",
+  "author": "IamRamgarhia",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IamRamgarhia/biller.git"
+  },
+  "keywords": [
+    "gst",
+    "invoice",
+    "billing",
+    "india",
+    "tax-invoice",
+    "pdf-generator",
+    "offline",
+    "open-source"
+  ],
   "type": "module",
   "scripts": {
     "server": "node server.js",

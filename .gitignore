@@ -15,6 +15,9 @@ dist-ssr
 # Invoice data (personal/financial - keep local only)
 data/
 
+# AI assistant context
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
