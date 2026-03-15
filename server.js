@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
-const PORT = 3001;
+const DEFAULT_PORT = 3001;
+const PORT_FILE = path.join(__dirname, 'data', 'port.txt');
 
 const app = express();
 app.use(cors());
@@ -428,7 +429,23 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`\n  FreeGSTBill server running at http://localhost:${PORT}`);
-  console.log(`  Data stored in: ${DATA_DIR}\n`);
-});
+// Try ports starting from DEFAULT_PORT until one is available
+function startServer(port) {
+  const server = app.listen(port, () => {
+    // Save the active port so VBS launcher and other tools can read it
+    fs.writeFileSync(PORT_FILE, String(port), 'utf-8');
+    console.log(`\n  FreeGSTBill server running at http://localhost:${port}`);
+    console.log(`  Data stored in: ${DATA_DIR}\n`);
+  });
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && port < DEFAULT_PORT + 10) {
+      console.log(`  Port ${port} is busy, trying ${port + 1}...`);
+      startServer(port + 1);
+    } else {
+      console.error(`  Failed to start server: ${err.message}`);
+      process.exit(1);
+    }
+  });
+}
+
+startServer(DEFAULT_PORT);

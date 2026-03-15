@@ -20,9 +20,35 @@ if not exist "dist\index.html" (
 )
 
 echo.
-echo  FreeGSTBill running at http://localhost:3001
+echo  Starting FreeGSTBill...
+echo  (Server will pick an available port automatically)
+echo.
+
+:: Start server in background, then wait for port file
+start "" /b cmd /c "node server.js"
+
+:: Wait for port.txt to be written
+set RETRIES=0
+:waitloop
+if %RETRIES% geq 15 goto opendefault
+timeout /t 1 /nobreak >nul
+set /a RETRIES+=1
+if not exist "data\port.txt" goto waitloop
+
+:: Read the port
+set /p ACTIVE_PORT=<data\port.txt
+
+echo  FreeGSTBill running at http://localhost:%ACTIVE_PORT%
 echo  Press Ctrl+C to stop
 echo.
 
-start "" /b cmd /c "timeout /t 2 /nobreak >nul && start http://localhost:3001"
-node server.js
+start http://localhost:%ACTIVE_PORT%
+goto waitforexit
+
+:opendefault
+echo  FreeGSTBill running at http://localhost:3001
+start http://localhost:3001
+
+:waitforexit
+:: Keep window open so server keeps running
+cmd /k
