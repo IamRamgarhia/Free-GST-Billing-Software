@@ -407,6 +407,85 @@ Free-GST-Billing-Software/
 - [ ] **Client Portal** — shareable link for clients to view & pay invoices
 - [ ] **Aging Report** — 30/60/90 day outstanding analysis per client
 
+### AI-Powered Features (Coming at 1K Stars)
+
+> **Help us reach 1,000 stars and the next update will ship with FREE AI features — no API key needed, no subscription, completely free forever.**
+
+We're building AI directly into Free GST Billing Software to make invoicing even faster. Here's what's coming:
+
+#### Voice / Natural Language Invoice Creation (Agentic AI)
+Type or speak naturally and the AI creates the entire invoice for you:
+- *"Invoice Rahul Sharma for 5 cotton shirts at ₹500 each, 12% GST"*
+- *"Create proforma for ABC Corp — web development project, ₹1.5 lakh, 18% GST"*
+- AI understands your intent → fills client details, items, quantities, rates, tax — all automatically
+- Works like an agent: parses your sentence, looks up saved clients, picks the right invoice type, and fills every field
+
+#### Smart HSN Code Suggestion
+- Start typing an item name like "Cotton T-Shirt" → AI instantly suggests the correct HSN code (`6109`) and GST rate (5%)
+- No more Googling HSN codes — the AI knows all 8,000+ codes
+- Learns from your previous invoices to suggest faster over time
+
+#### Invoice from Photo / PDF (OCR + AI)
+- Snap a photo of any purchase bill or upload a PDF
+- AI extracts everything — vendor name, items, amounts, GSTIN, invoice number, date
+- Auto-creates a purchase entry for Input Tax Credit tracking
+- Perfect for recording expenses without manual typing
+
+#### Smart Payment Reminder Messages
+- AI drafts professional, polite payment reminders for overdue invoices
+- Ready to copy-paste into WhatsApp, SMS, or email
+- *"Hi Rahul, this is a friendly reminder about Invoice #INV-042 for ₹12,500 due on March 10. Please let us know if you need anything."*
+- Adjusts tone based on how overdue the payment is (gentle → firm → urgent)
+
+#### Monthly Business Insights & Summary
+- AI analyzes all your invoices and expenses to give you a plain-English business summary:
+  - *"Revenue up 15% vs last month. Top client: ABC Corp (₹2.4L). 3 invoices overdue totaling ₹45,000."*
+  - *"You've been spending more on logistics this quarter — consider negotiating rates."*
+- Tax filing reminders with auto-calculated amounts
+- Cash flow predictions based on your billing patterns
+
+#### Free AI APIs We'll Use (No Cost to You)
+
+| Provider | Free Tier | Best For |
+|----------|-----------|----------|
+| [Google Gemini](https://ai.google.dev/) | 1,500 requests/day (free) | Natural language parsing, HSN suggestions, business insights |
+| [Groq](https://groq.com/) | Free tier with fast inference | Real-time item suggestions, quick text generation |
+| [Hugging Face](https://huggingface.co/inference-api) | Free inference API | OCR, document extraction, text classification |
+| [Ollama](https://ollama.com/) | 100% local, unlimited, free | Fully offline AI — no API key, no internet needed |
+| [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) | 10,000 free requests/day | Lightweight AI tasks, text generation |
+
+> **Our goal:** All AI features will work **for free** — either using free-tier cloud APIs or fully local AI via Ollama. No paid API keys required. Your data stays private.
+
+#### How It Will Work
+
+```
+You type / speak naturally
+        ↓
+   AI processes locally or via free API
+        ↓
+   Returns structured data (JSON)
+        ↓
+   App auto-fills forms / takes action
+        ↓
+   You review and confirm — AI never sends without your approval
+```
+
+- **Privacy first** — AI processes your request and returns structured data. No invoice data is stored on any external server.
+- **Works offline** — Ollama option runs entirely on your machine. Zero internet required.
+- **You're always in control** — AI fills the fields, you review and hit Save. Nothing happens without your confirmation.
+
+---
+
+### Help Us Build This
+
+If you find Free GST Billing Software useful:
+
+1. **Star this repo** — every star gets us closer to shipping AI features for free
+2. **Share with other businesses** — more users = more motivation to build faster
+3. **Suggest features** — tell us what would save YOU the most time
+
+> **At 1,000 stars, we ship the AI update. At 5,000 stars, we add more features based on YOUR suggestions. This is community-driven software — your star is your vote.**
+
 Want a feature? Open an [issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) or email us.
 
 ---
