@@ -377,8 +377,10 @@ export default function GSTReturns() {
 
   const loadData = async () => {
     try {
-      const [b, e, p, pur] = await Promise.all([getAllBills(), getAllExpenses(), getProfile(), getAllPurchases()]);
-      setBills(b); setExpenses(e); setProfile(p || {}); setPurchases(pur || []);
+      const [b, e, p] = await Promise.all([getAllBills(), getAllExpenses(), getProfile()]);
+      setBills(b); setExpenses(e); setProfile(p || {});
+      // Purchases endpoint may not exist on older server versions
+      try { const pur = await getAllPurchases(); setPurchases(pur || []); } catch {}
     } catch { toast('Failed to load data', 'error'); }
   };
 
