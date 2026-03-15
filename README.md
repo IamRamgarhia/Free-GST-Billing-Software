@@ -210,8 +210,8 @@ All compliance data is generated automatically from your invoices and expenses. 
 **Requires:** [Node.js](https://nodejs.org/) v18+
 
 ```bash
-git clone https://github.com/IamRamgarhia/biller.git
-cd biller
+git clone https://github.com/IamRamgarhia/freegstbill.git
+cd freegstbill
 npm install
 
 # Windows
@@ -373,7 +373,7 @@ freegstbill/
 - [ ] **Client Portal** — shareable link for clients to view & pay invoices
 - [ ] **Aging Report** — 30/60/90 day outstanding analysis per client
 
-Want a feature? Open an [issue](https://github.com/IamRamgarhia/biller/issues) or email us.
+Want a feature? Open an [issue](https://github.com/IamRamgarhia/freegstbill/issues) or email us.
 
 ---
 
@@ -411,7 +411,7 @@ Yes. The template is in `src/components/InvoicePreview.jsx` and `src/index.css`.
 ## Contact & Support
 
 - **Email:** [Contact@dicecodes.com](mailto:Contact@dicecodes.com)
-- **Issues:** [GitHub Issues](https://github.com/IamRamgarhia/biller/issues)
+- **Issues:** [GitHub Issues](https://github.com/IamRamgarhia/freegstbill/issues)
 - **Feature Requests:** Open an issue or email us
 
 ---
