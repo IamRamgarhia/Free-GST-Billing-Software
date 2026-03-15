@@ -263,7 +263,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     try {
       const latestProfile = await getProfile();
       const clientId = latestProfile.googleClientId;
-      const folderName = latestProfile.googleDriveFolder || 'GST Biller Invoices';
+      const folderName = latestProfile.googleDriveFolder || 'BillKaro Invoices';
       if (!clientId) return;
 
       const hasToken = await ensureToken(clientId);

@@ -1,8 +1,8 @@
 {
-  "name": "gst-biller",
+  "name": "billkaro",
   "version": "1.0.0",
-  "description": "Free, open-source offline GST invoice generator for Indian businesses. Create Tax Invoices, Proforma, Bill of Supply & Credit Notes with automatic CGST/SGST/IGST calculation.",
-  "author": "IamRamgarhia",
+  "description": "BillKaro — Free, open-source GST invoice & billing software. Tax Invoice, Proforma, Credit Note, Bill of Supply with multi-currency support (USD, EUR, GBP). Offline, no signup. By DiceCodes.",
+  "author": "DiceCodes <Contact@dicecodes.com>",
   "license": "MIT",
   "repository": {
     "type": "git",

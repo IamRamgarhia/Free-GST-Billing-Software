@@ -9,7 +9,7 @@ export default function SettingsView({ onSaved }) {
   const [profile, setProfile] = useState({
     businessName: '', address: '', state: '', gstin: '', pan: '',
     email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
-    logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Biller Invoices',
+    logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'BillKaro Invoices',
   });
   const [saving, setSaving] = useState(false);
   const [termsTemplates, setTermsTemplates] = useState([]);
@@ -93,7 +93,7 @@ export default function SettingsView({ onSaved }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `gst-biller-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `billkaro-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast('Data exported!', 'success');
@@ -273,7 +273,7 @@ export default function SettingsView({ onSaved }) {
           <div className="form-group">
             <label className="form-label">Drive Folder Name</label>
             <input type="text" name="googleDriveFolder" className="form-input" value={profile.googleDriveFolder} onChange={handleChange}
-              placeholder="GST Biller Invoices" />
+              placeholder="BillKaro Invoices" />
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>

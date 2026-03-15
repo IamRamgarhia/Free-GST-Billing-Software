@@ -69,8 +69,8 @@ function App() {
             <FileText size={22} />
           </div>
           <div>
-            <h2 className="sidebar-title">GST Biller</h2>
-            <p className="sidebar-subtitle">Local Workspace</p>
+            <h2 className="sidebar-title">BillKaro</h2>
+            <p className="sidebar-subtitle">by DiceCodes</p>
           </div>
         </div>
 
