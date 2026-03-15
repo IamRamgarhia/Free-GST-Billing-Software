@@ -116,6 +116,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
   const [extraSections, setExtraSections] = useState(draft?.extraSections || []);
   const [savedClients, setSavedClients] = useState([]);
   const [showClientPicker, setShowClientPicker] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState({ itemId: null, query: '' });
   const [invoiceOptions, setInvoiceOptions] = useState(() => {
@@ -706,8 +707,8 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
               <div className="flex gap-2">
                 {savedClients.length > 0 && (
                   <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
-                    onClick={() => setShowClientPicker(!showClientPicker)}>
-                    <Users size={15} /> {showClientPicker ? 'Hide' : 'Saved Clients'}
+                    onClick={() => { setShowClientPicker(!showClientPicker); setClientSearch(''); }}>
+                    <Users size={15} /> {showClientPicker ? 'Hide' : 'Search Clients'}
                   </button>
                 )}
                 <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
@@ -717,15 +718,31 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
               </div>
             </div>
 
-            {/* Client picker dropdown */}
+            {/* Client search dropdown */}
             {showClientPicker && savedClients.length > 0 && (
               <div className="client-picker">
-                {savedClients.map(cli => (
-                  <button key={cli.id} className="client-picker-item" onClick={() => selectSavedClient(cli)}>
-                    <strong>{cli.name}</strong>
-                    <span>{cli.state}{cli.gstin ? ` | ${cli.gstin}` : ''}</span>
-                  </button>
-                ))}
+                <input
+                  type="text"
+                  className="form-input client-search-input"
+                  placeholder="Type to search clients..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  autoFocus
+                />
+                <div className="client-picker-list">
+                  {savedClients
+                    .filter(cli => !clientSearch || cli.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                    .map(cli => (
+                      <button key={cli.id} className="client-picker-item" onClick={() => { selectSavedClient(cli); setShowClientPicker(false); setClientSearch(''); }}>
+                        <strong>{cli.name}</strong>
+                        <span>{cli.state}{cli.gstin ? ` | ${cli.gstin}` : ''}</span>
+                      </button>
+                    ))
+                  }
+                  {savedClients.filter(cli => !clientSearch || cli.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                    <div className="client-picker-empty">No clients found</div>
+                  )}
+                </div>
               </div>
             )}
 
