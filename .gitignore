@@ -15,6 +15,7 @@ dist-ssr
 # Invoice data (personal/financial - keep local only)
 data/
 Saved Invoices/
+Trash/
 
 # AI assistant context
 .claude/

@@ -416,6 +416,40 @@ app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }
 });
 
 // ========================
+// Move saved PDF to Trash
+// ========================
+const TRASH_DIR = path.join(__dirname, 'Trash');
+
+app.post('/api/trash-pdf', express.json(), (req, res) => {
+  const { fileName, clientName, invoiceDate } = req.body;
+  if (!fileName) return res.status(400).json({ error: 'fileName required' });
+
+  const safeClient = (clientName || 'General').replace(/[<>:"/\\|?*]/g, '-').trim() || 'General';
+  const safeName = fileName.replace(/[<>:"/\\|?*]/g, '-');
+
+  // Search for the PDF in Saved Invoices (check all month subfolders for this client)
+  const clientDir = path.join(INVOICES_DIR, safeClient);
+  let found = false;
+
+  if (fs.existsSync(clientDir)) {
+    const months = fs.readdirSync(clientDir).filter(f => fs.statSync(path.join(clientDir, f)).isDirectory());
+    for (const month of months) {
+      const filePath = path.join(clientDir, month, safeName);
+      if (fs.existsSync(filePath)) {
+        // Move to Trash/{Client}/{Month}/
+        const trashPath = path.join(TRASH_DIR, safeClient, month);
+        if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
+        fs.renameSync(filePath, path.join(trashPath, safeName));
+        found = true;
+        break;
+      }
+    }
+  }
+
+  res.json({ trashed: found });
+});
+
+// ========================
 // Serve production build
 // ========================
 const distPath = path.join(__dirname, 'dist');
