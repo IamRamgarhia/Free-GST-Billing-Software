@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, AlertTriangle } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SettingsView from './components/SettingsView';
@@ -12,7 +12,6 @@ import ReceiptVoucher from './components/ReceiptVoucher';
 import GSTFilingGuide from './components/GSTFilingGuide';
 import WelcomeGuide from './components/WelcomeGuide';
 import ToastContainer from './components/Toast';
-import { getProfile } from './store';
 
 function App() {
   const [currentView, setCurrentView] = useState(() => {
@@ -30,15 +29,43 @@ function App() {
   });
   const [showWelcome, setShowWelcome] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [serverDown, setServerDown] = useState(false);
   const deferredPrompt = useRef(null);
+  const retryTimer = useRef(null);
 
+  // Check if server is running
   useEffect(() => {
-    getProfile().then(p => {
-      setProfile(p);
-      if (!p.businessName && !localStorage.getItem('freegstbill_onboarded')) {
-        setShowWelcome(true);
+    let cancelled = false;
+
+    const checkServer = async () => {
+      try {
+        const res = await fetch('/api/profile', { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+          if (cancelled) return;
+          setServerDown(false);
+          const p = await res.json();
+          setProfile(p);
+          if (!p.businessName && !localStorage.getItem('freegstbill_onboarded')) {
+            setShowWelcome(true);
+          }
+          // Stop retrying
+          if (retryTimer.current) clearInterval(retryTimer.current);
+          return;
+        }
+        throw new Error('not ok');
+      } catch {
+        if (!cancelled) setServerDown(true);
       }
-    });
+    };
+
+    checkServer();
+    // If server is down, keep retrying every 3 seconds
+    retryTimer.current = setInterval(checkServer, 3000);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer.current) clearInterval(retryTimer.current);
+    };
   }, []);
 
   // Capture PWA install prompt
@@ -128,6 +155,33 @@ function App() {
     { id: 'reports', icon: BarChart3, label: 'Reports & P&L' },
     { id: 'filing', icon: BookOpen, label: 'GST Filing' },
   ];
+
+  if (serverDown) {
+    return (
+      <div className="server-down-overlay">
+        <div className="server-down-modal">
+          <AlertTriangle size={48} color="#f59e0b" />
+          <h2>Local Server is Not Running</h2>
+          <p>
+            FreeGSTBill runs entirely on <strong>your computer</strong> — your data never leaves your machine.
+            But the local server needs to be started first.
+          </p>
+          <div className="server-down-steps">
+            <h3>How to start:</h3>
+            <ol>
+              <li>Double-click <strong>FreeGSTBill</strong> on your Desktop</li>
+              <li>Or search <strong>"FreeGSTBill"</strong> in the Start Menu</li>
+              <li>Or double-click <strong>FreeGSTBill.vbs</strong> in the app folder</li>
+            </ol>
+          </div>
+          <div className="server-down-waiting">
+            <div className="server-down-spinner" />
+            <span>Waiting for server to start... This page will load automatically.</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showWelcome) {
     return (
