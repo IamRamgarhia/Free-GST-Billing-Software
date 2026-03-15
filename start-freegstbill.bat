@@ -1,10 +1,10 @@
 @echo off
-title FreeGSTBill Server
+title Free GST Billing Software Server
 cd /d "%~dp0"
 
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo Node.js not found. Run "Install FreeGSTBill.bat" first.
+    echo Node.js not found. Run "Install Free GST Billing Software.bat" first.
     pause
     exit /b 1
 )
@@ -20,7 +20,7 @@ if not exist "dist\index.html" (
 )
 
 echo.
-echo  Starting FreeGSTBill...
+echo  Starting Free GST Billing Software...
 echo  (Server will pick an available port automatically)
 echo.
 
@@ -38,7 +38,7 @@ if not exist "data\port.txt" goto waitloop
 :: Read the port
 set /p ACTIVE_PORT=<data\port.txt
 
-echo  FreeGSTBill running at http://localhost:%ACTIVE_PORT%
+echo  Free GST Billing Software running at http://localhost:%ACTIVE_PORT%
 echo  Press Ctrl+C to stop
 echo.
 
@@ -46,7 +46,7 @@ start http://localhost:%ACTIVE_PORT%
 goto waitforexit
 
 :opendefault
-echo  FreeGSTBill running at http://localhost:3001
+echo  Free GST Billing Software running at http://localhost:3001
 start http://localhost:3001
 
 :waitforexit

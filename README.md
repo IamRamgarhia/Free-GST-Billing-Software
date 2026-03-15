@@ -1,4 +1,4 @@
-# FreeGSTBill
+# Free GST Billing Software
 
 ### Free, Open-Source GST Invoice & Billing Software
 
@@ -9,13 +9,13 @@ Create GST-compliant invoices for Indian and international clients. Runs 100% lo
 <table>
 <tr>
 <td width="55%">
-<img src="screenshot.png" alt="FreeGSTBill Screenshot" width="100%" />
+<img src="screenshot.png" alt="Free GST Billing Software Screenshot" width="100%" />
 </td>
 <td width="45%" valign="top">
 
 ### Download & Install
 
-<a href="https://github.com/IamRamgarhia/freegstbill/archive/refs/heads/main.zip">
+<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip">
 <img src="https://img.shields.io/badge/⬇_Download_ZIP-blue?style=for-the-badge&logoColor=white" alt="Download ZIP" height="45" />
 </a>
 
@@ -37,12 +37,12 @@ The app opens automatically in your browser at **http://localhost:3001**
 
 ---
 
-## Why FreeGSTBill?
+## Why Free GST Billing Software?
 
-Most billing software stores your data on their servers, charges you monthly, and locks you in. FreeGSTBill is different:
+Most billing software stores your data on their servers, charges you monthly, and locks you in. Free GST Billing Software is different:
 
 - **Your data never leaves your computer** — Everything is stored as local JSON files in a `data/` folder on your machine. No cloud, no third-party servers, no analytics, no tracking. Your invoices, client details, GSTIN, bank info — all stays with you. Period.
-- **GST compliance on autopilot** — Just create invoices normally. FreeGSTBill auto-generates your GSTR-1 (B2B + B2C), GSTR-3B summary, HSN reports, and Document Summary. When filing day comes, your data is ready — download CSVs, follow the built-in step-by-step filing guide, and you're done. No CA needed for basic filing.
+- **GST compliance on autopilot** — Just create invoices normally. Free GST Billing Software auto-generates your GSTR-1 (B2B + B2C), GSTR-3B summary, HSN reports, and Document Summary. When filing day comes, your data is ready — download CSVs, follow the built-in step-by-step filing guide, and you're done. No CA needed for basic filing.
 - **Works without internet** — Once installed, the entire app runs on localhost. No internet required to create invoices, generate PDFs, or view reports. Only Google Drive backup (optional) needs connectivity.
 - **Install once, use forever** — No monthly fees. No "free tier" limits. No premium upsell. MIT licensed. You own the software.
 - **Install as a desktop app (PWA)** — Works like a native Windows/Mac app. One-click install from your browser. Opens instantly, no browser tabs needed.
@@ -64,7 +64,7 @@ Most billing software stores your data on their servers, charges you monthly, an
 
 ## Who Is This For?
 
-FreeGSTBill replaces paid billing software for anyone who sends invoices. If you're paying for Zoho, Tally, Vyapar, or any SaaS billing tool — you don't have to.
+Free GST Billing Software replaces paid billing software for anyone who sends invoices. If you're paying for Zoho, Tally, Vyapar, or any SaaS billing tool — you don't have to.
 
 | Industry | How They Use It |
 |----------|----------------|
@@ -84,7 +84,7 @@ FreeGSTBill replaces paid billing software for anyone who sends invoices. If you
 | **Real Estate & Construction** | Multi-page invoices with payment milestones and terms. |
 | **NGOs & Trusts** | Receipt generation and bill of supply for exempt services. |
 
-**Bottom line:** If you send invoices and don't want to pay monthly for billing software, FreeGSTBill is for you.
+**Bottom line:** If you send invoices and don't want to pay monthly for billing software, Free GST Billing Software is for you.
 
 ---
 
@@ -155,7 +155,7 @@ All compliance data is generated automatically from your invoices and expenses. 
 - **NIL Return Detection** — auto-detects periods with no activity
 - Filter by fiscal year or specific month
 
-> **How it works:** Create invoices → FreeGSTBill auto-calculates all GST breakdowns → Go to Reports page → Download CSVs → Upload to GST portal. That's it. Your CA can use these reports directly.
+> **How it works:** Create invoices → Free GST Billing Software auto-calculates all GST breakdowns → Go to Reports page → Download CSVs → Upload to GST portal. That's it. Your CA can use these reports directly.
 
 ### GST Filing Guide
 - **Step-by-step instructions** for filing GSTR-1 on the GST portal
@@ -229,14 +229,14 @@ All compliance data is generated automatically from your invoices and expenses. 
 | **Can anyone access my invoices?** | No. The app runs on `localhost` (your machine only). It's not accessible from the internet or other computers on your network. |
 | **What happens if I uninstall?** | Your `data/` folder remains untouched. Reinstall anytime and everything is still there. You can also export a full JSON backup from Settings. |
 | **Do I need internet?** | Only for the first install (`npm install`). After that, everything works offline — invoicing, PDF generation, reports, everything. |
-| **Will it handle my GST compliance?** | Yes. Create invoices normally and FreeGSTBill auto-generates: GSTR-1 B2B & B2C reports, GSTR-3B summary with ITC from expenses, HSN summary, Document Summary (Table 13), and CSV exports ready for the GST portal. It even has a step-by-step filing guide. |
+| **Will it handle my GST compliance?** | Yes. Create invoices normally and Free GST Billing Software auto-generates: GSTR-1 B2B & B2C reports, GSTR-3B summary with ITC from expenses, HSN summary, Document Summary (Table 13), and CSV exports ready for the GST portal. It even has a step-by-step filing guide. |
 | **Is it really free?** | Yes. MIT licensed. No premium tier, no ads, no tracking, no signup wall. Fork it, modify it, use it commercially — no restrictions. |
 
 ---
 
 ## Quick Start (Windows — Recommended)
 
-1. **Download** the zip from [Releases](https://github.com/IamRamgarhia/freegstbill/releases)
+1. **Download** the zip from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 2. **Extract** the folder anywhere
 3. **Double-click** `Install FreeGSTBill.bat`
 4. The app will **open automatically** in your browser at:
@@ -247,7 +247,7 @@ That's it. Bookmark this link or install as a desktop app (see below).
 
 ### After Installation
 - **The app starts automatically** when you turn on your PC — no manual steps needed
-- **To open the app** → Double-click `FreeGSTBill` on Desktop, or search "FreeGSTBill" in Start Menu
+- **To open the app** → Double-click `Free GST Billing Software` on Desktop, or search "Free GST Billing Software" in Start Menu
 - **Your app URL** → Always **http://localhost:3001** (bookmark this!)
 - **If the page doesn't load** → Double-click the Desktop shortcut or `Start FreeGSTBill.bat` to start it
 - **Saved invoices** → PDF files are auto-saved in `Saved Invoices/{Client Name}/{Month}/`
@@ -261,19 +261,19 @@ That's it. Bookmark this link or install as a desktop app (see below).
 
 ### Install as Desktop App (PWA) — Recommended
 
-Install FreeGSTBill as a standalone desktop app so you never lose the tab:
+Install Free GST Billing Software as a standalone desktop app so you never lose the tab:
 
 1. Open **http://localhost:3001** in **Chrome** or **Edge**
 2. Click the **"Install App"** blue banner at the top (or the ⊕ icon in address bar)
 3. Click **Install**
 4. Done — the app now opens in its own window, no browser needed!
 
-**To uninstall:** Right-click the app title bar → "Uninstall FreeGSTBill"
+**To uninstall:** Right-click the app title bar → "Uninstall Free GST Billing Software"
 
 ### For Developers
 ```bash
-git clone https://github.com/IamRamgarhia/freegstbill.git
-cd freegstbill
+git clone https://github.com/IamRamgarhia/Free-GST-Billing-Software.git
+cd Free-GST-Billing-Software
 npm install
 
 # Windows
@@ -322,7 +322,7 @@ PDFs auto-upload after every download.
 ## Project Structure
 
 ```
-freegstbill/
+Free-GST-Billing-Software/
 ├── server.js                     # Express API (port 3001)
 ├── src/
 │   ├── App.jsx                   # Root + sidebar navigation + dark mode
@@ -407,7 +407,7 @@ freegstbill/
 - [ ] **Client Portal** — shareable link for clients to view & pay invoices
 - [ ] **Aging Report** — 30/60/90 day outstanding analysis per client
 
-Want a feature? Open an [issue](https://github.com/IamRamgarhia/freegstbill/issues) or email us.
+Want a feature? Open an [issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) or email us.
 
 ---
 
@@ -426,7 +426,7 @@ Yes. Select any of the 8 supported currencies (USD, EUR, GBP, AUD, CAD, SGD, AED
 Yes. Only Google Drive upload needs internet.
 
 **How do I file my GST returns?**
-Go to the GST Filing Guide page in FreeGSTBill. It provides step-by-step instructions for filing GSTR-1 and GSTR-3B. Use the Reports page to get all the numbers you need.
+Go to the GST Filing Guide page in Free GST Billing Software. It provides step-by-step instructions for filing GSTR-1 and GSTR-3B. Use the Reports page to get all the numbers you need.
 
 **Can I track expenses and see profit/loss?**
 Yes. Use the Expenses page to record business expenses. The Reports page auto-generates a P&L statement from your invoices and expenses.
@@ -445,7 +445,7 @@ Yes. The template is in `src/components/InvoicePreview.jsx` and `src/index.css`.
 ## Contact & Support
 
 - **Email:** [Contact@dicecodes.com](mailto:Contact@dicecodes.com)
-- **Issues:** [GitHub Issues](https://github.com/IamRamgarhia/freegstbill/issues)
+- **Issues:** [GitHub Issues](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 - **Feature Requests:** Open an issue or email us
 
 ---
@@ -462,4 +462,4 @@ We welcome contributions! Report bugs, suggest features, or submit pull requests
 
 ---
 
-**FreeGSTBill** by [DiceCodes](mailto:Contact@dicecodes.com) — Free billing software. Made in India.
+**Free GST Billing Software** by [DiceCodes](mailto:Contact@dicecodes.com) — Free billing software. Made in India.

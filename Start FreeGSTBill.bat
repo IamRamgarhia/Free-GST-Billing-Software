@@ -3,7 +3,7 @@ cd /d "%~dp0"
 
 :: Check if installed
 if not exist "node_modules" (
-    echo FreeGSTBill is not installed yet. Running installer...
+    echo Free GST Billing Software is not installed yet. Running installer...
     call "%~dp0Install FreeGSTBill.bat"
     exit /b
 )

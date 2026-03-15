@@ -1,7 +1,7 @@
 
   ========================================================
 
-     FreeGSTBill - Free GST Billing Software
+     Free GST Billing Software
      By DiceCodes
 
   ========================================================
@@ -33,14 +33,14 @@
   DAILY USE:
   --------------------------------------------------------
 
-  Start the app    -> Double-click "FreeGSTBill" on Desktop
-                      OR search "FreeGSTBill" in Start Menu
-                      OR double-click FreeGSTBill.vbs here
+  Start the app    -> Double-click "Free GST Billing Software" on Desktop
+                      OR search "Free GST Billing" in Start Menu
 
   Open the app     -> Go to http://localhost:3001 in browser
                       (or just start the app - it opens automatically)
 
   Stop the app     -> Double-click "Stop FreeGSTBill.bat"
+                      OR just close the app
                       (or just close the terminal window)
 
 
@@ -51,7 +51,7 @@
   After the app opens in your browser:
   1. Look for the blue "Install App" bar at the top
   2. Click "Install App"
-  3. Done! Now FreeGSTBill opens like a normal app
+  3. Done! Now it opens like a normal app
      - No browser tabs to lose
      - Find it in Start Menu
      - Works even without internet
@@ -76,7 +76,7 @@
   --------------------------------------------------------
 
   Page doesn't load?
-    -> Double-click "FreeGSTBill" on Desktop to start the server
+    -> Double-click "Free GST Billing Software" on Desktop to start
     -> Then open http://localhost:3001
 
   App won't start?
@@ -88,7 +88,7 @@
   NEED HELP?
   --------------------------------------------------------
 
-  GitHub: https://github.com/IamRamgarhia/freegstbill
+  GitHub: https://github.com/IamRamgarhia/Free-GST-Billing-Software
   Email:  Contact@dicecodes.com
 
   ========================================================

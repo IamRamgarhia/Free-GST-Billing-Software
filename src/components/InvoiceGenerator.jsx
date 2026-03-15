@@ -418,7 +418,7 @@ export default function InvoiceGenerator({ onBack, profile, editingBill }) {
     try {
       const latestProfile = await getProfile();
       const clientId = latestProfile.googleClientId;
-      const folderName = latestProfile.googleDriveFolder || 'FreeGSTBill Invoices';
+      const folderName = latestProfile.googleDriveFolder || 'GST Billing Invoices';
       if (!clientId) return;
 
       const hasToken = await ensureToken(clientId);

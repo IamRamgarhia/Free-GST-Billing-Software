@@ -98,7 +98,7 @@ const PROFILE_PATH = path.join(DATA_DIR, 'profile.json');
 const DEFAULT_PROFILE = {
   businessName: '', address: '', state: '', gstin: '', pan: '',
   email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
-  logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'FreeGSTBill Invoices',
+  logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
 };
 
 app.get('/api/profile', (req, res) => {
@@ -420,33 +420,64 @@ app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }
 // ========================
 const TRASH_DIR = path.join(__dirname, 'Trash');
 
+if (!fs.existsSync(TRASH_DIR)) fs.mkdirSync(TRASH_DIR, { recursive: true });
+
 app.post('/api/trash-pdf', express.json(), (req, res) => {
-  const { fileName, clientName, invoiceDate } = req.body;
-  if (!fileName) return res.status(400).json({ error: 'fileName required' });
+  try {
+    const { fileName, clientName } = req.body;
+    if (!fileName) return res.status(400).json({ error: 'fileName required' });
 
-  const safeClient = (clientName || 'General').replace(/[<>:"/\\|?*]/g, '-').trim() || 'General';
-  const safeName = fileName.replace(/[<>:"/\\|?*]/g, '-');
+    const safeClient = (clientName || 'General').replace(/[<>:"/\\|?*]/g, '-').trim() || 'General';
+    const safeName = fileName.replace(/[<>:"/\\|?*]/g, '-');
 
-  // Search for the PDF in Saved Invoices (check all month subfolders for this client)
-  const clientDir = path.join(INVOICES_DIR, safeClient);
-  let found = false;
+    // Search for the PDF in Saved Invoices (check all month subfolders for this client)
+    const clientDir = path.join(INVOICES_DIR, safeClient);
+    let found = false;
 
-  if (fs.existsSync(clientDir)) {
-    const months = fs.readdirSync(clientDir).filter(f => fs.statSync(path.join(clientDir, f)).isDirectory());
-    for (const month of months) {
-      const filePath = path.join(clientDir, month, safeName);
-      if (fs.existsSync(filePath)) {
-        // Move to Trash/{Client}/{Month}/
-        const trashPath = path.join(TRASH_DIR, safeClient, month);
-        if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
-        fs.renameSync(filePath, path.join(trashPath, safeName));
-        found = true;
-        break;
+    if (fs.existsSync(clientDir)) {
+      const months = fs.readdirSync(clientDir).filter(f => {
+        try { return fs.statSync(path.join(clientDir, f)).isDirectory(); } catch { return false; }
+      });
+      for (const month of months) {
+        const filePath = path.join(clientDir, month, safeName);
+        if (fs.existsSync(filePath)) {
+          // Move to Trash/{Client}/{Month}/
+          const trashPath = path.join(TRASH_DIR, safeClient, month);
+          if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
+          try {
+            fs.renameSync(filePath, path.join(trashPath, safeName));
+          } catch {
+            // renameSync can fail across drives — fallback to copy+delete
+            fs.copyFileSync(filePath, path.join(trashPath, safeName));
+            fs.unlinkSync(filePath);
+          }
+          found = true;
+          break;
+        }
       }
     }
-  }
 
-  res.json({ trashed: found });
+    // Also search without client subfolder (flat structure from older saves)
+    if (!found) {
+      const flatPath = path.join(INVOICES_DIR, safeName);
+      if (fs.existsSync(flatPath)) {
+        const trashPath = path.join(TRASH_DIR, safeClient);
+        if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
+        try {
+          fs.renameSync(flatPath, path.join(trashPath, safeName));
+        } catch {
+          fs.copyFileSync(flatPath, path.join(trashPath, safeName));
+          fs.unlinkSync(flatPath);
+        }
+        found = true;
+      }
+    }
+
+    res.json({ trashed: found });
+  } catch (err) {
+    console.error('Trash PDF error:', err);
+    res.status(500).json({ error: 'Failed to trash PDF' });
+  }
 });
 
 // ========================
@@ -460,7 +491,7 @@ app.get('/api/version', (req, res) => {
 
 app.get('/api/check-update', async (req, res) => {
   try {
-    const response = await fetch('https://raw.githubusercontent.com/IamRamgarhia/freegstbill/main/package.json');
+    const response = await fetch('https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/package.json');
     if (!response.ok) throw new Error('GitHub fetch failed');
     const remote = await response.json();
     res.json({ current: pkg.version, latest: remote.version, updateAvailable: remote.version !== pkg.version });
@@ -488,7 +519,7 @@ function startServer(port) {
   const server = app.listen(port, () => {
     // Save the active port so VBS launcher and other tools can read it
     fs.writeFileSync(PORT_FILE, String(port), 'utf-8');
-    console.log(`\n  FreeGSTBill server running at http://localhost:${port}`);
+    console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
   });
   server.on('error', (err) => {

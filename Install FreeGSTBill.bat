@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
-title FreeGSTBill Installer
+title Free GST Billing Software - Installer
 color 0B
 
 echo.
 echo  ========================================================
 echo.
-echo     FreeGSTBill - Free GST Billing Software
+echo     Free GST Billing Software
 echo     Free - Offline - Open Source
 echo     by DiceCodes
 echo.
@@ -147,12 +147,12 @@ echo  [4/5] Creating shortcuts...
 set "TARGET_PATH=%~dp0Start FreeGSTBill.bat"
 
 :: Desktop shortcut
-set "DESKTOP_SHORTCUT=%USERPROFILE%\Desktop\FreeGSTBill.lnk"
+set "DESKTOP_SHORTCUT=%USERPROFILE%\Desktop\Free GST Billing Software.lnk"
 
 :: Start Menu shortcut (searchable from Windows Start)
-set "STARTMENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\FreeGSTBill"
+set "STARTMENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Free GST Billing Software"
 if not exist "%STARTMENU_DIR%" mkdir "%STARTMENU_DIR%"
-set "STARTMENU_SHORTCUT=%STARTMENU_DIR%\FreeGSTBill.lnk"
+set "STARTMENU_SHORTCUT=%STARTMENU_DIR%\Free GST Billing Software.lnk"
 
 :: Create VBS shortcut creator script (creates both shortcuts)
 set "TEMP_VBS=%TEMP%\create_shortcut.vbs"
@@ -162,14 +162,14 @@ set "TEMP_VBS=%TEMP%\create_shortcut.vbs"
     echo Set desktopShortcut = WshShell.CreateShortcut("%DESKTOP_SHORTCUT%"^)
     echo desktopShortcut.TargetPath = "%TARGET_PATH%"
     echo desktopShortcut.WorkingDirectory = "%~dp0"
-    echo desktopShortcut.Description = "FreeGSTBill - Free GST Billing Software"
+    echo desktopShortcut.Description = "Free GST Billing Software"
     echo desktopShortcut.WindowStyle = 1
     echo desktopShortcut.Save
     echo.
     echo Set startShortcut = WshShell.CreateShortcut("%STARTMENU_SHORTCUT%"^)
     echo startShortcut.TargetPath = "%TARGET_PATH%"
     echo startShortcut.WorkingDirectory = "%~dp0"
-    echo startShortcut.Description = "FreeGSTBill - Free GST Billing Software"
+    echo startShortcut.Description = "Free GST Billing Software"
     echo startShortcut.WindowStyle = 1
     echo startShortcut.Save
 ) > "%TEMP_VBS%"
@@ -183,7 +183,7 @@ if exist "%DESKTOP_SHORTCUT%" (
     echo         Could not create desktop shortcut
 )
 if exist "%STARTMENU_SHORTCUT%" (
-    echo         Start Menu shortcut created (search "FreeGSTBill" in Start)
+    echo         Start Menu shortcut created (search "Free GST Billing" in Start)
 ) else (
     echo         Could not create Start Menu shortcut
 )
@@ -196,7 +196,7 @@ echo  [5/5] Setting up auto-start...
 
 :: Add to Windows Startup folder (server starts silently on login)
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "STARTUP_SHORTCUT=%STARTUP_DIR%\FreeGSTBill Server.lnk"
+set "STARTUP_SHORTCUT=%STARTUP_DIR%\Free GST Billing Server.lnk"
 set "SERVER_BAT=%~dp0start-server-silent.bat"
 
 :: Create a silent server starter (no window, just runs node)
@@ -215,7 +215,7 @@ set "TEMP_VBS2=%TEMP%\create_startup.vbs"
     echo Set startupShortcut = WshShell.CreateShortcut("%STARTUP_SHORTCUT%"^)
     echo startupShortcut.TargetPath = "%SERVER_BAT%"
     echo startupShortcut.WorkingDirectory = "%~dp0"
-    echo startupShortcut.Description = "FreeGSTBill Server Auto-Start"
+    echo startupShortcut.Description = "Free GST Billing Software Server Auto-Start"
     echo startupShortcut.WindowStyle = 7
     echo startupShortcut.Save
 ) > "%TEMP_VBS2%"
@@ -229,12 +229,12 @@ if exist "%STARTUP_SHORTCUT%" (
 )
 
 :: Register freegstbill:// protocol (so browser "Start Server" button works)
-powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill' -Name '(default)' -Value 'URL:FreeGSTBill Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill\shell\open\command' -Name '(default)' -Value '%TARGET_PATH%'" 2>nul
+powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill' -Name '(default)' -Value 'URL:Free GST Billing Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill\shell\open\command' -Name '(default)' -Value '%TARGET_PATH%'" 2>nul
 echo         Start button registered
 
 :: Register freegstbill-update:// protocol (so browser "Update Now" button works)
 set "UPDATE_PATH=%~dp0Update FreeGSTBill.bat"
-powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill-update' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update' -Name '(default)' -Value 'URL:FreeGSTBill Update Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill-update\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update\shell\open\command' -Name '(default)' -Value '%UPDATE_PATH%'" 2>nul
+powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill-update' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update' -Name '(default)' -Value 'URL:Free GST Billing Update Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill-update\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update\shell\open\command' -Name '(default)' -Value '%UPDATE_PATH%'" 2>nul
 echo         Update button registered
 echo.
 
@@ -248,7 +248,7 @@ echo     Installation Complete!
 echo.
 echo  ========================================================
 echo.
-echo  Starting FreeGSTBill...
+echo  Starting Free GST Billing Software...
 echo  (Your browser will open automatically)
 echo.
 
@@ -257,12 +257,12 @@ start "" "%~dp0Start FreeGSTBill.bat"
 echo.
 echo  ========================================================
 echo.
-echo     FreeGSTBill is running!
+echo     Free GST Billing Software is running!
 echo.
 echo     HOW IT WORKS:
 echo       - Server starts automatically when you turn on PC
-echo       - Just click "FreeGSTBill" on Desktop to open
-echo       - Or search "FreeGSTBill" in Start Menu
+echo       - Just click "Free GST Billing Software" on Desktop to open
+echo       - Or search "Free GST Billing" in Start Menu
 echo       - Your data is always safe on your computer
 echo.
 echo     Tip: When the app opens, click "Install App"

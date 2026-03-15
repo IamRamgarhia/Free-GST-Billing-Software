@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'og-preview.png'],
       manifest: {
-        name: 'FreeGSTBill',
-        short_name: 'FreeGSTBill',
+        name: 'Free GST Billing Software',
+        short_name: 'GST Billing',
         description: 'Free GST Invoice Generator & Billing Software',
         theme_color: '#1e40af',
         background_color: '#f8fafc',

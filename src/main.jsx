@@ -11,7 +11,7 @@ const updateSW = registerSW({
     updateSW(true)
   },
   onOfflineReady() {
-    console.log('FreeGSTBill is ready to work offline')
+    console.log('Free GST Billing Software is ready to work offline')
   },
 })
 

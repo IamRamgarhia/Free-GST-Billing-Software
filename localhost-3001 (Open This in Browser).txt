@@ -5,7 +5,7 @@
 
   ========================================================
 
-  How to open FreeGSTBill:
+  How to open Free GST Billing Software:
 
   1. Copy this URL:  http://localhost:3001
   2. Paste it in your browser (Chrome, Edge, or any browser)
@@ -21,9 +21,9 @@
   If you see an error or blank page, the local server
   is not running. To start it:
 
-  1. Double-click "FreeGSTBill" on your Desktop
-     OR search "FreeGSTBill" in Start Menu
-     OR double-click "FreeGSTBill.vbs" in this folder
+  1. Double-click "Free GST Billing Software" on your Desktop
+     OR search "Free GST Billing Software" in Start Menu
+     OR double-click "Free GST Billing Software.vbs" in this folder
 
   2. Wait a few seconds for it to start
 

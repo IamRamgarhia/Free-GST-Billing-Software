@@ -101,7 +101,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
         // Move saved PDF to Trash folder
         const prefix = { 'tax-invoice': 'INV', 'proforma': 'PRO', 'credit-note': 'CN', 'bill-of-supply': 'BOS', 'delivery-challan': 'DC' }[bill.invoiceType || 'tax-invoice'] || 'INV';
         const pdfName = `${prefix}_${(bill.invoiceNumber || '').replace(/\//g, '-')}.pdf`;
-        fetch('/api/trash-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName: pdfName, clientName: bill.clientName }) }).catch(() => {});
+        const clientName = bill.clientName || bill.data?.client?.name || 'General';
+        fetch('/api/trash-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName: pdfName, clientName }) }).catch(err => console.warn('Could not trash PDF:', err));
 
         toast('Invoice deleted & stock restored', 'success');
         loadBills();

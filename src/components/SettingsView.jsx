@@ -9,7 +9,7 @@ export default function SettingsView({ onSaved }) {
   const [profile, setProfile] = useState({
     businessName: '', address: '', state: '', gstin: '', pan: '',
     email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
-    logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'FreeGSTBill Invoices',
+    logo: '', logoHeight: 48, signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
   });
   const [saving, setSaving] = useState(false);
   const [termsTemplates, setTermsTemplates] = useState([]);
@@ -354,13 +354,25 @@ export default function SettingsView({ onSaved }) {
             <label className="form-label">Business Logo</label>
             <div className="upload-area">
               {profile.logo ? (
-                <div className="upload-preview">
-                  <img src={profile.logo} alt="Logo" className="upload-img" />
-                  <button type="button" className="icon-btn icon-btn-red upload-remove" onClick={() => removeImage('logo')}><Trash2 size={14} /></button>
+                <div className="logo-upload-section">
+                  <div className="logo-preview-box">
+                    <img src={profile.logo} alt="Logo" style={{ height: `${profile.logoHeight || 48}px`, maxWidth: '180px', objectFit: 'contain', display: 'block' }} />
+                    <button type="button" className="icon-btn icon-btn-red upload-remove" onClick={() => removeImage('logo')}><Trash2 size={14} /></button>
+                  </div>
+                  <div className="logo-size-control">
+                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>Logo Size on Invoice</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>S</span>
+                      <input type="range" min="24" max="80" value={profile.logoHeight || 48} onChange={(e) => setProfile(prev => ({ ...prev, logoHeight: Number(e.target.value) }))} className="logo-slider" />
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>L</span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{profile.logoHeight || 48}px height</span>
+                  </div>
+                  <button type="button" className="upload-change-btn" onClick={() => logoInputRef.current?.click()}>Change Logo</button>
                 </div>
               ) : (
                 <button type="button" className="upload-btn" onClick={() => logoInputRef.current?.click()}>
-                  <Image size={20} /><span>Upload Logo</span><span className="upload-hint">PNG, JPG (max 500KB)</span>
+                  <Image size={20} /><span>Upload Logo</span><span className="upload-hint">PNG or JPG, square or wide (max 500KB)</span>
                 </button>
               )}
               <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('logo', e)} />
@@ -410,7 +422,7 @@ export default function SettingsView({ onSaved }) {
           <div className="form-group">
             <label className="form-label">Drive Folder Name</label>
             <input type="text" name="googleDriveFolder" className="form-input" value={profile.googleDriveFolder} onChange={handleChange}
-              placeholder="FreeGSTBill Invoices" />
+              placeholder="GST Billing Invoices" />
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>
@@ -533,7 +545,7 @@ export default function SettingsView({ onSaved }) {
       {/* ---- Data Management ---- */}
       <div className="glass-panel p-6 mb-6">
         <h3 className="section-title">App Updates</h3>
-        <p className="page-subtitle mb-4">Check if a newer version of FreeGSTBill is available.</p>
+        <p className="page-subtitle mb-4">Check if a newer version is available.</p>
         <div className="flex gap-4 items-center">
           <button type="button" className="btn btn-secondary" disabled={checkingUpdate} onClick={async () => {
             setCheckingUpdate(true);

@@ -90,7 +90,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       <div style={{ background: accent, padding: '1.5rem 2rem', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           {showLogo && profile?.logo && (
-            <img src={profile.logo} alt="Logo" style={{ maxHeight: '44px', maxWidth: '140px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block', filter: 'brightness(0) invert(1)' }} />
+            <img src={profile.logo} alt="Logo" style={{ maxHeight: `${profile.logoHeight || 48}px`, maxWidth: '180px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block', filter: 'brightness(0) invert(1)' }} />
           )}
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, letterSpacing: '0.08em' }}>{customTitle}</h1>
           {invoiceType === 'proforma' && (
@@ -124,7 +124,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
         <div>
           {showLogo && profile?.logo && (
-            <img src={profile.logo} alt="Logo" style={{ maxHeight: '40px', maxWidth: '140px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block' }} />
+            <img src={profile.logo} alt="Logo" style={{ maxHeight: `${profile.logoHeight || 48}px`, maxWidth: '180px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block' }} />
           )}
           <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>{profile?.businessName || 'Your Business'}</h2>
           <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.6, marginTop: '0.25rem' }}>
@@ -156,7 +156,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       <div className="inv-header">
         <div className="inv-header-left">
           {showLogo && profile?.logo && (
-            <img src={profile.logo} alt="Logo" style={{ maxHeight: '52px', maxWidth: '160px', objectFit: 'contain', marginBottom: '0.75rem', display: 'block' }} />
+            <img src={profile.logo} alt="Logo" style={{ maxHeight: `${profile.logoHeight || 48}px`, maxWidth: '180px', objectFit: 'contain', marginBottom: '0.75rem', display: 'block' }} />
           )}
           <h1 className="inv-title" style={{ color: accent }}>{customTitle}</h1>
           {invoiceType === 'proforma' && (

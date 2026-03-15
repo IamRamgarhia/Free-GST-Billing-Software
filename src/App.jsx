@@ -169,19 +169,19 @@ function App() {
       <div className="server-down-overlay">
         <div className="server-down-modal">
           <FileText size={48} color="#3b82f6" />
-          <h2>FreeGSTBill Needs a Quick Start</h2>
+          <h2>Free GST Billing Software Needs a Quick Start</h2>
           <p>
             Your data is <strong>100% safe</strong> on your computer — nothing is lost.
             The app just needs to be started once.
           </p>
           <a href="freegstbill://start" className="server-start-btn">
-            Open FreeGSTBill
+            Open GST Billing
           </a>
           <div className="server-down-steps">
             <p className="server-down-hint">Or start manually:</p>
             <ol>
-              <li>Double-click <strong>FreeGSTBill</strong> on your Desktop</li>
-              <li>Or search <strong>"FreeGSTBill"</strong> in Start Menu</li>
+              <li>Double-click <strong>Free GST Billing Software</strong> on your Desktop</li>
+              <li>Or search <strong>"Free GST Billing"</strong> in Start Menu</li>
             </ol>
           </div>
           <p className="server-down-safe">All your invoices, clients, and data are safely stored on your computer. They are never deleted or shared.</p>
@@ -214,7 +214,7 @@ function App() {
             <FileText size={22} />
           </div>
           <div>
-            <h2 className="sidebar-title">FreeGSTBill</h2>
+            <h2 className="sidebar-title">GST Billing</h2>
             <p className="sidebar-subtitle">by DiceCodes</p>
           </div>
         </div>
@@ -255,7 +255,7 @@ function App() {
       {showInstallBanner && (
         <div className="pwa-install-banner">
           <Download size={18} />
-          <span><strong>Install FreeGSTBill</strong> as a desktop app — opens instantly, no browser needed!</span>
+          <span><strong>Install as Desktop App</strong> — opens instantly, no browser needed!</span>
           <button className="pwa-install-btn" onClick={handleInstallPWA}>Install App</button>
           <button className="pwa-dismiss-btn" onClick={dismissInstallBanner} title="Dismiss"><X size={16} /></button>
         </div>
