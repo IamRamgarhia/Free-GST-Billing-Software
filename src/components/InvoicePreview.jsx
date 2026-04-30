@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import DOMPurify from 'dompurify';
-import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig } from '../utils';
+import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine } from '../utils';
 
 const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
   const businessState = profile?.state?.trim().toLowerCase();
   const clientState = client?.state?.trim().toLowerCase();
   const isInterstate = businessState && clientState && businessState !== clientState;
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
+  // Seller's country drives tax label (GST / VAT / SST / MwSt etc.) and bank label.
+  const sellerCC = getCountryConfig(profile?.country);
+  const isIndia = (profile?.country || 'India') === 'India';
+  const taxLabel = sellerCC.taxLabel || 'GST';
 
   // Options with defaults
   const showGST = options.showGST !== undefined ? options.showGST : typeConfig.showGST;
@@ -35,9 +39,6 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
 
   const amountInWords = (num) => {
     if (currencySymbol === 'INR') return numberToWords(num);
-    // English number-to-words for foreign currencies
-    const currencyNames = { USD: 'Dollars', EUR: 'Euros', GBP: 'Pounds', AUD: 'Dollars', CAD: 'Dollars', SGD: 'Dollars', AED: 'Dirhams' };
-    const centsNames = { USD: 'Cents', EUR: 'Cents', GBP: 'Pence', AUD: 'Cents', CAD: 'Cents', SGD: 'Cents', AED: 'Fils' };
     const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
     const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     const convert = (n) => {
@@ -50,11 +51,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       else if (n > 0) { result += a[n] + ' '; }
       return result.trim();
     };
+    const names = CURRENCY_NAMES[currencySymbol] || { major: currencySymbol, minor: 'Cents' };
     const rounded = Math.round(num * 100) / 100;
     const whole = Math.floor(rounded);
     const cents = Math.round((rounded - whole) * 100);
-    let result = convert(whole) + ' ' + (currencyNames[currencySymbol] || currencySymbol);
-    if (cents > 0) result += ' and ' + convert(cents) + ' ' + (centsNames[currencySymbol] || 'Cents');
+    let result = convert(whole) + ' ' + names.major;
+    if (cents > 0) result += ' and ' + convert(cents) + ' ' + names.minor;
     return result + ' Only';
   };
 
@@ -209,8 +211,9 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <div className="inv-party inv-party-right">
             <h4 className="inv-section-label">PLACE OF SUPPLY</h4>
             <p className="inv-party-name">{details?.placeOfSupply || client?.state || '-'}</p>
-            {showGST && isInterstate && <span className="inv-tax-badge">Interstate (IGST)</span>}
-            {showGST && !isInterstate && businessState && clientState && <span className="inv-tax-badge inv-tax-badge-green">Intrastate (CGST + SGST)</span>}
+            {showGST && isIndia && isInterstate && <span className="inv-tax-badge">Interstate (IGST)</span>}
+            {showGST && isIndia && !isInterstate && businessState && clientState && <span className="inv-tax-badge inv-tax-badge-green">Intrastate (CGST + SGST)</span>}
+            {showGST && !isIndia && <span className="inv-tax-badge inv-tax-badge-green">{taxLabel}</span>}
           </div>
         )}
       </div>
@@ -229,7 +232,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       <table className="inv-table" style={{ tableLayout: 'auto', ...(pdfStyle === 'modern' ? { margin: '0 2rem', width: 'calc(100% - 4rem)' } : pdfStyle === 'minimal' ? { margin: '0 2rem', width: 'calc(100% - 4rem)', borderTop: 'none' } : {}) }}>
         <thead>
           {showGST ? (
-            isInterstate ? (
+            isIndia && isInterstate ? (
               <>
                 <tr>
                   <th className="inv-th" rowSpan="2">#</th>
@@ -246,7 +249,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                   <th className="inv-th inv-th-right">Amt</th>
                 </tr>
               </>
-            ) : (
+            ) : isIndia ? (
               <>
                 <tr>
                   <th className="inv-th" rowSpan="2">#</th>
@@ -262,6 +265,24 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                 <tr>
                   <th className="inv-th inv-th-center">%</th>
                   <th className="inv-th inv-th-right">Amt</th>
+                  <th className="inv-th inv-th-center">%</th>
+                  <th className="inv-th inv-th-right">Amt</th>
+                </tr>
+              </>
+            ) : (
+              // Foreign: single tax column (VAT/SST/etc.) — no CGST/SGST/IGST split
+              <>
+                <tr>
+                  <th className="inv-th" rowSpan="2">#</th>
+                  <th className="inv-th" rowSpan="2">Description</th>
+                  {showHSN && <th className="inv-th inv-th-center" rowSpan="2">HSN/SAC</th>}
+                  {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
+                  <th className="inv-th inv-th-right" rowSpan="2">Rate</th>
+                  {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
+                  <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>{taxLabel}</th>
+                  <th className="inv-th inv-th-right" rowSpan="2">Amount</th>
+                </tr>
+                <tr>
                   <th className="inv-th inv-th-center">%</th>
                   <th className="inv-th inv-th-right">Amt</th>
                 </tr>
@@ -295,21 +316,26 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                 <td className="inv-td inv-td-muted">{index + 1}</td>
                 <td className="inv-td inv-td-name">{item.name || '-'}</td>
                 {showHSN && <td className="inv-td inv-td-center inv-td-muted">{item.hsn || '-'}</td>}
-                {showItemQty && <td className="inv-td inv-td-center">{item.quantity}</td>}
+                {showItemQty && <td className="inv-td inv-td-center">{item.quantity}{item.unit ? ` ${item.unit}` : ''}</td>}
                 <td className="inv-td inv-td-right">{fmt(item.rate)}</td>
                 {hasAnyDiscount && <td className="inv-td inv-td-right">{discount > 0 ? fmt(discount) : '-'}</td>}
                 {showGST && (
-                  isInterstate ? (
+                  isIndia && isInterstate ? (
                     <>
                       <td className="inv-td inv-td-center">{taxRate}%</td>
                       <td className="inv-td inv-td-right">{fmt(taxAmount)}</td>
                     </>
-                  ) : (
+                  ) : isIndia ? (
                     <>
                       <td className="inv-td inv-td-center">{halfRate}%</td>
                       <td className="inv-td inv-td-right">{fmt(halfTax)}</td>
                       <td className="inv-td inv-td-center">{halfRate}%</td>
                       <td className="inv-td inv-td-right">{fmt(halfTax)}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="inv-td inv-td-center">{taxRate}%</td>
+                      <td className="inv-td inv-td-right">{fmt(taxAmount)}</td>
                     </>
                   )
                 )}
@@ -357,12 +383,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             </div>
           )}
           {showGST && (
-            isInterstate ? (
+            isIndia && isInterstate ? (
               <div className="inv-total-row">
                 <span>IGST</span>
                 <span>{fmt(totals.igst)}</span>
               </div>
-            ) : (
+            ) : isIndia ? (
               <>
                 <div className="inv-total-row">
                   <span>CGST</span>
@@ -373,7 +399,18 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                   <span>{fmt(totals.sgst)}</span>
                 </div>
               </>
+            ) : (
+              <div className="inv-total-row">
+                <span>{taxLabel}</span>
+                <span>{fmt((totals.cgst || 0) + (totals.sgst || 0) + (totals.igst || 0))}</span>
+              </div>
             )
+          )}
+          {totals.roundOff !== undefined && totals.roundOff !== 0 && (
+            <div className="inv-total-row" style={{ color: '#64748b', fontStyle: 'italic' }}>
+              <span>Round-off</span>
+              <span>{totals.roundOff > 0 ? '+' : ''}{fmt(totals.roundOff)}</span>
+            </div>
           )}
           {pdfStyle === 'modern' ? (
             <div className="inv-total-row inv-total-final inv-total-modern" style={{ background: accent, color: '#fff', borderRadius: '6px', padding: '0.6rem 0.75rem', marginTop: '0.25rem' }}>
@@ -398,9 +435,16 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               <div className="inv-footer-details">
                 <p><span className="inv-detail-label">Bank:</span> {profile.bankName}</p>
                 <p><span className="inv-detail-label">A/C No:</span> {profile.accountNumber}</p>
-                <p><span className="inv-detail-label">IFSC:</span> {profile.ifsc}</p>
-                {profile.pan && <p><span className="inv-detail-label">PAN:</span> {profile.pan}</p>}
+                {profile.ifsc && <p><span className="inv-detail-label">{sellerCC.bankLabel || 'IFSC'}:</span> {profile.ifsc}</p>}
+                {profile.swift && <p><span className="inv-detail-label">SWIFT/BIC:</span> {profile.swift}</p>}
+                {profile.pan && isIndia && <p><span className="inv-detail-label">PAN:</span> {profile.pan}</p>}
               </div>
+            </div>
+          )}
+          {options.exchangeRate && currencySymbol !== 'INR' && (
+            <div className="inv-footer-block">
+              <h4 className="inv-section-label">EXCHANGE RATE</h4>
+              <p className="inv-terms">{formatExchangeRateLine(currencySymbol, options.exchangeRate, profile?.country === 'India' || !profile?.country ? 'INR' : sellerCC.currency)}</p>
             </div>
           )}
           {showTerms && customTerms && (

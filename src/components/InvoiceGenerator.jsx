@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles } from '../store';
-import { COUNTRIES, INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry } from '../utils';
+import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode } from '../store';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion } from '../utils';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
@@ -68,8 +68,10 @@ const DEFAULT_OPTIONS = {
   showAmountWords: true,
   showDueDate: true,
   showItemQty: true,
+  showRoundOff: false,
   customTitle: '',
   currency: 'INR',
+  exchangeRate: '',
   accentColor: '',
   pdfStyle: 'classic',
 };
@@ -107,8 +109,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   });
 
   const [items, setItems] = useState(draft?.items || [
-    { id: Date.now().toString(), name: '', hsn: '', quantity: 1, rate: 0, discount: 0, taxPercent: 18 }
+    { id: Date.now().toString(), name: '', hsn: '', quantity: 1, unit: 'Nos', rate: 0, discount: 0, taxPercent: 18 }
   ]);
+  const [units, setUnits] = useState(getAllUnits());
   const [taxInclusive, setTaxInclusive] = useState(draft?.taxInclusive || false);
 
   const [totals, setTotals] = useState({ subtotal: 0, totalDiscount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 });
@@ -147,6 +150,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const typeConfig = INVOICE_TYPES[invoiceType];
   const showGST = invoiceOptions.showGST;
+  // Tax label and rate presets follow the seller's country, not the client's, since
+  // the seller charges and remits the tax. Sellers without a country fall back to India.
+  const sellerCountryConfig = getCountryConfig(profile?.country);
+  const countryTaxRates = sellerCountryConfig.taxRates && sellerCountryConfig.taxRates.length
+    ? sellerCountryConfig.taxRates
+    : [0, 5, 12, 18, 28];
+  const taxLabel = sellerCountryConfig.taxLabel || 'GST';
+
+  // Clamp a numeric input to non-negative (and finite). Used for qty/rate/discount.
+  const clampNonNeg = (raw) => {
+    const n = parseFloat(raw);
+    if (!isFinite(n) || n < 0) return 0;
+    return n;
+  };
 
   // Persist options to both localStorage (instant) and server (durable)
   useEffect(() => {
@@ -186,10 +203,25 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return () => clearTimeout(t);
   }, []);
 
-  // Debounced auto-save to server (2s after last change)
+  // An invoice is "meaningful" once it has a client name AND at least one line item
+  // with a description and a non-zero amount. Until then we only auto-save to
+  // sessionStorage (draft) — never to the persistent bills list. This prevents the
+  // bug where opening "New Invoice" and clicking away saves an empty bill to the list.
+  const isMeaningfulInvoice = useCallback(() => {
+    if (editingBill) return true; // editing an existing bill — always persist changes
+    if (!client?.name?.trim()) return false;
+    return items.some(item => (item.name || '').trim() && (item.quantity || 0) * (item.rate || 0) > 0);
+  }, [client?.name, items, editingBill]);
+
+  // Debounced auto-save to server (2s after last change), gated on meaningful content.
   useEffect(() => {
     if (!hasInitialized.current) return;
     if (!details.invoiceNumber) return;
+    if (!isMeaningfulInvoice()) {
+      // Reset status badge if user emptied the invoice — stops "All changes saved" from lying.
+      setAutoSaveStatus(s => s === 'saved' ? 'idle' : s);
+      return;
+    }
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
@@ -205,7 +237,39 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }, 2000);
 
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, invoiceOptions]);
+  }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, invoiceOptions, isMeaningfulInvoice]);
+
+  // Save-before-leave guard. If the user has typed something real but the auto-save hasn't
+  // landed yet, prompt before they navigate away — works for the in-app Back button and
+  // for browser-level navigation (refresh, close tab).
+  const handleBack = async () => {
+    if (isMeaningfulInvoice() && autoSaveStatus !== 'saved') {
+      const choice = window.confirm('You have unsaved changes on this invoice.\n\nClick OK to save and exit, or Cancel to keep editing.');
+      if (!choice) return; // stay on the page
+      try {
+        setAutoSaveStatus('saving');
+        await saveInvoiceToDB(true);
+        toast('Invoice saved', 'success');
+      } catch {
+        toast('Save failed — staying on the page so you can retry', 'error');
+        return;
+      }
+    }
+    clearDraft();
+    onBack();
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (isMeaningfulInvoice() && autoSaveStatus !== 'saved') {
+        e.preventDefault();
+        e.returnValue = ''; // browsers show their own confirmation dialog
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isMeaningfulInvoice, autoSaveStatus]);
 
   const clearDraft = () => {
     sessionStorage.removeItem('gst_invoiceDraft');
@@ -328,7 +392,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
     const businessState = profile?.state?.trim().toLowerCase();
     const clientState = client?.state?.trim().toLowerCase();
-    const isInterstate = businessState && clientState && businessState !== clientState;
+    // GST law follows the *place of supply* — when set explicitly (e.g. goods consumed in
+    // a third state), it overrides the client's registered address.
+    const placeOfSupply = details?.placeOfSupply?.trim().toLowerCase() || clientState;
+    const isIndia = (profile?.country || 'India') === 'India';
+    // SEZ supplies are zero-rated under IGST regardless of state (Section 16, IGST Act).
+    const isSEZ = !!client?.isSEZ;
+    // Inter/intra-state CGST/SGST/IGST split is India-specific. Outside India, all tax goes
+    // into one bucket (we use IGST as the single-tax slot to keep the data shape stable).
+    const isInterstate = isIndia && (isSEZ || (businessState && placeOfSupply && businessState !== placeOfSupply));
+    const cgst = isIndia ? (isInterstate ? 0 : taxTotal / 2) : 0;
+    const sgst = isIndia ? (isInterstate ? 0 : taxTotal / 2) : 0;
+    const igst = isIndia ? (isInterstate ? taxTotal : 0) : taxTotal;
+
+    const rawTotal = taxInclusive && showGST ? subtotal - totalDiscount : subtotal - totalDiscount + taxTotal;
+    const roundOff = invoiceOptions.showRoundOff ? calculateRoundOff(rawTotal) : 0;
+    const finalTotal = rawTotal + roundOff;
 
     if (taxInclusive && showGST) {
       // Tax-inclusive: total is the subtotal minus discount (already includes tax)
@@ -337,10 +416,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         subtotal,
         totalDiscount,
         taxableAmount,
-        cgst: isInterstate ? 0 : taxTotal / 2,
-        sgst: isInterstate ? 0 : taxTotal / 2,
-        igst: isInterstate ? taxTotal : 0,
-        total: subtotal - totalDiscount,
+        cgst, sgst, igst,
+        roundOff,
+        total: finalTotal,
         taxInclusive: true,
       });
     } else {
@@ -348,14 +426,27 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         subtotal,
         totalDiscount,
         taxableAmount: subtotal - totalDiscount,
-        cgst: isInterstate ? 0 : taxTotal / 2,
-        sgst: isInterstate ? 0 : taxTotal / 2,
-        igst: isInterstate ? taxTotal : 0,
-        total: subtotal - totalDiscount + taxTotal,
+        cgst, sgst, igst,
+        roundOff,
+        total: finalTotal,
         taxInclusive: false,
       });
     }
-  }, [items, client.state, profile?.state, showGST, taxInclusive]);
+  }, [items, client.state, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff]);
+
+  // Warn when the seller's state is missing for Indian GST invoices — without it, the
+  // interstate detection silently defaults to intrastate (CGST+SGST) which is a real money bug.
+  useEffect(() => {
+    const isIndia = (profile?.country || 'India') === 'India';
+    if (!isIndia || !showGST) return;
+    if (!profile?.state && client?.state) {
+      const key = `gst_stateWarning_${profile?.businessName || 'profile'}`;
+      if (!sessionStorage.getItem(key)) {
+        toast('Set your business State in Settings — required for correct CGST/SGST vs IGST split.', 'warning');
+        sessionStorage.setItem(key, '1');
+      }
+    }
+  }, [profile?.state, profile?.country, profile?.businessName, client?.state, showGST]);
 
   const handleItemChange = (id, field, value) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -370,7 +461,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       name: product.name,
       hsn: product.hsn || '',
       rate: product.rate || 0,
-      taxPercent: product.taxPercent ?? 18,
+      unit: product.unit || item.unit || 'Nos',
+      taxPercent: product.taxPercent ?? (countryTaxRates[countryTaxRates.length - 2] ?? 18),
       productId: product.id,
     } : item));
     setProductSearch({ itemId: null, query: '' });
@@ -386,9 +478,33 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const addItem = () => {
     setItems(prev => [...prev, {
-      id: Date.now().toString(), name: '', hsn: '', quantity: 1, rate: 0, discount: 0,
-      taxPercent: showGST ? 18 : 0
+      id: Date.now().toString(), name: '', hsn: '', quantity: 1, unit: 'Nos', rate: 0, discount: 0,
+      taxPercent: showGST ? (countryTaxRates[countryTaxRates.length - 2] ?? 18) : 0
     }]);
+  };
+
+  // Custom unit handler — prompts for a label, persists to localStorage, applies to current item.
+  const handleAddCustomUnit = (itemId) => {
+    const label = (typeof window !== 'undefined' ? window.prompt('New unit (e.g. Carat, Bundle, Bushel):') : '');
+    if (!label) return;
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    if (trimmed.length > 20) { toast('Unit name must be 20 characters or fewer', 'warning'); return; }
+    const ok = addCustomUnit(trimmed);
+    setUnits(getAllUnits());
+    if (!ok) {
+      toast(`Unit "${trimmed}" already exists or is reserved`, 'info');
+    } else {
+      toast(`Unit "${trimmed}" added`, 'success');
+    }
+    handleItemChange(itemId, 'unit', trimmed);
+  };
+
+  const handleRemoveCustomUnit = (label) => {
+    if (!confirm(`Remove custom unit "${label}"? Existing invoices keep this label, but it will no longer appear in dropdowns.`)) return;
+    removeCustomUnit(label);
+    setUnits(getAllUnits());
+    toast(`Removed custom unit "${label}"`, 'success');
   };
 
   const removeItem = (id) => {
@@ -535,16 +651,35 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const scalerEl = printRef.current.closest('.preview-scaler');
     if (scalerEl) scalerEl.style.transform = 'none';
 
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    // PDF quality / size trade-off:
+    //   - `compress: true` deflate-compresses PDF streams (incl. embedded images).
+    //     Adds ~50-150ms but typically shrinks output by 15-30%.
+    //   - Render scale = max(3, devicePixelRatio * 2). Bumping from 2 to 3 makes text
+    //     visibly sharper without much file-size increase, because JPEG compresses
+    //     clean line-art / glyphs efficiently. On Retina/4K screens we go higher.
+    //   - JPEG quality 0.95 vs old 0.92: gain in legibility for small text outweighs
+    //     the modest size bump.
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfPageHeight = pdf.internal.pageSize.getHeight();
     const extraPages = printRef.current.querySelectorAll('[data-pdf-page]');
+    const renderScale = Math.max(3, Math.round((window.devicePixelRatio || 1) * 2));
+
+    const captureOptions = (el) => ({
+      scale: renderScale,
+      useCORS: true,
+      logging: false,
+      letterRendering: true,
+      backgroundColor: '#ffffff', // ensures opaque background; some PDF readers render transparent JPEGs as black
+      imageTimeout: 0,
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+    });
 
     // Hide extra pages, capture main invoice
     extraPages.forEach(el => el.style.display = 'none');
     const mainCanvas = await html2canvas(printRef.current, {
-      scale: 2, useCORS: true,
-      width: printRef.current.scrollWidth, height: printRef.current.scrollHeight,
+      ...captureOptions(printRef.current),
       onclone: (clonedDoc) => {
         clonedDoc.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; });
         const inv = clonedDoc.getElementById('invoice-preview');
@@ -555,25 +690,25 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     extraPages.forEach(el => el.style.display = '');
 
     // Add main invoice page(s)
-    const mainImg = mainCanvas.toDataURL('image/jpeg', 0.92);
+    const mainImg = mainCanvas.toDataURL('image/jpeg', 0.95);
     const mainImgHeight = (mainCanvas.height * pdfWidth) / mainCanvas.width;
     if (mainImgHeight <= pdfPageHeight + 2) {
-      pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight));
+      pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
     } else {
       let heightLeft = mainImgHeight, position = 0;
-      pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight);
+      pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM');
       heightLeft -= pdfPageHeight;
-      while (heightLeft > 2) { position -= pdfPageHeight; pdf.addPage(); pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight); heightLeft -= pdfPageHeight; }
+      while (heightLeft > 2) { position -= pdfPageHeight; pdf.addPage(); pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM'); heightLeft -= pdfPageHeight; }
     }
 
     // Capture each extra section as a separate PDF page
     for (const pageEl of extraPages) {
       const c = await html2canvas(pageEl, {
-        scale: 2, useCORS: true, width: pageEl.scrollWidth, height: pageEl.scrollHeight,
+        ...captureOptions(pageEl),
         onclone: (cd) => { cd.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; }); }
       });
       pdf.addPage();
-      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pdfWidth, Math.min((c.height * pdfWidth) / c.width, pdfPageHeight));
+      pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfWidth, Math.min((c.height * pdfWidth) / c.width, pdfPageHeight), undefined, 'MEDIUM');
     }
 
     if (scalerEl) scalerEl.style.transform = '';
@@ -635,10 +770,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     <div className="generator-container">
       <div className="generator-toolbar">
         <div className="flex gap-2 items-center">
-          <button className="btn btn-secondary" onClick={() => { clearDraft(); onBack(); }}><ArrowLeft size={18} /> Back</button>
-          <span style={{ fontSize: '0.78rem', color: autoSaveStatus === 'saving' ? 'var(--text-muted)' : '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button className="btn btn-secondary" onClick={handleBack}><ArrowLeft size={18} /> Back</button>
+          <span style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 4,
+            color: autoSaveStatus === 'saving' ? 'var(--text-muted)'
+                 : autoSaveStatus === 'saved' ? '#059669'
+                 : isMeaningfulInvoice() ? '#94a3b8' : '#cbd5e1' }}>
             {autoSaveStatus === 'saving' && <><Loader size={13} className="spin" /> Saving...</>}
             {autoSaveStatus === 'saved' && <><Check size={13} /> All changes saved</>}
+            {autoSaveStatus === 'idle' && !isMeaningfulInvoice() && <span title="Add a client name and at least one item to start saving">Draft only — not saved yet</span>}
           </span>
         </div>
         <div className="flex gap-2">
@@ -715,16 +854,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   <label className="form-label">Currency</label>
                   <select className="form-input" value={invoiceOptions.currency}
                     onChange={(e) => setInvoiceOptions(prev => ({ ...prev, currency: e.target.value }))}>
-                    <option value="INR">INR (Indian Rupee)</option>
-                    <option value="USD">USD (US Dollar)</option>
-                    <option value="EUR">EUR (Euro)</option>
-                    <option value="GBP">GBP (British Pound)</option>
-                    <option value="AUD">AUD (Australian Dollar)</option>
-                    <option value="CAD">CAD (Canadian Dollar)</option>
-                    <option value="SGD">SGD (Singapore Dollar)</option>
-                    <option value="AED">AED (UAE Dirham)</option>
+                    {/* Deduped currencies pulled from the region-filtered country list. */}
+                    {Array.from(new Map(getCountriesForRegion(getRegionMode()).map(c => [c.currency, c])).values()).map(c => (
+                      <option key={c.currency} value={c.currency}>{c.currency} ({c.currencySymbol === c.currency ? c.name : c.currencySymbol})</option>
+                    ))}
                   </select>
                 </div>
+                {invoiceOptions.currency !== 'INR' && (
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label className="form-label">Exchange Rate (optional, snapshot)</label>
+                    <input type="number" step="any" min="0" className="form-input"
+                      value={invoiceOptions.exchangeRate}
+                      onChange={(e) => setInvoiceOptions(prev => ({ ...prev, exchangeRate: e.target.value }))}
+                      placeholder={`1 ${invoiceOptions.currency} = ? INR`} />
+                    <small style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Stored on this invoice — historical reports stay accurate even if rates change.</small>
+                  </div>
+                )}
                 <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                   <label className="form-label">PDF Style</label>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -770,9 +915,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showUPI', 'UPI QR Code'],
                     ['showTerms', 'Terms & Conditions'],
                     ['showNotes', 'Notes / Remarks'],
+                    ['showRoundOff', 'Round-off Total'],
                   ].map(([key, label]) => (
                     <label key={key} className="option-toggle">
-                      <input type="checkbox" checked={invoiceOptions[key] !== false} onChange={() => toggleOption(key)} />
+                      {/* showRoundOff defaults to false (off); other toggles default to true (`!== false`) */}
+                      <input type="checkbox"
+                        checked={key === 'showRoundOff' ? !!invoiceOptions[key] : invoiceOptions[key] !== false}
+                        onChange={() => toggleOption(key)} />
                       <span>{label}</span>
                     </label>
                   ))}
@@ -782,7 +931,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           </div>
 
           {/* Client Modal */}
-          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} />
+          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} defaultCountry={profile?.country} />
 
           {/* Client Details */}
           <div className="glass-panel p-6 mb-6">
@@ -844,7 +993,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <label className="form-label">Country</label>
                 <select className="form-input" value={client.country || profile?.country || 'India'}
                   onChange={(e) => setClient({ ...client, country: e.target.value, state: '' })}>
-                  {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+                  {(() => {
+                    const visible = getCountriesForRegion(getRegionMode());
+                    const cur = client.country || profile?.country;
+                    const out = [];
+                    if (cur && !visible.some(c => c.name === cur)) {
+                      out.push(<option key={cur} value={cur}>{cur}</option>);
+                    }
+                    return out.concat(visible.map(c => <option key={c.code} value={c.name}>{c.name}</option>));
+                  })()}
                 </select>
               </div>
               <div className="form-group">
@@ -962,7 +1119,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                           onMouseDown={() => selectProduct(item.id, p)}>
                           <span className="product-suggestion-name">{p.name}</span>
                           <span className="product-suggestion-meta">
-                            {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? `₹${p.rate}` : ''}
+                            {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? formatCurrency(p.rate, invoiceOptions.currency || 'INR') : ''}
                           </span>
                         </div>
                       ))}
@@ -976,33 +1133,68 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                       onChange={(e) => handleItemChange(item.id, 'hsn', e.target.value)} />
                   </div>
                 )}
-                <div className="line-item-field" style={{ flex: 0.8 }}>
+                <div className="line-item-field" style={{ flex: 0.7 }}>
                   <label className="form-label">Qty</label>
-                  <input type="number" min="1" className="form-input" value={item.quantity}
-                    onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)} />
+                  <input type="number" min="0" step="any" className="form-input" value={item.quantity}
+                    onChange={(e) => handleItemChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
+                </div>
+                <div className="line-item-field" style={{ flex: 0.9 }}>
+                  <label className="form-label">Unit</label>
+                  <select className="form-input" value={item.unit || 'Nos'}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') { handleAddCustomUnit(item.id); return; }
+                      if (e.target.value.startsWith('__remove__::')) {
+                        const label = e.target.value.replace('__remove__::', '');
+                        handleRemoveCustomUnit(label);
+                        return;
+                      }
+                      handleItemChange(item.id, 'unit', e.target.value);
+                    }}>
+                    {/* If the saved unit isn't in the current list (e.g. removed custom), keep it visible. */}
+                    {item.unit && !units.some(u => u.label === item.unit) && (
+                      <option value={item.unit}>{item.unit}</option>
+                    )}
+                    {units.map(u => (
+                      <option key={u.label} value={u.label}>{u.label}{u.custom ? ' ★' : ''}</option>
+                    ))}
+                    <option value="__custom__">＋ Add custom…</option>
+                    {units.some(u => u.custom) && units.filter(u => u.custom).map(u => (
+                      <option key={`rm-${u.label}`} value={`__remove__::${u.label}`}>− Remove "{u.label}"</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="line-item-field" style={{ flex: 1.2 }}>
                   <label className="form-label">Rate</label>
-                  <input type="number" min="0" className="form-input" value={item.rate}
-                    onChange={(e) => handleItemChange(item.id, 'rate', parseFloat(e.target.value) || 0)} />
+                  <input type="number" min="0" step="any" className="form-input" value={item.rate}
+                    onChange={(e) => handleItemChange(item.id, 'rate', clampNonNeg(e.target.value))} />
                 </div>
                 {invoiceOptions.showDiscount && (
                   <div className="line-item-field" style={{ flex: 1 }}>
                     <label className="form-label">Discount</label>
-                    <input type="number" min="0" className="form-input" value={item.discount}
-                      onChange={(e) => handleItemChange(item.id, 'discount', parseFloat(e.target.value) || 0)} />
+                    <input type="number" min="0" step="any" className="form-input" value={item.discount}
+                      onChange={(e) => handleItemChange(item.id, 'discount', clampNonNeg(e.target.value))} />
                   </div>
                 )}
                 {showGST && (
-                  <div className="line-item-field" style={{ flex: 0.8 }}>
-                    <label className="form-label">Tax %</label>
-                    <select className="form-input" value={item.taxPercent}
-                      onChange={(e) => handleItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)}>
-                      <option value="0">0%</option>
-                      <option value="5">5%</option>
-                      <option value="12">12%</option>
-                      <option value="18">18%</option>
-                      <option value="28">28%</option>
+                  <div className="line-item-field" style={{ flex: 1 }}>
+                    <label className="form-label">{taxLabel} %</label>
+                    <select className="form-input"
+                      value={countryTaxRates.includes(Number(item.taxPercent)) ? String(item.taxPercent) : '__custom__'}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          const raw = window.prompt(`Custom ${taxLabel} rate (%):`, String(item.taxPercent || 0));
+                          if (raw === null) return;
+                          const n = parseFloat(raw);
+                          if (!isFinite(n) || n < 0 || n > 100) { toast('Tax rate must be between 0 and 100', 'warning'); return; }
+                          handleItemChange(item.id, 'taxPercent', n);
+                        } else {
+                          handleItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0);
+                        }
+                      }}>
+                      {countryTaxRates.map(r => (
+                        <option key={r} value={String(r)}>{r}%</option>
+                      ))}
+                      <option value="__custom__">{countryTaxRates.includes(Number(item.taxPercent)) ? 'Custom…' : `${item.taxPercent}% (custom)`}</option>
                     </select>
                   </div>
                 )}

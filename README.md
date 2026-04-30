@@ -229,6 +229,10 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ### :bulb: Community Requested
 
+- [x] **Per-line unit of measurement** with custom units (kg, ltr, mtr, hrs, …) — *thanks Apurba!* (v1.3.0)
+- [x] **Country-aware tax labels** (VAT / SST / MwSt / TVA / PPN, etc.) (v1.3.0)
+- [x] **Round-off line** on invoice totals (v1.3.0)
+- [x] **Currency exchange-rate snapshot** for foreign invoices (v1.3.0)
 - [ ] Party-wise discount settings
 - [ ] Multiple price lists (wholesale / retail)
 - [ ] Sales order & purchase order workflows
@@ -239,6 +243,10 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 - [ ] Branch-wise reporting
 
 > **Want a feature?** [Open an issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) and let us know.
+
+### :scroll: Changelog
+
+See **[CHANGELOG.md](./CHANGELOG.md)** for a detailed history of every release.
 
 ---
 

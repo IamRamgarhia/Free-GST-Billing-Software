@@ -1,28 +1,39 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { COUNTRIES, getCountryConfig, getStatesForCountry } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion } from '../utils';
+import { getRegionMode } from '../store';
 
-const emptyForm = { name: '', address: '', city: '', pin: '', state: '', gstin: '', email: '', phone: '', country: 'India' };
-
-export default function ClientModal({ show, onClose, onSave, client, isEditing }) {
+export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
+  // Country defaults: explicit prop (active business profile) → browser locale → 'India'.
+  const fallbackCountry = defaultCountry || detectCountryFromBrowser();
+  const emptyForm = { name: '', address: '', city: '', pin: '', state: '', gstin: '', email: '', phone: '', country: fallbackCountry, isSEZ: false };
   const [form, setForm] = useState({ ...emptyForm });
+  const [taxIdWarning, setTaxIdWarning] = useState('');
 
   useEffect(() => {
     if (show && client) {
       setForm({
         name: client.name || '', address: client.address || '', city: client.city || '',
         pin: client.pin || '', state: client.state || '', gstin: client.gstin || '',
-        email: client.email || '', phone: client.phone || '', country: client.country || 'India',
+        email: client.email || '', phone: client.phone || '', country: client.country || fallbackCountry,
+        isSEZ: !!client.isSEZ,
       });
     } else if (show) {
       setForm({ ...emptyForm });
     }
+    setTaxIdWarning('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, client]);
 
   if (!show) return null;
 
   const cc = getCountryConfig(form.country);
   const stateOptions = getStatesForCountry(form.country);
+
+  const handleTaxIdBlur = () => {
+    const result = validateTaxId(form.country, form.gstin);
+    setTaxIdWarning(result.ok ? '' : result.message);
+  };
 
   const handleSave = () => {
     if (!form.name.trim()) return;
@@ -48,7 +59,14 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing }
           <div className="form-group">
             <label className="form-label">Country</label>
             <select className="form-input" value={form.country} onChange={e => setForm(prev => ({ ...prev, country: e.target.value, state: '' }))}>
-              {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+              {(() => {
+                const visible = getCountriesForRegion(getRegionMode());
+                const out = [];
+                if (form.country && !visible.some(c => c.name === form.country)) {
+                  out.push(<option key={form.country} value={form.country}>{form.country}</option>);
+                }
+                return out.concat(visible.map(c => <option key={c.code} value={c.name}>{c.name}</option>));
+              })()}
             </select>
           </div>
           <div className="form-group">
@@ -72,7 +90,13 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing }
           </div>
           <div className="form-group">
             <label className="form-label">{cc.taxIdLabel}</label>
-            <input type="text" className="form-input" value={form.gstin} onChange={e => setForm(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }))} placeholder={cc.taxIdPlaceholder} maxLength={20} />
+            <input type="text" className="form-input"
+              style={taxIdWarning ? { borderColor: '#f59e0b' } : undefined}
+              value={form.gstin}
+              onChange={e => { setForm(prev => ({ ...prev, gstin: e.target.value.toUpperCase() })); if (taxIdWarning) setTaxIdWarning(''); }}
+              onBlur={handleTaxIdBlur}
+              placeholder={cc.taxIdPlaceholder} maxLength={20} />
+            {taxIdWarning && <small style={{ color: '#d97706', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>⚠ {taxIdWarning}</small>}
           </div>
           <div className="form-group">
             <label className="form-label">Email</label>
@@ -82,6 +106,16 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing }
             <label className="form-label">Phone</label>
             <input type="tel" className="form-input" value={form.phone} onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="+91 98765 43210" />
           </div>
+          {form.country === 'India' && (
+            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!form.isSEZ}
+                  onChange={e => setForm(prev => ({ ...prev, isSEZ: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
+                <span><strong>SEZ unit / Developer</strong> — supplies will be charged IGST regardless of state (Section 16, IGST Act).</span>
+              </label>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 justify-end mt-4">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>

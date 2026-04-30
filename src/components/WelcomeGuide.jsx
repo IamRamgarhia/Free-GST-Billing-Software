@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Building2, FileText, BarChart3, Shield, ChevronRight, ChevronLeft, Check, ArrowRight, Image, PenTool } from 'lucide-react';
-import { saveProfile } from '../store';
-import { INDIAN_STATES } from '../utils';
+import { saveProfile, setRegionMode } from '../store';
+import { getStatesForCountry, getCountryConfig, detectCountryFromBrowser } from '../utils';
 import { toast } from './Toast';
 
 const STEPS = [
@@ -13,12 +13,16 @@ const STEPS = [
 
 export default function WelcomeGuide({ onComplete }) {
   const [step, setStep] = useState(0);
+  const detectedCountry = detectCountryFromBrowser();
   const [profile, setProfile] = useState({
-    businessName: '', address: '', state: '', gstin: '', pan: '',
-    email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
+    businessName: '', address: '', city: '', pin: '', state: '', country: detectedCountry, gstin: '', pan: '',
+    email: '', phone: '', bankName: '', accountNumber: '', ifsc: '', swift: '',
     logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
   });
+  const [region, setRegion] = useState(detectedCountry === 'India' ? 'india' : 'international');
   const [saving, setSaving] = useState(false);
+  const cc = getCountryConfig(profile.country);
+  const stateOptions = getStatesForCountry(profile.country);
 
   const handleChange = (e) => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
@@ -45,6 +49,7 @@ export default function WelcomeGuide({ onComplete }) {
   const handleFinish = async () => {
     setSaving(true);
     try {
+      setRegionMode(region);
       await saveProfile(profile);
       localStorage.setItem('freegstbill_onboarded', 'true');
       toast('Setup complete! Start creating invoices.', 'success');
@@ -109,6 +114,30 @@ export default function WelcomeGuide({ onComplete }) {
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
                 Let's set up your business profile so your invoices look professional. Takes about 2 minutes.
               </p>
+
+              <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', textAlign: 'left' }}>
+                <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.6rem', color: 'var(--text-primary)' }}>Where will you be invoicing from?</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                  {[
+                    { id: 'india', label: '🇮🇳 India', desc: 'GST, GSTR-1/3B, UPI' },
+                    { id: 'international', label: '🌍 Outside India', desc: 'VAT/SST/MwSt' },
+                    { id: 'both', label: '🌐 Both', desc: 'India + foreign clients' },
+                  ].map(opt => (
+                    <button key={opt.id} type="button"
+                      onClick={() => {
+                        setRegion(opt.id);
+                        if (opt.id === 'india') setProfile(p => ({ ...p, country: 'India' }));
+                        else if (opt.id === 'international' && profile.country === 'India') setProfile(p => ({ ...p, country: detectCountryFromBrowser() === 'India' ? 'United States' : detectCountryFromBrowser() }));
+                      }}
+                      className={`type-chip ${region === opt.id ? 'type-chip-active' : ''}`}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0.55rem 0.7rem', gap: '0.15rem' }}>
+                      <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                      <span style={{ fontSize: '0.68rem', color: region === opt.id ? 'inherit' : 'var(--text-muted)', fontWeight: 400 }}>{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.6rem 0 0' }}>You can change this any time in Settings → Region Preference.</p>
+              </div>
             </div>
           )}
 
@@ -135,18 +164,22 @@ export default function WelcomeGuide({ onComplete }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
-                    <label className="form-label">State</label>
-                    <select name="state" className="form-input" value={profile.state} onChange={handleChange}>
-                      <option value="">Select state</option>
-                      {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <span className="field-hint">Needed for auto CGST/SGST vs IGST</span>
+                    <label className="form-label">{cc.stateLabel}</label>
+                    {stateOptions.length > 0 ? (
+                      <select name="state" className="form-input" value={profile.state} onChange={handleChange}>
+                        <option value="">Select {cc.stateLabel.toLowerCase()}</option>
+                        {stateOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" name="state" className="form-input" value={profile.state} onChange={handleChange} placeholder={cc.stateLabel} />
+                    )}
+                    {profile.country === 'India' && <span className="field-hint">Needed for auto CGST/SGST vs IGST</span>}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">GSTIN</label>
+                    <label className="form-label">{cc.taxIdLabel}</label>
                     <input type="text" name="gstin" className="form-input" value={profile.gstin} onChange={handleChange}
-                      placeholder="22AAAAA0000A1Z5" maxLength={15} style={{ textTransform: 'uppercase' }} />
-                    <span className="field-hint">Leave blank if not GST registered</span>
+                      placeholder={cc.taxIdPlaceholder} maxLength={20} style={{ textTransform: 'uppercase' }} />
+                    <span className="field-hint">Leave blank if not registered for tax</span>
                   </div>
                 </div>
 

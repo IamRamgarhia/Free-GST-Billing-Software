@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload } from 'lucide-react';
-import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill } from '../store';
+import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';
 import ClientModal from './ClientModal';
@@ -20,6 +20,11 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const [showForm, setShowForm] = useState(false);
   const [modalClient, setModalClient] = useState(null);
   const [editingClientId, setEditingClientId] = useState(null);
+  const [profileCountry, setProfileCountry] = useState('');
+
+  useEffect(() => {
+    getProfile().then(p => { if (p?.country) setProfileCountry(p.country); }).catch(() => {});
+  }, []);
 
   const loadData = async () => {
     try {
@@ -208,7 +213,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       </div>
 
       {/* Add/Edit Client Modal */}
-      <ClientModal show={showForm} onClose={closeForm} onSave={handleModalSave} client={modalClient} isEditing={!!editingClientId} />
+      <ClientModal show={showForm} onClose={closeForm} onSave={handleModalSave} client={modalClient} isEditing={!!editingClientId} defaultCountry={profileCountry} />
 
       {/* Search */}
       <div className="glass-panel p-4 mb-6">

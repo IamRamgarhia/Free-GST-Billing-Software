@@ -12,6 +12,14 @@ echo     by DiceCodes
 echo.
 echo  ========================================================
 echo.
+echo     One-time setup. Takes 1-2 minutes.
+echo     You will not be asked any questions.
+echo.
+echo     If you've never installed Node.js before,
+echo     this script installs it for you. Just wait.
+echo.
+echo  ========================================================
+echo.
 
 cd /d "%~dp0"
 
@@ -267,6 +275,11 @@ echo       - Your data is always safe on your computer
 echo.
 echo     Tip: When the app opens, click "Install App"
 echo     to use it like a normal desktop application.
+echo.
+echo     Need help?
+echo       - Read START HERE.txt next to this installer
+echo       - Or open USER_GUIDE.md for the full handbook
+echo         (covers backups, multi-business, troubleshooting)
 echo.
 echo  ========================================================
 echo.

@@ -47,6 +47,19 @@ export const saveInvoiceDisplayOptions = async (options) => {
   });
 };
 
+// ---- Region preference: 'india' | 'international' | 'both' (default 'both') ----
+// Drives which countries appear in pickers and whether GST-only flows show up in the UI.
+// Stored in localStorage for instant boot — server copy is async-best-effort.
+const REGION_KEY = 'gst_regionMode';
+export const getRegionMode = () => {
+  try { return localStorage.getItem(REGION_KEY) || 'both'; } catch { return 'both'; }
+};
+export const setRegionMode = (mode) => {
+  if (!['india', 'international', 'both'].includes(mode)) return;
+  try { localStorage.setItem(REGION_KEY, mode); } catch { /* ignore */ }
+  apiFetch(`${API}/meta/regionMode`, { method: 'POST', body: JSON.stringify({ value: mode }) }).catch(() => {});
+};
+
 // ---- Invoice counter ----
 export const getNextInvoiceNumber = async (prefix = 'INV') => {
   const settings = await getInvoiceNumberSettings();

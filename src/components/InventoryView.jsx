@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload } from 'lucide-react';
-import { getAllProducts, saveProduct, deleteProduct } from '../store';
+import { getAllProducts, saveProduct, deleteProduct, getProfile } from '../store';
+import { getAllUnits, getCountryConfig, formatCurrency } from '../utils';
 import { toast } from './Toast';
-
-const UNITS = ['Nos', 'Hrs', 'Kg', 'Ltr', 'Mtr', 'Sq.ft', 'Box', 'Pair', 'Set', 'Pcs'];
 
 const emptyForm = {
   name: '', hsn: '', rate: '', taxPercent: '', unit: 'Nos', stock: '', description: '',
@@ -15,6 +14,9 @@ export default function InventoryView() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
+  const [units, setUnits] = useState(getAllUnits());
+  const [profileCountry, setProfileCountry] = useState('India');
+  const profileCurrency = getCountryConfig(profileCountry).currency;
 
   const loadProducts = async () => {
     try {
@@ -27,6 +29,8 @@ export default function InventoryView() {
 
   useEffect(() => {
     loadProducts();
+    setUnits(getAllUnits());
+    getProfile().then(p => { if (p?.country) setProfileCountry(p.country); }).catch(() => {});
   }, []);
 
   const filtered = search.trim()
@@ -212,7 +216,10 @@ export default function InventoryView() {
                 <label className="form-label">Unit</label>
                 <select className="form-input" value={form.unit}
                   onChange={e => updateField('unit', e.target.value)}>
-                  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  {form.unit && !units.some(u => u.label === form.unit) && (
+                    <option value={form.unit}>{form.unit}</option>
+                  )}
+                  {units.map(u => <option key={u.label} value={u.label}>{u.label}{u.custom ? ' ★' : ''}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -266,7 +273,7 @@ export default function InventoryView() {
                   <tr key={product.id}>
                     <td className="font-medium" title={product.description || ''}>{product.name}</td>
                     <td className="text-muted">{product.hsn || '-'}</td>
-                    <td className="font-bold">{product.rate ? `₹${Number(product.rate).toLocaleString('en-IN')}` : '-'}</td>
+                    <td className="font-bold">{product.rate ? formatCurrency(product.rate, profileCurrency) : '-'}</td>
                     <td>{product.taxPercent ? `${product.taxPercent}%` : '-'}</td>
                     <td className="text-muted">{product.unit || 'Nos'}</td>
                     <td>

@@ -1,6 +1,6 @@
 {
   "name": "free-gst-billing-software",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Free GST Billing Software — Free, open-source GST invoice & billing software. Tax Invoice, Proforma, Credit Note, Bill of Supply with multi-currency support (USD, EUR, GBP). Offline, no signup. By DiceCodes.",
   "author": "DiceCodes <Contact@dicecodes.com>",
   "license": "MIT",

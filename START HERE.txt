@@ -2,93 +2,152 @@
   ========================================================
 
      Free GST Billing Software
-     By DiceCodes
+     By DiceCodes  -  https://dicecodes.com
 
   ========================================================
 
-  QUICK START (2 steps):
 
-  1. Double-click "Install FreeGSTBill.bat"
-     - This installs everything automatically
-     - Wait for it to finish (1-2 minutes first time)
-     - The app will OPEN AUTOMATICALLY in your browser
+  -------- IF YOU'RE NEW HERE: JUST DO STEP 1 ------------
 
-  2. Start creating invoices!
-     - The Welcome Guide will help you set up
-     - Fill in your business details (first time only)
-     - Add a client and create your first invoice
+  1. Double-click   Install FreeGSTBill.bat
+
+     That's it. The installer takes care of:
+       *  installing Node.js (if your PC doesn't have it)
+       *  installing the app
+       *  putting a "Free GST Billing Software" icon
+          on your Desktop and in the Start Menu
+       *  starting the server when you log in to Windows
+
+     Allowed time: about 1-2 minutes on the first run.
+     The app opens in your browser automatically when done.
+
+  ---------------------------------------------------------
 
 
-  --------------------------------------------------------
-  YOUR APP URL (bookmark this!):
-  --------------------------------------------------------
+  -------- DAY 2 ONWARDS ----------------------------------
 
+  Open the app:
+     Double-click "Free GST Billing Software" on your Desktop
+     (or search "Free GST Billing" from the Start Menu)
+
+  Bookmark / direct URL:
      http://localhost:3001
 
-  If you close the tab, just open this link in any browser.
-  If the page doesn't load, start the app first (see below).
+  Stop the app (rare, you usually won't need to):
+     Double-click   Stop FreeGSTBill.bat
+
+  Update to a newer version:
+     Double-click   Update FreeGSTBill.bat
+     Your data is never touched by updates.
+
+  ---------------------------------------------------------
 
 
-  --------------------------------------------------------
-  DAILY USE:
-  --------------------------------------------------------
+  -------- FIRST-TIME SETUP -------------------------------
 
-  Start the app    -> Double-click "Free GST Billing Software" on Desktop
-                      OR search "Free GST Billing" in Start Menu
+  When the app opens for the first time, a 4-step wizard
+  walks you through:
 
-  Open the app     -> Go to http://localhost:3001 in browser
-                      (or just start the app - it opens automatically)
+    Step 1.  Welcome  - choose 'India', 'Outside India',
+                        or 'Both'. This adapts every menu
+                        and label to your country.
+    Step 2.  Business details - business name, address,
+                                tax ID (GSTIN / VAT / TRN
+                                etc. depending on country).
+    Step 3.  Bank & UPI / SWIFT - what to print on invoices
+                                  so clients know where to
+                                  pay you.
+    Step 4.  Done - start billing.
 
-  Stop the app     -> Double-click "Stop FreeGSTBill.bat"
-                      OR just close the app
-                      (or just close the terminal window)
+  You can change any of this later in Settings.
 
-
-  --------------------------------------------------------
-  BEST TIP: INSTALL AS DESKTOP APP
-  --------------------------------------------------------
-
-  After the app opens in your browser:
-  1. Look for the blue "Install App" bar at the top
-  2. Click "Install App"
-  3. Done! Now it opens like a normal app
-     - No browser tabs to lose
-     - Find it in Start Menu
-     - Works even without internet
+  ---------------------------------------------------------
 
 
-  --------------------------------------------------------
-  WHERE IS MY DATA?
-  --------------------------------------------------------
+  -------- WHERE IS MY DATA? ------------------------------
 
-  Invoices (PDF)   -> "Saved Invoices" folder (auto-created)
-                      Organized by: Client Name / Month / invoice.pdf
+  PDFs of every invoice:
+     "Saved Invoices" folder, sorted by client and month.
 
-  All app data     -> "data" folder (clients, bills, settings)
-                      This is YOUR data - stays on YOUR computer
+  Everything else (bills, clients, inventory, settings):
+     "data" folder, plain JSON files. Yours, on your PC.
 
-  Backups          -> Use Settings > Export to save a backup file
-                      Use Settings > Import to restore from backup
+  Want to back up?
+     Settings > Export Data  saves ONE file with everything.
+     Save it to a USB drive, OneDrive, Google Drive,
+     or email it to yourself.
 
+  Moving to a new computer?
+     See USER_GUIDE.md - section "Moving to a new computer".
 
-  --------------------------------------------------------
-  TROUBLESHOOTING:
-  --------------------------------------------------------
-
-  Page doesn't load?
-    -> Double-click "Free GST Billing Software" on Desktop to start
-    -> Then open http://localhost:3001
-
-  App won't start?
-    -> Run "Install FreeGSTBill.bat" again (it won't reinstall,
-       just checks everything is set up correctly)
+  ---------------------------------------------------------
 
 
-  --------------------------------------------------------
-  NEED HELP?
-  --------------------------------------------------------
+  -------- HOW TO USE: STEP-BY-STEP -----------------------
 
-  GitHub: https://github.com/IamRamgarhia/Free-GST-Billing-Software
-  Email:  Contact@dicecodes.com
+  Make your first invoice:
+     1. Click  +  New Invoice  in the top bar.
+     2. Choose the type:
+            Tax Invoice  /  Proforma  /  Credit Note
+            Bill of Supply  /  Delivery Challan
+     3. Type the client name (or pick a saved one).
+     4. Add line items - description, qty, unit
+        (kg, ltr, mtr, hrs, pcs, or your own custom unit),
+        rate, tax %.
+     5. Click Download PDF.  The invoice is saved
+        and a PDF copy lands in the Saved Invoices folder.
+
+  When does an invoice get saved?
+     The app shows a small "All changes saved" badge
+     at the top while you work.
+
+       Draft only - not saved yet  -> Need a client name
+                                      AND at least one
+                                      filled-in item.
+       Saving...                   -> Persisting now.
+       All changes saved           -> Safe to close.
+
+     If you click Back with unsaved changes, the app
+     asks you first. Nothing is silently lost.
+
+  ---------------------------------------------------------
+
+
+  -------- BEST TIP: INSTALL AS A DESKTOP APP -------------
+
+  After the app first opens in your browser:
+     1. Look for the small "Install App" icon in the URL
+        bar (or a banner near the top).
+     2. Click Install. The app now runs in its own window
+        like any other Windows app, even when offline.
+
+  ---------------------------------------------------------
+
+
+  -------- TROUBLESHOOTING --------------------------------
+
+  Page won't load (localhost:3001 says "Cannot reach this
+  page")?
+     -> Double-click "Free GST Billing Software" on Desktop.
+        That starts the server. Then refresh the page.
+
+  Installer says "Node.js install failed"?
+     -> Install it manually from https://nodejs.org
+        (pick the LTS version).
+        Then run Install FreeGSTBill.bat again.
+
+  Something else is wrong?
+     -> Read USER_GUIDE.md (in this folder) - has detailed
+        answers to common problems.
+
+  ---------------------------------------------------------
+
+
+  -------- NEED MORE HELP? --------------------------------
+
+  Detailed guide:   USER_GUIDE.md  (in this folder)
+  Changelog:        CHANGELOG.md   (what changed in each version)
+  GitHub issues:    https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+  Email:            Contact@dicecodes.com
 
   ========================================================

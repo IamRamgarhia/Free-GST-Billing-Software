@@ -36,8 +36,8 @@ function downloadCSV(filename, headers, rows) {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 
-function computeItemTaxSplit(item, isInterState) {
-  const { afterDiscount, taxAmount } = calculateLineItemTax(item);
+function computeItemTaxSplit(item, isInterState, taxInclusive = false) {
+  const { afterDiscount, taxAmount } = calculateLineItemTax(item, taxInclusive);
   if (isInterState) return { taxable: afterDiscount, cgst: 0, sgst: 0, igst: taxAmount };
   const half = Math.round((taxAmount / 2) * 100) / 100;
   return { taxable: afterDiscount, cgst: half, sgst: taxAmount - half, igst: 0 };
@@ -45,6 +45,19 @@ function computeItemTaxSplit(item, isInterState) {
 
 function getTaxableAmount(totals) {
   return totals?.taxableAmount ?? ((totals?.subtotal || 0) - (totals?.totalDiscount || 0));
+}
+
+// Inter-state status of a bill — follows place of supply when set explicitly,
+// SEZ supplies always interstate, else compares seller and client state.
+function billIsInterstate(bill) {
+  const prof = bill.data?.profile;
+  const client = bill.data?.client;
+  const details = bill.data?.details;
+  if (client?.isSEZ) return true;
+  const sellerState = (prof?.state || '').trim().toLowerCase();
+  const placeOfSupply = (details?.placeOfSupply || client?.state || '').trim().toLowerCase();
+  if (!sellerState || !placeOfSupply) return false;
+  return sellerState !== placeOfSupply;
 }
 
 // ========== Filing Guide Steps ==========
@@ -265,7 +278,7 @@ NOTE: This is informational only — no tax impact. But incorrect reporting can 
 DONE! Both GSTR-1 and GSTR-3B are filed for this period.
 
 LATE FILING CONSEQUENCES:
-• Late fee: ₹50/day (₹25 CGST + ₹25 SGST), max ₹10,000 per return
+• Late fee: ₹50/day (₹25 CGST + ₹25 SGST) — capped at ₹5,000 per return for taxpayers with turnover, ₹500 for nil returns (CGST Amendment Act 2023, FY 2023-24 onwards)
 • Interest: 18% p.a. on outstanding tax from due date (Section 50)
 • Cannot file next month's return until current month is filed
 • E-way bill generation blocked after 2 months of non-filing`
@@ -431,18 +444,18 @@ export default function GSTReturns() {
   const b2bRegular = regularBills.filter(b => b.data?.client?.gstin);
   const b2cRegular = regularBills.filter(b => !b.data?.client?.gstin);
   const b2cLarge = b2cRegular.filter(b => {
-    const isInter = b.data?.profile?.state && b.data?.client?.state && b.data.profile.state.toLowerCase() !== b.data.client.state.toLowerCase();
+    const isInter = billIsInterstate(b);
     return isInter && (b.totalAmount || 0) > 250000;
   });
   const b2cSmall = b2cRegular.filter(b => {
-    const isInter = b.data?.profile?.state && b.data?.client?.state && b.data.profile.state.toLowerCase() !== b.data.client.state.toLowerCase();
+    const isInter = billIsInterstate(b);
     return !(isInter && (b.totalAmount || 0) > 250000);
   });
 
   // ========== B2B Rows ==========
   const b2bRows = b2bRegular.map(bill => {
     const { client, totals, details } = bill.data;
-    const isInterState = bill.data.profile?.state && client?.state && bill.data.profile.state.toLowerCase() !== client.state.toLowerCase();
+    const isInterState = billIsInterstate(bill);
     const pos = getStateCode(details?.placeOfSupply || client?.state || '');
     return {
       gstin: client.gstin, clientName: client.name || bill.clientName || '',
@@ -458,12 +471,12 @@ export default function GSTReturns() {
   const b2cByRate = {};
   const b2cBills = filteredBills.filter(b => !b.data?.client?.gstin);
   b2cBills.forEach(bill => {
-    const { profile: prof, client, items } = bill.data;
-    const isInterState = prof?.state && client?.state && prof.state !== client.state;
+    const { items } = bill.data;
+    const isInterState = billIsInterstate(bill);
     (items || []).forEach(item => {
       const rate = item.taxPercent || 0;
       if (!b2cByRate[rate]) b2cByRate[rate] = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
-      const split = computeItemTaxSplit(item, isInterState);
+      const split = computeItemTaxSplit(item, isInterState, !!bill.data?.taxInclusive);
       b2cByRate[rate].taxable += split.taxable; b2cByRate[rate].cgst += split.cgst;
       b2cByRate[rate].sgst += split.sgst; b2cByRate[rate].igst += split.igst;
       b2cByRate[rate].total += split.taxable + split.cgst + split.sgst + split.igst;
@@ -474,12 +487,12 @@ export default function GSTReturns() {
   // ========== HSN Summary ==========
   const hsnMap = {};
   filteredBills.forEach(bill => {
-    const { profile: prof, client, items } = bill.data;
-    const isInterState = prof?.state && client?.state && prof.state !== client.state;
+    const { items } = bill.data;
+    const isInterState = billIsInterstate(bill);
     (items || []).forEach(item => {
       const hsn = item.hsn || 'N/A';
       if (!hsnMap[hsn]) hsnMap[hsn] = { hsn, description: item.name || '', quantity: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
-      const split = computeItemTaxSplit(item, isInterState);
+      const split = computeItemTaxSplit(item, isInterState, !!bill.data?.taxInclusive);
       hsnMap[hsn].quantity += item.quantity || 0; hsnMap[hsn].taxable += split.taxable;
       hsnMap[hsn].cgst += split.cgst; hsnMap[hsn].sgst += split.sgst; hsnMap[hsn].igst += split.igst;
       hsnMap[hsn].totalTax += split.cgst + split.sgst + split.igst;
@@ -535,7 +548,10 @@ export default function GSTReturns() {
   const warnings = [];
   filteredBills.forEach(bill => {
     const { client, items } = bill.data;
-    if (client?.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}[A-Z]{1}\d{1}$/.test(client.gstin)) {
+    // Official GSTIN format: 2 digits state code, 5 letters PAN holder, 4 digits PAN number,
+    // 1 letter PAN entity, 1 digit, 1 letter (Z by default), 1 alphanumeric checksum.
+    // The last char can be a letter or digit, so the final group is [A-Z\d], not \d.
+    if (client?.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z][A-Z\d]$/.test(client.gstin)) {
       warnings.push({ type: 'error', msg: `Invoice ${bill.invoiceNumber}: Invalid client GSTIN format — ${client.gstin}` });
     }
     (items || []).forEach(item => {
@@ -575,8 +591,8 @@ export default function GSTReturns() {
     downloadCSV('GSTR1_B2B_Invoices.csv',
       ['GSTIN/UIN', 'Receiver Name', 'Invoice Number', 'Invoice Date', 'Invoice Value', 'Place of Supply', 'Reverse Charge', 'Invoice Type', 'Supply Type', 'Taxable Value', 'CGST Amount', 'SGST Amount', 'IGST Amount'],
       b2bRegular.map(bill => {
-        const { client, profile: prof, totals, details } = bill.data;
-        const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+        const { client, totals, details } = bill.data;
+        const isInter = billIsInterstate(bill);
         const pos = getStateCode(details?.placeOfSupply || client?.state || '');
         return [client.gstin, client.name || bill.clientName || '', bill.invoiceNumber || '', formatDateGST(bill.invoiceDate), (totals?.total || 0).toFixed(2), pos, 'N', 'Regular', isInter ? 'Inter State' : 'Intra State', getTaxableAmount(totals).toFixed(2), isInter ? 0 : (totals?.cgst || 0).toFixed(2), isInter ? 0 : (totals?.sgst || 0).toFixed(2), isInter ? (totals?.igst || 0).toFixed(2) : 0];
       }));
@@ -588,14 +604,14 @@ export default function GSTReturns() {
     const b2csData = {};
     b2cSmall.forEach(bill => {
       const { profile: prof, client, items, details } = bill.data;
-      const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+      const isInter = billIsInterstate(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || prof?.state || '');
       const splyType = isInter ? 'INTER' : 'INTRA';
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0;
         const key = `${splyType}_${pos}_${rate}`;
         if (!b2csData[key]) b2csData[key] = { splyType, pos, rate, taxable: 0, cgst: 0, sgst: 0, igst: 0 };
-        const split = computeItemTaxSplit(item, isInter);
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         b2csData[key].taxable += split.taxable; b2csData[key].cgst += split.cgst; b2csData[key].sgst += split.sgst; b2csData[key].igst += split.igst;
       });
     });
@@ -612,12 +628,12 @@ export default function GSTReturns() {
     if (hsnRows.length === 0) { toast('No HSN data', 'warning'); return; }
     const hsnDetailed = {};
     filteredBills.forEach(bill => {
-      const { profile: prof, client, items } = bill.data;
-      const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+      const { items } = bill.data;
+      const isInter = billIsInterstate(bill);
       (items || []).forEach(item => {
         const hsn = item.hsn || 'N/A'; const rate = item.taxPercent || 0; const key = `${hsn}_${rate}`;
         if (!hsnDetailed[key]) hsnDetailed[key] = { hsn, desc: item.name || '', uqc: 'NOS', qty: 0, rate, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalValue: 0 };
-        const split = computeItemTaxSplit(item, isInter);
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         hsnDetailed[key].qty += item.quantity || 0; hsnDetailed[key].taxable += split.taxable;
         hsnDetailed[key].cgst += split.cgst; hsnDetailed[key].sgst += split.sgst; hsnDetailed[key].igst += split.igst;
         hsnDetailed[key].totalValue += split.taxable + split.cgst + split.sgst + split.igst;
@@ -634,7 +650,7 @@ export default function GSTReturns() {
     if (cdnrBills.length === 0 && cdnurBills.length === 0) { toast('No Credit Notes', 'warning'); return; }
     if (cdnrBills.length > 0) {
       downloadCSV('GSTR1_CDNR.csv', ['GSTIN/UIN', 'Receiver Name', 'Note Number', 'Note Date', 'Note Type', 'Place of Supply', 'Reverse Charge', 'Note Value', 'Taxable Value', 'IGST Amount', 'CGST Amount', 'SGST Amount'],
-        cdnrBills.map(bill => { const { client, profile: prof, totals } = bill.data; const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase(); const pos = getStateCode(bill.data.details?.placeOfSupply || client?.state || ''); return [client.gstin, client.name || bill.clientName, bill.invoiceNumber, formatDateGST(bill.invoiceDate), 'C', pos, 'N', (totals?.total || 0).toFixed(2), getTaxableAmount(totals).toFixed(2), isInter ? (totals?.igst || 0).toFixed(2) : '0.00', isInter ? '0.00' : (totals?.cgst || 0).toFixed(2), isInter ? '0.00' : (totals?.sgst || 0).toFixed(2)]; }));
+        cdnrBills.map(bill => { const { client, totals } = bill.data; const isInter = billIsInterstate(bill); const pos = getStateCode(bill.data.details?.placeOfSupply || client?.state || ''); return [client.gstin, client.name || bill.clientName, bill.invoiceNumber, formatDateGST(bill.invoiceDate), 'C', pos, 'N', (totals?.total || 0).toFixed(2), getTaxableAmount(totals).toFixed(2), isInter ? (totals?.igst || 0).toFixed(2) : '0.00', isInter ? '0.00' : (totals?.cgst || 0).toFixed(2), isInter ? '0.00' : (totals?.sgst || 0).toFixed(2)]; }));
     }
     if (cdnurBills.length > 0) {
       downloadCSV('GSTR1_CDNUR.csv', ['Note Number', 'Note Date', 'Note Type', 'Place of Supply', 'Note Value', 'Taxable Value', 'IGST Amount', 'Cess Amount'],
@@ -669,16 +685,16 @@ export default function GSTReturns() {
 
     const b2bMap = {};
     b2bRegular.forEach(bill => {
-      const { client, profile: prof, totals, items, details } = bill.data;
+      const { client, totals, items, details } = bill.data;
       const ctin = client.gstin;
       if (!b2bMap[ctin]) b2bMap[ctin] = { ctin, inv: [] };
-      const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+      const isInter = billIsInterstate(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
       const rateMap = {};
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0;
         if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
-        const split = computeItemTaxSplit(item, isInter);
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].camt += split.cgst; rateMap[rate].samt += split.sgst;
       });
       b2bMap[ctin].inv.push({
@@ -690,13 +706,13 @@ export default function GSTReturns() {
     const b2csMap = {};
     b2cSmall.forEach(bill => {
       const { profile: prof, client, items, details } = bill.data;
-      const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+      const isInter = billIsInterstate(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || prof?.state || '');
       const splyTy = isInter ? 'INTER' : 'INTRA';
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0; const key = `${splyTy}_${pos}_${rate}`;
         if (!b2csMap[key]) b2csMap[key] = { sply_ty: splyTy, pos, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
-        const split = computeItemTaxSplit(item, isInter);
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         b2csMap[key].txval += split.taxable; b2csMap[key].iamt += split.igst; b2csMap[key].camt += split.cgst; b2csMap[key].samt += split.sgst;
       });
     });
@@ -717,14 +733,15 @@ export default function GSTReturns() {
 
     const cdnrMap = {};
     creditNotes.filter(b => b.data?.client?.gstin).forEach(bill => {
-      const { client, profile: prof, totals, items, details } = bill.data;
+      const { client, totals, items, details } = bill.data;
       const ctin = client.gstin; if (!cdnrMap[ctin]) cdnrMap[ctin] = { ctin, nt: [] };
-      const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+      const isInter = billIsInterstate(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
       const rateMap = {};
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
-        const split = computeItemTaxSplit(item, isInter); rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].camt += split.cgst; rateMap[rate].samt += split.sgst;
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
+        rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].camt += split.cgst; rateMap[rate].samt += split.sgst;
       });
       cdnrMap[ctin].nt.push({ ntty: 'C', nt_num: bill.invoiceNumber, nt_dt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg: 'N', inv_typ: 'R',
         itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: 0 } })) });
@@ -732,12 +749,12 @@ export default function GSTReturns() {
 
     const hsnJsonMap = {};
     filteredBills.forEach(bill => {
-      const { profile: prof, client, items } = bill.data;
-      const isInter = prof?.state && client?.state && prof.state !== client.state;
+      const { items } = bill.data;
+      const isInter = billIsInterstate(bill);
       (items || []).forEach(item => {
         const hsn = item.hsn || ''; const rate = item.taxPercent || 0; const key = `${hsn}_${rate}`;
         if (!hsnJsonMap[key]) hsnJsonMap[key] = { hsn_sc: hsn, desc: item.name || '', uqc: 'NOS', qty: 0, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
-        const split = computeItemTaxSplit(item, isInter);
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         hsnJsonMap[key].qty += item.quantity || 0; hsnJsonMap[key].txval += split.taxable; hsnJsonMap[key].iamt += split.igst; hsnJsonMap[key].camt += split.cgst; hsnJsonMap[key].samt += split.sgst;
       });
     });
@@ -1110,8 +1127,8 @@ export default function GSTReturns() {
           {(() => {
             const interStateB2C = {};
             b2cBills.forEach(bill => {
-              const { profile: prof, client, items, details } = bill.data;
-              const isInter = prof?.state && client?.state && prof.state.toLowerCase() !== client.state.toLowerCase();
+              const { client, items, details } = bill.data;
+              const isInter = billIsInterstate(bill);
               if (!isInter) return;
               const pos = getStateCode(details?.placeOfSupply || client?.state || '');
               const posName = client?.state || pos;

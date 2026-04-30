@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { getProfile, saveProfile, exportAllData, importData, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings } from '../store';
-import { COUNTRIES, getCountryConfig, getStatesForCountry } from '../utils';
+import { getProfile, saveProfile, exportAllData, importData, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode } from '../store';
+import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion } from '../utils';
 import { Save, Upload, Download, Plus, Trash2, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
@@ -23,10 +23,18 @@ export default function SettingsView({ onSaved }) {
   const [invNumSaving, setInvNumSaving] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [regionMode, setRegionModeState] = useState(getRegionMode());
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const sigInputRef = useRef(null);
   const companyFormRef = useRef(null);
+  const visibleCountries = getCountriesForRegion(regionMode);
+
+  const handleRegionChange = (mode) => {
+    setRegionModeState(mode);
+    setRegionMode(mode);
+    toast(`Region preference: ${mode === 'india' ? 'India only' : mode === 'international' ? 'International only' : 'Both'}`, 'success');
+  };
 
   useEffect(() => {
     getProfile().then(setProfile);
@@ -203,11 +211,18 @@ export default function SettingsView({ onSaved }) {
 
   const handleAddNewProfile = () => {
     setProfile({
-      businessName: '', address: '', city: '', state: '', pin: '', country: 'India',
-      gstin: '', pan: '', email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
+      businessName: '', address: '', city: '', state: '', pin: '', country: detectCountryFromBrowser(),
+      gstin: '', pan: '', email: '', phone: '', bankName: '', accountNumber: '', ifsc: '', swift: '',
       logo: '', logoHeight: 48, signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
     });
+    setTaxIdWarning('');
     companyFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const [taxIdWarning, setTaxIdWarning] = useState('');
+  const handleTaxIdBlur = () => {
+    const result = validateTaxId(profile.country, profile.gstin);
+    setTaxIdWarning(result.ok ? '' : result.message);
   };
 
 
@@ -217,6 +232,30 @@ export default function SettingsView({ onSaved }) {
         <div>
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Business profile, branding, integrations & data</p>
+        </div>
+      </div>
+
+      {/* ---- Region Preference ---- */}
+      <div className="glass-panel p-6 mb-6">
+        <h3 className="section-title" style={{ marginTop: 0 }}>Region Preference</h3>
+        <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.85rem' }}>
+          Choose how the app behaves. You can change this any time without losing data.
+        </p>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'india', label: '🇮🇳 India only', desc: 'GST flows, INR-first, GSTR-1/3B, E-Way Bill, UPI QR' },
+            { id: 'international', label: '🌍 International', desc: 'VAT/SST/TVA labels, multi-currency, no India-only flows' },
+            { id: 'both', label: '🌐 Both / Auto', desc: 'Show all countries — pick per invoice (default)' },
+          ].map(opt => (
+            <button key={opt.id} type="button"
+              onClick={() => handleRegionChange(opt.id)}
+              className={`type-chip ${regionMode === opt.id ? 'type-chip-active' : ''}`}
+              title={opt.desc}
+              style={{ flex: '1 1 200px', minWidth: '200px', textAlign: 'left', padding: '0.6rem 0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
+              <span style={{ fontWeight: 600 }}>{opt.label}</span>
+              <span style={{ fontSize: '0.72rem', color: regionMode === opt.id ? 'inherit' : '#94a3b8', fontWeight: 400 }}>{opt.desc}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -234,7 +273,11 @@ export default function SettingsView({ onSaved }) {
               <div className="form-group">
                 <label className="form-label">Country</label>
                 <select name="country" className="form-input" value={profile.country || 'India'} onChange={handleChange}>
-                  {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+                  {/* If the saved country is filtered out by the region toggle, keep it visible. */}
+                  {profile.country && !visibleCountries.some(c => c.name === profile.country) && (
+                    <option value={profile.country}>{profile.country}</option>
+                  )}
+                  {visibleCountries.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
               <div className="form-group full-width">
@@ -265,8 +308,13 @@ export default function SettingsView({ onSaved }) {
               </div>
               <div className="form-group">
                 <label className="form-label">{cc.taxIdLabel}</label>
-                <input type="text" name="gstin" className="form-input" value={profile.gstin} onChange={handleChange}
+                <input type="text" name="gstin" className="form-input"
+                  style={taxIdWarning ? { borderColor: '#f59e0b' } : undefined}
+                  value={profile.gstin}
+                  onChange={(e) => { handleChange(e); if (taxIdWarning) setTaxIdWarning(''); }}
+                  onBlur={handleTaxIdBlur}
                   placeholder={cc.taxIdPlaceholder} maxLength={20} />
+                {taxIdWarning && <small style={{ color: '#d97706', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>⚠ {taxIdWarning}</small>}
               </div>
               <div className="form-group">
                 <label className="form-label">Email</label>
@@ -281,24 +329,37 @@ export default function SettingsView({ onSaved }) {
         })()}
 
         <h3 className="section-title mt-8">Bank Details</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="form-group">
-            <label className="form-label">Bank Name</label>
-            <input type="text" name="bankName" className="form-input" value={profile.bankName} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Account Number</label>
-            <input type="text" name="accountNumber" className="form-input" value={profile.accountNumber} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">IFSC Code</label>
-            <input type="text" name="ifsc" className="form-input" value={profile.ifsc} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">PAN Number</label>
-            <input type="text" name="pan" className="form-input" value={profile.pan} onChange={handleChange} />
-          </div>
-        </div>
+        {(() => {
+          const bankCC = getCountryConfig(profile.country);
+          const isIndia = (profile.country || 'India') === 'India';
+          return (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Bank Name</label>
+                <input type="text" name="bankName" className="form-input" value={profile.bankName} onChange={handleChange} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Account Number {!isIndia && '/ IBAN'}</label>
+                <input type="text" name="accountNumber" className="form-input" value={profile.accountNumber} onChange={handleChange} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{bankCC.bankLabel || 'IFSC Code'}</label>
+                <input type="text" name="ifsc" className="form-input" value={profile.ifsc} onChange={handleChange} placeholder={bankCC.bankLabel} />
+              </div>
+              {isIndia ? (
+                <div className="form-group">
+                  <label className="form-label">PAN Number</label>
+                  <input type="text" name="pan" className="form-input" value={profile.pan} onChange={handleChange} />
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">SWIFT / BIC (for international wires)</label>
+                  <input type="text" name="swift" className="form-input" value={profile.swift || ''} onChange={handleChange} placeholder="e.g. CHASUS33" />
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* UPI */}
         <h3 className="section-title mt-8">UPI Payment</h3>
