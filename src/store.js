@@ -76,12 +76,12 @@ export const setEnabledModules = (map) => {
 };
 
 // ---- Invoice counter ----
+// Uses the atomic /meta/:key/increment endpoint so two concurrent saves can't both
+// read 5 and both write 6 (= duplicate invoice numbers, which is a GST audit failure).
 export const getNextInvoiceNumber = async (prefix = 'INV') => {
   const settings = await getInvoiceNumberSettings();
   const key = `counter_${prefix}`;
-  const { value } = await apiFetch(`${API}/meta/${key}`);
-  const next = (value || 0) + 1;
-  await apiFetch(`${API}/meta/${key}`, { method: 'POST', body: JSON.stringify({ value: next }) });
+  const { value: next } = await apiFetch(`${API}/meta/${key}/increment`, { method: 'POST', body: JSON.stringify({}) });
 
   if (settings.format === 'random') {
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();

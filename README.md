@@ -202,44 +202,60 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ## Roadmap
 
-### :rocket: Coming Soon (Next Release)
+### :white_check_mark: Recently Delivered (v1.3 → v1.4.1)
 
+- [x] **GSTR-2A / GSTR-2B Reconciliation** — import 2B JSON, match purchases, flag mismatches (v1.4.0)
+- [x] **GSTR-1 + GSTR-3B JSON exports** — direct upload to GSTN offline tool (v1.4.0–1.4.1)
+- [x] **Multi-GSTIN support** — multi-business profile switcher (v1.2.0)
+- [x] **TDS / TCS on invoices** + per-quarter Form 26Q / 27EQ-ready CSV reports (v1.4.0–1.4.1)
+- [x] **Per-line unit of measurement** with custom units — *thanks Apurba!* (v1.3.0)
+- [x] **Country-aware tax labels** (VAT / SST / MwSt / TVA / PPN) for 22 countries (v1.3.0)
+- [x] **Region Preference** toggle (India / International / Both) (v1.3.0)
+- [x] **Round-off line**, **currency exchange-rate snapshot** (v1.3.0)
+- [x] **Modules page** — disable feature groups you don't use (v1.4.0)
+- [x] **Granular PDF field control** — toggle every field per section (v1.4.0)
+- [x] **Rich-text Terms & Notes** + 13 India business-type T&C presets — partial fulfilment of "Industry-specific templates" (v1.4.0)
+- [x] **Granular backup/restore** with Google Drive option (v1.4.1)
+- [x] **Searchable in-app User Guide** with downloadable PDF (v1.4.1)
+- [x] **GST compliance fixes** — placeOfSupply override, E-Way Bill schema, GSTIN regex, taxInclusive math, SEZ flag (v1.3.0)
+
+### :rocket: Coming Soon (Next Release — v1.5.x)
+
+- [ ] **Bank Statement Import** + ITR Filing Summary PDF *(see [TAX_HELPER_PLAN.md](./TAX_HELPER_PLAN.md))*
+- [ ] **Tally XML export + Tally-format ledger import** — every Indian CA's tool
+- [ ] **Recurring invoices: scheduled auto-generate + email/WhatsApp dispatch**
 - [ ] WhatsApp Business API integration — send invoices directly via WhatsApp
 - [ ] POS / Thermal printer billing mode
-- [ ] Barcode scanning for products
-- [ ] Multi-user access with roles (admin, billing, view-only)
+- [ ] Barcode scanning for products (PWA camera)
 
 ### :calendar: Planned Features
 
-- [ ] **E-Invoicing (IRN)** — generate Invoice Reference Number via IRP portal
-- [ ] **Direct GST Filing** — file GSTR-1 and GSTR-3B from the app without visiting the portal
-- [ ] **GSTR-2A/2B Reconciliation** — match purchase invoices with supplier-filed data
-- [ ] **Bank Statement Import** — import and reconcile bank transactions
-- [ ] **Automatic Payment Reminders** — SMS + WhatsApp reminders for overdue invoices
+- [ ] **E-Invoicing (IRN)** — generate Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr — see [COMPETITOR_GAPS.md](./COMPETITOR_GAPS.md))*
+- [ ] **Bulk E-Invoicing** — generate IRN for multiple invoices at once
+- [ ] **Direct GSTR-1/3B portal upload** *(currently we generate the JSON, user uploads via offline tool — direct submission requires GSP partnership)*
+- [ ] **Reverse Charge Mechanism (RCM)** flag + self-invoice
+- [ ] **GST Cess** (compensation cess on tobacco/auto/coal)
+- [ ] **Composition scheme** invoice variant with Rule 46A declaration
+- [ ] **Automatic Payment Reminders** — email + WhatsApp for overdue invoices
 - [ ] **Android & iOS Mobile App** — native apps for billing on the go
-- [ ] **Tally Data Import/Export** — migrate from Tally seamlessly
 - [ ] **Multi-Language Support** — Hindi, Tamil, Telugu, Gujarati, Marathi
-- [ ] **AI-Powered Expense Categorization** — auto-classify expenses using AI
+- [ ] **AI-Powered Expense Categorization** — auto-classify expenses
 - [ ] **Shopify / WooCommerce Integration** — sync orders and generate invoices
 - [ ] **Customer Self-Service Portal** — shareable link for clients to view and pay invoices
-- [ ] **Bulk E-Invoicing** — generate IRN for multiple invoices at once
+- [ ] **Payment-gateway pay-links** on invoices (Razorpay / Stripe / Cashfree)
+- [ ] **Multi-user access with roles** (admin, billing, view-only)
 - [ ] **Advanced Inventory** — batch tracking, expiry dates, warehouse management
 - [ ] **Payroll & Salary Management** — employee salary processing with TDS
 - [ ] **Balance Sheet & Cash Flow Reports** — complete financial reporting
 
-### :bulb: Community Requested
+### :bulb: Community Requested (still open)
 
-- [x] **Per-line unit of measurement** with custom units (kg, ltr, mtr, hrs, …) — *thanks Apurba!* (v1.3.0)
-- [x] **Country-aware tax labels** (VAT / SST / MwSt / TVA / PPN, etc.) (v1.3.0)
-- [x] **Round-off line** on invoice totals (v1.3.0)
-- [x] **Currency exchange-rate snapshot** for foreign invoices (v1.3.0)
 - [ ] Party-wise discount settings
 - [ ] Multiple price lists (wholesale / retail)
 - [ ] Sales order & purchase order workflows
-- [ ] Item size / color variants
+- [ ] Item size / colour variants
 - [ ] Digital signature on invoices (DSC integration)
-- [ ] Industry-specific templates (medical, retail, restaurant, construction)
-- [ ] Multi-GSTIN support (multiple GST registrations)
+- [ ] More industry-specific *invoice templates* (separate from the 13 Terms presets we already ship)
 - [ ] Branch-wise reporting
 
 > **Want a feature?** [Open an issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) and let us know.

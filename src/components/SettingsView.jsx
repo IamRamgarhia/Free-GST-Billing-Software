@@ -340,7 +340,7 @@ export default function SettingsView({ onSaved }) {
         </div>
         <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
           {FEATURE_GROUPS.map(group => (
-            <div key={group.id} style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+            <div key={group.id} className="surface-card">
               <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '0.15rem' }}>{group.label}</div>
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>{group.description}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -888,22 +888,16 @@ export default function SettingsView({ onSaved }) {
       <div className="glass-panel p-6">
         <h3 className="section-title">Data Management</h3>
 
-        {/* Privacy notice — explicit, prominent, in the user's face. */}
-        <div style={{
-          padding: '0.85rem 1rem', borderRadius: '8px',
-          background: 'linear-gradient(90deg, #ecfdf5, #f0fdf4)',
-          border: '1px solid #bbf7d0', marginBottom: '1rem',
-          display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
-        }}>
-          <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>🔒</span>
-          <div style={{ fontSize: '0.82rem', color: '#065f46', lineHeight: 1.5 }}>
+        {/* Privacy notice — uses the global .notice .notice-info utility so dark/light look identical to every other info card. */}
+        <div className="notice notice-info" style={{ marginBottom: '1rem' }}>
+          <span className="notice-icon">🔒</span>
+          <div>
             <strong>Your data is on this computer only.</strong> Nothing is uploaded to
             us, our servers, or any third party — not invoices, not clients, not
             settings. The only time anything leaves your machine is if you explicitly
             click <em>Save to Drive</em> below (uploads to <strong>your own</strong>
             Google Drive account).
-            Files live under <code style={{ background: '#dcfce7', padding: '1px 5px', borderRadius: 3 }}>data/</code> and
-            <code style={{ background: '#dcfce7', padding: '1px 5px', borderRadius: 3 }}>Saved Invoices/</code> next to the app.
+            Files live under <code>data/</code> and <code>Saved Invoices/</code> next to the app.
           </div>
         </div>
 
@@ -930,24 +924,24 @@ export default function SettingsView({ onSaved }) {
               <button type="button" className="btn btn-secondary" onClick={() => exportToggleAll(true)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Select all</button>
               <button type="button" className="btn btn-secondary" onClick={() => exportToggleAll(false)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Clear all</button>
             </div>
-            <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+            <div className="cbx-list">
               {ALL_BACKUP_PARTS.map(p => (
-                <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', padding: '0.4rem 0', cursor: 'pointer', borderBottom: '1px dashed #f1f5f9' }}>
-                  <input type="checkbox" checked={!!exportSel[p.id]} onChange={() => toggleExport(p.id)} style={{ marginTop: '3px', width: 15, height: 15, accentColor: 'var(--primary)' }} />
+                <label key={p.id} className="cbx-row">
+                  <input type="checkbox" checked={!!exportSel[p.id]} onChange={() => toggleExport(p.id)} />
                   <span>
-                    <strong style={{ fontSize: '0.85rem' }}>{p.label}</strong>
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>{p.hint}</span>
+                    <span className="cbx-label">{p.label}</span>
+                    <span className="cbx-hint">{p.hint}</span>
                   </span>
                 </label>
               ))}
             </div>
 
-            {/* Optional: Google Drive copy */}
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', padding: '0.75rem 0.75rem', marginTop: '0.5rem', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer' }}>
-              <input type="checkbox" checked={exportToDrive} onChange={e => setExportToDrive(e.target.checked)} style={{ marginTop: '3px', width: 15, height: 15, accentColor: 'var(--primary)' }} />
-              <span style={{ fontSize: '0.82rem' }}>
-                <strong>Also save a copy to my Google Drive</strong>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', lineHeight: 1.4 }}>
+            {/* Optional: Google Drive copy. Uses global cbx-row utility — identical dark/light. */}
+            <label className="cbx-row" style={{ marginTop: '0.5rem' }}>
+              <input type="checkbox" checked={exportToDrive} onChange={e => setExportToDrive(e.target.checked)} />
+              <span>
+                <span className="cbx-label">Also save a copy to my Google Drive</span>
+                <span className="cbx-hint">
                   Uploads to <em>{(profile.googleDriveFolder || 'GST Billing Invoices')} - Backups</em> in your Drive. Requires Google Client ID configured above. The file always downloads to your computer too.
                 </span>
               </span>
@@ -975,8 +969,8 @@ export default function SettingsView({ onSaved }) {
             </div>
             <div style={{
               padding: '0.6rem 0.85rem', borderRadius: '6px',
-              background: '#fffbeb', border: '1px solid #fde68a',
-              fontSize: '0.78rem', color: '#92400e', marginBottom: '0.75rem',
+              background: 'var(--warn-bg)', border: '1px solid var(--warn-border)',
+              fontSize: '0.78rem', color: 'var(--warn-text)', marginBottom: '0.75rem',
             }}>
               ⚠ Restoring will <strong>overwrite matching records by ID</strong> in the categories you select. Records you didn't tick are untouched. We recommend exporting a fresh backup of your current data first.
             </div>
@@ -984,17 +978,17 @@ export default function SettingsView({ onSaved }) {
               <button type="button" className="btn btn-secondary" onClick={() => importToggleAll(true)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Select all (with data)</button>
               <button type="button" className="btn btn-secondary" onClick={() => importToggleAll(false)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Clear all</button>
             </div>
-            <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+            <div className="cbx-list">
               {ALL_BACKUP_PARTS.map(p => {
                 const count = importInspection.counts[p.id] || 0;
                 return (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', padding: '0.4rem 0', cursor: count > 0 ? 'pointer' : 'not-allowed', opacity: count > 0 ? 1 : 0.45, borderBottom: '1px dashed #f1f5f9' }}>
-                    <input type="checkbox" checked={!!importSel[p.id]} disabled={count === 0} onChange={() => toggleImport(p.id)} style={{ marginTop: '3px', width: 15, height: 15, accentColor: 'var(--primary)' }} />
+                  <label key={p.id} className={`cbx-row${count === 0 ? ' is-disabled' : ''}`}>
+                    <input type="checkbox" checked={!!importSel[p.id]} disabled={count === 0} onChange={() => toggleImport(p.id)} />
                     <span style={{ flex: 1 }}>
-                      <strong style={{ fontSize: '0.85rem' }}>{p.label}</strong>
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>{p.hint}</span>
+                      <span className="cbx-label">{p.label}</span>
+                      <span className="cbx-hint">{p.hint}</span>
                     </span>
-                    <span style={{ fontSize: '0.78rem', color: count > 0 ? '#059669' : '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    <span className="cbx-meta" style={count > 0 ? { color: 'var(--success)', fontWeight: 600 } : undefined}>
                       {count > 0 ? `${count} item${count !== 1 ? 's' : ''}` : 'empty'}
                     </span>
                   </label>

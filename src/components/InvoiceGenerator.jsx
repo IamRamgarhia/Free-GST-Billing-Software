@@ -377,6 +377,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
   }, [editingBill]);
 
+  // When loading a saved bill, prefer the LIVE business profile that matches the bill's
+  // snapshot (by id, falling back to businessName). Means a Settings rename / address
+  // edit / new logo flows through to all historical invoices on next PDF render. Falls
+  // back to the snapshot if that profile was deleted.
+  useEffect(() => {
+    if (!editingBill?.data?.profile || allProfiles.length === 0) return;
+    const snap = editingBill.data.profile;
+    const liveMatch = allProfiles.find(p =>
+      (p.id && snap.id && p.id === snap.id) ||
+      (p.businessName && p.businessName === snap.businessName)
+    );
+    if (liveMatch && liveMatch !== activeProfile) setActiveProfile(liveMatch);
+  }, [editingBill, allProfiles, activeProfile]);
+
   const handleTypeChange = async (type) => {
     setInvoiceType(type);
     const config = INVOICE_TYPES[type];
@@ -925,7 +939,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
                 {/* TCS — collected by seller, ADDS to total (Section 206C, Income Tax Act) */}
                 {(profile?.country || 'India') === 'India' && (
-                  <div className="form-group" style={{ marginBottom: '0.75rem', padding: '0.6rem', borderRadius: '6px', background: invoiceOptions.showTCS ? '#fef3c7' : 'transparent', border: invoiceOptions.showTCS ? '1px solid #fde68a' : '1px dashed transparent' }}>
+                  <div className={`form-group${invoiceOptions.showTCS ? ' notice notice-warn' : ''}`} style={{ marginBottom: '0.75rem', padding: '0.6rem', borderRadius: '6px', display: 'block' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!invoiceOptions.showTCS}
                         onChange={() => setInvoiceOptions(prev => ({ ...prev, showTCS: !prev.showTCS }))}
@@ -954,7 +968,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
                 {/* TDS — deducted by buyer from payment, INFORMATIONAL on invoice */}
                 {(profile?.country || 'India') === 'India' && (
-                  <div className="form-group" style={{ marginBottom: '0.75rem', padding: '0.6rem', borderRadius: '6px', background: invoiceOptions.showTDS ? '#dbeafe' : 'transparent', border: invoiceOptions.showTDS ? '1px solid #bfdbfe' : '1px dashed transparent' }}>
+                  <div className={`form-group${invoiceOptions.showTDS ? ' notice notice-info' : ''}`} style={{ marginBottom: '0.75rem', padding: '0.6rem', borderRadius: '6px', display: 'block' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!invoiceOptions.showTDS}
                         onChange={() => setInvoiceOptions(prev => ({ ...prev, showTDS: !prev.showTDS }))}

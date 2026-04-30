@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod } from '../utils';
+import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC } from '../utils';
 import { toast } from './Toast';
 
 const GST_TYPES = ['tax-invoice', 'credit-note'];
@@ -943,12 +943,15 @@ export default function GSTReturns() {
     });
 
     const hsnJsonMap = {};
+    let unknownUnitCount = 0;
     filteredBills.forEach(bill => {
       const { items } = bill.data;
       const isInter = billIsInterstate(bill);
       (items || []).forEach(item => {
         const hsn = item.hsn || ''; const rate = item.taxPercent || 0; const key = `${hsn}_${rate}`;
-        if (!hsnJsonMap[key]) hsnJsonMap[key] = { hsn_sc: hsn, desc: item.name || '', uqc: 'NOS', qty: 0, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
+        const uqc = getUnitUQC(item.unit);
+        if (uqc === 'OTH' && item.unit) unknownUnitCount += 1;
+        if (!hsnJsonMap[key]) hsnJsonMap[key] = { hsn_sc: hsn, desc: item.name || '', uqc, qty: 0, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         hsnJsonMap[key].qty += item.quantity || 0; hsnJsonMap[key].txval += split.taxable; hsnJsonMap[key].iamt += split.igst; hsnJsonMap[key].camt += split.cgst; hsnJsonMap[key].samt += split.sgst;
       });
@@ -969,7 +972,14 @@ export default function GSTReturns() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `GSTR1_${gstin || 'export'}_${fp}.json`; a.click();
     URL.revokeObjectURL(url);
-    toast(`GSTR-1 JSON exported — upload to GST portal offline tool`, 'success');
+    if (unknownUnitCount > 0) {
+      // Unknown / custom units fall through to UQC 'OTH' in the GSTR-1 HSN summary.
+      // The portal accepts OTH but it's lossy — warn the user so they can map their
+      // custom unit to a standard UQC if they care.
+      toast(`GSTR-1 JSON exported. ⚠ ${unknownUnitCount} item(s) used a custom unit and were exported as UQC 'OTH'.`, 'warning');
+    } else {
+      toast('GSTR-1 JSON exported — upload to GST portal offline tool', 'success');
+    }
   };
 
   // ========== RENDER ==========
@@ -1433,11 +1443,13 @@ export default function GSTReturns() {
           toast('Reconciliation CSV downloaded', 'success');
         };
 
+        // Use the global .status-pill utility — color flows via the --pill-color CSS var,
+        // background is auto-derived with a 14% mix so dark/light look identical.
         const STATUS_BADGES = {
-          matched:         { label: '✓ Matched',         color: '#059669', bg: '#ecfdf5' },
-          amount_mismatch: { label: '⚠ Amount mismatch', color: '#d97706', bg: '#fffbeb' },
-          book_only:       { label: '⚠ Books only',      color: '#dc2626', bg: '#fef2f2' },
-          twob_only:       { label: '⚠ 2B only',         color: '#7c3aed', bg: '#f5f3ff' },
+          matched:         { label: '✓ Matched',         color: 'var(--success)' },
+          amount_mismatch: { label: '⚠ Amount mismatch', color: '#d97706' },
+          book_only:       { label: '⚠ Books only',      color: 'var(--danger)' },
+          twob_only:       { label: '⚠ 2B only',         color: 'var(--purple)' },
         };
 
         return (
@@ -1531,7 +1543,7 @@ export default function GSTReturns() {
                         const diff = r.twoBVal - r.bookVal;
                         return (
                           <tr key={i}>
-                            <td><span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '10px', background: badge.bg, color: badge.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{badge.label}</span></td>
+                            <td><span className="status-pill" style={{ '--pill-color': badge.color }}>{badge.label}</span></td>
                             <td>
                               <div style={{ fontWeight: 500 }}>{r.supplier || '—'}</div>
                               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.ctin}</div>

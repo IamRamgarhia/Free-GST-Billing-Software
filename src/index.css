@@ -5,11 +5,25 @@
   --primary-hover: #1d4ed8;
   --primary-light: rgba(37, 99, 235, 0.08);
   --bg: #f0f2f5;
+  --bg-primary: #f0f2f5;
+  --bg-secondary: #f8fafc;       /* card / inset surface — light grey on light, dark slate on dark */
+  --bg-tertiary: #f1f5f9;        /* hover / selected inset */
   --card-bg: rgba(255, 255, 255, 0.92);
   --text: #111827;
+  --text-primary: #111827;       /* alias used by newer components */
   --text-secondary: #6b7280;
   --text-muted: #9ca3af;
   --border: rgba(229, 231, 235, 0.8);
+  --border-color: #e2e8f0;       /* solid border alias for inline styles */
+  --note-bg: #fefce8;            /* yellow callout */
+  --note-border: #fde68a;
+  --note-text: #78350f;
+  --info-bg: #ecfdf5;             /* green privacy-notice / info card */
+  --info-border: #bbf7d0;
+  --info-text: #065f46;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+  --warn-text: #92400e;
   --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   --success: #059669;
   --success-light: rgba(5, 150, 105, 0.08);
@@ -27,11 +41,25 @@
   --primary-hover: #2563eb;
   --primary-light: rgba(59, 130, 246, 0.12);
   --bg: #0f172a;
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;       /* card / inset surface in dark mode */
+  --bg-tertiary: #334155;
   --card-bg: rgba(30, 41, 59, 0.92);
   --text: #f1f5f9;
+  --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --border: rgba(51, 65, 85, 0.8);
+  --border-color: #334155;
+  --note-bg: rgba(202, 138, 4, 0.12);
+  --note-border: rgba(202, 138, 4, 0.4);
+  --note-text: #fde68a;
+  --info-bg: rgba(16, 185, 129, 0.12);
+  --info-border: rgba(16, 185, 129, 0.4);
+  --info-text: #6ee7b7;
+  --warn-bg: rgba(217, 119, 6, 0.12);
+  --warn-border: rgba(217, 119, 6, 0.4);
+  --warn-text: #fcd34d;
   --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   --success: #34d399;
   --success-light: rgba(52, 211, 153, 0.12);
@@ -1407,6 +1435,91 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .inv-rich em, .inv-rich i { font-style: italic; }
 .inv-rich u { text-decoration: underline; }
 .inv-rich a { color: var(--primary, #1e40af); }
+
+/* ================================================================
+   Reusable utility components
+   ----------------------------------------------------------------
+   These solve the "every panel re-implements its own coloured card"
+   problem and make sure dark / light mode stay consistent everywhere.
+   Use these classes instead of inline styles for any callout, status
+   chip, key-value list, or modal-checkbox row.
+   ================================================================ */
+
+/* Notice cards — info (green), warn (yellow), note (yellow softer), danger */
+.notice {
+  display: flex; align-items: flex-start; gap: 0.6rem;
+  padding: 0.85rem 1rem; border-radius: 8px;
+  font-size: 0.82rem; line-height: 1.5;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.notice-info  { background: var(--info-bg);  border-color: var(--info-border);  color: var(--info-text); }
+.notice-warn  { background: var(--warn-bg);  border-color: var(--warn-border);  color: var(--warn-text); }
+.notice-note  { background: var(--note-bg);  border-color: var(--note-border);  color: var(--note-text); }
+.notice-danger{ background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+.notice-icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+.notice strong { font-weight: 600; }
+
+/* Card-like surfaces that respect dark mode */
+.surface-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.85rem;
+  color: var(--text-primary);
+}
+
+/* Status pill — colour passed via inline `--pill-color` so the bg/text stay
+   theme-aware without repeating the rgba() everywhere. */
+.status-pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 0.7rem; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--pill-color, var(--primary)) 14%, transparent);
+  color: var(--pill-color, var(--primary));
+}
+
+/* Modal checkbox-row pattern — used by Export/Import modals, options panels.
+   Replaces 5+ duplicated inline-styled <label> blocks. */
+.cbx-row {
+  display: flex; align-items: flex-start; gap: 0.55rem;
+  padding: 0.5rem 0.75rem; border-radius: 6px; cursor: pointer;
+  background: var(--bg-secondary); color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+.cbx-row + .cbx-row { margin-top: 0.35rem; }
+.cbx-row input[type="checkbox"] { margin-top: 3px; width: 15px; height: 15px; accent-color: var(--primary); }
+.cbx-row .cbx-label { font-size: 0.85rem; font-weight: 600; line-height: 1.3; color: var(--text-primary); }
+.cbx-row .cbx-hint  { font-size: 0.72rem; color: var(--text-muted); display: block; line-height: 1.35; font-weight: 400; }
+.cbx-row.is-disabled { cursor: not-allowed; opacity: 0.5; }
+.cbx-row .cbx-meta { margin-left: auto; font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.cbx-list {
+  max-height: 320px; overflow-y: auto;
+  border: 1px solid var(--border-color); border-radius: 6px;
+  padding: 0.4rem; background: var(--card-bg);
+}
+.cbx-list .cbx-row { border: 0; border-bottom: 1px dashed var(--border-color); border-radius: 0; padding: 0.4rem 0.5rem; background: transparent; }
+.cbx-list .cbx-row:last-child { border-bottom: 0; }
+
+/* Key/value list — used by FAQ, Troubleshooting, etc. */
+.kv-list { width: 100%; border-collapse: collapse; }
+.kv-list tr { border-bottom: 1px solid var(--border-color); }
+.kv-list td { padding: 0.5rem 0.75rem; vertical-align: top; }
+.kv-list td:first-child { font-weight: 600; color: var(--text-primary); width: 30%; }
+.kv-list td:last-child  { color: var(--text-secondary); }
+
+/* Section label small caps — already used as `inv-section-label`; alias here */
+.section-mini-label {
+  font-size: 0.7rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 0.3rem;
+}
+
+/* Theme-aware code chip */
+code, .code-chip {
+  background: var(--bg-tertiary); color: var(--text-primary);
+  padding: 1px 5px; border-radius: 3px; font-size: 0.85em;
+}
 
 /* Extra section editor */
 .extra-section-editor {

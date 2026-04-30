@@ -7,6 +7,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.2] — 2026-04-30
+
+Audit follow-up release tackling the harder bugs from the v1.3.0 internal
+audit, plus a dark-mode pass that fixes invisible text on coloured panels.
+No new feature surface — but several long-standing correctness issues
+finally closed.
+
+### Fixed — Audit P0 / P1 bugs (v1.3.0 audit report)
+
+- 🔴 **B1 — Invoice-number race fixed.** Two concurrent invoice saves can
+  no longer both read counter=5 and both write counter=6 (= duplicate
+  invoice numbers, a GST audit failure). New atomic
+  `POST /api/meta/:key/increment` endpoint reads + increments + writes in
+  a single synchronous Express handler; Node's single-threaded I/O makes
+  this race-free across HTTP requests. `getNextInvoiceNumber()` now uses
+  it.
+- 🟡 **B9 — Silent server failure.** When the server is launched via
+  `start-server-silent.bat` (hidden window) and crashes on startup, the
+  user previously saw nothing. Server now appends every fatal error to
+  `data/errors.log` with timestamp and stack trace. New
+  `GET /api/health` endpoint returns the last 4 KB of the log so the UI
+  can surface a banner. `uncaughtException` and `unhandledRejection`
+  handlers log instead of silently dying.
+- 🟡 **I7 — SIGINT/SIGTERM graceful shutdown.** `Stop FreeGSTBill.bat`
+  uses `taskkill /f`, which can interrupt a sync write mid-flight and
+  corrupt JSON. Server now traps SIGINT/SIGTERM, calls `server.close()`
+  with a 3-second grace window for in-flight requests, then exits.
+- 🟢 **I12 — Strict Content Security Policy** added to `index.html`.
+  `default-src 'self'`, scripts limited to same-origin + Google
+  Identity Services (Drive auth), connect-src restricted to localhost +
+  Google APIs + GitHub release feed. Defends the rich-text Terms /
+  Notes / extra-section paths even if DOMPurify config is ever
+  loosened.
+- 🟢 **I5 — Custom-unit warning on GSTR-1 export.** When the HSN summary
+  in the GSTR-1 JSON includes any item with a custom unit (mapped to
+  UQC `'OTH'`), the export toast now says how many items were affected
+  so the filer knows to map them to a standard UQC if precision matters.
+
+### Fixed — Profile name auto-propagation
+
+- **Saved invoices now auto-reflect business profile edits.** Previously
+  a saved bill carried a frozen snapshot of `profile.businessName`,
+  address, logo, etc. — renaming "Acme" to "Acme Inc" in Settings
+  required re-opening and re-saving every old invoice. The PDF preview
+  now matches the snapshot's `businessName` (or `id`) against the live
+  profiles list and uses the live data, falling back to the snapshot if
+  the profile was deleted. PDF re-renders pick up renames, address
+  changes, new logos automatically.
+
+### Fixed — Dark / light mode visibility
+
+- **Global utility CSS.** New `.notice`, `.notice-info`, `.notice-warn`,
+  `.notice-note`, `.notice-danger`, `.surface-card`, `.cbx-list`,
+  `.cbx-row`, `.cbx-label`, `.cbx-hint`, `.cbx-meta`, `.status-pill`,
+  `.kv-list`, `.section-mini-label` classes in `src/index.css`. They
+  replace the dozen-or-so duplicated inline-style blocks that had
+  hardcoded light-mode colours, so every panel now follows the same
+  dark/light tokens.
+- **CSS variable expansion.** Added `--bg-secondary`, `--bg-tertiary`,
+  `--text-primary`, `--border-color`, `--note-bg/border/text`,
+  `--info-bg/border/text`, `--warn-bg/border/text`. Both `:root` (light)
+  and `[data-theme="dark"]` carry the full set so any component using
+  these names works without theme-specific overrides.
+- **Removed hardcoded colours** from the Settings privacy notice,
+  Export/Import modal Drive checkbox, modal warning bars, the GSTR-2B
+  reconciliation status pills, the InvoiceGenerator TDS / TCS toggle
+  cards, and the Modules grid.
+
+### Documentation — README roadmap audit
+
+- **README "Roadmap" section overhauled.** Items already shipped in
+  v1.3 / v1.4 are now in a new "Recently Delivered" list (GSTR-2B,
+  GSTR-1/3B JSON, multi-GSTIN, TDS/TCS, units, country tax labels,
+  region preference, modules page, granular PDF control, rich Terms
+  + 13 India presets, granular backup, in-app User Guide, GST
+  compliance fixes). The "Coming Soon" / "Planned" / "Community
+  Requested" buckets are realigned to actual remaining work, with
+  cross-references to [TAX_HELPER_PLAN.md](./TAX_HELPER_PLAN.md) and
+  [COMPETITOR_GAPS.md](./COMPETITOR_GAPS.md).
+
+### Notes on items I deliberately left for v1.5+
+
+- **B6 / B10 — stockDeducted ref + null product on delete.** Inspected
+  and the existing code already null-checks `productId` and
+  `find(p => p.id === item.productId)`; React unmounts the
+  InvoiceGenerator on Back, so the ref resets. Audit was on a slightly
+  earlier version. Leaving as-is.
+- **B8 — `Start FreeGSTBill.bat` reads `port.txt` before probe.** Real
+  bug, but the .bat fix needs Windows testing in a VM to verify the
+  rewrite doesn't break the auto-launch. Punting.
+- **I9 — Recurring invoices auto-fire when app is closed.** Needs a
+  Windows Task Scheduler entry or a Node service. Out of scope for a
+  single edit pass.
+- **B4 — Tax-inclusive interstate IGST math.** Verified against the
+  v1.4.0 totals refactor; the math is correct (taxableValue back-calc
+  applies before the inter/intra split). Leaving as-is.
+
+---
+
 ## [1.4.1] — 2026-04-30
 
 Follow-up release on top of 1.4.0 — granular backup, TDS reports, in-app

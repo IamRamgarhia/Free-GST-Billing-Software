@@ -321,6 +321,20 @@ app.post('/api/meta/:key', (req, res) => {
   res.json({ success: true });
 });
 
+// Atomic increment for invoice-number counters. Node's I/O is single-threaded
+// and readJSON / writeJSON are both synchronous (fs.readFileSync /
+// writeFileSync), so wrapping read+write in one handler with no awaits is
+// race-free across concurrent HTTP requests. Closes the
+// "two saves both reading 5, both writing 6" duplicate-invoice-number bug.
+app.post('/api/meta/:key/increment', (req, res) => {
+  const meta = readJSON(META_PATH, {});
+  const current = Number(meta[req.params.key] || 0);
+  const next = current + 1;
+  meta[req.params.key] = next;
+  writeJSON(META_PATH, meta);
+  res.json({ value: next });
+});
+
 // ========================
 // EXPORT / IMPORT
 // ========================
@@ -545,9 +559,59 @@ if (fs.existsSync(distPath)) {
   });
 }
 
+// ============================================================
+// Error log + graceful shutdown
+// ============================================================
+// When the server is launched via start-server-silent.bat (hidden window) and
+// crashes, the user has no console to see what happened. Persist any startup
+// or unhandled error to data/errors.log so support / users can diagnose it.
+const ERRORS_LOG = path.join(DATA_DIR, 'errors.log');
+
+function logFatal(err, source = 'fatal') {
+  try {
+    const ts = new Date().toISOString();
+    const msg = err && err.stack ? err.stack : String(err);
+    fs.appendFileSync(ERRORS_LOG, `[${ts}] [${source}] ${msg}\n`, 'utf-8');
+  } catch { /* nothing we can do if even appending fails */ }
+}
+
+// Last-resort handlers — log the error but do NOT call process.exit so the
+// running server keeps serving healthy requests. Per Node best-practice,
+// uncaughtException leaves the process in an unknown state, so we write the
+// log and let the OS / a wrapper script decide whether to restart.
+process.on('uncaughtException', (err) => logFatal(err, 'uncaughtException'));
+process.on('unhandledRejection', (err) => logFatal(err, 'unhandledRejection'));
+
+// Health-check endpoint exposing recent errors so the UI can surface a banner.
+app.get('/api/health', (req, res) => {
+  let errorsTail = '';
+  try {
+    if (fs.existsSync(ERRORS_LOG)) {
+      const stat = fs.statSync(ERRORS_LOG);
+      // Read the last 4KB only so a runaway log file can't OOM the response.
+      const fd = fs.openSync(ERRORS_LOG, 'r');
+      const len = Math.min(stat.size, 4096);
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, Math.max(0, stat.size - len));
+      fs.closeSync(fd);
+      errorsTail = buf.toString('utf-8');
+    }
+  } catch { /* ignore */ }
+  res.json({
+    ok: true,
+    version: process.env.npm_package_version || 'unknown',
+    uptimeSec: Math.round(process.uptime()),
+    pid: process.pid,
+    hasRecentErrors: !!errorsTail.trim(),
+    errorsTail,
+  });
+});
+
 // Try ports starting from DEFAULT_PORT until one is available
+let activeServer = null;
 function startServer(port) {
   const server = app.listen(port, () => {
+    activeServer = server;
     // Save the active port so VBS launcher and other tools can read it
     fs.writeFileSync(PORT_FILE, String(port), 'utf-8');
     console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
@@ -559,9 +623,32 @@ function startServer(port) {
       startServer(port + 1);
     } else {
       console.error(`  Failed to start server: ${err.message}`);
+      // Persist the failure so the user has a breadcrumb when the silent
+      // launcher exits without any visible window.
+      logFatal(err, 'startup');
       process.exit(1);
     }
   });
 }
+
+// Graceful shutdown — taskkill /f from Stop FreeGSTBill.bat can interrupt a
+// sync write mid-flight. SIGINT (Ctrl+C in foreground) and SIGTERM (clean
+// kill) get a 3-second window to flush.
+function gracefulShutdown(signal) {
+  console.log(`\n  Received ${signal}, closing connections...`);
+  if (!activeServer) { process.exit(0); return; }
+  const force = setTimeout(() => {
+    console.warn('  Force-exiting after 3s grace period');
+    process.exit(1);
+  }, 3000);
+  force.unref();
+  activeServer.close(() => {
+    clearTimeout(force);
+    console.log('  Server closed cleanly.');
+    process.exit(0);
+  });
+}
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 startServer(DEFAULT_PORT);

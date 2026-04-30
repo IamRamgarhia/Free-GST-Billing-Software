@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!--
+      Content Security Policy. Defends the rich-text Terms / Notes / extra-section
+      paths which inject sanitized HTML via DOMPurify. Even if the sanitizer config
+      is ever loosened, the CSP locks scripts to same-origin so injected script
+      tags can't execute, and connect-src is limited to localhost + Google
+      services (only place we make outbound calls).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src  'self' https://accounts.google.com https://apis.google.com;
+      style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src    'self' https://fonts.gstatic.com data:;
+      img-src     'self' data: blob: https://*.googleusercontent.com;
+      connect-src 'self' http://localhost:* https://accounts.google.com https://www.googleapis.com https://api.github.com https://nodejs.org https://raw.githubusercontent.com;
+      frame-src   https://accounts.google.com;
+      object-src  'none';
+      base-uri    'self';
+    " />
+
     <!-- Primary SEO -->
     <title>Free GST Billing Software — Free Open Source GST Invoice Generator | Billing Software for India</title>
     <meta name="description" content="Free GST Billing Software — a free, open-source GST billing software. Generate Tax Invoices, Proforma, Credit Notes & Bill of Supply with CGST/SGST/IGST. Multi-currency support for international clients (USD, EUR, GBP). Offline, private, no signup. Built by DiceCodes." />
