@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules } from './store';
 import { isModuleEnabled } from './utils';
 import Dashboard from './components/Dashboard';
@@ -13,6 +13,7 @@ import RecurringInvoices from './components/RecurringInvoices';
 import ReceiptVoucher from './components/ReceiptVoucher';
 import GSTReturns from './components/GSTReturns';
 import PurchaseBills from './components/PurchaseBills';
+import UserGuideView from './components/UserGuideView';
 import WelcomeGuide from './components/WelcomeGuide';
 import ToastContainer from './components/Toast';
 
@@ -212,6 +213,7 @@ function App() {
     { id: 'receipts', icon: Receipt, label: 'Receipts', module: 'receipts' },
     { id: 'reports', icon: BarChart3, label: 'Reports', module: 'reports' },
     { id: 'filing', icon: BookOpen, label: 'GST Returns', module: 'gstReturns' },
+    { id: 'guide', icon: HelpCircle, label: 'User Guide', module: 'dashboard' }, // gated by dashboard so it's always available
   ].filter(item => showIfModule(item.module));
 
   if (serverDown) {
@@ -384,6 +386,9 @@ function App() {
         )}
         {currentView === 'filing' && (
           <GSTReturns />
+        )}
+        {currentView === 'guide' && (
+          <UserGuideView />
         )}
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />

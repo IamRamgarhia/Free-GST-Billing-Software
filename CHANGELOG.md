@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] — 2026-04-30
+
+Follow-up release on top of 1.4.0 — granular backup, TDS reports, in-app
+searchable User Guide, and a handful of audit fixes from the v1.3 review.
+
+### Added — Backup & restore (full overhaul)
+
+- **Granular Export modal** — pick exactly what to back up via checkboxes:
+  active business profile, all profiles, invoices, clients, products,
+  expenses, purchases, recurring, receipts, terms templates, app settings
+  (region / modules / invoice number format / display options), and local
+  preferences (custom units, theme, last region). Each row has a hint
+  explaining what it includes.
+- **Granular Import modal** — opening a backup file shows you exactly what
+  is inside (counts per category) before you commit. You can selectively
+  restore just one part — e.g. only the client list, or only settings —
+  without touching anything else.
+- **localStorage data now rides along in backups.** Custom units, theme,
+  region preference, enabled modules, invoice display defaults, onboarded
+  flag — all preserved across "move to a new computer" flows. Previously
+  these survived only if the user manually copied the browser profile.
+- **Optional "Save a copy to my Google Drive"** checkbox in the Export
+  modal. Uploads the same JSON file to your own Drive's
+  *<Folder> - Backups* subfolder using the Drive client ID you already
+  configured for PDF backup. Local download always happens too — Drive
+  is just a parallel copy.
+- **New Drive helpers** in `src/services/googleDrive.js`: `uploadJSON`,
+  `listBackupsInFolder`, `downloadFileText` — building blocks for v1.5
+  "Restore from Drive" picker.
+- **Privacy notice** at the top of Settings → Data Management. Explicit,
+  green-card callout that everything stays on the user's computer unless
+  they tick "Save to Drive". Names the exact folders (`data/`,
+  `Saved Invoices/`).
+
+### Added — TDS / TCS Reports
+
+- **New tab in GST Returns: TDS / TCS Report.** Aggregates every invoice
+  in the filtered period that has TDS deducted by the buyer or TCS
+  collected from the buyer:
+  - **TDS Receivable** dashboard — count, total taxable value, total
+    TDS, plus per-quarter / per-section breakdown table.
+  - **TCS Collected** dashboard — same shape, distinct totals.
+  - **CSV exports** for each, formatted as ready input for **Form 26Q**
+    (TDS quarterly return) and **Form 27EQ** (TCS quarterly return).
+  - Friendly empty state explains how to enable TDS / TCS on an invoice.
+- Direct link to <https://www.tin-nsdl.com> in the help banner so users
+  know where to file the returns once they have the CSVs.
+
+### Added — In-app Searchable User Guide (PDF)
+
+- **New User Guide view** in the sidebar. Renders 17 sections (Quick
+  Start, first-run wizard, daily use, India vs International, modules,
+  PDF customization, Terms presets, TDS/TCS, GST returns, E-Way Bill,
+  backup, migration, FAQ, troubleshooting, developer setup) with a live
+  search box that highlights matches in yellow.
+- **Download as PDF** button generates a true text-based PDF using
+  jsPDF's native `text()` API — *searchable*, *copy-pasteable*, and
+  much smaller than the html2canvas approach we use for invoices. The
+  guide content lives in `src/userGuideContent.js` as a structured
+  array so on-screen and PDF render can never drift.
+- Headings, paragraphs, ordered/unordered lists, key/value tables, and
+  callout-style notes are all supported.
+
+### Fixed — Audit follow-ups
+
+- **Aging-bucket NaN crash** ([ReportsView.jsx:117](src/components/ReportsView.jsx#L117))
+  fixed: invalid or missing dates now produce 0 days overdue instead of
+  `Math.floor(NaN)` propagating through the chart. Legacy bills without
+  `dueDate` no longer break the Reports page.
+- **`engines` field added** to package.json (`node >= 18.0.0`). Old
+  Node 14/16 users now fail `npm install` with a clear "needs Node 18+"
+  message instead of cryptic ESM errors.
+
+---
+
 ## [1.4.0] — 2026-04-30
 
 This release answers the user-prioritized roadmap items #4, #6, and #7 from

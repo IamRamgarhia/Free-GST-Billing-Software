@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { getProfile, saveProfile, exportAllData, importData, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules } from '../store';
+import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules } from '../store';
+import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
 import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled } from '../utils';
 import { Save, Upload, Download, Plus, Trash2, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
@@ -144,37 +145,113 @@ export default function SettingsView({ onSaved }) {
     toast('Disconnected from Google Drive', 'info');
   };
 
-  // Export / Import
-  const handleExport = async () => {
+  // Export / Import (granular)
+  const ALL_BACKUP_PARTS = [
+    { id: 'profile',        label: 'Active business profile',  hint: 'Name, address, GSTIN, bank, logo, signature' },
+    { id: 'profiles',       label: 'All business profiles',    hint: 'Multi-business switcher entries' },
+    { id: 'bills',          label: 'Invoices / bills',         hint: 'Tax invoices, proforma, credit notes, etc.' },
+    { id: 'clients',        label: 'Clients',                  hint: 'Saved client directory' },
+    { id: 'products',       label: 'Products / Inventory',     hint: 'Product catalog with HSN, rate, stock' },
+    { id: 'expenses',       label: 'Expenses',                 hint: 'Expense tracker entries' },
+    { id: 'purchases',      label: 'Purchase bills',           hint: 'Vendor bills used for ITC' },
+    { id: 'recurring',      label: 'Recurring invoices',       hint: 'Auto-billing schedule entries' },
+    { id: 'receipts',       label: 'Receipts',                 hint: 'Payment receipts' },
+    { id: 'termsTemplates', label: 'Terms templates',          hint: 'Reusable T&C library' },
+    { id: 'meta',           label: 'App settings',             hint: 'Region, modules, invoice number format, display options' },
+    { id: 'localStorage',   label: 'Local preferences',        hint: 'Custom units, theme, last region preference' },
+  ];
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [exportSel, setExportSel] = useState(() => Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, true])));
+  const [importSel, setImportSel] = useState(() => Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, true])));
+  const [importInspection, setImportInspection] = useState(null);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [exportToDrive, setExportToDrive] = useState(false);
+  const [drivePending, setDrivePending] = useState(false);
+
+  const toggleExport = (id) => setExportSel(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleImport = (id) => setImportSel(prev => ({ ...prev, [id]: !prev[id] }));
+  const exportToggleAll = (val) => setExportSel(Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, val])));
+  const importToggleAll = (val) => setImportSel(Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, val])));
+
+  const runExport = async () => {
     try {
-      const json = await exportAllData();
+      const json = await exportAllData(exportSel);
+      const fileName = `freegstbill-backup-${new Date().toISOString().split('T')[0]}.json`;
+
+      // Local download (always)
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `freegstbill-backup-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
+      a.href = url; a.download = fileName; a.click();
       URL.revokeObjectURL(url);
-      toast('Data exported!', 'success');
-    } catch { toast('Export failed', 'error'); }
+
+      // Optional Google Drive copy
+      if (exportToDrive) {
+        if (!profile?.googleClientId) {
+          toast('Google Drive not configured. Set Google Client ID in Settings to enable Drive backups.', 'warning');
+        } else {
+          setDrivePending(true);
+          const ok = await ensureToken(profile.googleClientId);
+          if (!ok) { toast('Drive auth failed — backup downloaded locally only', 'warning'); }
+          else {
+            const folderName = (profile.googleDriveFolder || 'GST Billing Invoices') + ' - Backups';
+            const folderId = await findOrCreateFolder(folderName);
+            const result = await uploadJSON(fileName, json, folderId);
+            toast(`Saved to Drive — ${result.name}`, 'success');
+          }
+          setDrivePending(false);
+        }
+      }
+
+      toast('Backup downloaded', 'success');
+      setShowExportModal(false);
+    } catch (err) {
+      console.error(err);
+      toast('Export failed: ' + (err.message || 'unknown error'), 'error');
+      setDrivePending(false);
+    }
   };
 
-  const handleImport = async (e) => {
+  const handleImportPick = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const text = await file.text();
-      const result = await importData(text);
+      const inspection = inspectBackup(text);
+      if (!inspection.valid) { toast("This file doesn't look like a Free GST Billing backup.", 'error'); return; }
+      setImportInspection(inspection);
+      setImportJsonText(text);
+      // Auto-tick only the parts that actually have data in the file
+      const auto = {};
+      ALL_BACKUP_PARTS.forEach(p => { auto[p.id] = (inspection.counts[p.id] || 0) > 0; });
+      setImportSel(auto);
+      setShowImportModal(true);
+    } catch { toast('Could not read the file', 'error'); }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const runImport = async () => {
+    try {
+      const result = await importData(importJsonText, importSel);
       const parts = [];
       if (result.billCount) parts.push(`${result.billCount} invoice(s)`);
       if (result.hasProfile) parts.push('profile');
       if (result.templateCount) parts.push(`${result.templateCount} template(s)`);
       if (result.clientCount) parts.push(`${result.clientCount} client(s)`);
-      toast(`Imported: ${parts.join(', ')}`, 'success');
-      if (result.hasProfile) { const p = await getProfile(); setProfile(p); if (onSaved) onSaved(p); }
-      if (result.templateCount) loadTemplates();
-    } catch { toast('Invalid backup file.', 'error'); }
-    if (fileInputRef.current) fileInputRef.current.value = '';
+      if (result.productCount) parts.push(`${result.productCount} product(s)`);
+      toast(parts.length ? `Restored: ${parts.join(', ')}` : 'Restore complete', 'success');
+      if (importSel.profile) { const p = await getProfile(); setProfile(p); if (onSaved) onSaved(p); }
+      if (importSel.termsTemplates) loadTemplates();
+      if (importSel.profiles) loadBusinessProfiles();
+      setShowImportModal(false);
+      setImportInspection(null);
+      setImportJsonText('');
+    } catch (err) {
+      console.error(err);
+      toast('Import failed: ' + (err.message || 'unknown error'), 'error');
+    }
   };
 
   // Terms templates
@@ -810,13 +887,129 @@ export default function SettingsView({ onSaved }) {
 
       <div className="glass-panel p-6">
         <h3 className="section-title">Data Management</h3>
-        <p className="page-subtitle mb-6">Export all data (invoices, profile, clients, templates) as a backup, or import from one.</p>
-        <div className="flex gap-4">
-          <button type="button" className="btn btn-secondary" onClick={handleExport}><Download size={18} /> Export Backup</button>
-          <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()}><Upload size={18} /> Import Backup</button>
-          <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
+
+        {/* Privacy notice — explicit, prominent, in the user's face. */}
+        <div style={{
+          padding: '0.85rem 1rem', borderRadius: '8px',
+          background: 'linear-gradient(90deg, #ecfdf5, #f0fdf4)',
+          border: '1px solid #bbf7d0', marginBottom: '1rem',
+          display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+        }}>
+          <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>🔒</span>
+          <div style={{ fontSize: '0.82rem', color: '#065f46', lineHeight: 1.5 }}>
+            <strong>Your data is on this computer only.</strong> Nothing is uploaded to
+            us, our servers, or any third party — not invoices, not clients, not
+            settings. The only time anything leaves your machine is if you explicitly
+            click <em>Save to Drive</em> below (uploads to <strong>your own</strong>
+            Google Drive account).
+            Files live under <code style={{ background: '#dcfce7', padding: '1px 5px', borderRadius: 3 }}>data/</code> and
+            <code style={{ background: '#dcfce7', padding: '1px 5px', borderRadius: 3 }}>Saved Invoices/</code> next to the app.
+          </div>
+        </div>
+
+        <p className="page-subtitle mb-6">
+          Choose what to back up or restore — invoices, clients, products, settings, custom units, or just specific parts.
+          Backup files are plain JSON you can keep on a USB drive, OneDrive, or your own Google Drive.
+        </p>
+        <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-primary" onClick={() => setShowExportModal(true)}><Download size={18} /> Export Backup…</button>
+          <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()}><Upload size={18} /> Import Backup…</button>
+          <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportPick} style={{ display: 'none' }} />
         </div>
       </div>
+
+      {/* ----------------------- Export modal ----------------------- */}
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => !drivePending && setShowExportModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <h3 className="section-title" style={{ marginTop: 0 }}>Export Backup</h3>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '0.75rem' }}>
+              Choose what to include. Everything is on by default — uncheck anything you don't want.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => exportToggleAll(true)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Select all</button>
+              <button type="button" className="btn btn-secondary" onClick={() => exportToggleAll(false)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Clear all</button>
+            </div>
+            <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+              {ALL_BACKUP_PARTS.map(p => (
+                <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', padding: '0.4rem 0', cursor: 'pointer', borderBottom: '1px dashed #f1f5f9' }}>
+                  <input type="checkbox" checked={!!exportSel[p.id]} onChange={() => toggleExport(p.id)} style={{ marginTop: '3px', width: 15, height: 15, accentColor: 'var(--primary)' }} />
+                  <span>
+                    <strong style={{ fontSize: '0.85rem' }}>{p.label}</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>{p.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {/* Optional: Google Drive copy */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', padding: '0.75rem 0.75rem', marginTop: '0.5rem', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer' }}>
+              <input type="checkbox" checked={exportToDrive} onChange={e => setExportToDrive(e.target.checked)} style={{ marginTop: '3px', width: 15, height: 15, accentColor: 'var(--primary)' }} />
+              <span style={{ fontSize: '0.82rem' }}>
+                <strong>Also save a copy to my Google Drive</strong>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', lineHeight: 1.4 }}>
+                  Uploads to <em>{(profile.googleDriveFolder || 'GST Billing Invoices')} - Backups</em> in your Drive. Requires Google Client ID configured above. The file always downloads to your computer too.
+                </span>
+              </span>
+            </label>
+
+            <div className="flex gap-2 justify-end mt-4">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowExportModal(false)} disabled={drivePending}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={runExport} disabled={drivePending || !Object.values(exportSel).some(Boolean)}>
+                {drivePending ? 'Uploading…' : <><Download size={16} /> Download Backup</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ----------------------- Import modal ----------------------- */}
+      {showImportModal && importInspection && (
+        <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <h3 className="section-title" style={{ marginTop: 0 }}>Restore from Backup</h3>
+            <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.75rem' }}>
+              File contents preview
+              {importInspection.exportedAt && <span> — exported {new Date(importInspection.exportedAt).toLocaleString()}</span>}
+              {importInspection.version && <span> · v{importInspection.version}</span>}
+            </div>
+            <div style={{
+              padding: '0.6rem 0.85rem', borderRadius: '6px',
+              background: '#fffbeb', border: '1px solid #fde68a',
+              fontSize: '0.78rem', color: '#92400e', marginBottom: '0.75rem',
+            }}>
+              ⚠ Restoring will <strong>overwrite matching records by ID</strong> in the categories you select. Records you didn't tick are untouched. We recommend exporting a fresh backup of your current data first.
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => importToggleAll(true)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Select all (with data)</button>
+              <button type="button" className="btn btn-secondary" onClick={() => importToggleAll(false)} style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}>Clear all</button>
+            </div>
+            <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+              {ALL_BACKUP_PARTS.map(p => {
+                const count = importInspection.counts[p.id] || 0;
+                return (
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', padding: '0.4rem 0', cursor: count > 0 ? 'pointer' : 'not-allowed', opacity: count > 0 ? 1 : 0.45, borderBottom: '1px dashed #f1f5f9' }}>
+                    <input type="checkbox" checked={!!importSel[p.id]} disabled={count === 0} onChange={() => toggleImport(p.id)} style={{ marginTop: '3px', width: 15, height: 15, accentColor: 'var(--primary)' }} />
+                    <span style={{ flex: 1 }}>
+                      <strong style={{ fontSize: '0.85rem' }}>{p.label}</strong>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', lineHeight: 1.35 }}>{p.hint}</span>
+                    </span>
+                    <span style={{ fontSize: '0.78rem', color: count > 0 ? '#059669' : '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {count > 0 ? `${count} item${count !== 1 ? 's' : ''}` : 'empty'}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowImportModal(false)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={runImport} disabled={!Object.values(importSel).some(Boolean)}>
+                <Upload size={16} /> Restore selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

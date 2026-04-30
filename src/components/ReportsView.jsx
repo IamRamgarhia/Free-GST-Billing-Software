@@ -114,9 +114,13 @@ export default function ReportsView() {
   const today = new Date();
   const unpaidBills = bills.filter(b => b.status !== 'paid');
   const agingData = unpaidBills.map(b => {
+    // Guard against missing or invalid dates — `new Date(undefined)` returns Invalid Date
+    // which propagates as NaN through the aging math and breaks the chart.
     const dueDate = b.data?.details?.dueDate || b.invoiceDate;
-    const due = new Date(dueDate);
-    const daysOverdue = Math.max(0, Math.floor((today - due) / 86400000));
+    const due = dueDate ? new Date(dueDate) : null;
+    const daysOverdue = (due && !isNaN(due.getTime()))
+      ? Math.max(0, Math.floor((today - due) / 86400000))
+      : 0;
     const outstanding = (b.totalAmount || 0) - (b.paidAmount || 0);
     let bucket = 'current';
     if (daysOverdue > 90) bucket = '90plus';

@@ -171,3 +171,65 @@ function blobToBase64(blob) {
     reader.readAsDataURL(blob);
   });
 }
+
+// Upload a JSON file (e.g. an app backup) to a folder. Same multipart pattern as
+// uploadPDF but with application/json. Used by the Backup → "Save to Drive" button.
+export async function uploadJSON(fileName, jsonString, folderId) {
+  if (!accessToken) throw new Error('Not connected to Google Drive');
+
+  const metadata = {
+    name: fileName,
+    mimeType: 'application/json',
+    parents: folderId ? [folderId] : [],
+  };
+
+  const boundary = '---gstbiller-json-' + Date.now();
+  const body =
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) + '\r\n' +
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    jsonString + '\r\n' +
+    `--${boundary}--`;
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'JSON upload failed');
+  }
+  return await res.json();
+}
+
+// List the most recent backup files in a folder. Used by Restore from Drive.
+export async function listBackupsInFolder(folderId, limit = 20) {
+  if (!accessToken) throw new Error('Not connected to Google Drive');
+  const q = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime%20desc&pageSize=${limit}&fields=files(id,name,modifiedTime,size)`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error('Failed to list Drive files');
+  const data = await res.json();
+  return data.files || [];
+}
+
+// Download a Drive file by id and return its text content.
+export async function downloadFileText(fileId) {
+  if (!accessToken) throw new Error('Not connected to Google Drive');
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) throw new Error('Failed to download Drive file');
+  return await res.text();
+}
