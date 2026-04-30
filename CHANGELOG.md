@@ -129,8 +129,8 @@ finally closed.
   + 13 India presets, granular backup, in-app User Guide, GST
   compliance fixes). The "Coming Soon" / "Planned" / "Community
   Requested" buckets are realigned to actual remaining work, with
-  cross-references to [TAX_HELPER_PLAN.md](./TAX_HELPER_PLAN.md) and
-  [COMPETITOR_GAPS.md](./COMPETITOR_GAPS.md).
+  cross-references to [TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md) and
+  [COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md).
 
 ### Notes on items I deliberately left for v1.5+
 
@@ -229,7 +229,7 @@ searchable User Guide, and a handful of audit fixes from the v1.3 review.
 ## [1.4.0] — 2026-04-30
 
 This release answers the user-prioritized roadmap items #4, #6, and #7 from
-[COMPETITOR_GAPS.md](./COMPETITOR_GAPS.md): TDS/TCS, GSTR-2B reconciliation,
+[COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md): TDS/TCS, GSTR-2B reconciliation,
 and direct GSTR JSON exports. Also a Modules page for turning off features
 you don't use, granular PDF field control, formattable Terms with
 business-type presets, and the interstate-purchase ITC routing fix the
@@ -314,13 +314,13 @@ internal audit flagged.
   emailing the .bat to a Windows user will no longer ship a script that
   cmd.exe refuses to run.
 - **SmartScreen / antivirus guidance** added to START HERE.txt and
-  [USER_GUIDE.md](./USER_GUIDE.md) — covers the blue "Windows protected
+  [USER_GUIDE.md](./docs/USER_GUIDE.md) — covers the blue "Windows protected
   your PC" screen, the right-click → Properties → Unblock workaround for
   Mark-of-the-Web, and antivirus exclusion paths.
 
 ### Notes for the income-tax helper
 
-[TAX_HELPER_PLAN.md](./TAX_HELPER_PLAN.md) remains the planning doc for
+[TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md) remains the planning doc for
 the v1.5.x income-tax helper (bank-statement CSV import + ITR Filing
 Summary PDF). The IT Department portal accepts JSON only via authenticated
 browser uploads — there is no public API — so the realistic ceiling is a
@@ -422,15 +422,15 @@ These are real correctness fixes that affect filings — not UX polish.
 
 ### Documentation
 
-- **[USER_GUIDE.md](./USER_GUIDE.md)** — plain-language handbook covering
+- **[USER_GUIDE.md](./docs/USER_GUIDE.md)** — plain-language handbook covering
   daily use, backup, migration to a new computer, FAQ, troubleshooting.
-- **[COMPETITOR_GAPS.md](./COMPETITOR_GAPS.md)** — gap analysis vs the top
+- **[COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md)** — gap analysis vs the top
   5 GitHub OSS projects (ERPNext, Akaunting, Invoice Ninja, Crater,
   InvoiceShelf) and top 5 commercial Indian tools (Tally, Vyapar, Zoho,
   ClearTax, Marg). Includes the prioritized post-1.3 roadmap (e-Invoice
   IRN, RCM, Cess, GSTR-2B reconciliation, Tally export, payment-gateway
   links, mobile app).
-- **[TAX_HELPER_PLAN.md](./TAX_HELPER_PLAN.md)** — proposal for the v1.4.0
+- **[TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md)** — proposal for the v1.4.0
   Income Tax Helper feature (bank-statement import + ITR filing summary
   PDF). Three-tier scope, with realistic limits on what's possible without
   a public REST API from the IT Department.

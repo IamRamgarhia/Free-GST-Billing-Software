@@ -296,7 +296,7 @@ echo     to use it like a normal desktop application.
 echo.
 echo     Need help?
 echo       - Read START HERE.txt next to this installer
-echo       - Or open USER_GUIDE.md for the full handbook
+echo       - Or open docs\USER_GUIDE.md for the full handbook
 echo         (covers backups, multi-business, troubleshooting)
 echo.
 echo  ========================================================

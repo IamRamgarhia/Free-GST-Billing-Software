@@ -113,7 +113,7 @@
      or email it to yourself.
 
   Moving to a new computer?
-     See USER_GUIDE.md - section "Moving to a new computer".
+     See docs/USER_GUIDE.md - section "Moving to a new computer".
 
   ---------------------------------------------------------
 
@@ -172,7 +172,7 @@
         Then run Install FreeGSTBill.bat again.
 
   Something else is wrong?
-     -> Read USER_GUIDE.md (in this folder) - has detailed
+     -> Read docs/USER_GUIDE.md (in this folder) - has detailed
         answers to common problems.
 
   ---------------------------------------------------------
@@ -180,7 +180,7 @@
 
   -------- NEED MORE HELP? --------------------------------
 
-  Detailed guide:   USER_GUIDE.md  (in this folder)
+  Detailed guide:   docs/USER_GUIDE.md  (in this folder)
   Changelog:        CHANGELOG.md   (what changed in each version)
   GitHub issues:    https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
   Email:            Contact@dicecodes.com

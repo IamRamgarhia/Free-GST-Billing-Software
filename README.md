@@ -235,7 +235,7 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ### :rocket: Coming Soon (Next Release — v1.5.x)
 
-- [ ] **Bank Statement Import** + ITR Filing Summary PDF *(see [TAX_HELPER_PLAN.md](./TAX_HELPER_PLAN.md))*
+- [ ] **Bank Statement Import** + ITR Filing Summary PDF *(see [docs/TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md))*
 - [ ] **Tally XML export + Tally-format ledger import** — every Indian CA's tool
 - [ ] **Recurring invoices: scheduled auto-generate + email/WhatsApp dispatch**
 - [ ] WhatsApp Business API integration — send invoices directly via WhatsApp
@@ -244,7 +244,7 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ### :calendar: Planned Features
 
-- [ ] **E-Invoicing (IRN)** — generate Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr — see [COMPETITOR_GAPS.md](./COMPETITOR_GAPS.md))*
+- [ ] **E-Invoicing (IRN)** — generate Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr — see [docs/COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md))*
 - [ ] **Bulk E-Invoicing** — generate IRN for multiple invoices at once
 - [ ] **Direct GSTR-1/3B portal upload** *(currently we generate the JSON, user uploads via offline tool — direct submission requires GSP partnership)*
 - [ ] **Reverse Charge Mechanism (RCM)** flag + self-invoice
@@ -277,6 +277,16 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 ### :scroll: Changelog
 
 See **[CHANGELOG.md](./CHANGELOG.md)** for a detailed history of every release.
+
+---
+
+## :books: Documentation
+
+The deep-dive material lives in **[docs/](./docs/)**:
+
+- **[docs/USER_GUIDE.md](./docs/USER_GUIDE.md)** — plain-language handbook for end users (Quick Start → Daily Use → Backup → Migration → FAQ → Troubleshooting). Also available **inside the app** as a searchable view with one-click PDF export.
+- **[docs/COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md)** — gap analysis vs ERPNext / Akaunting / Invoice Ninja / Crater + Tally / Vyapar / Zoho Books / ClearTax / Marg, with the prioritised post-1.4 roadmap.
+- **[docs/TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md)** — three-tier proposal for the v1.5.x Income Tax Helper (bank-statement CSV import + ITR Filing Summary PDF + optional ITR-4 JSON).
 
 ---
 
