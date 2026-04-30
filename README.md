@@ -6,12 +6,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows-blue.svg)](#quick-start--installation)
-[![Version](https://img.shields.io/badge/Version-1.1.0-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![Version](https://img.shields.io/badge/Version-1.4.2-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/IamRamgarhia/Free-GST-Billing-Software?style=social)](https://github.com/IamRamgarhia/Free-GST-Billing-Software)
 
-**Create GST-compliant invoices, file GSTR-1 & GSTR-3B, track expenses, manage inventory — all without paying a single rupee. Ever.**
+**Create GST-compliant invoices, file GSTR-1 / GSTR-3B / GSTR-2B reconciliation, track TDS / TCS, bill international clients in 22 currencies, manage inventory — all without paying a single rupee. Ever.**
 
-Your data never leaves your computer. No cloud. No signup. No tracking. No limits.
+Your data never leaves your computer. No cloud. No signup. No tracking. No limits. Open-source and offline-first.
 
 [Download Now](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [View Demo](#screenshots) &nbsp;|&nbsp; [Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;|&nbsp; [Request Feature](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 
@@ -41,15 +41,21 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 | Feature | Details |
 |---------|---------|
 | **5 Invoice Types** | Tax Invoice, Proforma/Estimate, Bill of Supply, Credit Note, Delivery Challan |
-| **Auto GST Calculation** | CGST + SGST for intra-state, IGST for inter-state — calculated automatically from state codes |
+| **Auto GST Calculation** | CGST + SGST for intra-state, IGST for inter-state — uses *Place of Supply* override and SEZ flag (Section 16, IGST Act) |
 | **HSN/SAC Codes** | Add HSN or SAC codes per line item with correct tax rates |
-| **UPI QR Code** | Auto-generated QR code on every invoice from your UPI ID |
-| **Multi-Currency** | Bill in INR, USD, EUR, GBP, AUD, CAD, SGD, AED with proper formatting |
-| **3 PDF Styles** | Professional, high-quality multi-page PDF export with customizable layout |
-| **Amount in Words** | Indian format (Crore, Lakh) for INR, international format (Million, Thousand) for foreign currencies |
+| **Per-Line Units of Measurement** | kg, ltr, mtr, ft, hrs, pcs, sqft + 15 more — plus user-defined custom units (Carat, Bundle, anything). UQC propagated to GSTR-1 and E-Way Bill |
+| **TDS / TCS on Invoices** | Section 194Q / 194C / 194J / 194I / 194H / 194O / 195 (TDS) and 206C(1H) / 52 (TCS) with per-quarter Form 26Q / 27EQ-ready CSV reports |
+| **UPI QR Code** | Auto-generated QR code on every Indian-rupee invoice from your UPI ID |
+| **Multi-Currency** | Bill in INR + 21 other currencies (USD, EUR, GBP, AED, AUD, SGD, CAD, MYR, ZAR, NGN, KES, SAR, NPR, BDT, LKR, PKR, PHP, IDR, NZD, etc.) with locale-correct formatting and amount-in-words for each |
+| **Country-Aware Tax Labels** | "GST" for India, "VAT" for UAE/UK/EU, "SST" for Malaysia, "MwSt" for Germany, "TVA" for France, "PPN" for Indonesia — auto-applied based on seller country |
+| **3 PDF Styles** | Classic / Modern / Minimal layouts with customisable accent colour and high-quality multi-page export |
+| **Granular PDF Field Control** | 30+ togglable fields grouped by section (Header, Client, Items table, Totals, Footer). Hide-all / Reset-default in one click |
+| **Round-off + Currency Exchange Rate Snapshot** | Optional round-to-nearest-rupee line and FX rate stored on the invoice for accurate historical reports |
+| **Rich-Text Terms & Notes** | Bold, italic, underline, lists, headings, links — all DOMPurify-sanitised. **13 India-specific Terms presets** by business type (SME, Freelancer, Manufacturer, Retail, Restaurant, IT/SaaS, Construction, Medical, Education, Transport, Real Estate, E-commerce, Export-LUT) |
+| **Amount in Words** | Indian format (Crore, Lakh) for INR, international format (Million, Thousand) for foreign currencies — correctly named per currency (Dollars, Dirhams, Pounds, Pence, Riyals, Halalas, Naira, Kobo, etc.) |
 | **Quotation to Invoice** | Convert any Proforma/Estimate to Tax Invoice in one click |
-| **Auto-Save** | Invoice data auto-saves as you type — never lose work mid-invoice |
-| **Custom Invoice Numbers** | Branded prefix, separator style, financial year, zero-padded digits |
+| **Auto-Save + Save-Before-Leave** | Auto-saves to sessionStorage as you type; only persists to bills list once meaningful (client + priced item). Browser-close / Back prompts to save |
+| **Custom Invoice Numbers** | Branded prefix, separator style, financial year, zero-padded digits — atomic counter (no duplicate numbers under concurrent saves) |
 | **Private Internal Notes** | Add notes only you can see (not printed on the PDF) |
 | **Rich-Text Extra Pages** | Attach formatted content (tables, lists, scope of work) as additional PDF pages |
 
@@ -57,13 +63,17 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 
 | Feature | Details |
 |---------|---------|
-| **GSTR-1 Data** | B2B invoices (with GSTIN), B2C aggregated by tax rate, HSN summary, Credit Notes, Document Summary (Table 13) |
-| **GSTR-3B Computation** | Output tax liability, Input Tax Credit from expenses, net tax payable — ready to copy into GST portal |
-| **GSTR-1 JSON Export** | Download NIC-format JSON file and upload directly to gst.gov.in |
-| **CSV Exports** | Download B2B, B2C, and HSN reports as CSV for your CA or portal upload |
-| **Step-by-Step Filing Guide** | Interactive walkthrough for filing GSTR-1 and GSTR-3B on the GST portal |
+| **GSTR-1 Data** | B2B invoices (with GSTIN), B2C aggregated by tax rate, B2C Large (inter-state > Rs.2.5 L), HSN summary with UQC, Credit Notes (CDNR / CDNUR), Document Summary (Table 13) |
+| **GSTR-3B Computation** | Output tax liability, Input Tax Credit from expenses + purchases (auto-routed to IGST or CGST+SGST per inter-state flag), net tax payable — ready to copy into GST portal |
+| **GSTR-1 + GSTR-3B JSON Export** | Download GSTN offline-tool format JSON files (schema v1.7) and upload directly to gst.gov.in — no manual data entry |
+| **GSTR-2B Reconciliation** | Import GSTR-2B JSON downloaded from the GST portal; auto-matches each entry against your purchase records by supplier GSTIN + invoice number. Flags Matched / Amount-mismatch / Books-only / 2B-only entries with filterable summary and CSV export |
+| **TDS / TCS Reports** | Per-quarter, per-section aggregation of TDS receivable (deducted by clients) and TCS collected. CSV exports formatted as direct input for **Form 26Q** and **Form 27EQ** quarterly returns |
+| **CSV Exports** | Download B2B, B2C, B2C Large, HSN, CDNR, Doc Summary reports as CSV for your CA or portal upload |
+| **Step-by-Step Filing Guide** | Interactive walkthrough for filing GSTR-1 and GSTR-3B on the GST portal — late-fee math up-to-date with CGST Amendment Act 2023 |
 | **NIL Return Guide** | Auto-detects zero-activity periods with instructions for filing NIL returns |
-| **E-Way Bill JSON** | Download NIC-format JSON for e-way bill portal upload (goods > Rs.50,000) |
+| **E-Way Bill JSON** | Download NIC-format JSON (schema v1.0.1221) for e-way bill portal upload (goods > Rs.50,000). PIN codes auto-extracted from address; correct supplyType for outward bills |
+| **SEZ Client Flag** | Tick on a client and supplies are auto-charged IGST regardless of state (Section 16, IGST Act) |
+| **Soft Tax-ID Validation** | GSTIN / VAT / TRN / EIN format check per country with friendly warning — never blocks save |
 | **Filing Checklist** | Interactive checklist with progress tracking, deadlines, and penalty info |
 
 ### :briefcase: Business Management
@@ -94,11 +104,12 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 
 | Feature | Details |
 |---------|---------|
-| **PDF Download** | High-quality, multi-page PDF with auto page numbering |
+| **PDF Download** | High-quality, multi-page PDF — render scale `max(3, devicePixelRatio × 2)`, JPEG 0.95, deflate-compressed. Sharper text, modest file size |
 | **WhatsApp Sharing** | Share invoices directly via WhatsApp (desktop app or web, auto-detected) |
 | **Email** | One-click email with invoice summary |
-| **Google Drive Auto-Upload** | PDFs auto-upload to Google Drive after download (optional) |
-| **Full Data Backup/Restore** | Export all data as JSON, import on any machine |
+| **Google Drive Auto-Upload (PDFs)** | Invoices auto-upload to your own Google Drive after download (optional, OAuth via your Client ID) |
+| **Google Drive JSON Backup** | Optional checkbox in Export to upload the JSON backup to your Drive's `<Folder> - Backups` subfolder alongside the local download |
+| **Granular Backup / Restore** | Pick exactly what to back up via checkboxes — profile, profiles, invoices, clients, products, expenses, purchases, recurring, receipts, terms templates, settings, local prefs (custom units, theme, region, modules). Import previews counts before restoring |
 | **CSV Import** | Bulk import clients and products from CSV files |
 | **Mobile Web Share** | Web Share API attaches PDF to WhatsApp or any app on mobile |
 
@@ -106,12 +117,15 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 
 | Feature | Details |
 |---------|---------|
-| **15 Invoice Display Toggles** | Show/hide GST, State, GSTIN, Place of Supply, HSN Code, Discount, Bank Details, UPI QR, Logo, Signature, Terms, Notes, Amount in Words, Due Date, Item Quantity |
+| **30+ Invoice Display Toggles** | Show/hide every field: logo, business name, address, phone, email, state, GSTIN, client address/phone/email, place of supply, invoice number/date, due date, HSN, qty, unit, rate, discount, tax, subtotal, amount in words, round-off, bank details, UPI QR, signature, signatory caption, Terms, Notes — grouped by section with Hide-all / Reset |
+| **Region Preference** | Pick **India only** / **International** / **Both**. Adapts every menu, picker, and tax label without losing data |
+| **Modules Page** | Turn off entire feature groups you don't need (recurring invoices, expenses, purchases, GST returns, integrations) — sidebar shrinks to match |
 | **Custom Invoice Numbering** | Branded prefix, separator (/ - #), financial year toggle, starting number, digit padding |
-| **Terms & Conditions Templates** | Save and reuse multiple T&C templates |
-| **Multi-Business Profiles** | Separate profiles with different GSTIN, bank details, logo, signature |
-| **Dark Mode** | Full dark theme with automatic persistence |
+| **Terms & Conditions** | Rich-text editor (B/I/U, lists, headings, links) + 13 India business-type starter templates + reusable saved-template library |
+| **Multi-Business Profiles** | Separate profiles with different GSTIN, bank details, logo, signature, country, currency. Switcher in the header for one-click context change |
+| **Dark Mode** | Full dark theme with automatic persistence and theme-aware utility classes everywhere |
 | **PWA Installable** | Install as a standalone desktop app via Chrome or Edge — opens instantly, no browser needed |
+| **In-App Searchable User Guide** | 17 sections, live search with highlighted matches, downloadable as a fully searchable text PDF |
 
 ---
 
