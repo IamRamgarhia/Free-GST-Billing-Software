@@ -141,10 +141,12 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 1. **Download** the ZIP from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) or [click here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip)
 2. **Extract** the folder anywhere on your computer
 3. **Double-click** `Install FreeGSTBill.bat`
-4. The app opens automatically in your browser at **http://localhost:3001**
+4. The app opens automatically in your browser at **http://localhost:47371**
 
 > **That's it.** No terminal. No commands. The app starts automatically when you turn on your PC.
 > A desktop shortcut and Start Menu entry are created for you.
+
+> **Why port 47371?** It's in the unassigned IANA range, well above the 3000-range that every Node / React / Vite / Express dev server fights over. If something on your machine somehow already owns 47371, the server auto-scans up to find a free port and writes the chosen one to `data/port.txt` — the Start.bat launcher always opens whichever URL is correct, so you never need to remember a number. Always use the Desktop shortcut.
 
 ### Option 2: Developer Setup
 
@@ -160,7 +162,7 @@ npm run dev:win
 npm run dev
 ```
 
-Dev server: `http://localhost:5173` | API: `http://localhost:3001`
+Dev server: `http://localhost:5173` | API: `http://localhost:47371`
 
 **Production build:**
 ```bash
@@ -169,7 +171,7 @@ npm run build && npm start
 
 ### Install as Desktop App (PWA)
 
-1. Open **http://localhost:3001** in Chrome or Edge
+1. Open **http://localhost:47371** in Chrome or Edge
 2. Click the **Install App** banner (or the install icon in the address bar)
 3. Done — the app opens in its own window, no browser tab needed
 
@@ -365,7 +367,7 @@ PDFs will auto-upload to your Google Drive after every download.
 
 ```
 Free-GST-Billing-Software/
-├── server.js                     # Express API server (port 3001)
+├── server.js                     # Express API server (default port 47371, auto-scans if busy)
 ├── src/
 │   ├── App.jsx                   # Root layout, sidebar navigation, dark mode
 │   ├── store.js                  # API client for all data operations

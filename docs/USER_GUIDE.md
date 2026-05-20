@@ -81,9 +81,9 @@ The `.bat` files are Windows-only, but the app itself works on any OS:
 git clone https://github.com/IamRamgarhia/Free-GST-Billing-Software.git
 cd Free-GST-Billing-Software
 npm install
-npm start          # builds, then serves on http://localhost:3001
+npm start          # builds, then serves on http://localhost:47371
 ```
-Open <http://localhost:3001> in your browser.
+Open <http://localhost:47371> in your browser.
 
 ---
 
@@ -290,9 +290,11 @@ Full source: <https://github.com/IamRamgarhia/Free-GST-Billing-Software>
 
 ### "Cannot connect to server" / blank page
 The local server isn't running. Run *Start FreeGSTBill.bat* again, or reboot
-(the server is set to auto-start on login). If that still doesn't work, open
-*localhost-3001 (Open This in Browser).txt* — that file has the URL to paste
-into your browser manually.
+(the server is set to auto-start on login). The Desktop shortcut always
+opens the correct URL automatically — you never need to type a port number.
+If you want to check which port the app is using, open `data/port.txt` next
+to the install folder (it usually says `47371`, but the server picks a free
+port automatically if that one is in use).
 
 ### Installer says Node.js install failed
 Install Node.js manually from <https://nodejs.org> (pick *LTS*), then run

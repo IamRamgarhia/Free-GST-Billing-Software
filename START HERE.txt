@@ -66,7 +66,7 @@
      (or search "Free GST Billing" from the Start Menu)
 
   Bookmark / direct URL:
-     http://localhost:3001
+     http://localhost:47371
 
   Stop the app (rare, you usually won't need to):
      Double-click   Stop FreeGSTBill.bat
@@ -161,7 +161,7 @@
 
   -------- TROUBLESHOOTING --------------------------------
 
-  Page won't load (localhost:3001 says "Cannot reach this
+  Page won't load (localhost:47371 says "Cannot reach this
   page")?
      -> Double-click "Free GST Billing Software" on Desktop.
         That starts the server. Then refresh the page.

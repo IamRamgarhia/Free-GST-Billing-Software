@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.2] — 2026-04-30
+
+Port choice + listener safety. The server has moved off the heavily-contested
+**3001** default to **47371** (an unassigned IANA port) so a fresh install
+doesn't collide with any of the dozen-or-so other dev tools that camp on the
+3000-range. The launcher remains port-agnostic — you've never had to
+remember the number, and now you have one less reason to think about it.
+
+### Changed — default port
+
+- **Default port: `3001` → `47371`.** The new default is in IANA's
+  unassigned range (between registered 1024–49151 and dynamic
+  49152–65535), where it's effectively guaranteed not to collide with
+  anything common. The Start / Stop / Update / install-time scripts all
+  read `data/port.txt` so they always open whichever port the server
+  actually chose — users never need to remember a number.
+- **Collision scan widened: 10 → 50 ports.** On the rare collision the
+  server now scans `47371..47420` for a free port. If everything in that
+  range is somehow occupied, it falls back to "let the OS pick anything
+  free" (`port=0`) rather than failing to start. Whatever wins is
+  persisted to `data/port.txt`, so the next launch tries that port first
+  and avoids the scan entirely.
+- **Server binds explicitly to `127.0.0.1`** (was the all-interfaces
+  default). Closes a subtle exposure path where a user on shared Wi-Fi
+  could have served the API to the LAN. The privacy promise is now
+  enforced at the socket level, not just policy.
+
+### Changed — launcher scripts
+
+- **`Start FreeGSTBill.bat`** — default fallback updated to 47371 (was
+  3001) for first-ever installs where `data/port.txt` doesn't yet exist.
+  Documentation block added in-line explaining the read-write dance so
+  future maintainers don't reintroduce audit bug B8 (probe-before-read
+  timing).
+- **`Stop FreeGSTBill.bat`** — default fallback updated to 47371. Still
+  reads `data/port.txt` first; only falls back if the file is missing.
+  Avoids the previous behaviour of taskkilling whichever poor app
+  happens to be on port 3001.
+- **`Update FreeGSTBill.bat`** — kills the legacy 3001 process *and* the
+  one named in `data/port.txt`, so users upgrading from v1.5.1 or earlier
+  cleanly transition to the new default.
+
+### Removed
+
+- **Deleted `localhost-3001 (Open This in Browser).txt`** from the repo
+  root. The filename was misleading (the port can vary), redundant with
+  `START HERE.txt` (which covers the same instructions in a better
+  place), and the audit flagged its existence as a UX wart.
+
+### Documentation
+
+- `README.md`, `START HERE.txt`, `docs/USER_GUIDE.md`, and the in-app
+  searchable User Guide (`src/userGuideContent.js`) all updated:
+  `localhost:3001` → `localhost:47371`. README's Quick Start gained a
+  *"Why port 47371?"* paragraph so curious users get the rationale
+  inline instead of stumbling on it later.
+
+### Upgrade notes
+
+- **Existing installs** (v1.5.0 / v1.5.1 running on port 3001 with a
+  `data/port.txt` saying `3001`) — keep running on 3001 forever unless
+  they delete `data/port.txt`. The persisted preference always wins.
+  Nothing breaks.
+- **Fresh installs** start on 47371 automatically.
+- **Switch an existing install to 47371**: stop the server, delete
+  `data/port.txt`, restart. The launcher will discover the new port and
+  open the right URL on its own.
+
+---
+
 ## [1.5.1] — 2026-04-30
 
 Quality-of-life release executed from the post-v1.5 audit. Five bug fixes,

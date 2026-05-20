@@ -23,6 +23,8 @@ echo  Current version: %CURRENT_VER%
 
 :: Stop running server
 echo  Stopping server...
+:: Try the legacy 3001 first (pre-v1.5.2 installs may still be on it),
+:: then fall through to the persisted port from data\port.txt below.
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3001 ^| findstr LISTENING 2^>nul') do (
     taskkill /f /pid %%a >nul 2>nul
 )

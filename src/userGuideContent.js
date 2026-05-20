@@ -44,11 +44,11 @@ export const GUIDE_CONTENT = [
     'Download the project as a ZIP from github.com/IamRamgarhia/Free-GST-Billing-Software (green Code button → Download ZIP) and unzip it somewhere you will remember (e.g. Documents\\FreeGSTBill).',
     'Double-click "Install FreeGSTBill.bat". The installer takes 1-2 minutes the first time and asks no questions.',
     'A "Free GST Billing Software" icon appears on your Desktop and in the Start Menu. Use it any time.',
-    'The app opens in your browser at http://localhost:3001. Click "Install App" in the address bar to make it look like a normal Windows program.',
+    'The app opens in your browser at http://localhost:47371. Click "Install App" in the address bar to make it look like a normal Windows program.',
   ]},
   { type: 'note', text: 'If Windows shows "Windows protected your PC" → click "More info" → "Run anyway". This is normal for free open-source apps that aren\'t code-signed (signing certificates cost ~$300/year, which defeats the "free" part).' },
   { type: 'h3', text: 'macOS / Linux' },
-  { type: 'p', text: 'The .bat files are Windows-only, but the app itself works anywhere with Node.js 18+. Run: git clone the repo, npm install, npm start. Open http://localhost:3001 in your browser.' },
+  { type: 'p', text: 'The .bat files are Windows-only, but the app itself works anywhere with Node.js 18+. Run: git clone the repo, npm install, npm start. Open http://localhost:47371 in your browser.' },
   { type: 'spacer' },
 
   { type: 'h2', text: '3. First-run wizard' },

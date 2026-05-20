@@ -6,8 +6,30 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
-const DEFAULT_PORT = 3001;
+
+// Port choice — we deliberately default to a high, unusual number rather than
+// the conventional 3001. The 3000-range is heavily used by every other Node /
+// Vite / React / Express app, dev servers, Grafana, etc., which means every
+// other install would land on 3002 / 3003 / etc. and the user would be left
+// guessing which URL is "theirs". 47371 is in IANA's unassigned range
+// (between registered 1024-49151 and dynamic 49152-65535) and isn't claimed
+// by any common software we could find. The persisted `data/port.txt` always
+// wins over this default — so a single user who genuinely needs 47371 for
+// something else can edit that file and we'll respect it forever.
+const DEFAULT_PORT = 47371;
 const PORT_FILE = path.join(__dirname, 'data', 'port.txt');
+
+// Read the persisted port (if any) — written once on first successful start
+// and every time we get bumped off our preferred port by EADDRINUSE.
+const persistedPort = (() => {
+  try {
+    if (!fs.existsSync(PORT_FILE)) return null;
+    const n = parseInt(fs.readFileSync(PORT_FILE, 'utf-8').trim(), 10);
+    return (isFinite(n) && n >= 1024 && n <= 65535) ? n : null;
+  } catch { return null; }
+})();
+const STARTING_PORT = persistedPort || DEFAULT_PORT;
+const MAX_PORT_SCAN = 50; // 47371 → 47420 is enough headroom for any conceivable collision
 
 const app = express();
 app.use(cors());
@@ -655,20 +677,31 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Try ports starting from DEFAULT_PORT until one is available
+// Try ports starting from STARTING_PORT (persisted preference) until one is available.
+// Bound to 127.0.0.1 explicitly so the server can NEVER be reached from the LAN —
+// every byte stays on the user's machine, which the privacy promise depends on.
 let activeServer = null;
 function startServer(port) {
-  const server = app.listen(port, () => {
+  const server = app.listen(port, '127.0.0.1', () => {
     activeServer = server;
-    // Save the active port so VBS launcher and other tools can read it
-    fs.writeFileSync(PORT_FILE, String(port), 'utf-8');
+    // Persist the chosen port — the .bat launcher reads this for the browser URL.
+    // Writing on EVERY successful boot means: if our preferred 47371 was busy and
+    // we landed on 47372 instead, next launch tries 47372 first (cuts collision
+    // scans in half on repeated reboots of whatever was holding 47371).
+    try { fs.writeFileSync(PORT_FILE, String(port), 'utf-8'); } catch { /* ignore */ }
     console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
   });
   server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE' && port < DEFAULT_PORT + 10) {
+    if (err.code === 'EADDRINUSE' && port < STARTING_PORT + MAX_PORT_SCAN) {
       console.log(`  Port ${port} is busy, trying ${port + 1}...`);
       startServer(port + 1);
+    } else if (err.code === 'EADDRINUSE') {
+      // We've exhausted the scan range. Tell the OS to pick anything free — at
+      // this point the user has 50+ apps fighting for the 47371-47421 range,
+      // which we treat as "do whatever works" rather than failing to start.
+      console.warn(`  Scanned ${MAX_PORT_SCAN} ports from ${STARTING_PORT} — letting OS assign a free one.`);
+      startServer(0);
     } else {
       console.error(`  Failed to start server: ${err.message}`);
       // Persist the failure so the user has a breadcrumb when the silent
@@ -699,4 +732,4 @@ function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-startServer(DEFAULT_PORT);
+startServer(STARTING_PORT);
