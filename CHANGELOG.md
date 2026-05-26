@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.1] — 2026-04-30
+
+PWA polish — making the existing Progressive Web App feel more like a
+real desktop app, without yet shipping a native installer. This is the
+quick win on the path to v2.0's Tauri repackage; everything here is
+pure config / UX, no architecture changes.
+
+### Added — Manifest shortcuts
+
+Right-clicking the pinned PWA icon (Windows taskbar, Start Menu, Edge's
+app launcher) now shows a jump-list:
+
+- **New Invoice** → `/?view=new`
+- **Dashboard** → `/?view=dashboard`
+- **GST Returns** → `/?view=filing`
+- **Settings** → `/?view=settings`
+
+App boot reads the `?view=X` query param from the manifest shortcut URL
+and lands the user directly on that view, then strips the query string
+so a refresh doesn't keep snapping back to the shortcut target.
+
+### Added — `window-controls-overlay` display mode
+
+Manifest now declares `display_override: ['window-controls-overlay',
+'standalone']`. On supporting Chrome / Edge, the installed app gets a
+tighter title bar (the chrome shrinks, we get more vertical space).
+Falls back to plain standalone everywhere else.
+
+### Added — Richer manifest metadata
+
+- **Description** rewritten to mention the actual features (GSTR-1/3B/2B,
+  TDS/TCS, multi-currency, multi-account, recurring) — Chrome shows this
+  in the install dialog and helps app-store-style PWA discovery
+- **Categories** `['business', 'productivity', 'finance']` for platform
+  recommendation engines
+- **Orientation** locked to `portrait-primary` (no accidental
+  landscape-mode invoices on a tablet)
+- **`lang: 'en-IN'`** for locale-correct quotation marks etc.
+
+### Changed — Install-banner dismissal
+
+Previously: clicking ✕ on the install banner set `freegstbill_pwa_dismissed=1`
+and the banner never reappeared. Users who closed it during a busy
+moment never saw the option again.
+
+Now: clicking ✕ stores a **timestamp**
+(`freegstbill_pwa_dismissed_at`). The banner re-shows automatically
+**14 days** after dismissal. The button tooltip says "Remind me later
+(re-shows in 14 days)" so the behaviour is discoverable.
+
+### Changed — Install-banner copy
+
+"Install as Desktop App — opens instantly, no browser needed!" →
+"Install as Desktop App — own icon, no browser, opens instantly.
+Right-click the icon for quick-jump to New Invoice / GST Returns."
+
+The new copy points at the manifest-shortcuts feature so users
+understand why it's worth doing.
+
+### Added — iOS standalone detection
+
+Banner now also hides itself when running inside iOS Safari's "Add to
+Home Screen" mode (`window.navigator.standalone === true`). Tiny audience
+on iOS today, but no reason to nag those who already installed.
+
+### Backward compatibility
+
+- Existing dismissals using the old `freegstbill_pwa_dismissed=1` key
+  still suppress the banner. Newly-dismissed users get the 14-day
+  re-show.
+- All other PWA behaviour (offline cache, service-worker auto-update,
+  fonts cache, image cache) is unchanged.
+
+### Not yet (deferred to v2.0)
+
+- Native `.exe` / `.dmg` installers (Tauri repackage)
+- Code-signed binaries (no SmartScreen warning)
+- System tray icon
+- Data migration from ZIP install location to `%APPDATA%`
+
+The full plan for those is in the conversation around v1.6.0 — TL;DR:
+Tauri shell wrapping the existing Node + Express + React build, plus a
+first-run prompt that copies (never deletes) legacy `data/` folders into
+the new per-user app-data location.
+
+---
+
 ## [1.6.0] — 2026-04-30
 
 Two big workflow improvements: **service-mode invoices** (with units that

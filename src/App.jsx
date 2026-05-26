@@ -19,6 +19,20 @@ import ToastContainer from './components/Toast';
 
 function App() {
   const [currentView, setCurrentView] = useState(() => {
+    // PWA manifest "shortcuts" deep-link in via ?view=X (e.g. right-clicking
+    // the pinned taskbar icon → "New Invoice" opens /?view=new). Honour that
+    // before falling back to whatever the user was last looking at.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const v = params.get('view');
+      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'guide', 'settings'];
+      if (v && valid.includes(v)) {
+        // Strip the query string so a refresh doesn't keep snapping back to
+        // the shortcut target — only the *first* navigation honours it.
+        window.history.replaceState({}, '', window.location.pathname);
+        return v;
+      }
+    } catch { /* sandboxed history API — fall through */ }
     return sessionStorage.getItem('gst_currentView') || 'dashboard';
   });
   const [profile, setProfile] = useState(null);
@@ -182,11 +196,19 @@ function App() {
     };
   }, []);
 
-  // Capture PWA install prompt
+  // Capture PWA install prompt. Banner re-appears 14 days after dismissal
+  // (was: dismissed forever — too aggressive, users who closed it during
+  // a busy moment never saw it again).
   useEffect(() => {
-    const dismissed = localStorage.getItem('freegstbill_pwa_dismissed');
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    if (dismissed || isStandalone) return;
+    const dismissedAt = localStorage.getItem('freegstbill_pwa_dismissed_at');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true; // iOS Safari
+    if (isStandalone) return;
+    // 14-day cool-down on dismissal
+    if (dismissedAt) {
+      const days = (Date.now() - Number(dismissedAt)) / 86400000;
+      if (days < 14) return;
+    }
 
     const handler = (e) => {
       e.preventDefault();
@@ -273,7 +295,11 @@ function App() {
 
   const dismissInstallBanner = () => {
     setShowInstallBanner(false);
-    localStorage.setItem('freegstbill_pwa_dismissed', '1');
+    // Timestamp-based dismissal — the 14-day cool-down in the install-prompt
+    // effect uses this to decide whether to re-show. Old boolean key kept for
+    // back-compat with v1.6.0 — readers that find only the legacy key treat
+    // it as "permanently dismissed" (same as today's behaviour for them).
+    localStorage.setItem('freegstbill_pwa_dismissed_at', String(Date.now()));
   };
 
   const handleConvertToInvoice = (bill) => {
@@ -572,9 +598,11 @@ function App() {
       {showInstallBanner && (
         <div className="pwa-install-banner">
           <Download size={18} />
-          <span><strong>Install as Desktop App</strong> — opens instantly, no browser needed!</span>
+          <span>
+            <strong>Install as Desktop App</strong> — own icon, no browser, opens instantly. Right-click the icon for quick-jump to New Invoice / GST Returns.
+          </span>
           <button className="pwa-install-btn" onClick={handleInstallPWA}>Install App</button>
-          <button className="pwa-dismiss-btn" onClick={dismissInstallBanner} title="Dismiss"><X size={16} /></button>
+          <button className="pwa-dismiss-btn" onClick={dismissInstallBanner} title="Remind me later (re-shows in 14 days)"><X size={16} /></button>
         </div>
       )}
       <div className="main-content">
