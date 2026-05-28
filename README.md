@@ -5,17 +5,136 @@
 ### The only GST invoicing software you'll never have to pay for.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows-blue.svg)](#quick-start--installation)
-[![Version](https://img.shields.io/badge/Version-1.4.2-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#quick-start--installation)
+[![Version](https://img.shields.io/badge/Version-1.6.1-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](#install-as-a-desktop-app-pwa)
 [![GitHub Stars](https://img.shields.io/github/stars/IamRamgarhia/Free-GST-Billing-Software?style=social)](https://github.com/IamRamgarhia/Free-GST-Billing-Software)
+[![Countries](https://img.shields.io/badge/Countries-22-blue.svg)](#key-features)
+[![GST](https://img.shields.io/badge/GST-Compliant-success.svg)](#clipboard-gst-compliance--filing)
 
 **Create GST-compliant invoices, file GSTR-1 / GSTR-3B / GSTR-2B reconciliation, track TDS / TCS, bill international clients in 22 currencies, manage inventory — all without paying a single rupee. Ever.**
 
 Your data never leaves your computer. No cloud. No signup. No tracking. No limits. Open-source and offline-first.
 
-[Download Now](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [View Demo](#screenshots) &nbsp;|&nbsp; [Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;|&nbsp; [Request Feature](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+[Download Now](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [Screenshots](#screenshots) &nbsp;|&nbsp; [5-Minute Quick Start](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;|&nbsp; [Request Feature](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 
 </div>
+
+---
+
+## Screenshots
+
+<div align="center">
+
+![Free GST Billing Software dashboard — invoices list with overdue tracking, multi-currency totals, and per-status badges](docs/screenshots/dashboard.png)
+
+*Dashboard view — recent invoices, currency-aware revenue cards, overdue alerts, low-stock indicators, and one-click actions.*
+
+</div>
+
+> 📸 **Want more screenshots?** Open an issue and we'll add captures of the New Invoice form, GSTR-2B Reconciliation tab, Multi-Account Payments manager, and the in-app Searchable User Guide. PRs welcome too.
+
+---
+
+## 📑 Table of Contents
+
+- [Why Choose Free GST Billing Software?](#why-choose-free-gst-billing-software)
+- [Your First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) — *start here if you're new*
+- [Key Features](#key-features)
+  - [Invoicing & Billing](#receipt-invoicing--billing)
+  - [GST Compliance & Filing](#clipboard-gst-compliance--filing)
+  - [Business Management](#briefcase-business-management)
+  - [Reports & Analytics](#bar_chart-reports--analytics)
+  - [Sharing & Export](#outbox_tray-sharing--export)
+  - [Customization](#gear-customization)
+- [Quick Start / Installation](#quick-start--installation)
+- [Install as a Desktop App (PWA)](#install-as-a-desktop-app-pwa)
+- [How to Self-File GST Returns](#how-to-self-file-gst-returns)
+- [Free GST Billing Software vs Paid Alternatives](#-comparison-free-gst-billing-software-vs-paid-alternatives)
+- [Tech Stack](#tech-stack)
+- [Roadmap](#roadmap)
+- [Documentation](#books-documentation)
+- [Who Is This For?](#who-is-this-for)
+- [Why Is This Free?](#why-is-this-free)
+- [Data Privacy & Security](#data-privacy--security)
+- [Contributing](#contributing)
+- [Contact & Support](#contact--support)
+
+---
+
+## Your First Invoice in 5 Minutes
+
+A step-by-step guide for the *very first* invoice you create after installing. Targeted at users who've never used billing software before.
+
+### Before you start
+You need: Windows 10/11 PC, ~50 MB free disk, your business name + bank details (optional, can be added later). **No coding knowledge required.** No internet needed after install.
+
+### Step 1 — Install (1 minute)
+
+1. Download the project as a ZIP from <https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip>
+2. Right-click the downloaded ZIP → **Extract All** → pick a folder you'll remember (e.g. `Documents\FreeGSTBill`)
+3. Open that folder → **double-click `Install FreeGSTBill.bat`**
+4. Let it run — it installs Node.js automatically if you don't have it, then sets everything up. Takes 1–2 minutes the first time
+5. The app opens in your browser at `http://localhost:47371` when done
+
+> 💡 **Tip:** Click the small **Install App** icon in your browser's address bar to make the app open in its own window like Tally or Word — no browser chrome, looks and feels native.
+
+### Step 2 — Set up your business profile (1 minute)
+
+The Welcome Wizard appears automatically on first launch.
+
+1. **Welcome screen** → pick your region:
+   - 🇮🇳 **India only** — enables GST, GSTR-1/3B, UPI QR, E-Way Bill
+   - 🌍 **Outside India** — enables VAT / SST / MwSt / TVA labels for 21 other countries
+   - 🌐 **Both** — keeps everything visible (default)
+2. **Business Details** → fill in your business name and address. Add GSTIN if you have one (leave blank if not GST-registered). PAN is optional.
+3. **Bank & UPI** → add one bank account + your UPI ID so clients can pay you. You can add more accounts later from Settings → Payment Accounts.
+4. Click **Done** → you land on the empty Dashboard
+
+### Step 3 — Create your first invoice (2 minutes)
+
+1. Click **+ New Invoice** in the sidebar
+2. Pick the invoice type: **Tax Invoice** for GST-registered sales, **Bill of Supply** for exempt goods, **Proforma** for quotes, **Delivery Challan** for goods movement
+3. Pick **📦 Goods** or **⏱ Services** at the top — this drives the default unit (Nos for goods, Hrs for services)
+4. Type the client's name in the **Bill To** field. If you've billed them before they auto-suggest. Otherwise click **+ Save as new client** and fill the modal.
+5. Add line items in the table:
+   - **Description** — what you sold/did
+   - **Qty** — how much
+   - **Unit** — pick from the dropdown (Nos/Kg/Ltr for goods; Hrs/Day/Session for services). Click **＋ Add custom…** for things like *Carat* / *Bundle*
+   - **Rate** — price per unit
+   - **Tax %** — picks from your country's standard rates (5/12/18/28% for India; 5% for UAE; etc.)
+6. Click **Download PDF** in the top-right
+
+That's it. The PDF saves to `Saved Invoices/<Client Name>/<Month>/` and the invoice is logged in your bills list with a unique number.
+
+### Step 4 — Send to your client (1 minute)
+
+After clicking Download PDF you get three sharing options inline:
+
+- 📱 **WhatsApp** — opens WhatsApp Web/Desktop with the PDF link prefilled to the client's number
+- 📧 **Email** — opens your default mail app with the invoice summary
+- ☁ **Google Drive** — auto-uploads (optional, requires you to configure your Google Client ID once in Settings)
+
+### Step 5 — Track payment (whenever)
+
+Open the Dashboard. The invoice shows in the list with a status badge.
+
+- Click the **💰** icon to record a payment (full or partial) — date, mode, note
+- The status updates automatically (`unpaid` → `partial` → `paid`)
+- Overdue invoices get a red row + days-overdue counter automatically once the due date passes
+- Use the **🔔 Notifications** bell in the sidebar to see overdue invoices and upcoming GST filing deadlines
+
+### What to do next
+
+Once you're comfortable with the basics, explore:
+
+- **Recurring invoices** — tick "🔁 Make this recurring" in the Customize panel of any invoice. The app auto-generates it monthly/weekly/yearly on your chosen date.
+- **Multi-currency** — billing an overseas client? Open Customize → Currency → USD/EUR/GBP/AED/etc. The PDF renders the right symbol, locale formatting, and amount-in-words.
+- **GST Returns** — sidebar → GST Returns. Filter by month/quarter/FY, click **JSON Export** to download GSTR-1 / GSTR-3B ready for the GST portal offline tool.
+- **GSTR-2B Reconciliation** — download your 2B JSON from gst.gov.in, click Import in our 2B tab — we auto-match against your purchase records and flag mismatches.
+- **TDS / TCS** — Customize → tick TDS or TCS, pick a section (194Q / 206C(1H) / etc.). The Reports view aggregates these for Form 26Q / 27EQ filing.
+
+📖 **Full walkthrough** — see [docs/USER_GUIDE.md](docs/USER_GUIDE.md) or the in-app **User Guide** view (searchable, includes PDF download).
 
 ---
 
@@ -31,6 +150,30 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 - **Install once, use forever** — MIT licensed, open-source, community-driven
 
 > **If you're paying for billing software, you can stop now.**
+
+### 📊 Comparison: Free GST Billing Software vs Paid Alternatives
+
+| Feature | **Free GST Billing Software** | Tally Prime | Vyapar | Zoho Books | ClearTax GST |
+|---|---|---|---|---|---|
+| **Price** | ✅ **Free forever** | ₹22,500–₹67,500 one-time | ₹2,599+/year | ₹899–₹2,999/month | ~₹3,599/year+ |
+| **GST invoices (CGST/SGST/IGST)** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **GSTR-1 / GSTR-3B JSON export** | ✅ | ✅ (paid tier) | ⚠ CSV only | ✅ (Standard+) | ✅ |
+| **GSTR-2B reconciliation** | ✅ | ✅ (paid tier) | ❌ | ✅ (Premium) | ✅ |
+| **E-Way Bill JSON** | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **TDS / TCS on invoices** | ✅ Form 26Q / 27EQ-ready | ✅ | ❌ | ✅ | ✅ |
+| **Multi-business / multi-GSTIN** | ✅ Unlimited | ✅ (Gold tier) | ⚠ Silver tier | ✅ (Premium) | ✅ |
+| **Multi-account payments per business** | ✅ Unlimited | ✅ | ⚠ Paid | ✅ | ✅ |
+| **Custom per-line units (kg, ltr, Hrs + custom)** | ✅ | ⚠ Limited | ⚠ Paid | ✅ | ⚠ Limited |
+| **22-country multi-currency** | ✅ | ⚠ Paid | ❌ | ✅ (Premium) | ❌ |
+| **PWA installable (own window, no browser)** | ✅ | ❌ Desktop only | ❌ Android-first | ❌ Web only | ❌ Web only |
+| **Offline-first (works without internet)** | ✅ | ✅ | ⚠ Limited | ❌ Cloud | ❌ Cloud |
+| **Your data on YOUR computer (no cloud)** | ✅ | ✅ | ⚠ Cloud sync | ❌ Cloud | ❌ Cloud |
+| **Open-source (MIT licensed)** | ✅ | ❌ Proprietary | ❌ Proprietary | ❌ Proprietary | ❌ Proprietary |
+| **No signup / no email collected** | ✅ | ✅ | ❌ Phone+OTP | ❌ Email login | ❌ Email login |
+| **Recurring invoices auto-generation** | ✅ | ✅ | ⚠ Paid | ✅ | ⚠ |
+| **In-app searchable user guide** | ✅ | ❌ External PDF | ❌ External | ❌ External | ❌ External |
+
+*Last verified 2026. Competitors' features change; verify on their pricing pages.*
 
 ---
 
@@ -169,11 +312,32 @@ Dev server: `http://localhost:5173` | API: `http://localhost:47371`
 npm run build && npm start
 ```
 
-### Install as Desktop App (PWA)
+## Install as a Desktop App (PWA)
 
-1. Open **http://localhost:47371** in Chrome or Edge
-2. Click the **Install App** banner (or the install icon in the address bar)
-3. Done — the app opens in its own window, no browser tab needed
+Free GST Billing Software is a **Progressive Web App** — once installed, it gets its own icon, its own window, and behaves exactly like a regular Windows / macOS / Linux app. No browser chrome, no localhost URL visible to the user.
+
+### How to install as a PWA
+
+1. Open **http://localhost:47371** in Chrome / Edge / Brave (any Chromium browser)
+2. Click the orange **Install as Desktop App** banner at the top — or the **➕ install icon** in the address bar
+3. The app opens in its own window with the GST Billing Software icon in your Start Menu / taskbar
+
+### After installation — manifest shortcuts
+
+Right-click the pinned PWA icon (Windows taskbar / Start Menu / Edge's app launcher) and you get a jump-list:
+
+- 🆕 **New Invoice** → straight to the invoice form
+- 📊 **Dashboard** → recent invoices and stats
+- 📋 **GST Returns** → GSTR-1 / 3B / 2B reconciliation
+- ⚙ **Settings** → business profile, accounts, modules
+
+No need to land on the Dashboard first — jump directly to the most-used flow.
+
+### Offline-first
+
+The PWA caches its full app shell + fonts + icons on first install. Even if your localhost server isn't running for some reason, the app still loads (and tells you the server is offline rather than just showing a blank page). Service worker auto-updates the cache when you upgrade.
+
+> 🪟 **Coming in v2.0:** Native `.exe` installer (Tauri repackage) with code-signed binary, Add/Remove Programs entry, system tray icon, and native auto-update. The PWA flow stays as the developer / power-user fallback.
 
 ---
 
@@ -392,11 +556,49 @@ Free-GST-Billing-Software/
 
 ---
 
+## Frequently Asked Questions
+
+### Is Free GST Billing Software really free?
+Yes — MIT licensed open-source software. No subscription, no premium tier, no "free trial" that expires, no usage limits. The full feature set is available to every user forever. We make zero rupees from this directly.
+
+### Will my data be sent to the cloud?
+No. All your invoices, clients, products, and settings are stored as plain JSON files in a `data/` folder next to the app on your computer. Nothing leaves your machine unless you explicitly turn on the optional Google Drive backup feature (in which case it goes to *your own* Google Drive, not ours).
+
+### Can I file GST returns directly from this software?
+The software generates **GSTR-1**, **GSTR-3B**, and **GSTR-2B reconciliation** data in CSV and the GSTN offline-tool JSON format. You upload these files directly to gst.gov.in — no third-party intermediary. The built-in step-by-step filing guide walks you through the GSTN portal once you've downloaded the files.
+
+### Does it work without internet?
+Yes, completely. After installation everything runs on `localhost:47371` on your computer. The only optional internet-using features are Google Drive backup, the in-app update notifier (checks GitHub for new versions), and WhatsApp sharing.
+
+### Can I bill international clients?
+Yes. Free GST Billing Software supports **22 countries** with locale-correct currency formatting, country-aware tax labels (GST / VAT / SST / MwSt / TVA / PPN / Sales Tax), and amount-in-words in the right currency name (Dollars, Dirhams, Pounds, Rand, Naira, Pesos, etc.). Set your Region Preference in Settings to *International* or *Both*.
+
+### What invoice formats are supported?
+**Tax Invoice**, **Proforma / Estimate**, **Bill of Supply** (for exempt goods or non-GST sellers), **Composition scheme invoice** (with Rule 46A declaration), **Credit Note**, **Delivery Challan**.
+
+### Does it support multiple businesses?
+Yes. You can add unlimited business profiles (each with its own GSTIN, bank accounts, logo, signature, and country setting). Switch between them with one click in the header.
+
+### Does it run on Mac or Linux?
+The `.bat` installers are Windows-only, but the app itself works on macOS and Linux via `npm install` + `npm start`. See the [Quick Start](#quick-start--installation) section.
+
+### What happens to my data when the app updates?
+Updates only refresh the app code and dependencies. Your `data/` folder (invoices, clients, products, settings) and `Saved Invoices/` PDF archive are **never touched**. The updater also backs them up to `%TEMP%` as a third safety net before pulling new code.
+
+### Is there a mobile app?
+Not yet — the PWA installs as a desktop app today. A native Android app is on the v2.x roadmap.
+
+### Can I import data from Tally / Vyapar / Excel?
+Currently CSV import is supported for products. Direct Tally XML import is on the v1.7 roadmap. Free-form Excel import requires manual mapping today.
+
+---
+
 ## Contact & Support
 
 - **Email:** [Contact@dicecodes.com](mailto:Contact@dicecodes.com)
-- **Issues:** [GitHub Issues](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
-- **Feature Requests:** [Open an issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) or email us
+- **Issues / bugs / feature requests:** [GitHub Issues](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+- **Releases:** [GitHub Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+- **Discussions:** *(coming soon)*
 
 ---
 
@@ -408,10 +610,16 @@ This project is licensed under the [MIT License](LICENSE) — free to use, modif
 
 <div align="center">
 
-**Free GST Billing Software** by [DiceCodes](mailto:Contact@dicecodes.com)
+### Ready to stop paying for billing software?
 
-Free GST billing software India | GSTR-1 GSTR-3B filing software | Free invoice generator with GST | Offline billing software | No subscription billing app | GST invoice software for small business | Free billing app India | GST compliant invoice maker | Self-file GST returns software | Open source billing software India | Free alternative to Tally Vyapar Zoho | HSN SAC code invoice generator | CGST SGST IGST calculator | E-way bill software free | Credit note debit note software
+[**⬇ Download Now**](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;·&nbsp; [⭐ **Star on GitHub**](https://github.com/IamRamgarhia/Free-GST-Billing-Software) &nbsp;·&nbsp; [📖 **Read the User Guide**](docs/USER_GUIDE.md) &nbsp;·&nbsp; [🐛 **Report an Issue**](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;·&nbsp; [📧 **Email DiceCodes**](mailto:Contact@dicecodes.com)
 
-Made in India :india:
+---
+
+**Free GST Billing Software** by [DiceCodes](mailto:Contact@dicecodes.com) · MIT Licensed · v1.6.1
+
+<sub>Free GST billing software India · GSTR-1 GSTR-3B filing software · Free invoice generator with GST · GSTR-2B reconciliation tool · TDS Form 26Q TCS Form 27EQ software · Offline billing software · No subscription billing app · GST invoice software for small business · Free billing app India · GST compliant invoice maker · Self-file GST returns software · Open source billing software India · Free alternative to Tally Vyapar Zoho ClearTax myBillBook · HSN SAC code invoice generator · CGST SGST IGST calculator · E-way bill software free · Credit note debit note software · Multi-currency invoice India · USD EUR GBP AED invoice generator · Reverse charge mechanism invoice · Composition scheme invoice · Bill of supply generator · Delivery challan software · UPI QR invoice maker · Recurring invoice software · PWA invoicing</sub>
+
+Made in India 🇮🇳 · [DiceCodes](https://dicecodes.com)
 
 </div>
