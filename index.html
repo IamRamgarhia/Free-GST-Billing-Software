@@ -1,89 +1,376 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!--
-      Content Security Policy. Defends the rich-text Terms / Notes / extra-section
-      paths which inject sanitized HTML via DOMPurify. Even if the sanitizer config
-      is ever loosened, the CSP locks scripts to same-origin so injected script
-      tags can't execute, and connect-src is limited to localhost + Google
-      services (only place we make outbound calls).
-    -->
-    <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      script-src  'self' https://accounts.google.com https://apis.google.com;
-      style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
-      font-src    'self' https://fonts.gstatic.com data:;
-      img-src     'self' data: blob: https://*.googleusercontent.com;
-      connect-src 'self' http://localhost:* https://accounts.google.com https://www.googleapis.com https://api.github.com https://nodejs.org https://raw.githubusercontent.com;
-      frame-src   https://accounts.google.com;
-      object-src  'none';
-      base-uri    'self';
-    " />
-
-    <!-- Primary SEO -->
-    <title>Free GST Billing Software — Free Open-Source GST Invoice Generator with GSTR-2B Reconciliation, TDS/TCS Reports, Multi-Currency | Billing Software for India</title>
-    <meta name="description" content="Free GST Billing Software v1.4.2 — open-source GST invoice generator with GSTR-1, GSTR-3B, GSTR-2B reconciliation, TDS / TCS reports (Form 26Q, 27EQ), e-Way Bill JSON, multi-currency for 22 countries (USD, EUR, GBP, AED, AUD, SGD), per-line custom units, rich-text Terms with 13 India business presets, granular backup with Google Drive option, and a searchable in-app user guide. 100% offline, private, free forever. By DiceCodes." />
-    <meta name="keywords" content="GST invoice generator, free billing software India, free GST software, GST billing app, offline invoice maker, tax invoice generator, proforma invoice, bill of supply, credit note, delivery challan, e-way bill generator, CGST SGST IGST calculator, GSTR-1 filing, GSTR-1 JSON export, GSTR-3B filing, GSTR-3B JSON export, GSTR-2A reconciliation, GSTR-2B reconciliation, GSTR-2B JSON import, ITC reconciliation tool, GST return software, HSN code invoice, HSN summary GSTR-1, UQC unit code, SAC code service, TDS on invoice, TCS on invoice, Section 194Q, Section 194C, Section 194J, Section 206C, Form 26Q TDS, Form 27EQ TCS, TDS receivable report, TCS collected report, small business billing, freelancer invoice, export invoice India, LUT export invoice, SEZ invoice IGST, place of supply override, multi currency invoice, invoice in USD India, invoice in AED India, foreign client invoice India, country aware tax label, VAT invoice UAE, MwSt invoice Germany, TVA invoice France, SST invoice Malaysia, PPN invoice Indonesia, open source billing software, billing software free download, GST bill maker, invoice generator PDF, free invoice software, FreeGSTBill, DiceCodes, Zoho alternative free, Tally alternative free, Vyapar alternative, myBillBook alternative, ClearTax GST alternative, Marg ERP alternative, Busy alternative, free GST billing software download, GST invoice app offline, billing for consultants, billing for designers, billing for developers, invoice for photographers, billing for exporters, billing for doctors, billing for retailers, billing for restaurants, billing for shopkeepers, UPI QR invoice, payment tracking software, expense tracker GST, profit loss report, recurring invoice software, receipt voucher generator, free accounting software India, multi business GSTIN switcher, multi profile billing software, custom unit invoice, kg ltr mtr custom unit, rich text terms conditions, India business invoice templates, freelancer terms India, retail shop terms India, restaurant terms India, granular backup software, Google Drive invoice backup, JSON backup billing, dark mode invoice software, searchable user guide PDF, PWA invoicing app, install as desktop app, no admin install, atomic invoice number, GST compliance audit, e invoicing IRN ready, e-invoice JSON IRP, NIC e-way bill, atomic counter race free, place of supply IGST" />
-    <meta name="author" content="DiceCodes" />
-    <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://github.com/IamRamgarhia/Free-GST-Billing-Software" />
-
-    <!-- Open Graph / Social -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Free GST Billing Software by DiceCodes" />
-    <meta property="og:title" content="Free GST Billing Software v1.4.2 — Open-Source GST Invoice Generator + GSTR-2B Reconciliation + TDS/TCS Reports + Multi-Currency" />
-    <meta property="og:description" content="Open-source billing software for Indian businesses. GSTR-1 / GSTR-3B JSON exports, GSTR-2B reconciliation, e-Way Bill, TDS/TCS reports for Form 26Q/27EQ, multi-currency invoicing for 22 countries, custom units, rich Terms with 13 India presets, granular backup. Offline-first, no signup, free forever." />
-    <meta property="og:image" content="/og-preview.png" />
-    <meta property="og:url" content="https://github.com/IamRamgarhia/Free-GST-Billing-Software" />
-
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Free GST Billing Software v1.4.2 — GST + GSTR-2B + TDS/TCS + Multi-Currency, Free & Offline" />
-    <meta name="twitter:description" content="Open-source GST invoice generator. GSTR-1/2B/3B, e-Way Bill, TDS/TCS reports (Form 26Q/27EQ), 22-currency invoicing, custom units, rich Terms presets. Your data on your machine. Free forever." />
-    <meta name="twitter:image" content="/og-preview.png" />
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
-
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.webmanifest" />
-
-    <!-- Theme -->
-    <meta name="theme-color" content="#1e40af" />
-
-    <!-- Structured Data for Google -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Free GST Billing Software",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Windows, macOS, Linux",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "INR"
-      },
-      "description": "Free, open-source GST invoice generator and billing software for India. Tax Invoice, Proforma, Credit Note, Bill of Supply, Delivery Challan, E-Way Bill. GSTR-1/3B reports, expense tracker, profit & loss. Multi-currency (USD, EUR, GBP). Offline, no signup. Alternative to Zoho, Tally, Vyapar.",
-      "author": {
-        "@type": "Organization",
-        "name": "DiceCodes",
-        "email": "Contact@dicecodes.com"
-      }
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free GST Billing Software - Control Panel</title>
+  <link rel="icon" type="image/svg+xml" href="public/favicon.svg">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #eef2f7;
+      color: #0f172a;
+      padding: 2.5rem 1rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
     }
-    </script>
+    .wrap { width: 100%; max-width: 640px; }
+    header { text-align: center; margin-bottom: 1.5rem; }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 0 0 0.25rem;
+      color: #1e40af;
+    }
+    header p { margin: 0; font-size: 0.88rem; color: #64748b; }
 
-    <!-- Preconnect for Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+      margin-bottom: 1rem;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.95rem 1.1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .status strong { font-size: 1rem; display: block; }
+    .status small { font-size: 0.78rem; opacity: 0.85; display: block; margin-top: 2px; }
+    .status.running { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+    .status.stopped { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+    .status.checking { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    .actions { display: grid; gap: 0.6rem; grid-template-columns: 1fr; }
+    @media (min-width: 480px) {
+      .actions { grid-template-columns: 1fr 1fr; }
+      .btn-primary-full { grid-column: 1 / -1; }
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      color: #0f172a;
+      background: #ffffff;
+    }
+    .btn:hover { background: #f1f5f9; }
+    .btn[aria-disabled="true"] {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .btn-primary {
+      background: #1e40af;
+      color: #ffffff;
+      border-color: #1e40af;
+    }
+    .btn-primary:hover { background: #1e3a8a; }
+    .btn-danger { color: #b91c1c; border-color: #fecaca; }
+    .btn-danger:hover { background: #fef2f2; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 0.5rem 1rem;
+      font-size: 0.85rem;
+      margin: 0;
+    }
+    .info-grid dt { color: #64748b; font-weight: 500; }
+    .info-grid dd {
+      margin: 0;
+      color: #0f172a;
+      font-family: "Consolas", "Menlo", monospace;
+      font-size: 0.82rem;
+      word-break: break-all;
+    }
+
+    details { margin-top: 0.85rem; border-top: 1px solid #e2e8f0; padding-top: 0.5rem; }
+    details summary {
+      cursor: pointer;
+      padding: 0.4rem 0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #475569;
+    }
+    details summary:hover { color: #0f172a; }
+    details .help {
+      font-size: 0.82rem;
+      color: #475569;
+      line-height: 1.55;
+      padding: 0.4rem 0;
+    }
+    details ol { margin: 0.5rem 0 0.5rem 1.2rem; padding: 0; }
+    details code {
+      background: #f1f5f9;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 1.25rem;
+    }
+    footer a { color: #1e40af; text-decoration: none; }
+
+    .nojs-warning {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Free GST Billing Software</h1>
+      <p>Control Panel - start, stop, and open your local billing app</p>
+    </header>
+
+    <noscript>
+      <div class="card">
+        <div class="nojs-warning">
+          <strong>JavaScript is disabled in your browser.</strong>
+          This control panel needs JavaScript to check server status. Either enable it,
+          or open the file <code>Start FreeGSTBill.bat</code> in the install folder
+          and then go to <a href="http://localhost:47371/">http://localhost:47371/</a>
+          in your browser.
+        </div>
+      </div>
+    </noscript>
+
+    <div class="card">
+      <div id="status" class="status checking">
+        <div class="status-dot"></div>
+        <div>
+          <strong id="status-text">Checking server&hellip;</strong>
+          <small id="status-detail">Probing localhost on the configured port range.</small>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a id="open-app" class="btn btn-primary btn-primary-full" href="#" target="_blank" rel="noopener" aria-disabled="true">
+          Open Billing App
+        </a>
+        <a id="start-btn" class="btn" href="freegstbill://run">
+          Start Server
+        </a>
+        <a id="stop-btn" class="btn btn-danger" href="freegstbill-stop://run" aria-disabled="true">
+          Stop Server
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <dl class="info-grid">
+        <dt>Status</dt>       <dd id="info-status">-</dd>
+        <dt>Port</dt>         <dd id="info-port">-</dd>
+        <dt>Version</dt>      <dd id="info-version">-</dd>
+        <dt>App URL</dt>      <dd id="info-url">-</dd>
+        <dt>Last checked</dt> <dd id="info-checked">-</dd>
+      </dl>
+
+      <details>
+        <summary>Server won't start? Click here for help</summary>
+        <div class="help">
+          <p>Try these in order:</p>
+          <ol>
+            <li>Click <strong>Start Server</strong> above. Your browser may ask to allow <code>freegstbill://</code> - click Allow.</li>
+            <li>If nothing happens after 30 seconds, open the install folder and double-click <code>Start FreeGSTBill.bat</code> directly. A small black window should appear briefly.</li>
+            <li>If you see "Node.js is not installed", run <code>Install FreeGSTBill.bat</code> first.</li>
+            <li>If the port is busy, open <code>data\port.txt</code> in Notepad to see which port the app picked, or delete that file and restart to let the server pick a fresh one.</li>
+            <li>Still stuck? Email <a href="mailto:Contact@dicecodes.com">Contact@dicecodes.com</a> or open a <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues" target="_blank" rel="noopener">GitHub issue</a>.</li>
+          </ol>
+          <p><strong>Tip:</strong> Press <kbd>F12</kbd> to open browser developer tools and check the Console tab for any errors. Share what you see if you ask for support.</p>
+        </div>
+      </details>
+    </div>
+
+    <footer>
+      Free GST Billing Software &middot; MIT Licensed &middot;
+      <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software" target="_blank" rel="noopener">GitHub</a> &middot;
+      made by <a href="https://dicecodes.com" target="_blank" rel="noopener">DiceCodes</a>
+    </footer>
+  </div>
+
+  <script>
+    // Wrap everything in try/catch so a single browser quirk doesn't blank
+    // the panel. Errors get logged to console and shown on-page.
+    (function () {
+      'use strict';
+
+      var DEFAULT_PORT = 47371;
+      var SCAN_RANGE = 50;
+      var activePort = DEFAULT_PORT;
+      var pollTimer = null;
+
+      try {
+        var cached = window.sessionStorage && sessionStorage.getItem('fgsb_port');
+        if (cached) {
+          var n = parseInt(cached, 10);
+          if (n >= 1024 && n <= 65535) activePort = n;
+        }
+      } catch (e) { /* sessionStorage blocked - ignore */ }
+
+      function $(id) { return document.getElementById(id); }
+
+      function pingPort(port) {
+        return new Promise(function (resolve) {
+          try {
+            var c = new AbortController();
+            var t = setTimeout(function () { c.abort(); }, 800);
+            fetch('http://localhost:' + port + '/api/version', { signal: c.signal })
+              .then(function (r) {
+                clearTimeout(t);
+                if (!r.ok) { resolve(null); return; }
+                return r.json();
+              })
+              .then(function (data) {
+                if (!data) return;
+                resolve({ port: port, version: data.current });
+              })
+              .catch(function () { resolve(null); });
+          } catch (e) { resolve(null); }
+        });
+      }
+
+      function findRunningPort() {
+        return pingPort(activePort).then(function (hit) {
+          if (hit) return hit;
+          var probes = [];
+          for (var p = DEFAULT_PORT; p < DEFAULT_PORT + SCAN_RANGE; p++) {
+            probes.push(pingPort(p));
+          }
+          return Promise.all(probes).then(function (results) {
+            for (var i = 0; i < results.length; i++) { if (results[i]) return results[i]; }
+            return null;
+          });
+        });
+      }
+
+      function setStatus(state, message, detail) {
+        var el = $('status');
+        if (el) el.className = 'status ' + state;
+        var t = $('status-text'); if (t) t.textContent = message;
+        var d = $('status-detail'); if (d) d.textContent = detail;
+      }
+
+      function setButtons(running, port) {
+        var open = $('open-app');
+        var stop = $('stop-btn');
+        if (running) {
+          if (open) { open.href = 'http://localhost:' + port + '/'; open.removeAttribute('aria-disabled'); }
+          if (stop) { stop.removeAttribute('aria-disabled'); }
+        } else {
+          if (open) { open.href = '#'; open.setAttribute('aria-disabled', 'true'); }
+          if (stop) { stop.setAttribute('aria-disabled', 'true'); }
+        }
+      }
+
+      function setInfo(running, port, version) {
+        var s = $('info-status'); if (s) s.textContent = running ? 'Running' : 'Stopped';
+        var p = $('info-port'); if (p) p.textContent = running ? port : '-';
+        var v = $('info-version'); if (v) v.textContent = version || '-';
+        var u = $('info-url'); if (u) u.textContent = running ? ('http://localhost:' + port + '/') : '-';
+        var c = $('info-checked'); if (c) c.textContent = new Date().toLocaleTimeString();
+      }
+
+      function checkServer() {
+        return findRunningPort().then(function (hit) {
+          if (hit) {
+            activePort = hit.port;
+            try { sessionStorage.setItem('fgsb_port', String(hit.port)); } catch (e) {}
+            setStatus('running', 'Server is running on port ' + hit.port, 'Click "Open Billing App" to launch in a new tab.');
+            setButtons(true, hit.port);
+            setInfo(true, hit.port, hit.version);
+          } else {
+            setStatus('stopped', 'Server is not running', 'Click "Start Server" - your browser may ask to allow freegstbill://. Click Allow.');
+            setButtons(false);
+            setInfo(false);
+          }
+        }).catch(function (e) {
+          setStatus('stopped', 'Error checking server', 'Open browser DevTools (F12) Console for details.');
+          if (window.console && console.error) console.error('Launcher status check failed:', e);
+        });
+      }
+
+      function startPolling() {
+        checkServer();
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(checkServer, 2000);
+      }
+      function stopPolling() {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      }
+
+      // Pause polls when tab is backgrounded (saves CPU).
+      try {
+        document.addEventListener('visibilitychange', function () {
+          if (document.hidden) stopPolling(); else startPolling();
+        });
+      } catch (e) {}
+
+      // Burst-poll after clicks so status updates within a second.
+      function burst(durationMs) {
+        var start = Date.now();
+        var burstTimer = setInterval(function () {
+          checkServer();
+          if (Date.now() - start > durationMs) clearInterval(burstTimer);
+        }, 1000);
+      }
+
+      var startBtn = $('start-btn');
+      if (startBtn) {
+        startBtn.addEventListener('click', function () {
+          setStatus('checking', 'Starting server...', 'This usually takes 5-15 seconds.');
+          burst(30000);
+        });
+      }
+      var stopBtn = $('stop-btn');
+      if (stopBtn) {
+        stopBtn.addEventListener('click', function () {
+          setStatus('checking', 'Stopping server...', 'Releasing the port.');
+          burst(15000);
+        });
+      }
+
+      startPolling();
+    })();
+  </script>
+</body>
 </html>

@@ -172,7 +172,7 @@ echo  [4/5] Creating shortcuts...
 
 set "TARGET_PATH=%~dp0Start FreeGSTBill.bat"
 
-:: Desktop shortcut — points at Launcher.html (the new control panel)
+:: Desktop shortcut — points at index.html (the new control panel)
 :: rather than Start FreeGSTBill.bat directly. Reason: the .bat fails
 :: silently for some users (hidden PowerShell issues, port collisions,
 :: etc.) and they get no feedback. The launcher page checks server
@@ -180,7 +180,7 @@ set "TARGET_PATH=%~dp0Start FreeGSTBill.bat"
 :: troubleshooting steps. Power users can still double-click the .bat
 :: from the install folder.
 set "DESKTOP_SHORTCUT=%USERPROFILE%\Desktop\Free GST Billing Software.lnk"
-set "LAUNCHER_PATH=%~dp0Launcher.html"
+set "LAUNCHER_PATH=%~dp0index.html"
 
 :: Start Menu shortcut (searchable from Windows Start)
 set "STARTMENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Free GST Billing Software"

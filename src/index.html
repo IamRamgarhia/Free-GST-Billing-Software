@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Content Security Policy. Defends the rich-text Terms / Notes / extra-section
+      paths which inject sanitized HTML via DOMPurify. Even if the sanitizer config
+      is ever loosened, the CSP locks scripts to same-origin so injected script
+      tags can't execute, and connect-src is limited to localhost + Google
+      services (only place we make outbound calls).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src  'self' https://accounts.google.com https://apis.google.com;
+      style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src    'self' https://fonts.gstatic.com data:;
+      img-src     'self' data: blob: https://*.googleusercontent.com;
+      connect-src 'self' http://localhost:* https://accounts.google.com https://www.googleapis.com https://api.github.com https://nodejs.org https://raw.githubusercontent.com;
+      frame-src   https://accounts.google.com;
+      object-src  'none';
+      base-uri    'self';
+    " />
+
+    <!-- Primary SEO -->
+    <title>Free GST Billing Software — Free Open-Source GST Invoice Generator with GSTR-2B Reconciliation, TDS/TCS Reports, Multi-Currency | Billing Software for India</title>
+    <meta name="description" content="Free GST Billing Software v1.4.2 — open-source GST invoice generator with GSTR-1, GSTR-3B, GSTR-2B reconciliation, TDS / TCS reports (Form 26Q, 27EQ), e-Way Bill JSON, multi-currency for 22 countries (USD, EUR, GBP, AED, AUD, SGD), per-line custom units, rich-text Terms with 13 India business presets, granular backup with Google Drive option, and a searchable in-app user guide. 100% offline, private, free forever. By DiceCodes." />
+    <meta name="keywords" content="GST invoice generator, free billing software India, free GST software, GST billing app, offline invoice maker, tax invoice generator, proforma invoice, bill of supply, credit note, delivery challan, e-way bill generator, CGST SGST IGST calculator, GSTR-1 filing, GSTR-1 JSON export, GSTR-3B filing, GSTR-3B JSON export, GSTR-2A reconciliation, GSTR-2B reconciliation, GSTR-2B JSON import, ITC reconciliation tool, GST return software, HSN code invoice, HSN summary GSTR-1, UQC unit code, SAC code service, TDS on invoice, TCS on invoice, Section 194Q, Section 194C, Section 194J, Section 206C, Form 26Q TDS, Form 27EQ TCS, TDS receivable report, TCS collected report, small business billing, freelancer invoice, export invoice India, LUT export invoice, SEZ invoice IGST, place of supply override, multi currency invoice, invoice in USD India, invoice in AED India, foreign client invoice India, country aware tax label, VAT invoice UAE, MwSt invoice Germany, TVA invoice France, SST invoice Malaysia, PPN invoice Indonesia, open source billing software, billing software free download, GST bill maker, invoice generator PDF, free invoice software, FreeGSTBill, DiceCodes, Zoho alternative free, Tally alternative free, Vyapar alternative, myBillBook alternative, ClearTax GST alternative, Marg ERP alternative, Busy alternative, free GST billing software download, GST invoice app offline, billing for consultants, billing for designers, billing for developers, invoice for photographers, billing for exporters, billing for doctors, billing for retailers, billing for restaurants, billing for shopkeepers, UPI QR invoice, payment tracking software, expense tracker GST, profit loss report, recurring invoice software, receipt voucher generator, free accounting software India, multi business GSTIN switcher, multi profile billing software, custom unit invoice, kg ltr mtr custom unit, rich text terms conditions, India business invoice templates, freelancer terms India, retail shop terms India, restaurant terms India, granular backup software, Google Drive invoice backup, JSON backup billing, dark mode invoice software, searchable user guide PDF, PWA invoicing app, install as desktop app, no admin install, atomic invoice number, GST compliance audit, e invoicing IRN ready, e-invoice JSON IRP, NIC e-way bill, atomic counter race free, place of supply IGST" />
+    <meta name="author" content="DiceCodes" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://github.com/IamRamgarhia/Free-GST-Billing-Software" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Free GST Billing Software by DiceCodes" />
+    <meta property="og:title" content="Free GST Billing Software v1.4.2 — Open-Source GST Invoice Generator + GSTR-2B Reconciliation + TDS/TCS Reports + Multi-Currency" />
+    <meta property="og:description" content="Open-source billing software for Indian businesses. GSTR-1 / GSTR-3B JSON exports, GSTR-2B reconciliation, e-Way Bill, TDS/TCS reports for Form 26Q/27EQ, multi-currency invoicing for 22 countries, custom units, rich Terms with 13 India presets, granular backup. Offline-first, no signup, free forever." />
+    <meta property="og:image" content="/og-preview.png" />
+    <meta property="og:url" content="https://github.com/IamRamgarhia/Free-GST-Billing-Software" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Free GST Billing Software v1.4.2 — GST + GSTR-2B + TDS/TCS + Multi-Currency, Free & Offline" />
+    <meta name="twitter:description" content="Open-source GST invoice generator. GSTR-1/2B/3B, e-Way Bill, TDS/TCS reports (Form 26Q/27EQ), 22-currency invoicing, custom units, rich Terms presets. Your data on your machine. Free forever." />
+    <meta name="twitter:image" content="/og-preview.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Theme -->
+    <meta name="theme-color" content="#1e40af" />
+
+    <!-- Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Free GST Billing Software",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Windows, macOS, Linux",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "description": "Free, open-source GST invoice generator and billing software for India. Tax Invoice, Proforma, Credit Note, Bill of Supply, Delivery Challan, E-Way Bill. GSTR-1/3B reports, expense tracker, profit & loss. Multi-currency (USD, EUR, GBP). Offline, no signup. Alternative to Zoho, Tally, Vyapar.",
+      "author": {
+        "@type": "Organization",
+        "name": "DiceCodes",
+        "email": "Contact@dicecodes.com"
+      }
+    }
+    </script>
+
+    <!-- Preconnect for Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <!--
+      This file is the React app entry — never opened directly by users.
+      It lives in src/ rather than the project root so users don't see
+      it in their install folder. The Vite build transforms it into
+      dist/index.html which Express serves at http://localhost:47371/.
+      The user-facing HTML at the project root is the launcher.
+    -->
+    <noscript>
+      <div style="font-family:sans-serif;padding:2rem;max-width:600px;margin:2rem auto;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#991b1b">
+        <h2>JavaScript is required</h2>
+        <p>This page is the Free GST Billing Software app. It needs JavaScript to run.</p>
+      </div>
+    </noscript>
+
+    <div id="root"></div>
+    <script type="module" src="/main.jsx"></script>
+  </body>
+</html>

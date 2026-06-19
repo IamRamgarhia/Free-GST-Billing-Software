@@ -1,8 +1,23 @@
 import { defineConfig } from 'vite'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// __dirname equivalent for ES modules. Used to resolve absolute paths
+// for Vite's root / publicDir / outDir so the build is stable regardless
+// of where npm is invoked from.
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
 export default defineConfig({
+  // Vite source root lives in src/ rather than the project root. Reason:
+  // the project root holds the user-facing Launcher (renamed to index.html
+  // so users see ONE html file). Keeping Vite's own index.html inside
+  // src/ keeps the install folder uncluttered. publicDir + outDir are
+  // resolved relative to the project root so existing public/ assets
+  // and dist/ output paths keep working.
+  root: path.resolve(__dirname, 'src'),
+  publicDir: path.resolve(__dirname, 'public'),
   plugins: [
     react(),
     VitePWA({
@@ -116,6 +131,11 @@ export default defineConfig({
     }),
   ],
   build: {
+    // outDir + publicDir point at project-root paths because Vite's
+    // `root` is src/ — without absolute resolution the output would
+    // land inside src/dist/ instead of the repo's dist/.
+    outDir: path.resolve(__dirname, 'dist'),
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks: {

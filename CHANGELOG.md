@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.6] — 2026-04-30
+
+Restructure: collapsed `Launcher.html` and `index.html` into a single
+user-facing HTML file. Install folder now shows ONE html file — the
+launcher — instead of two.
+
+### Why
+
+v1.6.4 / 1.6.5 had two HTML files at the project root:
+
+- `index.html` — React app shell. Doesn't work standalone (Vite-built
+  paths, CORS-blocked ES modules from `file://`). If accidentally
+  double-clicked → white screen + cryptic console errors about
+  `main.jsx` / `manifest.webmanifest` / `favicon.svg` failing to load.
+- `Launcher.html` — Standalone control panel. Works fine via `file://`.
+
+Users couldn't tell which one to open and frequently double-clicked
+`index.html`, hitting the broken state.
+
+### Changed — file layout
+
+- The React app's source `index.html` moved from project root to `src/index.html`.
+  Users never see it; it's a build-tool source, not a user-facing file.
+- The standalone launcher `Launcher.html` was renamed to `index.html`
+  at project root. This is now the **only** HTML file in the install
+  folder, and it's the launcher.
+- Build output `dist/index.html` is the React app (unchanged behaviour —
+  Express still serves it at `/`). Same filename, different folder.
+- `vite.config.js` updated to set `root: 'src'`, with `publicDir` and
+  `build.outDir` pointing at project-root paths so existing `public/`
+  assets and `dist/` output still resolve correctly.
+- Module entry path updated from `/src/main.jsx` → `/main.jsx` (since
+  Vite's root is now `src/`).
+
+### Updated callers
+
+- `Install FreeGSTBill.bat`: desktop shortcut + Start Menu shortcuts +
+  comments now reference `index.html` (the launcher) instead of
+  `Launcher.html`.
+- `Start FreeGSTBill.bat`: fallback path when node missing / 30s
+  timeout now opens `index.html` (the launcher).
+
+### Backward compatibility
+
+Users updating from v1.6.4 / 1.6.5 should re-run `Install FreeGSTBill.bat`
+once after `Update FreeGSTBill.bat` to refresh the desktop shortcut so
+it points at the new location. Update.bat alone preserves the existing
+shortcut, which would still work because it points at the now-gone
+`Launcher.html` path — re-running Install fixes it.
+
+If you don't want to re-run Install: just drag the new `index.html`
+from the install folder onto your desktop as a quick one-step fix.
+
+---
+
 ## [1.6.5] — 2026-04-30
 
 Hotfix for v1.6.4's `Launcher.html` rendering as a white screen on some

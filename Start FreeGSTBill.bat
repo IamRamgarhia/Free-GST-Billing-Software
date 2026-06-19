@@ -11,7 +11,7 @@ cd /d "%~dp0"
 ::   3. If server is already running → open the URL
 ::   4. Otherwise → start the server, wait for it, then open the URL
 ::   5. If anything fails → fall back to the visual Control Panel
-::      (Launcher.html) so the user always sees something useful,
+::      (index.html) so the user always sees something useful,
 ::      never a black window that closed silently.
 :: ===============================================================
 
@@ -22,13 +22,13 @@ if not exist "node_modules" (
     exit /b
 )
 
-:: Step 1.5: Verify node is on PATH. If not, point user at Launcher.html
+:: Step 1.5: Verify node is on PATH. If not, point user at index.html
 :: which has visible troubleshooting steps. (Without this check, the script
 :: would silently fail since PowerShell can't run a non-existent command.)
 where node >nul 2>nul
 if errorlevel 1 (
     echo Node.js was not found on PATH. Opening the control panel for help.
-    start "" "%~dp0Launcher.html"
+    start "" "%~dp0index.html"
     pause
     exit /b 1
 )
@@ -80,5 +80,5 @@ exit /b 0
 :: tips. This is FAR better than the old behaviour where we'd just
 :: open the URL and the browser would show "this site can't be reached".
 echo Server did not respond within 30 seconds. Opening the control panel.
-start "" "%~dp0Launcher.html"
+start "" "%~dp0index.html"
 exit /b 1
