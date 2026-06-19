@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free GST Billing Software — Control Panel</title>
+  <link rel="icon" type="image/svg+xml" href="public/favicon.svg">
+  <style>
+    :root {
+      --primary: #1e40af;
+      --primary-hover: #1e3a8a;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --success: #059669;
+      --success-bg: #ecfdf5;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --text-muted: #94a3b8;
+        --border: #334155; --success-bg: rgba(5,150,105,0.15); --danger-bg: rgba(220,38,38,0.15);
+        --warn-bg: rgba(217,119,6,0.15);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: linear-gradient(135deg, var(--bg) 0%, color-mix(in srgb, var(--primary) 12%, var(--bg)) 100%);
+      color: var(--text);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+    .wrap { width: 100%; max-width: 640px; }
+    header {
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+    header h1 {
+      font-size: 1.6rem; font-weight: 700; margin: 0 0 0.25rem;
+      color: var(--primary);
+    }
+    header p { margin: 0; font-size: 0.88rem; color: var(--text-muted); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      margin-bottom: 1rem;
+    }
+
+    /* Status pill */
+    .status {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 1rem 1.25rem; border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+    .status.running { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+    .status.stopped { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+    .status.checking { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+    .status-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .status strong { font-size: 1rem; }
+    .status small { font-size: 0.75rem; opacity: 0.85; display: block; margin-top: 2px; }
+
+    /* Buttons */
+    .actions { display: grid; gap: 0.6rem; }
+    @media (min-width: 480px) {
+      .actions { grid-template-columns: 1fr 1fr; }
+      .btn-primary-full { grid-column: span 2; }
+    }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border); border-radius: 10px;
+      font-size: 0.92rem; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      color: var(--text); background: var(--card);
+      transition: transform 0.1s, box-shadow 0.15s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-primary {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover); border-color: var(--primary-hover);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: var(--danger-bg); color: var(--danger); border-color: var(--danger);
+    }
+    .btn .icon { font-size: 1.1em; }
+
+    /* Info grid */
+    .info-grid {
+      display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
+    .info-grid dt { color: var(--text-muted); font-weight: 500; }
+    .info-grid dd {
+      margin: 0; color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 0.82rem; word-break: break-all;
+    }
+
+    /* Help section */
+    details { margin-top: 0.5rem; }
+    details summary {
+      cursor: pointer; padding: 0.5rem 0;
+      font-size: 0.85rem; font-weight: 600; color: var(--text-muted);
+    }
+    details summary:hover { color: var(--text); }
+    details .help { font-size: 0.82rem; color: var(--text-muted); line-height: 1.55; padding: 0.5rem 0; }
+    details ol { margin: 0.5rem 0 0.5rem 1.2rem; padding: 0; }
+    details code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; }
+
+    footer { text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 1.5rem; }
+    footer a { color: var(--primary); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Free GST Billing Software</h1>
+      <p>Control Panel — start, stop, and open your local billing app</p>
+    </header>
+
+    <div class="card">
+      <div id="status" class="status checking">
+        <div class="status-dot"></div>
+        <div>
+          <strong id="status-text">Checking server…</strong>
+          <small id="status-detail">Probing localhost on the configured port range.</small>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a id="open-app" class="btn btn-primary btn-primary-full" href="#" target="_blank" rel="noopener" aria-disabled="true">
+          <span class="icon">🚀</span> Open Billing App
+        </a>
+        <a id="start-btn" class="btn" href="freegstbill://run">
+          <span class="icon">▶️</span> Start Server
+        </a>
+        <a id="stop-btn" class="btn btn-danger" href="freegstbill-stop://run" aria-disabled="true">
+          <span class="icon">⏹</span> Stop Server
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <dl class="info-grid">
+        <dt>Status</dt>           <dd id="info-status">—</dd>
+        <dt>Port</dt>             <dd id="info-port">—</dd>
+        <dt>Version</dt>          <dd id="info-version">—</dd>
+        <dt>App URL</dt>          <dd id="info-url">—</dd>
+        <dt>Last checked</dt>     <dd id="info-checked">—</dd>
+      </dl>
+
+      <details>
+        <summary>Server won't start? Open this for help</summary>
+        <div class="help">
+          <p>Try these in order:</p>
+          <ol>
+            <li>Click <strong>▶️ Start Server</strong> above. If your browser asks to allow <code>freegstbill://</code>, click Allow.</li>
+            <li>If nothing happens after 30 seconds, open the install folder and double-click <code>Start FreeGSTBill.bat</code> directly. A small black window should appear briefly.</li>
+            <li>If you see <em>"Node.js is not installed"</em>, run <code>Install FreeGSTBill.bat</code> first.</li>
+            <li>If the port is busy: open <code>data\port.txt</code> in Notepad to see which port the app is on, or delete that file and restart to let the server pick a fresh port.</li>
+            <li>Still stuck? Email <a href="mailto:Contact@dicecodes.com">Contact@dicecodes.com</a> or open a <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues" target="_blank">GitHub issue</a>.</li>
+          </ol>
+        </div>
+      </details>
+    </div>
+
+    <footer>
+      Free GST Billing Software · MIT Licensed · <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software" target="_blank" rel="noopener">GitHub</a> · made by <a href="https://dicecodes.com" target="_blank" rel="noopener">DiceCodes</a>
+    </footer>
+  </div>
+
+  <script>
+    // ============================================================
+    // Probe the server. Tries the saved port first (47371 default),
+    // then scans up to 47420 in parallel. Whichever responds first
+    // wins. The launcher remembers the port in sessionStorage so
+    // subsequent polls only hit one URL.
+    // ============================================================
+    const DEFAULT_PORT = 47371;
+    const SCAN_RANGE = 50;
+    let activePort = parseInt(sessionStorage.getItem('fgsb_port') || DEFAULT_PORT, 10);
+    let pollTimer = null;
+
+    async function pingPort(port) {
+      try {
+        const c = new AbortController();
+        const t = setTimeout(() => c.abort(), 700);
+        const res = await fetch(`http://localhost:${port}/api/version`, { signal: c.signal });
+        clearTimeout(t);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return { port, version: data.current };
+      } catch { return null; }
+    }
+
+    async function findRunningPort() {
+      // Try the cached port first (fast path — 99% of the time)
+      const cached = await pingPort(activePort);
+      if (cached) return cached;
+      // Fall back: parallel scan of the configured range
+      const probes = [];
+      for (let p = DEFAULT_PORT; p < DEFAULT_PORT + SCAN_RANGE; p++) {
+        probes.push(pingPort(p));
+      }
+      const results = await Promise.all(probes);
+      return results.find(r => r) || null;
+    }
+
+    function setStatus(state, message, detail) {
+      const el = document.getElementById('status');
+      el.className = `status ${state}`;
+      document.getElementById('status-text').textContent = message;
+      document.getElementById('status-detail').textContent = detail;
+    }
+
+    function setButtons(running, port) {
+      const open = document.getElementById('open-app');
+      const stop = document.getElementById('stop-btn');
+      if (running) {
+        open.href = `http://localhost:${port}/`;
+        open.style.pointerEvents = '';
+        open.style.opacity = '';
+        open.removeAttribute('aria-disabled');
+        stop.style.pointerEvents = '';
+        stop.style.opacity = '';
+        stop.removeAttribute('aria-disabled');
+      } else {
+        open.href = '#';
+        open.style.pointerEvents = 'none';
+        open.style.opacity = '0.4';
+        open.setAttribute('aria-disabled', 'true');
+        stop.style.pointerEvents = 'none';
+        stop.style.opacity = '0.4';
+        stop.setAttribute('aria-disabled', 'true');
+      }
+    }
+
+    function setInfo({ running, port, version }) {
+      document.getElementById('info-status').textContent = running ? '✅ Running' : '❌ Stopped';
+      document.getElementById('info-port').textContent = running ? port : '—';
+      document.getElementById('info-version').textContent = version || '—';
+      document.getElementById('info-url').textContent = running ? `http://localhost:${port}/` : '—';
+      document.getElementById('info-checked').textContent = new Date().toLocaleTimeString();
+    }
+
+    async function checkServer() {
+      const hit = await findRunningPort();
+      if (hit) {
+        activePort = hit.port;
+        sessionStorage.setItem('fgsb_port', String(hit.port));
+        setStatus('running', `Server is running on port ${hit.port}`, 'Click "Open Billing App" to launch in a new tab.');
+        setButtons(true, hit.port);
+        setInfo({ running: true, port: hit.port, version: hit.version });
+      } else {
+        setStatus('stopped', 'Server is not running', 'Click "Start Server" — your browser may ask to allow freegstbill://. Click Allow.');
+        setButtons(false);
+        setInfo({ running: false });
+      }
+    }
+
+    // Initial check + poll every 2s. After clicking Start, status flips to
+    // Running within 5-10 seconds typically.
+    checkServer();
+    pollTimer = setInterval(checkServer, 2000);
+
+    // Stop polling when the tab is hidden — saves CPU + Battery. Resume on focus.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { clearInterval(pollTimer); pollTimer = null; }
+      else if (!pollTimer) { checkServer(); pollTimer = setInterval(checkServer, 2000); }
+    });
+
+    // After clicking Start/Stop, accelerate polling for 30s to catch the
+    // status change quickly without making the user wait 2s.
+    document.getElementById('start-btn').addEventListener('click', () => {
+      setStatus('checking', 'Starting server…', 'This usually takes 5-15 seconds.');
+      const burstStart = Date.now();
+      const burst = setInterval(async () => {
+        await checkServer();
+        if (Date.now() - burstStart > 30000) clearInterval(burst);
+      }, 1000);
+    });
+    document.getElementById('stop-btn').addEventListener('click', () => {
+      setStatus('checking', 'Stopping server…', 'Releasing the port.');
+      const burstStart = Date.now();
+      const burst = setInterval(async () => {
+        await checkServer();
+        if (Date.now() - burstStart > 15000) clearInterval(burst);
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

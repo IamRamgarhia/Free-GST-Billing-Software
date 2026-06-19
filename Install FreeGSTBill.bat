@@ -172,32 +172,47 @@ echo  [4/5] Creating shortcuts...
 
 set "TARGET_PATH=%~dp0Start FreeGSTBill.bat"
 
-:: Desktop shortcut
+:: Desktop shortcut — points at Launcher.html (the new control panel)
+:: rather than Start FreeGSTBill.bat directly. Reason: the .bat fails
+:: silently for some users (hidden PowerShell issues, port collisions,
+:: etc.) and they get no feedback. The launcher page checks server
+:: status live, surfaces a "Start Server" button, and shows clear
+:: troubleshooting steps. Power users can still double-click the .bat
+:: from the install folder.
 set "DESKTOP_SHORTCUT=%USERPROFILE%\Desktop\Free GST Billing Software.lnk"
+set "LAUNCHER_PATH=%~dp0Launcher.html"
 
 :: Start Menu shortcut (searchable from Windows Start)
 set "STARTMENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Free GST Billing Software"
 if not exist "%STARTMENU_DIR%" mkdir "%STARTMENU_DIR%"
 set "STARTMENU_SHORTCUT=%STARTMENU_DIR%\Free GST Billing Software.lnk"
+set "STARTMENU_LAUNCHER=%STARTMENU_DIR%\Open Free GST Billing.lnk"
 
-:: Create VBS shortcut creator script (creates both shortcuts)
+:: Create VBS shortcut creator script (creates Desktop + Start Menu + power-user .bat shortcut)
 set "TEMP_VBS=%TEMP%\create_shortcut.vbs"
 (
     echo Set WshShell = WScript.CreateObject("WScript.Shell"^)
     echo.
     echo Set desktopShortcut = WshShell.CreateShortcut("%DESKTOP_SHORTCUT%"^)
-    echo desktopShortcut.TargetPath = "%TARGET_PATH%"
+    echo desktopShortcut.TargetPath = "%LAUNCHER_PATH%"
     echo desktopShortcut.WorkingDirectory = "%~dp0"
-    echo desktopShortcut.Description = "Free GST Billing Software"
+    echo desktopShortcut.Description = "Free GST Billing Software — Control Panel (start/stop/open)"
     echo desktopShortcut.WindowStyle = 1
     echo desktopShortcut.Save
     echo.
     echo Set startShortcut = WshShell.CreateShortcut("%STARTMENU_SHORTCUT%"^)
-    echo startShortcut.TargetPath = "%TARGET_PATH%"
+    echo startShortcut.TargetPath = "%LAUNCHER_PATH%"
     echo startShortcut.WorkingDirectory = "%~dp0"
-    echo startShortcut.Description = "Free GST Billing Software"
+    echo startShortcut.Description = "Free GST Billing Software — Control Panel"
     echo startShortcut.WindowStyle = 1
     echo startShortcut.Save
+    echo.
+    echo Set quickShortcut = WshShell.CreateShortcut("%STARTMENU_LAUNCHER%"^)
+    echo quickShortcut.TargetPath = "%TARGET_PATH%"
+    echo quickShortcut.WorkingDirectory = "%~dp0"
+    echo quickShortcut.Description = "Free GST Billing Software — start server and open app directly"
+    echo quickShortcut.WindowStyle = 1
+    echo quickShortcut.Save
 ) > "%TEMP_VBS%"
 
 cscript //nologo "%TEMP_VBS%" 2>nul
@@ -262,6 +277,11 @@ echo         Start button registered
 set "UPDATE_PATH=%~dp0Update FreeGSTBill.bat"
 powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill-update' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update' -Name '(default)' -Value 'URL:Free GST Billing Update Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill-update\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-update\shell\open\command' -Name '(default)' -Value '%UPDATE_PATH%'" 2>nul
 echo         Update button registered
+
+:: Register freegstbill-stop:// protocol (so Control Panel "Stop Server" button works)
+set "STOP_PATH=%~dp0Stop FreeGSTBill.bat"
+powershell -Command "New-Item -Path 'HKCU:\Software\Classes\freegstbill-stop' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-stop' -Name '(default)' -Value 'URL:Free GST Billing Stop Protocol'; New-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-stop' -Name 'URL Protocol' -Value '' -Force | Out-Null; New-Item -Path 'HKCU:\Software\Classes\freegstbill-stop\shell\open\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\Software\Classes\freegstbill-stop\shell\open\command' -Name '(default)' -Value '%STOP_PATH%'" 2>nul
+echo         Stop button registered
 echo.
 
 :: ========================================
@@ -287,12 +307,20 @@ echo     Free GST Billing Software is running!
 echo.
 echo     HOW IT WORKS:
 echo       - Server starts automatically when you turn on PC
-echo       - Just click "Free GST Billing Software" on Desktop to open
+echo       - Click "Free GST Billing Software" on Desktop to open
+echo         the Control Panel (start/stop/open the app)
 echo       - Or search "Free GST Billing" in Start Menu
+echo       - For quick auto-open (skip the panel) use
+echo         "Open Free GST Billing" in the Start Menu folder
 echo       - Your data is always safe on your computer
 echo.
-echo     Tip: When the app opens, click "Install App"
-echo     to use it like a normal desktop application.
+echo     The Control Panel auto-detects whether the server is
+echo     running, lets you start/stop it, and opens the app in
+echo     a new tab. If anything looks broken, that panel is the
+echo     first place to look.
+echo.
+echo     Tip: When the app opens, click "Install App" in the
+echo     browser address bar to use it like a normal desktop app.
 echo.
 echo     Need help?
 echo       - Read START HERE.txt next to this installer

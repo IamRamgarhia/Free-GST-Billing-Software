@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.4] — 2026-04-30
+
+Fixes the long-standing "desktop icon does nothing" issue some users have
+been hitting. The desktop shortcut now opens a visual **Control Panel**
+(`Launcher.html`) that shows server status live, has Start/Stop/Open
+buttons, and walks users through troubleshooting if something's wrong.
+
+### Added — `Launcher.html` Control Panel
+
+A self-contained static HTML page at the install root. Features:
+
+- 🟢 / 🔴 **live status indicator** — polls every 2 seconds, shows
+  "Server running on port X" or "Server not running" with a coloured
+  status pill (auto dark-mode aware)
+- **Big "Open Billing App"** button — enabled only when the server's
+  alive, opens the React app in a new tab on whatever port is actually
+  serving
+- **Start Server** button — triggers the existing `freegstbill://`
+  protocol handler (which runs `Start FreeGSTBill.bat`)
+- **Stop Server** button — triggers the new `freegstbill-stop://`
+  protocol handler (runs `Stop FreeGSTBill.bat`)
+- **Smart port discovery** — tries cached port first, falls back to
+  parallel scan of 47371-47420. Caches the alive port in
+  `sessionStorage` so subsequent polls only hit one URL.
+- **Info card** — shows port, version, App URL, last-checked time
+- **Troubleshooting `<details>`** — collapsible help section with a
+  5-step recovery guide
+- **Polling pauses** when the tab is backgrounded (visibility API)
+- **Burst polling** after Start/Stop clicks so status updates within
+  a second instead of waiting 2 seconds for the next regular poll
+
+### Changed — Desktop shortcut now opens the Control Panel
+
+The desktop shortcut previously ran `Start FreeGSTBill.bat` directly.
+When that script failed silently (PowerShell hidden-window issues,
+node not on PATH, port collision, etc.) the user just saw a black
+window flash and nothing else. Now the desktop shortcut opens
+`Launcher.html` in the default browser. The Control Panel can detect
+whether the server's already running and skip directly to "Open Billing
+App", or show the broken state with recovery steps.
+
+Power users who want the old auto-start behaviour can use the new
+**"Open Free GST Billing"** shortcut in the Start Menu folder, which
+still runs `Start FreeGSTBill.bat` directly.
+
+### Added — `freegstbill-stop://` URL protocol
+
+Mirrors the existing `freegstbill://` (which runs Start.bat) and
+`freegstbill-update://` (which runs Update.bat). New one maps to
+`Stop FreeGSTBill.bat` and is used by the Control Panel's Stop button.
+Registered in `HKCU\Software\Classes` during install — no admin
+required.
+
+### Changed — `Start FreeGSTBill.bat` is more resilient
+
+- **Verifies `node` is on PATH** before doing anything. If missing,
+  opens the Control Panel (which has troubleshooting steps) instead
+  of failing silently in a black window the user can't read.
+- **Two-tier server launch** — tries hidden PowerShell first
+  (existing behaviour); if PowerShell exits non-zero, falls back to
+  a visible minimised CMD window. More compatible with corporate
+  Windows installs where PowerShell execution is restricted.
+- **30-second wait** (was 20) for slow machines.
+- **Failure fallback** — if the server doesn't respond after 30 seconds,
+  opens the Control Panel instead of pointing the browser at a dead URL.
+  User sees a clear error state with retry option, never a "this site
+  can't be reached" generic browser page.
+
+### Backward compatibility
+
+- Existing users who run Update.bat get the new Launcher.html + protocol
+  handlers automatically. The desktop shortcut keeps pointing at
+  `Start FreeGSTBill.bat` until they re-run `Install FreeGSTBill.bat`
+  (which rewrites it). They can also drag-and-drop the new
+  `Launcher.html` onto their desktop as a quick fix.
+- The new `freegstbill-stop://` protocol is optional — Stop.bat itself
+  still works when run directly.
+
+---
+
 ## [1.6.3] — 2026-04-30
 
 User-configurable low-stock alerts. Was hardcoded to "alert me when any
