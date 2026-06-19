@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules } from '../store';
+import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules, getStockAlertSettings, saveStockAlertSettings } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
 import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId } from '../utils';
 import { Save, Upload, Download, Plus, Trash2, Edit3, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw } from 'lucide-react';
@@ -26,6 +26,8 @@ export default function SettingsView({ onSaved }) {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [regionMode, setRegionModeState] = useState(getRegionMode());
   const [enabledModules, setEnabledModulesState] = useState(getEnabledModules());
+  const [stockAlerts, setStockAlerts] = useState({ enabled: true, threshold: 5 });
+  const [stockAlertsSaving, setStockAlertsSaving] = useState(false);
 
   const toggleModule = (moduleId) => {
     const next = { ...enabledModules, [moduleId]: !isModuleEnabled(moduleId, enabledModules) };
@@ -56,6 +58,7 @@ export default function SettingsView({ onSaved }) {
     loadBusinessProfiles();
     setDriveConnected(isConnected());
     getInvoiceNumberSettings().then(setInvNumSettings);
+    getStockAlertSettings().then(setStockAlerts).catch(() => {});
   }, []);
 
   const loadTemplates = async () => setTermsTemplates(await getTermsTemplates());
@@ -422,6 +425,61 @@ export default function SettingsView({ onSaved }) {
         <div>
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Business profile, branding, integrations & data</p>
+        </div>
+      </div>
+
+      {/* ---- Stock Alerts ---- */}
+      <div className="glass-panel p-6 mb-6">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h3 className="section-title" style={{ marginTop: 0, marginBottom: '0.25rem' }}>Low-stock alerts</h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+              Controls the 🔔 sidebar badge and the Dashboard low-stock list. The Inventory page colour-codes products against this threshold too.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.85rem 1rem', alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+            <input type="checkbox" checked={!!stockAlerts.enabled}
+              onChange={e => setStockAlerts(prev => ({ ...prev, enabled: e.target.checked }))}
+              style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
+            <strong>Show low-stock alerts</strong>
+          </label>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {stockAlerts.enabled
+              ? 'Notifications fire when a product\'s stock falls to or below the threshold.'
+              : 'Alerts are silenced. Inventory still tracks stock; it just doesn\'t nag you.'}
+          </span>
+
+          <label style={{ fontSize: '0.85rem', fontWeight: 600, opacity: stockAlerts.enabled ? 1 : 0.5 }}>
+            Threshold
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input type="number" min="0" max="9999" step="1"
+              disabled={!stockAlerts.enabled}
+              className="form-input" style={{ width: '90px' }}
+              value={stockAlerts.threshold}
+              onChange={e => setStockAlerts(prev => ({ ...prev, threshold: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              Alert when stock ≤ this number. Common picks: <code>0</code> (only when fully out), <code>3</code>, <code>5</code> (default), <code>10</code>.
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
+          <button type="button" className="btn btn-primary"
+            disabled={stockAlertsSaving}
+            onClick={async () => {
+              setStockAlertsSaving(true);
+              try {
+                await saveStockAlertSettings(stockAlerts);
+                toast('Low-stock alert settings saved', 'success');
+              } catch { toast('Failed to save', 'error'); }
+              setStockAlertsSaving(false);
+            }}>
+            <Save size={16} /> {stockAlertsSaving ? 'Saving…' : 'Save'}
+          </button>
         </div>
       </div>
 

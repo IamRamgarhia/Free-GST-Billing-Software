@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.3] — 2026-04-30
+
+User-configurable low-stock alerts. Was hardcoded to "alert me when any
+product's stock drops to ≤5"; now it's a Settings option you can turn off
+entirely or retune.
+
+### Added — Stock Alerts settings panel
+
+New **Settings → Low-stock alerts** card with two controls:
+
+- **Show low-stock alerts** toggle — when off, the 🔔 sidebar notification
+  centre stops counting low-stock items, the Dashboard low-stock card
+  hides itself, and the Inventory page's orange "low" colour drops to
+  plain text. Out-of-stock items (stock = 0) still display as red
+  regardless — that's a hard fact, not an alert preference.
+- **Threshold** — alert fires when a product's `stock ≤ threshold`.
+  Default 5. Common picks: 0 (only when fully out), 3, 5, 10. Disabled
+  visually when the master toggle is off.
+
+Setting is app-level (stored at `meta.stockAlertSettings`) rather than
+per-business-profile, since it's a UX preference rather than a business
+rule. Rides along in the existing backup/restore flow under the "App
+settings" checkbox.
+
+### Changed — wired through three views
+
+The new config is read by:
+
+- `App.jsx` → notification centre bell badge + popover
+- `Dashboard.jsx` → low-stock card on the bills page
+- `InventoryView.jsx` → orange colour-coding on the stock column
+
+All three default to `{ enabled: true, threshold: 5 }` when no setting
+is saved, so v1.6.2 invoices and users see no behaviour change unless
+they explicitly visit Settings to change it.
+
+---
+
 ## [1.6.2] — 2026-04-30
 
 Fixes the StackBlitz / Codespaces sandbox demo path (and the local "Cannot

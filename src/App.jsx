@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell } from 'lucide-react';
-import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts } from './store';
+import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings } from './store';
 import { isModuleEnabled, getUpcomingFilings } from './utils';
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
@@ -96,9 +96,10 @@ function App() {
     let cancelled = false;
     const compute = async () => {
       try {
-        const [bills, products] = await Promise.all([
+        const [bills, products, stockAlertCfg] = await Promise.all([
           getAllBills().catch(() => []),
           getAllProducts().catch(() => []),
+          getStockAlertSettings().catch(() => ({ enabled: true, threshold: 5 })),
         ]);
         if (cancelled) return;
         const today = new Date().toISOString().split('T')[0];
@@ -112,7 +113,13 @@ function App() {
           const d = b.data?.details?.dueDate;
           return d && d >= today && d <= tomorrowStr && b.status !== 'paid';
         });
-        const lowStock = products.filter(p => (p.stock ?? 999) <= 5);
+        // Honour the user's stock-alert preferences. When disabled, the filter
+        // returns nothing — bell badge drops to 0 for the stock category.
+        // When enabled, use the configured threshold (default 5).
+        const stockThreshold = Number(stockAlertCfg?.threshold ?? 5);
+        const lowStock = stockAlertCfg?.enabled === false
+          ? []
+          : products.filter(p => (p.stock ?? 999) <= stockThreshold);
         const filings = getUpcomingFilings().filter(f => f.daysAway <= 10);
         // Recurring auto-fire breadcrumb — set by server.js processDueRecurring().
         // Only "fresh" (today's) auto-fires count as a notification; older ones

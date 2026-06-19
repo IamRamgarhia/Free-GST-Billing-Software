@@ -34,6 +34,27 @@ export const saveInvoiceNumberSettings = async (settings) => {
   });
 };
 
+// ---- Stock-alert Settings ----
+// Master on/off for the low-stock alert + the threshold below which a product
+// counts as "low". Stored at app level (not per-business profile) because the
+// alerting behaviour is a UX preference, not a business rule.
+const DEFAULT_STOCK_ALERT_SETTINGS = {
+  enabled: true,
+  threshold: 5,    // products with `stock <= threshold` are flagged
+};
+
+export const getStockAlertSettings = async () => {
+  const { value } = await apiFetch(`${API}/meta/stockAlertSettings`);
+  return { ...DEFAULT_STOCK_ALERT_SETTINGS, ...(value || {}) };
+};
+
+export const saveStockAlertSettings = async (settings) => {
+  await apiFetch(`${API}/meta/stockAlertSettings`, {
+    method: 'POST',
+    body: JSON.stringify({ value: settings }),
+  });
+};
+
 // ---- Invoice Display Options (checkboxes like showGST, showLogo etc.) ----
 export const getInvoiceDisplayOptions = async () => {
   const { value } = await apiFetch(`${API}/meta/invoiceDisplayOptions`);

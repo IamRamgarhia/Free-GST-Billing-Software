@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload } from 'lucide-react';
-import { getAllProducts, saveProduct, deleteProduct, getProfile } from '../store';
+import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings } from '../store';
 import { getAllUnits, getCountryConfig, formatCurrency } from '../utils';
 import { toast } from './Toast';
 
@@ -17,6 +17,12 @@ export default function InventoryView() {
   const [units, setUnits] = useState(getAllUnits());
   const [profileCountry, setProfileCountry] = useState('India');
   const profileCurrency = getCountryConfig(profileCountry).currency;
+  // The colour-coded stock badge in the table respects the user's threshold
+  // — defaults to 5 if no setting saved yet. When alerts are disabled
+  // entirely, items at or below threshold render in the same plain colour
+  // as everything else (still "Out of Stock" red for 0 — that's a hard fact,
+  // not an alert preference).
+  const [stockAlerts, setStockAlerts] = useState({ enabled: true, threshold: 5 });
 
   const loadProducts = async () => {
     try {
@@ -31,6 +37,7 @@ export default function InventoryView() {
     loadProducts();
     setUnits(getAllUnits());
     getProfile().then(p => { if (p?.country) setProfileCountry(p.country); }).catch(() => {});
+    getStockAlertSettings().then(setStockAlerts).catch(() => {});
   }, []);
 
   const filtered = search.trim()
@@ -279,7 +286,7 @@ export default function InventoryView() {
                     <td>
                       {(product.stock ?? 0) <= 0 ? (
                         <span style={{ color: '#dc2626', fontWeight: 600 }}>Out of Stock</span>
-                      ) : (product.stock ?? 0) <= 5 ? (
+                      ) : (stockAlerts.enabled !== false && (product.stock ?? 0) <= Number(stockAlerts.threshold ?? 5)) ? (
                         <span style={{ color: '#d97706', fontWeight: 600 }}>{product.stock}</span>
                       ) : (
                         product.stock

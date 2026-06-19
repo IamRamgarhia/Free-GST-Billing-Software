@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package } from 'lucide-react';
-import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients } from '../store';
+import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';
 
@@ -87,9 +87,16 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     loadBills();
     getProfile().then(p => setProfileState(p)).catch(() => {});
     getAllClients().then(c => setClients(c)).catch(() => {});
-    getAllProducts().then(prods => {
-      setLowStockProducts(prods.filter(p => (p.stock ?? 0) <= 5));
-    }).catch(() => {});
+    // Pull the stock-alert config alongside products so the Dashboard's
+    // low-stock card honours the user's threshold + on/off preference.
+    Promise.all([
+      getAllProducts().catch(() => []),
+      getStockAlertSettings().catch(() => ({ enabled: true, threshold: 5 })),
+    ]).then(([prods, cfg]) => {
+      if (cfg?.enabled === false) { setLowStockProducts([]); return; }
+      const threshold = Number(cfg?.threshold ?? 5);
+      setLowStockProducts(prods.filter(p => (p.stock ?? 0) <= threshold));
+    });
   }, []);
 
   useEffect(() => {
