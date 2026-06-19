@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.5] — 2026-04-30
+
+Hotfix for v1.6.4's `Launcher.html` rendering as a white screen on some
+browsers. Rewrote the page to maximise compatibility with older Edge,
+corporate-policy-restricted browsers, and `file://` origin quirks.
+
+### Fixed — Launcher.html now renders reliably
+
+The v1.6.4 launcher used `color-mix(in srgb, ...)` in the body
+background (Chrome 111+, Edge 111+). On older or policy-restricted
+browsers the CSS declaration silently failed and the cards-on-white
+combination read as "white screen" if the user's `bg` ended up white
+too. Also used some ES2020+ JS syntax that some legacy environments
+choked on.
+
+### Changes
+
+- **Replaced `color-mix()`** with a plain solid background colour.
+- **Replaced `let` / `const` / arrow functions / template literals**
+  with `var` / function expressions / string concatenation throughout
+  the script. Now compatible all the way down to IE 11 (not that we
+  officially target it, but the safer subset eliminates a whole class
+  of "blank page" failures).
+- **Wrapped the entire script in an IIFE with try/catch** — a single
+  browser quirk no longer aborts the whole panel; errors fall back to
+  a visible "Error checking server" state with a hint to open DevTools.
+- **Removed emoji buttons** (▶️ ⏹ 🚀) — some Windows installs without
+  Segoe UI Emoji rendered them as missing-glyph squares. Plain text
+  labels now.
+- **Visible content before JS runs** — header, status pill, info card
+  all render from static HTML so even total JS failure leaves a
+  recognisable page.
+- **Added `<noscript>` warning** for the rare user with JS disabled,
+  pointing them at `Start FreeGSTBill.bat` directly.
+- **Added F12 / DevTools hint** in the troubleshooting `<details>`
+  so users can self-diagnose remaining issues.
+
+### How to pick up the fix
+
+If you're on v1.6.4 and saw the white screen, pull the update:
+
+```
+Update FreeGSTBill.bat
+```
+
+Or directly download the new `Launcher.html` from the GitHub repo and
+overwrite your local copy.
+
+If you still see a white screen after the update:
+1. Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> in the browser
+   to force-reload past any cache
+2. Press <kbd>F12</kbd> → Console tab → screenshot anything in red,
+   share via [GitHub issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+3. Or just run `Start FreeGSTBill.bat` directly from the install
+   folder while we debug
+
+---
+
 ## [1.6.4] — 2026-04-30
 
 Fixes the long-standing "desktop icon does nothing" issue some users have
