@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.7] — 2026-04-30
+
+Two reported UX fixes — purchase-bill round-off was missing, and the
+"Add Item" button didn't move keyboard focus to the new row.
+
+### Added — Round-off in Purchase Bills
+
+Sales invoices have always had a `Show round-off` toggle. Purchase bills
+didn't — so when a supplier rounded their total (₹1,234.56 → ₹1,235),
+users had to fudge a line item to make it match. Now there's an
+**Apply round-off** checkbox on the Add/Edit Purchase Bill modal.
+
+- Defaults to **off** (most suppliers' totals already match line-item math)
+- When on, applies `calculateRoundOff()` to the grand total — same
+  helper used by sales invoices
+- Round-off shows as a separate `+₹0.44` / `-₹0.50` line in the
+  modal's totals strip
+- Persisted to the purchase record as `applyRoundOff: bool` and
+  `roundOff: number` — kept separately from `totalTax` so GSTR-3B
+  ITC reconciliation reflects what the supplier actually charged
+- Total in the records table + footer + CSV export all use the
+  rounded grand total
+- Backward-compat: older purchase entries without these fields are
+  treated as `applyRoundOff: false` and continue to show their original
+  totals exactly. Re-opening such a record auto-detects round-off if
+  the stored `roundOff` is non-zero.
+
+### Fixed — Keyboard focus after "Add Item"
+
+Pressing Tab to reach the **Add Item** button and Enter to activate it
+used to leave focus stuck on the button — users had to grab the mouse
+to click into the new row's first input.
+
+Now the **Description** input on the freshly-added row receives focus
+automatically. Works in both the sales invoice form (InvoiceGenerator)
+and the purchase bill form (PurchaseBills). Implementation uses
+`data-item-id` / `data-focus-key` attributes on the row + a
+`requestAnimationFrame` queue so the focus lands after React's render
+commit.
+
+For users who do most of their data entry by keyboard, this turns
+"Tab Tab Tab Enter [grab mouse]" into "Tab Tab Tab Enter Type" — pure
+keyboard flow.
+
+---
+
 ## [1.6.6] — 2026-04-30
 
 Restructure: collapsed `Launcher.html` and `index.html` into a single

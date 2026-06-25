@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download } from 'lucide-react';
 import { getAllPurchases, savePurchase, deletePurchase } from '../store';
-import { formatCurrency } from '../utils';
+import { formatCurrency, calculateRoundOff } from '../utils';
 import { toast } from './Toast';
 
 const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Partial'];
@@ -16,6 +16,7 @@ const emptyForm = {
   items: [{ ...emptyItem }],
   paymentStatus: 'Unpaid',
   interstate: false, // true ⇒ supplier charged IGST; false ⇒ CGST + SGST. Routes ITC correctly in GSTR-3B.
+  applyRoundOff: false, // off by default — purchase bill totals are usually pre-rounded by the supplier. Users with suppliers that don't pre-round can opt in here.
   note: '',
 };
 
@@ -25,11 +26,16 @@ function calcItemTax(item) {
   return { amount, tax, total: amount + tax };
 }
 
-function calcPurchaseTotal(items) {
-  return (items || []).reduce((acc, item) => {
+function calcPurchaseTotal(items, applyRoundOff = false) {
+  const raw = (items || []).reduce((acc, item) => {
     const { amount, tax, total } = calcItemTax(item);
     return { taxable: acc.taxable + amount, tax: acc.tax + tax, total: acc.total + total };
   }, { taxable: 0, tax: 0, total: 0 });
+  // Round-off is applied to the GRAND total (taxable + tax). Stored as a
+  // separate line so GSTR-3B input tax credit reflects the supplier's
+  // actual tax amount, not a rounded version.
+  const roundOff = applyRoundOff ? calculateRoundOff(raw.total) : 0;
+  return { ...raw, roundOff, finalTotal: raw.total + roundOff };
 }
 
 function getFYOptions() {
@@ -83,8 +89,8 @@ export default function PurchaseBills() {
   });
 
   const totalStats = filtered.reduce((acc, p) => {
-    const t = calcPurchaseTotal(p.items);
-    return { taxable: acc.taxable + t.taxable, tax: acc.tax + t.tax, total: acc.total + t.total };
+    const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
+    return { taxable: acc.taxable + t.taxable, tax: acc.tax + t.tax, total: acc.total + t.finalTotal };
   }, { taxable: 0, tax: 0, total: 0 });
 
   const openAdd = () => {
@@ -102,6 +108,10 @@ export default function PurchaseBills() {
       items: purchase.items && purchase.items.length > 0 ? purchase.items.map(i => ({ ...i })) : [{ ...emptyItem }],
       paymentStatus: purchase.paymentStatus || 'Unpaid',
       interstate: !!purchase.interstate,
+      // Detect round-off from older entries: if roundOff field exists and is
+      // non-zero, treat applyRoundOff as on. Older entries without the field
+      // just default to off — they won't suddenly change totals on re-save.
+      applyRoundOff: !!purchase.applyRoundOff || (typeof purchase.roundOff === 'number' && purchase.roundOff !== 0),
       note: purchase.note || '',
     });
     setEditingId(purchase.id);
@@ -118,7 +128,7 @@ export default function PurchaseBills() {
     if (!form.supplierName.trim()) { toast('Supplier name is required', 'warning'); return; }
     if (!form.invoiceNumber.trim()) { toast('Invoice number is required', 'warning'); return; }
     try {
-      const totals = calcPurchaseTotal(form.items);
+      const totals = calcPurchaseTotal(form.items, form.applyRoundOff);
       const purchase = {
         ...(editingId ? { id: editingId } : {}),
         date: form.date,
@@ -132,9 +142,14 @@ export default function PurchaseBills() {
           rate: parseFloat(i.rate) || 0,
           taxPercent: parseFloat(i.taxPercent) || 0,
         })),
-        totalAmount: totals.total,
+        // totalAmount is the grand total INCLUDING round-off so the table
+        // sum and GSTR-3B reconciliation both reflect what the supplier
+        // actually charged. roundOff stored separately for audit clarity.
+        totalAmount: totals.finalTotal,
         totalTax: totals.tax,
         taxableAmount: totals.taxable,
+        applyRoundOff: !!form.applyRoundOff,
+        roundOff: totals.roundOff,
         paymentStatus: form.paymentStatus,
         interstate: !!form.interstate,
         note: form.note.trim(),
@@ -171,7 +186,15 @@ export default function PurchaseBills() {
   };
 
   const addItem = () => {
-    setForm(prev => ({ ...prev, items: [...prev.items, { ...emptyItem }] }));
+    // Tag the new row so we can focus its first input after React renders.
+    // Tab → Enter on the Add Item button now keeps the user in keyboard
+    // flow instead of forcing a mouse click on the empty row.
+    const focusKey = 'new-' + Date.now();
+    setForm(prev => ({ ...prev, items: [...prev.items, { ...emptyItem, _focusKey: focusKey }] }));
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-focus-key="${focusKey}"] input.form-input`);
+      if (el) el.focus();
+    });
   };
 
   const removeItem = (index) => {
@@ -181,12 +204,12 @@ export default function PurchaseBills() {
 
   const exportCSV = () => {
     if (filtered.length === 0) { toast('No purchases to export', 'warning'); return; }
-    const headers = ['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'Tax', 'Total', 'Status', 'Note'];
+    const headers = ['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'Tax', 'Round-off', 'Total', 'Status', 'Note'];
     const escape = (v) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const lines = [headers.map(escape).join(',')];
     filtered.forEach(p => {
-      const t = calcPurchaseTotal(p.items);
-      lines.push([p.date, p.supplierName, p.supplierGstin, p.invoiceNumber, t.taxable.toFixed(2), t.tax.toFixed(2), t.total.toFixed(2), p.paymentStatus, p.note].map(escape).join(','));
+      const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
+      lines.push([p.date, p.supplierName, p.supplierGstin, p.invoiceNumber, t.taxable.toFixed(2), t.tax.toFixed(2), t.roundOff.toFixed(2), t.finalTotal.toFixed(2), p.paymentStatus, p.note].map(escape).join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -196,7 +219,7 @@ export default function PurchaseBills() {
     toast('Purchases CSV downloaded', 'success');
   };
 
-  const formTotals = calcPurchaseTotal(form.items);
+  const formTotals = calcPurchaseTotal(form.items, form.applyRoundOff);
 
   return (
     <div className="dashboard-container">
@@ -298,7 +321,7 @@ export default function PurchaseBills() {
             {/* Items */}
             <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>Items</h4>
             {form.items.map((item, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div key={idx} data-focus-key={item._focusKey} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div className="form-group" style={{ flex: 2, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Name</label>}
                   <input type="text" className="form-input" value={item.name}
@@ -340,10 +363,27 @@ export default function PurchaseBills() {
             <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', marginTop: '0.25rem' }}
               onClick={addItem}><Plus size={14} /> Add Item</button>
 
-            <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: 8, display: 'flex', gap: '1.5rem', fontSize: '0.85rem' }}>
-              <span>Taxable: <strong>{formatCurrency(formTotals.taxable)}</strong></span>
-              <span>Tax: <strong>{formatCurrency(formTotals.tax)}</strong></span>
-              <span>Total: <strong>{formatCurrency(formTotals.total)}</strong></span>
+            <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>Taxable: <strong>{formatCurrency(formTotals.taxable)}</strong></span>
+                <span>Tax: <strong>{formatCurrency(formTotals.tax)}</strong></span>
+                {form.applyRoundOff && (
+                  <span style={{ color: '#475569' }}>
+                    Round-off: <strong>{(formTotals.roundOff >= 0 ? '+' : '') + formatCurrency(formTotals.roundOff)}</strong>
+                  </span>
+                )}
+                <span>Total: <strong>{formatCurrency(formTotals.finalTotal)}</strong></span>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', cursor: 'pointer', marginTop: '0.6rem', color: '#475569' }}>
+                <input type="checkbox" checked={!!form.applyRoundOff}
+                  onChange={e => updateField('applyRoundOff', e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: 'var(--primary)' }} />
+                <span>
+                  <strong>Apply round-off</strong> — round the grand total to the nearest rupee.
+                  Use when the supplier's bill is rounded (e.g. ₹1,234.56 → ₹1,235). Off by default —
+                  most suppliers' totals already match what's calculated from line items.
+                </span>
+              </label>
             </div>
 
             <div className="flex gap-2 justify-end mt-4">
@@ -381,7 +421,7 @@ export default function PurchaseBills() {
               </thead>
               <tbody>
                 {filtered.map(p => {
-                  const t = calcPurchaseTotal(p.items);
+                  const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
                   return (
                     <tr key={p.id}>
                       <td className="text-muted">{p.date ? new Date(p.date).toLocaleDateString('en-IN') : ''}</td>
@@ -390,7 +430,7 @@ export default function PurchaseBills() {
                       <td><span className="invoice-badge">{p.invoiceNumber}</span></td>
                       <td style={{ textAlign: 'right' }}>{formatCurrency(t.taxable)}</td>
                       <td style={{ textAlign: 'right' }} className="text-muted">{formatCurrency(t.tax)}</td>
-                      <td style={{ textAlign: 'right' }} className="font-bold">{formatCurrency(t.total)}</td>
+                      <td style={{ textAlign: 'right' }} className="font-bold">{formatCurrency(t.finalTotal)}</td>
                       <td>
                         <span style={{
                           padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 600,

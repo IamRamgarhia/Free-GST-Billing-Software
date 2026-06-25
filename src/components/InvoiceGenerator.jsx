@@ -602,11 +602,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const defaultUnit = items.length > 0 && items[items.length - 1].unit
       ? items[items.length - 1].unit
       : getDefaultUnitForMode(invoiceOptions.invoiceMode);
+    const newId = Date.now().toString();
     setItems(prev => [...prev, {
-      id: Date.now().toString(), name: '', hsn: '', quantity: 1, unit: defaultUnit, rate: 0, discount: 0,
+      id: newId, name: '', hsn: '', quantity: 1, unit: defaultUnit, rate: 0, discount: 0,
       taxPercent: showGST ? (countryTaxRates[countryTaxRates.length - 2] ?? 18) : 0,
       cessPercent: 0,
     }]);
+    // Move keyboard focus to the new row's Description field so users who
+    // Tab to the Add Item button and press Enter don't have to grab the
+    // mouse. requestAnimationFrame waits until React has actually rendered
+    // the new row in the DOM before we try to find/focus it.
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-item-id="${newId}"] input.form-input`);
+      if (el) el.focus();
+    });
   };
 
   // Custom unit handler — prompts for a label, persists to localStorage, applies to current item.
@@ -1570,7 +1579,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               )}
             </div>
             {items.map((item) => (
-              <div key={item.id} className="line-item-row">
+              <div key={item.id} className="line-item-row" data-item-id={item.id}>
                 <div className="line-item-field" style={{ flex: 2.5, position: 'relative' }}>
                   <label className="form-label">Description</label>
                   <input type="text" className="form-input" value={item.name}
