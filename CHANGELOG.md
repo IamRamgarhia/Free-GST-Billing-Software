@@ -7,6 +7,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] — 2026-04-30
+
+**ITR Foundation release.** Introduces the Income Tax module — an integrated
+regime calculator, bank-statement import, and consolidated ITR summary —
+plus Client Statement PDFs, Bulk PDF export, and P1 #15 (interstate
+expense ITC) closes.
+
+### Added — Income Tax module (new sidebar item, India-only)
+
+A new "Income Tax" section in the sidebar with three sub-tabs:
+
+**1. Regime Calculator**
+- Side-by-side Old vs New regime comparison for FY 2024-25 (AY 2025-26)
+- Slabs, Section 87A rebate, surcharge tiers (up to ₹5Cr / above), 4%
+  Health & Education Cess — all under the hood
+- Standard Deduction auto-applied to salary income (₹75k new, ₹50k old)
+- Chapter VI-A deductions with statutory caps (80C ₹1.5L, 80D ₹1L,
+  80CCD1B ₹50k, 80TTA/TTB, 80E, 80G, 80GG, 80DDB, 80U, §24b)
+- Special-rate handling for capital gains (STCG 15% §111A, LTCG 10%
+  §112A over ₹1L exempt)
+- **Auto-picks the cheaper regime** and highlights it; shows exact ₹
+  savings vs the other regime
+- Inputs auto-save to localStorage between visits
+- Business Income auto-fills from the app's own sales − purchases −
+  expenses for the current FY (user can override)
+
+**2. Bank Statement Import**
+- Drop / upload a CSV; auto-detects the bank format from headers
+- Supports **SBI, HDFC, ICICI, Axis, Kotak, PNB, Yes Bank** plus a
+  Generic fallback that matches columns by name
+- Auto-categorises every transaction using keyword rules (SALARY,
+  INTEREST, RENT, SIP, LIC, GST, EMI, AWS, ATM, IMPS, etc.)
+- Spreadsheet-style review grid — user overrides any auto-category
+- Category totals strip shows aggregate per bucket
+- **"Push to Calculator" button** pipes the categorised totals into
+  the Regime Calculator (business receipts → business income,
+  interest → other sources, rent → house property, LIC → 80C, etc.)
+- 100% in-browser parsing — nothing uploaded to any server
+
+**3. ITR Summary**
+- Consolidated snapshot: Sales / Trading purchases / Business expenses
+  / Net business income (from the app's own data)
+- Adds up salary + rent + other sources + capital gains from the
+  Regime Calculator
+- Highlights **presumptive taxation eligibility** if turnover < ₹2Cr
+  (Section 44AD hint)
+- Recommended regime + tax due + due dates + advance-tax
+  installment schedule (15 Jun / 15 Sep / 15 Dec / 15 Mar)
+
+### Added — utils/itr.js
+
+New tax-math library, kept separate from React so it's auditable + unit-
+testable. Exports:
+
+- `OLD_REGIME_SLABS` / `NEW_REGIME_SLABS` (FY 2024-25)
+- `DEDUCTION_CAPS` — statutory caps per section
+- `computeSlabTax`, `computeSurcharge`, `computeRebate87A`, `computeCess`
+- `computeTax(inputs)` — end-to-end returns
+  `{ grossTotalIncome, standardDeduction, allowedDeductions, taxableIncome,
+     slabTax, stcgTax, ltcgTax, rebate87A, taxAfterRebate, surcharge, cess,
+     totalTax, regime }`
+- `compareRegimes(inputs)` — runs both, picks cheaper, returns
+  `{ old, new, savings, recommended: 'old' | 'new' }`
+- `parseBankStatement(csvText)` — normalised `{ bankName, transactions }`
+- `autoCategorize(description)` + `AUTO_CATEGORY_RULES` — extensible
+  rule set for narration-based categorisation
+
+### Added — Enhanced Expense Tracker
+
+- **`interstate` flag** on every expense entry. Fixes P1 #15 from the
+  audit: ITC on GST paid to out-of-state vendors (AWS / Google / Adobe)
+  was incorrectly splitting into CGST/SGST → mis-routed in GSTR-3B
+  Table 4(A). Now correctly routes to IGST when the flag is on.
+- **ITR head tags** on every category. `Salary & Wages` → salary head
+  (declared separately); `Asset Purchase` → depreciation (§32);
+  `Personal / Drawings` → not deductible; everything else → business
+  (§37 general deductions). Sets us up for the v1.8.0 Filing Summary
+  PDF to auto-aggregate expenses under the correct ITR line.
+- Two new categories: `Asset Purchase` (capitalised, not deducted in
+  year of purchase) and `Personal / Drawings` (non-business).
+
+### Added — Client Statement PDF (audit A)
+
+On the Clients page, expanding any client reveals a **Statement PDF**
+button. Generates a single-page (or multi-page for high-volume clients)
+account statement:
+
+- Seller + client header blocks
+- Summary strip: invoice count / total billed / paid / outstanding
+- Chronological table: date, invoice #, type, amount, paid, running
+  balance
+- **Credit notes correctly reduce the balance** (shown as `-₹` amount)
+- Closing balance line at the bottom, color-coded red if outstanding
+
+Uses jsPDF direct rendering (no html2canvas) for crisp text + small file
+size — statements are typically 30-100 KB regardless of invoice count.
+
+### Added — Bulk PDF export (audit C)
+
+Dashboard bulk toolbar gets a new **Bulk PDF** button. Renders every
+selected invoice through the InvoicePreview pipeline and stitches them
+into one multi-page PDF. Perfect for the "give me all March invoices"
+ask from your CA. Works with unlimited selection (>100 invoices prompts
+a "may take a minute" confirmation).
+
+### Fixed — P1 #15 (from audit)
+
+GSTR-3B ITC from expenses now correctly routes to IGST for interstate
+expense entries. Was unconditionally 50/50 CGST+SGST regardless of the
+vendor's state — a real filing bug for anyone with out-of-state SaaS
+subscriptions.
+
+### Backward compatibility
+
+- Existing expense records without the `interstate` field default to
+  intrastate (preserves pre-v1.7.0 numbers — no book values shift
+  silently on upgrade). Users opt in per-record by ticking the flag.
+- Existing profiles without an `id` still work (fallback to `businessName`
+  match, same as v1.5.0).
+- The new Income Tax module is India-only. Users on
+  `Settings → Region Preference: International` will not see it in
+  the sidebar.
+
+---
+
 ## [1.6.8] — 2026-04-30
 
 Critical-fixes bundle. 17 bug fixes across GST filing correctness, data

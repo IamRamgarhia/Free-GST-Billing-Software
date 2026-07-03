@@ -4,13 +4,38 @@ import { getAllExpenses, saveExpense, deleteExpense } from '../store';
 import { formatCurrency } from '../utils';
 import { toast } from './Toast';
 
+// Each category is tagged with its ITR (Income Tax Return) head so the
+// v1.7.0+ ITR Filing Summary can auto-aggregate expenses under the correct
+// P&L line. Users don't have to think about heads — they pick the category
+// they already understand.
+//   - 'business'      → deductible business expense under section 37
+//   - 'depreciation'  → section 32 (asset purchases, capitalised then
+//                       depreciated per Rule 5)
+//   - 'salary'        → separately tracked; declared under section 40A(2)(b)
+//                       for related parties
+//   - 'notDeductible' → personal / drawings / capital / non-business
 const EXPENSE_CATEGORIES = [
-  'Office Rent', 'Utilities', 'Internet & Phone', 'Software & Tools',
-  'Travel', 'Meals & Entertainment', 'Office Supplies', 'Salary & Wages',
-  'Professional Fees', 'Insurance', 'Marketing & Ads', 'Raw Materials',
-  'Shipping & Courier', 'Repairs & Maintenance', 'Bank Charges', 'GST Paid',
-  'Other',
+  { name: 'Office Rent',            itrHead: 'business' },
+  { name: 'Utilities',              itrHead: 'business' },
+  { name: 'Internet & Phone',       itrHead: 'business' },
+  { name: 'Software & Tools',       itrHead: 'business' },
+  { name: 'Travel',                 itrHead: 'business' },
+  { name: 'Meals & Entertainment',  itrHead: 'business' },
+  { name: 'Office Supplies',        itrHead: 'business' },
+  { name: 'Salary & Wages',         itrHead: 'salary' },
+  { name: 'Professional Fees',      itrHead: 'business' },
+  { name: 'Insurance',              itrHead: 'business' },
+  { name: 'Marketing & Ads',        itrHead: 'business' },
+  { name: 'Raw Materials',          itrHead: 'business' },
+  { name: 'Shipping & Courier',     itrHead: 'business' },
+  { name: 'Repairs & Maintenance',  itrHead: 'business' },
+  { name: 'Bank Charges',           itrHead: 'business' },
+  { name: 'GST Paid',               itrHead: 'business' },
+  { name: 'Asset Purchase',         itrHead: 'depreciation' },
+  { name: 'Personal / Drawings',    itrHead: 'notDeductible' },
+  { name: 'Other',                  itrHead: 'business' },
 ];
+const CATEGORY_NAMES = EXPENSE_CATEGORIES.map(c => c.name);
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
 
@@ -21,6 +46,11 @@ const emptyForm = {
   amount: '',
   gstAmount: '',
   gstPercent: '',
+  // P1 #15: interstate flag. When on, ITC on GST paid routes to IGST in
+  // GSTR-3B Table 4(A) instead of splitting 50/50 into CGST + SGST. Real
+  // scenario: AWS / Google / Adobe / SaaS bills from out-of-state offices.
+  // Off = intrastate = supplier and buyer in the same state.
+  interstate: false,
   vendorName: '',
   vendorGstin: '',
   invoiceNo: '',
@@ -101,6 +131,7 @@ export default function ExpenseTracker() {
       vendorGstin: exp.vendorGstin || '',
       invoiceNo: exp.invoiceNo || '',
       paymentMode: exp.paymentMode || 'Bank Transfer',
+      interstate: !!exp.interstate,
       note: exp.note || '',
     });
     setEditingId(exp.id);
@@ -129,6 +160,7 @@ export default function ExpenseTracker() {
         vendorGstin: form.vendorGstin.trim(),
         invoiceNo: form.invoiceNo.trim(),
         paymentMode: form.paymentMode,
+        interstate: !!form.interstate,
         note: form.note.trim(),
       };
       await saveExpense(expense);
@@ -218,7 +250,7 @@ export default function ExpenseTracker() {
           </div>
           <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
             <option value="all">All Categories</option>
-            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {CATEGORY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select className="filter-select" value={fyFilter} onChange={e => setFyFilter(e.target.value)}>
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
@@ -242,7 +274,7 @@ export default function ExpenseTracker() {
               <div className="form-group">
                 <label className="form-label">Category</label>
                 <select className="form-input" value={form.category} onChange={e => updateField('category', e.target.value)}>
-                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {CATEGORY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
@@ -282,6 +314,19 @@ export default function ExpenseTracker() {
                 <select className="form-input" value={form.paymentMode} onChange={e => updateField('paymentMode', e.target.value)}>
                   {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
+              </div>
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!form.interstate}
+                    onChange={e => updateField('interstate', e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
+                  <span>
+                    <strong>Inter-state expense</strong> — vendor charged IGST (different state)
+                    <span style={{ color: '#94a3b8', fontSize: '0.72rem', display: 'block' }}>
+                      Routes ITC to IGST in GSTR-3B. Common: AWS / Google / Adobe / SaaS billed from an out-of-state office. Tip: check the vendor's GSTIN — first 2 digits are their state code.
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Note (optional)</label>

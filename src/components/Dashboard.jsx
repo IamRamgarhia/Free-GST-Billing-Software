@@ -309,6 +309,69 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     toast(`Exported ${sel.length} invoice${sel.length !== 1 ? 's' : ''} as JSON`, 'success');
   };
 
+  // Bulk PDF export — feature C from the v1.6.7 audit ("All March invoices
+   // as one zip"). Renders each selected bill through the existing
+   // InvoicePreview → jsPDF pipeline (see openBillPDF in this file's edit
+   // handler) and stitches them into a single multi-page PDF. Zip would be
+   // cleaner but pulling in JSZip inflates the bundle by ~140KB; one big
+   // PDF is what CAs want anyway (one file to archive).
+  const bulkExportPDF = async () => {
+    const sel = getSelectedBills();
+    if (sel.length === 0) return;
+    if (sel.length > 100 && !confirm(`Exporting ${sel.length} invoices as one PDF may take a minute and produce a large file. Continue?`)) return;
+    setBulkBusy(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      // Build each bill in a hidden container, snap it, add as a page.
+      // Reuses InvoicePreview via a dynamic import so its CSS + fonts
+      // are hydrated once, then reused for each iteration.
+      const InvoicePreviewMod = await import('./InvoicePreview');
+      const { createRoot } = await import('react-dom/client');
+      const { createElement } = await import('react');
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;';
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      let ok = 0;
+      for (let i = 0; i < sel.length; i++) {
+        const bill = sel[i];
+        const data = bill.data || {};
+        await new Promise((resolve) => {
+          root.render(createElement(InvoicePreviewMod.default, {
+            profile: data.profile, client: data.client, details: data.details, items: data.items,
+            totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
+            customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
+          }));
+          // Give React 2 frames + a tick to flush layout + images
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
+        });
+        try {
+          const canvas = await html2canvas(container.firstElementChild || container, {
+            scale: Math.max(2, (window.devicePixelRatio || 1) * 1.5),
+            backgroundColor: '#ffffff', useCORS: true, logging: false,
+          });
+          const img = canvas.toDataURL('image/jpeg', 0.92);
+          const w = 210, h = (canvas.height * 210) / canvas.width;
+          if (i > 0) doc.addPage();
+          doc.addImage(img, 'JPEG', 0, 0, w, Math.min(h, 297), undefined, 'FAST');
+          ok++;
+        } catch (e) { /* skip broken bill silently — user can retry with narrower selection */ }
+      }
+      root.unmount();
+      document.body.removeChild(container);
+      if (ok === 0) { toast('Could not generate any PDFs', 'error'); return; }
+      const filename = `freegstbill-invoices-${ok}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      toast(`Exported ${ok} of ${sel.length} invoices as one PDF`, 'success');
+    } catch (e) {
+      toast('Bulk PDF export failed — see console', 'error');
+      console.error('bulkExportPDF', e);
+    }
+    setBulkBusy(false);
+  };
+
   const shareWhatsApp = (bill) => {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
@@ -543,7 +606,9 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={() => bulkMarkStatus('overdue')}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}><AlertTriangle size={13} /> Mark overdue</button>
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkExportJSON}
-              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}><FileText size={13} /> Export selected</button>
+              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}><FileText size={13} /> Export JSON</button>
+            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkExportPDF}
+              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} title="Combine selected invoices into one multi-page PDF — CAs love this for filing archives"><Download size={13} /> Bulk PDF</button>
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkDelete}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
               <Trash2 size={13} /> Delete

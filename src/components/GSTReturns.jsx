@@ -640,9 +640,17 @@ export default function GSTReturns() {
 
   // ========== GSTR-3B ==========
   const outputTax = { cgst: grandTotals.cgst, sgst: grandTotals.sgst, igst: grandTotals.igst };
-  // ITC from expenses
+  // ITC from expenses — P1 #15 fix: route to IGST when the expense is
+  // interstate (vendor charged IGST, e.g. AWS / Google / Adobe from an
+  // out-of-state office). Was unconditionally splitting 50/50 into
+  // CGST/SGST → mis-routed ITC in GSTR-3B Table 4(A). Legacy expense
+  // records without the field default to intrastate (safest — preserves
+  // pre-v1.6.8 behaviour so no book values shift silently).
   const itcFromExpensesOnly = filteredExpenses.reduce((acc, e) => {
     const gst = e.gstAmount || 0;
+    if (e.interstate) {
+      return { cgst: acc.cgst, sgst: acc.sgst, igst: acc.igst + gst };
+    }
     const half = Math.round((gst / 2) * 100) / 100;
     return { cgst: acc.cgst + half, sgst: acc.sgst + (gst - half), igst: acc.igst };
   }, { cgst: 0, sgst: 0, igst: 0 });

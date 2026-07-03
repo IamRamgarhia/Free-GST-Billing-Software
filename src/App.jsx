@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings } from './store';
 import { isModuleEnabled, getUpcomingFilings } from './utils';
 import Dashboard from './components/Dashboard';
@@ -12,6 +12,7 @@ import ExpenseTracker from './components/ExpenseTracker';
 import RecurringInvoices from './components/RecurringInvoices';
 import ReceiptVoucher from './components/ReceiptVoucher';
 import GSTReturns from './components/GSTReturns';
+import IncomeTax from './components/IncomeTax';
 import PurchaseBills from './components/PurchaseBills';
 import UserGuideView from './components/UserGuideView';
 import WelcomeGuide from './components/WelcomeGuide';
@@ -25,7 +26,7 @@ function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view');
-      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'guide', 'settings'];
+      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'incometax', 'guide', 'settings'];
       if (v && valid.includes(v)) {
         // Strip the query string so a refresh doesn't keep snapping back to
         // the shortcut target — only the *first* navigation honours it.
@@ -345,6 +346,7 @@ function App() {
     { id: 'receipts', icon: Receipt, label: 'Receipts', module: 'receipts' },
     { id: 'reports', icon: BarChart3, label: 'Reports', module: 'reports' },
     { id: 'filing', icon: BookOpen, label: 'GST Returns', module: 'gstReturns' },
+    { id: 'incometax', icon: Calculator, label: 'Income Tax', module: 'incomeTax' },
     { id: 'guide', icon: HelpCircle, label: 'User Guide', module: 'dashboard' }, // gated by dashboard so it's always available
   ].filter(item => showIfModule(item.module));
 
@@ -645,6 +647,9 @@ function App() {
         )}
         {currentView === 'filing' && (
           <GSTReturns />
+        )}
+        {currentView === 'incometax' && (
+          <IncomeTax />
         )}
         {currentView === 'guide' && (
           <UserGuideView />

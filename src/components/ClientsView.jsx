@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload } from 'lucide-react';
+import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';
@@ -39,6 +39,131 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Client Statement PDF — feature A from v1.6.7 audit ("#1 daily ask when
+  // a client disputes a bill"). Produces a single-page account statement:
+  // invoice list + credit notes + payments + running balance. Reuses the
+  // profile block from InvoicePreview for the seller header so the styling
+  // matches the invoice PDFs the client already knows.
+  const [profileForStatement, setProfileForStatement] = useState(null);
+  useEffect(() => {
+    getProfile().then(setProfileForStatement).catch(() => {});
+  }, []);
+
+  const generateClientStatement = async (clientName) => {
+    const clientBills = getClientBills(clientName);
+    if (clientBills.length === 0) {
+      toast('No invoices for this client', 'warning');
+      return;
+    }
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const savedClient = clients.find(c => c.name === clientName) || { name: clientName };
+      const stats = getClientStats(clientName);
+
+      let y = 15;
+      // Header
+      doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+      doc.text('Client Statement', 105, y, { align: 'center' });
+      y += 8;
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+      doc.text(`Period: All-time · Generated ${new Date().toLocaleDateString('en-IN')}`, 105, y, { align: 'center' });
+      y += 8;
+
+      // Seller block (left)
+      if (profileForStatement?.businessName) {
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+        doc.text('From:', 15, y);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        doc.text(profileForStatement.businessName, 15, y + 5);
+        if (profileForStatement.gstin) doc.text(`GSTIN: ${profileForStatement.gstin}`, 15, y + 10);
+      }
+
+      // Client block (right)
+      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+      doc.text('To:', 120, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      doc.text(savedClient.name || clientName, 120, y + 5);
+      const addr = [savedClient.address, savedClient.city, savedClient.state, savedClient.pin].filter(Boolean).join(', ');
+      if (addr) doc.text(doc.splitTextToSize(addr, 70), 120, y + 10);
+      if (savedClient.gstin) doc.text(`GSTIN: ${savedClient.gstin}`, 120, y + 20);
+      y += 30;
+
+      // Summary
+      doc.setFillColor(241, 245, 249);
+      doc.rect(15, y, 180, 18, 'F');
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      doc.text('SUMMARY', 20, y + 5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Invoices: ${stats.count}`, 20, y + 12);
+      doc.text(`Total Billed: ${formatCurrency(stats.total)}`, 65, y + 12);
+      doc.text(`Paid: ${formatCurrency(stats.paid)}`, 115, y + 12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(stats.unpaid > 0 ? 220 : 5, stats.unpaid > 0 ? 38 : 150, stats.unpaid > 0 ? 38 : 105);
+      doc.text(`Outstanding: ${formatCurrency(stats.unpaid)}`, 160, y + 12);
+      doc.setTextColor(0);
+      y += 24;
+
+      // Table header
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      doc.setFillColor(30, 64, 175); doc.setTextColor(255);
+      doc.rect(15, y, 180, 7, 'F');
+      doc.text('Date', 17, y + 5);
+      doc.text('Invoice #', 40, y + 5);
+      doc.text('Type', 75, y + 5);
+      doc.text('Amount', 130, y + 5, { align: 'right' });
+      doc.text('Paid', 155, y + 5, { align: 'right' });
+      doc.text('Balance', 190, y + 5, { align: 'right' });
+      doc.setTextColor(0);
+      y += 8;
+
+      // Rows
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      let runningBalance = 0;
+      clientBills.sort((a, b) => new Date(a.invoiceDate) - new Date(b.invoiceDate))
+                 .forEach((bill, i) => {
+        const isCreditNote = bill.invoiceType === 'credit-note';
+        const amount = Number(bill.totalAmount) || 0;
+        const paid = Number(bill.paidAmount) || 0;
+        // Credit notes REDUCE balance owed (negative amount).
+        const effectiveAmount = isCreditNote ? -amount : amount;
+        const effectivePaid = isCreditNote ? 0 : paid;
+        runningBalance += effectiveAmount - effectivePaid;
+
+        if (y > 265) { doc.addPage(); y = 20; }
+        if (i % 2 === 1) { doc.setFillColor(249, 250, 252); doc.rect(15, y - 3, 180, 6, 'F'); }
+        doc.text(new Date(bill.invoiceDate).toLocaleDateString('en-IN'), 17, y);
+        doc.text(bill.invoiceNumber || '', 40, y);
+        doc.text(INVOICE_TYPES[bill.invoiceType]?.label || bill.invoiceType || '', 75, y);
+        doc.text(`${isCreditNote ? '- ' : ''}${formatCurrency(amount)}`, 130, y, { align: 'right' });
+        doc.text(formatCurrency(paid), 155, y, { align: 'right' });
+        doc.setFont('helvetica', runningBalance > 0 ? 'bold' : 'normal');
+        doc.setTextColor(runningBalance > 0 ? 220 : 5, runningBalance > 0 ? 38 : 150, runningBalance > 0 ? 38 : 105);
+        doc.text(formatCurrency(runningBalance), 190, y, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(0);
+        y += 6;
+      });
+
+      // Footer
+      y += 6;
+      doc.setDrawColor(200); doc.line(15, y, 195, y); y += 6;
+      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+      doc.text('CLOSING BALANCE:', 130, y, { align: 'right' });
+      doc.setTextColor(runningBalance > 0 ? 220 : 5, runningBalance > 0 ? 38 : 150, runningBalance > 0 ? 38 : 105);
+      doc.text(formatCurrency(runningBalance), 190, y, { align: 'right' });
+      doc.setTextColor(0);
+      y += 12;
+      doc.setFontSize(8); doc.setFont('helvetica', 'italic');
+      doc.text('Generated by Free GST Billing Software. Verify against your own records before payment.', 105, 285, { align: 'center' });
+
+      doc.save(`statement-${clientName.replace(/[^\w]+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
+      toast('Statement PDF generated', 'success');
+    } catch (e) {
+      toast('Could not generate statement PDF', 'error');
+      console.error('generateClientStatement', e);
+    }
+  };
 
   // Group bills by client name
   const getClientBills = (clientName) => {
@@ -285,6 +410,15 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                 {/* Expanded: invoice list */}
                 {isExpanded && (
                   <div className="client-invoices">
+                    {/* Action bar (right-aligned) — Statement PDF for CAs / clients */}
+                    <div style={{ padding: '0.5rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                        onClick={() => generateClientStatement(clientName)}
+                        title="Account statement: every invoice, credit note, payment, and running balance in one PDF">
+                        <Download size={14} /> Statement PDF
+                      </button>
+                    </div>
+
                     {/* Client details */}
                     {savedClient && (savedClient.address || savedClient.city || savedClient.email || savedClient.phone) && (
                       <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
