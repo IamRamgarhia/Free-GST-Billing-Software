@@ -6,7 +6,10 @@ import { toast } from './Toast';
 
 const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Partial'];
 
-const emptyItem = { name: '', hsn: '', quantity: 1, rate: 0, taxPercent: 18 };
+// cessPercent added in v1.6.8 (P1 #16) — suppliers of tobacco / aerated
+// drinks / motor vehicles / coal charge GST + Cess. Without a slot for it,
+// we couldn't reclaim ITC on the cess in GSTR-3B Table 4(A).
+const emptyItem = { name: '', hsn: '', quantity: 1, rate: 0, taxPercent: 18, cessPercent: 0 };
 
 const emptyForm = {
   date: new Date().toISOString().split('T')[0],
@@ -23,16 +26,22 @@ const emptyForm = {
 function calcItemTax(item) {
   const amount = (item.quantity || 0) * (item.rate || 0);
   const tax = (amount * (item.taxPercent || 0)) / 100;
-  return { amount, tax, total: amount + tax };
+  const cess = (amount * (Number(item.cessPercent) || 0)) / 100;
+  return { amount, tax, cess, total: amount + tax + cess };
 }
 
 function calcPurchaseTotal(items, applyRoundOff = false) {
   const raw = (items || []).reduce((acc, item) => {
-    const { amount, tax, total } = calcItemTax(item);
-    return { taxable: acc.taxable + amount, tax: acc.tax + tax, total: acc.total + total };
-  }, { taxable: 0, tax: 0, total: 0 });
-  // Round-off is applied to the GRAND total (taxable + tax). Stored as a
-  // separate line so GSTR-3B input tax credit reflects the supplier's
+    const { amount, tax, cess, total } = calcItemTax(item);
+    return {
+      taxable: acc.taxable + amount,
+      tax: acc.tax + tax,
+      cess: acc.cess + cess,
+      total: acc.total + total,
+    };
+  }, { taxable: 0, tax: 0, cess: 0, total: 0 });
+  // Round-off is applied to the GRAND total (taxable + tax + cess). Stored
+  // as a separate line so GSTR-3B input tax credit reflects the supplier's
   // actual tax amount, not a rounded version.
   const roundOff = applyRoundOff ? calculateRoundOff(raw.total) : 0;
   return { ...raw, roundOff, finalTotal: raw.total + roundOff };
@@ -141,6 +150,7 @@ export default function PurchaseBills() {
           quantity: parseFloat(i.quantity) || 0,
           rate: parseFloat(i.rate) || 0,
           taxPercent: parseFloat(i.taxPercent) || 0,
+          cessPercent: parseFloat(i.cessPercent) || 0,
         })),
         // totalAmount is the grand total INCLUDING round-off so the table
         // sum and GSTR-3B reconciliation both reflect what the supplier
@@ -334,24 +344,45 @@ export default function PurchaseBills() {
                 </div>
                 <div className="form-group" style={{ flex: 0.7, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Qty</label>}
-                  <input type="number" className="form-input" value={item.quantity} min="1"
+                  {/* v1.6.8 (P2 #30): decimal quantity for 2.5 kg / 0.5 hr / etc. */}
+                  <input type="number" className="form-input" value={item.quantity} min="0" step="any"
                     onChange={e => updateItem(idx, 'quantity', e.target.value)} />
                 </div>
                 <div className="form-group" style={{ flex: 1, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Rate</label>}
-                  <input type="number" className="form-input" value={item.rate} min="0"
+                  <input type="number" className="form-input" value={item.rate} min="0" step="any"
                     onChange={e => updateItem(idx, 'rate', e.target.value)} />
                 </div>
-                <div className="form-group" style={{ flex: 0.7, margin: 0 }}>
+                <div className="form-group" style={{ flex: 0.75, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Tax %</label>}
-                  <select className="form-input" value={item.taxPercent}
-                    onChange={e => updateItem(idx, 'taxPercent', e.target.value)}>
+                  {/* v1.6.8 (P2 #29): "Other…" for jeweller 3% / diamond 0.25% /
+                       agriculture 0.1% and any bespoke rate. */}
+                  <select className="form-input" value={
+                    ['0','0.1','0.25','3','5','12','18','28'].includes(String(item.taxPercent)) ? String(item.taxPercent) : '__custom__'
+                  } onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      const v = window.prompt('Custom tax rate (%):', String(item.taxPercent || 0));
+                      const n = parseFloat(v);
+                      if (Number.isFinite(n) && n >= 0 && n <= 100) updateItem(idx, 'taxPercent', n);
+                    } else {
+                      updateItem(idx, 'taxPercent', e.target.value);
+                    }
+                  }}>
                     <option value="0">0%</option>
+                    <option value="0.1">0.1%</option>
+                    <option value="0.25">0.25%</option>
+                    <option value="3">3%</option>
                     <option value="5">5%</option>
                     <option value="12">12%</option>
                     <option value="18">18%</option>
                     <option value="28">28%</option>
+                    <option value="__custom__">Other…{['0','0.1','0.25','3','5','12','18','28'].includes(String(item.taxPercent)) ? '' : ` (${item.taxPercent}%)`}</option>
                   </select>
+                </div>
+                <div className="form-group" style={{ flex: 0.7, margin: 0 }}>
+                  {idx === 0 && <label className="form-label" title="Compensation Cess — for tobacco, aerated, motor vehicles, coal, etc.">Cess %</label>}
+                  <input type="number" className="form-input" value={item.cessPercent ?? 0} min="0" step="any"
+                    onChange={e => updateItem(idx, 'cessPercent', e.target.value)} />
                 </div>
                 <div style={{ flex: '0 0 auto', marginBottom: idx === 0 ? 0 : 0 }}>
                   {form.items.length > 1 && (
@@ -367,6 +398,9 @@ export default function PurchaseBills() {
               <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <span>Taxable: <strong>{formatCurrency(formTotals.taxable)}</strong></span>
                 <span>Tax: <strong>{formatCurrency(formTotals.tax)}</strong></span>
+                {formTotals.cess > 0 && (
+                  <span>Cess: <strong>{formatCurrency(formTotals.cess)}</strong></span>
+                )}
                 {form.applyRoundOff && (
                   <span style={{ color: '#475569' }}>
                     Round-off: <strong>{(formTotals.roundOff >= 0 ? '+' : '') + formatCurrency(formTotals.roundOff)}</strong>

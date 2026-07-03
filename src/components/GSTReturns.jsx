@@ -99,6 +99,14 @@ function buildReconciliation(twoBData, purchases) {
         const tax = amount * (it.taxPercent || 0) / 100;
         return { taxable: acc.taxable + amount, tax: acc.tax + tax, total: acc.total + amount + tax };
       }, { taxable: 0, tax: 0, total: 0 });
+      // P1 #22: include round-off in the book-side total so 2B matching
+      // doesn't flag every rounded supplier bill as amount_mismatch. The
+      // supplier's 2B `val` is the rounded number; our line-item math was
+      // paise-precise → always mismatched by a few paise until we account
+      // for the round-off separately.
+      if (book.applyRoundOff && typeof book.roundOff === 'number') {
+        bookTotals.total += book.roundOff;
+      }
       const bookIgst = book.interstate ? bookTotals.tax : 0;
       const bookCgst = book.interstate ? 0 : bookTotals.tax / 2;
       const bookSgst = book.interstate ? 0 : bookTotals.tax / 2;
@@ -888,13 +896,26 @@ export default function GSTReturns() {
       const rateMap = {};
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0;
-        if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
+        if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].camt += split.cgst; rateMap[rate].samt += split.sgst;
+        // P1 #13: cess per item = (afterDiscount) * cessPercent / 100.
+        // Compute from the same taxable base so it stays consistent with
+        // GST rate math when tax-inclusive.
+        const cessPct = Number(item.cessPercent) || 0;
+        if (cessPct > 0) rateMap[rate].csamt += split.taxable * cessPct / 100;
       });
+      // P1 #11: rchrg derived from the bill's reverseCharge flag.
+      // P1 #12: SEZ classification — SEWP (with payment) / SEWOP (without).
+      //   Without payment = LUT / bond export (isSEZ + zero-rated / LUT term).
+      //   With payment = SEZ supply with IGST charged.
+      const rchrg = bill.data?.invoiceOptions?.reverseCharge ? 'Y' : 'N';
+      const isSEZ = !!client?.isSEZ;
+      const isLUT = /LUT|Letter of Undertaking|zero.?rated/i.test(bill.data?.customTerms || '') || !!bill.data?.invoiceOptions?.isLUT;
+      const invType = isSEZ ? (isLUT ? 'SEWOP' : 'SEWP') : 'R';
       b2bMap[ctin].inv.push({
-        inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg: 'N', inv_typ: 'R',
-        itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: 0 } })),
+        inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg, inv_typ: invType,
+        itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) } })),
       });
     });
 
@@ -909,9 +930,11 @@ export default function GSTReturns() {
         if (!b2csMap[key]) b2csMap[key] = { sply_ty: splyTy, pos, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         b2csMap[key].txval += split.taxable; b2csMap[key].iamt += split.igst; b2csMap[key].camt += split.cgst; b2csMap[key].samt += split.sgst;
+        const cessPct = Number(item.cessPercent) || 0;
+        if (cessPct > 0) b2csMap[key].csamt += split.taxable * cessPct / 100;
       });
     });
-    const b2csArr = Object.values(b2csMap).map(d => ({ ...d, txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt) }));
+    const b2csArr = Object.values(b2csMap).map(d => ({ ...d, txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) }));
 
     const b2clMap = {};
     b2cLarge.forEach(bill => {
@@ -920,10 +943,15 @@ export default function GSTReturns() {
       if (!b2clMap[pos]) b2clMap[pos] = { pos, inv: [] };
       const rateMap = {};
       (items || []).forEach(item => {
-        const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0 };
-        const split = computeItemTaxSplit(item, true); rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst;
+        const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, csamt: 0 };
+        // P1 #23: pass taxInclusive as 3rd arg. Pre-v1.6.8 this was omitted
+        // so tax-inclusive B2CL bills inflated taxable + IGST values.
+        const split = computeItemTaxSplit(item, true, !!bill.data?.taxInclusive);
+        rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst;
+        const cessPct = Number(item.cessPercent) || 0;
+        if (cessPct > 0) rateMap[rate].csamt += split.taxable * cessPct / 100;
       });
-      b2clMap[pos].inv.push({ inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), csamt: 0 } })) });
+      b2clMap[pos].inv.push({ inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), csamt: round2(d.csamt) } })) });
     });
 
     const cdnrMap = {};
@@ -934,12 +962,20 @@ export default function GSTReturns() {
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
       const rateMap = {};
       (items || []).forEach(item => {
-        const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0 };
+        const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].camt += split.cgst; rateMap[rate].samt += split.sgst;
+        const cessPct = Number(item.cessPercent) || 0;
+        if (cessPct > 0) rateMap[rate].csamt += split.taxable * cessPct / 100;
       });
-      cdnrMap[ctin].nt.push({ ntty: 'C', nt_num: bill.invoiceNumber, nt_dt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg: 'N', inv_typ: 'R',
-        itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: 0 } })) });
+      // Same rchrg / inv_typ derivation as B2B — credit notes carry the same
+      // classification as the original supply (P1 #11, #12, #13).
+      const rchrg = bill.data?.invoiceOptions?.reverseCharge ? 'Y' : 'N';
+      const isSEZ = !!client?.isSEZ;
+      const isLUT = /LUT|Letter of Undertaking|zero.?rated/i.test(bill.data?.customTerms || '') || !!bill.data?.invoiceOptions?.isLUT;
+      const invType = isSEZ ? (isLUT ? 'SEWOP' : 'SEWP') : 'R';
+      cdnrMap[ctin].nt.push({ ntty: 'C', nt_num: bill.invoiceNumber, nt_dt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg, inv_typ: invType,
+        itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) } })) });
     });
 
     const hsnJsonMap = {};
@@ -954,6 +990,8 @@ export default function GSTReturns() {
         if (!hsnJsonMap[key]) hsnJsonMap[key] = { hsn_sc: hsn, desc: item.name || '', uqc, qty: 0, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
         hsnJsonMap[key].qty += item.quantity || 0; hsnJsonMap[key].txval += split.taxable; hsnJsonMap[key].iamt += split.igst; hsnJsonMap[key].camt += split.cgst; hsnJsonMap[key].samt += split.sgst;
+        const cessPct = Number(item.cessPercent) || 0;
+        if (cessPct > 0) hsnJsonMap[key].csamt += split.taxable * cessPct / 100;
       });
     });
 
@@ -964,7 +1002,7 @@ export default function GSTReturns() {
       b2b: Object.values(b2bMap), b2cs: b2csArr,
       ...(Object.keys(b2clMap).length > 0 ? { b2cl: Object.values(b2clMap) } : {}),
       ...(Object.keys(cdnrMap).length > 0 ? { cdnr: Object.values(cdnrMap) } : {}),
-      hsn: { data: Object.values(hsnJsonMap).map((r, i) => ({ num: i + 1, ...r, txval: round2(r.txval), iamt: round2(r.iamt), camt: round2(r.camt), samt: round2(r.samt) })) },
+      hsn: { data: Object.values(hsnJsonMap).map((r, i) => ({ num: i + 1, ...r, txval: round2(r.txval), iamt: round2(r.iamt), camt: round2(r.camt), samt: round2(r.samt), csamt: round2(r.csamt) })) },
       doc_issue: { doc_det: docDet },
     };
 

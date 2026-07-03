@@ -14,7 +14,7 @@ const FREQUENCIES = [
 const emptyForm = {
   clientName: '', clientState: '', clientGstin: '', clientAddress: '',
   frequency: 'monthly', invoiceType: 'tax-invoice',
-  items: [{ description: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
+  items: [{ name: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
   notes: '', nextDate: '', active: true,
 };
 
@@ -54,7 +54,12 @@ export default function RecurringInvoices() {
       clientAddress: tpl.clientAddress || '',
       frequency: tpl.frequency || 'monthly',
       invoiceType: tpl.invoiceType || 'tax-invoice',
-      items: tpl.items || [{ description: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
+      // Migrate v1.6.7-and-earlier templates that used `description` — the
+       // server-side auto-fire reads `name`, so a template with description
+       // fired blank rows. Normalize on load.
+      items: (tpl.items && tpl.items.length > 0)
+        ? tpl.items.map(i => ({ ...i, name: i.name || i.description || '' }))
+        : [{ name: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
       notes: tpl.notes || '',
       nextDate: tpl.nextDate || '',
       active: tpl.active !== false,
@@ -78,7 +83,7 @@ export default function RecurringInvoices() {
   const addItem = () => {
     setForm(prev => ({
       ...prev,
-      items: [...prev.items, { description: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
+      items: [...prev.items, { name: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
     }));
   };
 
@@ -99,12 +104,12 @@ export default function RecurringInvoices() {
 
   const handleSave = async () => {
     if (!form.clientName.trim()) { toast('Client name required', 'warning'); return; }
-    if (!form.items.some(i => i.description && i.rate)) { toast('Add at least one item with description and rate', 'warning'); return; }
+    if (!form.items.some(i => i.name && i.rate)) { toast('Add at least one item with description and rate', 'warning'); return; }
     try {
       await saveRecurring({
         ...(editingId ? { id: editingId } : {}),
         ...form,
-        items: form.items.filter(i => i.description),
+        items: form.items.filter(i => i.name),
       });
       toast(editingId ? 'Template updated' : 'Recurring invoice created', 'success');
       closeForm();
@@ -134,7 +139,7 @@ export default function RecurringInvoices() {
       const today = new Date().toISOString().split('T')[0];
 
       const items = (tpl.items || []).map(i => ({
-        description: i.description,
+        name: i.name,
         hsn: i.hsn || '',
         quantity: parseFloat(i.quantity) || 1,
         rate: parseFloat(i.rate) || 0,
@@ -274,7 +279,7 @@ export default function RecurringInvoices() {
               <div key={idx} className="line-item-row" style={{ alignItems: 'flex-end' }}>
                 <div className="line-item-field" style={{ flex: 2 }}>
                   <label className="form-label">Description</label>
-                  <input type="text" className="form-input" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} />
+                  <input type="text" className="form-input" value={item.name} onChange={e => updateItem(idx, 'name', e.target.value)} />
                 </div>
                 <div className="line-item-field" style={{ width: 80 }}>
                   <label className="form-label">Qty</label>

@@ -139,7 +139,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [activeProfile, setActiveProfile] = useState(profileProp);
   const profile = activeProfile || profileProp;
   const [invoiceType, setInvoiceType] = useState(draft?.invoiceType || 'tax-invoice');
-  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '' });
+  // email/phone/isSEZ must be part of initial state — otherwise the SEZ flag
+  // set inside ClientModal is silently discarded on save, and reopening the
+  // bill can never restore contact fields even if the saved client has them.
+  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false });
   const [details, setDetails] = useState(draft?.details || {
     invoiceNumber: '',
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -185,8 +188,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const draftInitialized = useRef(!!draft);
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
   const autoSaveTimer = useRef(null);
-  const stockDeducted = useRef(!!editingBill); // skip stock deduction for existing invoices
+  // Skip stock deduction when EDITING an existing bill — but NOT when
+   // duplicating one (P1 #21: `_isDuplicate` marks a new sale that must
+   // decrement stock). Same logic applies to convert-to-tax-invoice which
+   // sets _convertToType — that's also a new bill in a new type.
+  const stockDeducted = useRef(!!editingBill && !editingBill?._isDuplicate && !editingBill?._convertToType);
   const hasInitialized = useRef(false); // prevent auto-save during initial load
+  // Whether we've already atomically reserved a counter number for this form.
+  // Peek-on-mount + reserve-on-save (P0 #9) avoids burning counter values on
+  // cancelled/abandoned forms.
+  const numberReserved = useRef(!!editingBill);
 
   const typeConfig = INVOICE_TYPES[invoiceType];
   const showGST = invoiceOptions.showGST;
@@ -370,15 +381,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           if (config) setInvoiceOptions(prev => ({ ...prev, showGST: config.showGST, showPlaceOfSupply: config.showGST }));
         }
         const prefix = INVOICE_TYPES[type]?.prefix || 'INV';
-        getNextInvoiceNumber(prefix).then(num => {
+        // peek: don't burn a counter value — actual reservation happens on save.
+        getNextInvoiceNumber(prefix, { peek: true }).then(num => {
           setDetails({ ...d.details, invoiceNumber: num, invoiceDate: new Date().toISOString().split('T')[0] });
+          numberReserved.current = false;
         });
       } else {
         setDetails(d.details);
       }
     } else if (!details.invoiceNumber) {
-      getNextInvoiceNumber('INV').then(num => {
+      getNextInvoiceNumber('INV', { peek: true }).then(num => {
         setDetails(prev => ({ ...prev, invoiceNumber: num }));
+        numberReserved.current = false;
       });
     }
   }, [editingBill]);
@@ -430,7 +444,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setInvoiceType(type);
     const config = INVOICE_TYPES[type];
     const prefix = config?.prefix || 'INV';
-    const num = await getNextInvoiceNumber(prefix);
+    // Peek — actual reservation happens on save.
+    const num = await getNextInvoiceNumber(prefix, { peek: true });
+    numberReserved.current = false;
     setDetails(prev => ({ ...prev, invoiceNumber: num }));
 
     // Auto-set options based on type
@@ -502,7 +518,19 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const igst = isIndia ? (isInterstate ? taxTotal : 0) : taxTotal;
 
     const taxableForTDS = subtotal - totalDiscount; // TDS/TCS apply to taxable value, not GST-inclusive total
-    const baseTotal = taxInclusive && showGST ? subtotal - totalDiscount : subtotal - totalDiscount + taxTotal;
+
+    // P1 #17: under Section 9(3)/9(4) Reverse Charge, the SUPPLIER doesn't
+    // collect GST — the buyer pays it directly to the government under RCM.
+    // Pre-v1.6.8 the code printed the "RCM declaration" but still added tax
+    // to the invoice total → suppliers over-billed then had to issue
+    // credit notes. Now, when reverseCharge is on, exclude tax from the
+    // payable total. Line-level tax still shows on the PDF so the buyer
+    // knows what they owe under RCM — but the "amount payable to us" is
+    // taxable value only.
+    const isReverseCharge = !!invoiceOptions.reverseCharge && !!showGST;
+    const baseTotal = isReverseCharge
+      ? (subtotal - totalDiscount)
+      : (taxInclusive && showGST ? subtotal - totalDiscount : subtotal - totalDiscount + taxTotal);
 
     // TCS is collected from the buyer and ADDED to the invoice total.
     // TDS is deducted by the buyer from their payment to us — informational only,
@@ -519,38 +547,34 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const roundOff = invoiceOptions.showRoundOff ? calculateRoundOff(totalBeforeRound) : 0;
     const finalTotal = totalBeforeRound + roundOff;
 
-    if (taxInclusive && showGST) {
-      // Tax-inclusive: total is the subtotal minus discount (already includes tax)
-      const taxableAmount = (subtotal - totalDiscount) - taxTotal;
-      setTotals({
-        subtotal,
-        totalDiscount,
-        taxableAmount,
-        cgst, sgst, igst,
-        cess: cessRounded,
-        roundOff,
-        tcsAmount,
-        tdsAmount,
-        total: finalTotal,
-        netReceivable: finalTotal - tdsAmount, // what we actually receive after buyer deducts TDS
-        taxInclusive: true,
-      });
-    } else {
-      setTotals({
-        subtotal,
-        totalDiscount,
-        taxableAmount: subtotal - totalDiscount,
-        cgst, sgst, igst,
-        cess: cessRounded,
-        roundOff,
-        tcsAmount,
-        tdsAmount,
-        total: finalTotal,
-        netReceivable: finalTotal - tdsAmount,
-        taxInclusive: false,
-      });
+    // Under RCM, tax lines still show on the PDF (buyer needs to know the
+    // amount they owe to govt) but the "cgst/sgst/igst" fields set to 0 on
+    // the totals block means the payable Total excludes them. Preserve
+    // the tax breakdown in rcmTax* so GSTR-3B RCM outward reporting has it.
+    const zeroTaxOnTotals = isReverseCharge;
+    const t = {
+      subtotal,
+      totalDiscount,
+      taxableAmount: (taxInclusive && showGST) ? ((subtotal - totalDiscount) - taxTotal) : (subtotal - totalDiscount),
+      cgst: zeroTaxOnTotals ? 0 : cgst,
+      sgst: zeroTaxOnTotals ? 0 : sgst,
+      igst: zeroTaxOnTotals ? 0 : igst,
+      cess: cessRounded,
+      roundOff,
+      tcsAmount,
+      tdsAmount,
+      total: finalTotal,
+      netReceivable: finalTotal - tdsAmount,
+      taxInclusive: !!(taxInclusive && showGST),
+    };
+    if (isReverseCharge) {
+      t.rcmTaxCgst = cgst;
+      t.rcmTaxSgst = sgst;
+      t.rcmTaxIgst = igst;
+      t.rcmTaxTotal = cgst + sgst + igst;
     }
-  }, [items, client.state, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.showTCS, invoiceOptions.tcsRate]);
+    setTotals(t);
+  }, [items, client.state, client?.isSEZ, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.reverseCharge, details?.placeOfSupply]);
 
   // Warn when the seller's state is missing for Indian GST invoices — without it, the
   // interstate detection silently defaults to intrastate (CGST+SGST) which is a real money bug.
@@ -653,7 +677,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   };
 
   const selectSavedClient = (cli) => {
-    setClient({ name: cli.name, address: cli.address || '', city: cli.city || '', pin: cli.pin || '', state: cli.state || '', gstin: cli.gstin || '' });
+    // Spread the FULL client — earlier versions cherry-picked six fields
+    // and silently dropped country/email/phone/isSEZ. Consequence: loading
+    // an SEZ client via auto-complete cleared the SEZ flag, so the invoice
+    // computed CGST+SGST instead of IGST → wrong tax on the filed return.
+    setClient({
+      name: cli.name || '',
+      address: cli.address || '',
+      city: cli.city || '',
+      pin: cli.pin || '',
+      state: cli.state || '',
+      gstin: cli.gstin || '',
+      country: cli.country || '',
+      email: cli.email || '',
+      phone: cli.phone || '',
+      isSEZ: !!cli.isSEZ,
+    });
     setSelectedClientId(cli.id);
     setShowClientSuggestions(false);
     toast(`Loaded client: ${cli.name}`, 'info');
@@ -681,8 +720,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     await saveClient(data);
     const updated = await getAllClients();
     setSavedClients(updated);
-    // Also update the invoice form fields
-    setClient({ name: data.name, address: data.address, city: data.city || '', pin: data.pin || '', state: data.state, gstin: data.gstin });
+    // Sync the invoice form with the FULL saved record — dropping
+    // country/email/phone/isSEZ here was the SEZ tax bug.
+    setClient({
+      name: data.name || '',
+      address: data.address || '',
+      city: data.city || '',
+      pin: data.pin || '',
+      state: data.state || '',
+      gstin: data.gstin || '',
+      country: data.country || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      isSEZ: !!data.isSEZ,
+    });
     if (isEditingClient && modalClient?.id) {
       setSelectedClientId(modalClient.id);
       toast(`Client "${data.name}" updated!`, 'success');
@@ -712,10 +763,24 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   }, []);
 
   const saveInvoiceToDB = async (skipStockDeduction = false) => {
+    // Lazy counter reservation: if this is a NEW bill (no editingBill) and
+    // the invoice number is still the peeked value, do the atomic increment
+    // now. This means a mounted-but-cancelled form doesn't burn a counter
+    // number → gapless sequences for CA-audited businesses.
+    let finalInvoiceNumber = details.invoiceNumber;
+    if (!editingBill && !numberReserved.current) {
+      try {
+        const prefix = INVOICE_TYPES[invoiceType]?.prefix || 'INV';
+        finalInvoiceNumber = await getNextInvoiceNumber(prefix);
+        setDetails(prev => ({ ...prev, invoiceNumber: finalInvoiceNumber }));
+        numberReserved.current = true;
+      } catch { /* fall back to the peeked value; server will 409 if it collides */ }
+    }
+
     const bill = {
-      id: details.invoiceNumber,
+      id: finalInvoiceNumber,
       clientName: client.name,
-      invoiceNumber: details.invoiceNumber,
+      invoiceNumber: finalInvoiceNumber,
       invoiceDate: details.invoiceDate,
       invoiceType,
       currency: invoiceOptions.currency || 'INR',
@@ -724,9 +789,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       status: editingBill?.status || 'unpaid',
       paidAmount: editingBill?.paidAmount || 0,
       payments: editingBill?.payments || [],
-      data: { profile, client, details, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions, taxInclusive }
+      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions, taxInclusive }
     };
-    await saveBill(bill);
+    // Editing an existing bill (or the "convert to tax invoice" flow) must
+    // pass overwrite: true. A fresh bill goes without → server 409s if a
+    // typo hits an existing invoice number.
+    try {
+      await saveBill(bill, { overwrite: !!editingBill });
+    } catch (err) {
+      if (err?.status === 409) {
+        toast(`Invoice number ${bill.id} already exists. Change it before saving.`, 'error');
+        return;
+      }
+      throw err;
+    }
 
     // If the user ticked "Make this recurring", create/update the recurring
     // template alongside the invoice. We store enough on the template to

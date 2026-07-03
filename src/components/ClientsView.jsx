@@ -93,7 +93,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const changeStatus = async (bill, newStatus) => {
     const updated = { ...bill, status: newStatus };
     if (newStatus === 'paid') updated.paidAmount = bill.totalAmount;
-    await saveBill(updated);
+    await saveBill(updated, { overwrite: true });
     toast(`Marked as ${STATUS_COLORS[newStatus]?.label || newStatus}`, 'info');
     loadData();
   };

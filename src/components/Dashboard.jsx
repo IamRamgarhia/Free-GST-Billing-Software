@@ -62,7 +62,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
         return dueDate && dueDate < today && bill.status !== 'paid' && bill.status !== 'overdue';
       });
       if (dirty.length > 0) {
-        const updates = dirty.map(bill => { bill.status = 'overdue'; return saveBill(bill); });
+        const updates = dirty.map(bill => { bill.status = 'overdue'; return saveBill(bill, { overwrite: true }); });
         await Promise.allSettled(updates);
       }
 
@@ -153,8 +153,25 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
 
   const changeStatus = async (bill, newStatus) => {
     const updated = { ...bill, status: newStatus };
-    if (newStatus === 'paid') updated.paidAmount = bill.totalAmount;
-    await saveBill(updated);
+    if (newStatus === 'paid') {
+      updated.paidAmount = bill.totalAmount;
+      // When flipping to paid via the row menu, also push a synthetic payment
+      // so the payment-history modal and ReportsView cashflow both reflect
+      // it. Without this, "Mark as Paid" left `payments: []` and the two
+      // reports disagreed with the bill's status.
+      const already = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const outstanding = Math.max(0, Number(bill.totalAmount) - already);
+      if (outstanding > 0) {
+        updated.payments = [...(bill.payments || []), {
+          amount: outstanding,
+          date: new Date().toISOString().split('T')[0],
+          mode: 'other',
+          note: 'Marked paid',
+          recordedAt: new Date().toISOString(),
+        }];
+      }
+    }
+    await saveBill(updated, { overwrite: true });
     toast(`Marked as ${STATUS_CONFIG[newStatus].label}`, 'info');
     loadBills();
   };
@@ -188,7 +205,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     await saveBill({
       ...bill, payments, paidAmount: totalPaid,
       status: totalPaid >= billTotal ? 'paid' : 'partial',
-    });
+    }, { overwrite: true });
     toast(`Payment of ${formatCurrency(amount, bill.currency)} recorded`, 'success');
     setPaymentModal(null);
     loadBills();
@@ -224,11 +241,26 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     if (!confirm(`Mark ${sel.length} invoice${sel.length !== 1 ? 's' : ''} as ${newStatus}?`)) return;
     setBulkBusy(true);
     try {
-      const updates = sel.map(b => saveBill({
-        ...b,
-        status: newStatus,
-        ...(newStatus === 'paid' ? { paidAmount: b.totalAmount || 0 } : {}),
-      }));
+      // Bulk mark-paid must push synthetic payments per bill so payment
+       // history and cashflow stay consistent — see changeStatus above for
+       // the same fix on the single-row path (P1 #18).
+      const nowIso = new Date().toISOString();
+      const today = nowIso.slice(0, 10);
+      const updates = sel.map(b => {
+        const patch = { ...b, status: newStatus };
+        if (newStatus === 'paid') {
+          patch.paidAmount = b.totalAmount || 0;
+          const already = (b.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+          const outstanding = Math.max(0, Number(b.totalAmount) - already);
+          if (outstanding > 0) {
+            patch.payments = [...(b.payments || []), {
+              amount: outstanding, date: today, mode: 'other',
+              note: 'Marked paid (bulk)', recordedAt: nowIso,
+            }];
+          }
+        }
+        return saveBill(patch, { overwrite: true });
+      });
       const results = await Promise.allSettled(updates);
       const failed = results.filter(r => r.status === 'rejected').length;
       if (failed > 0) toast(`${sel.length - failed} updated, ${failed} failed`, 'warning');

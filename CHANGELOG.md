@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.8] — 2026-04-30
+
+Critical-fixes bundle. 17 bug fixes across GST filing correctness, data
+integrity, and money math. Full audit report at
+[`docs/AUDIT_2026-04-30.md`](docs/AUDIT_2026-04-30.md).
+
+### Fixed — GST filing correctness (would have caused real returns to fail)
+
+- **Reverse-charge invoices no longer include GST in the payable total**.
+  Under Section 9(3)/9(4) the supplier doesn't collect GST — buyer pays
+  directly to govt. Pre-v1.6.8 the PDF printed the RCM notice AND added
+  tax to the total → suppliers over-billed then issued credit notes.
+  Line-level tax still shows on the PDF (buyer needs to know their RCM
+  liability) but the "amount payable to us" is now taxable value only.
+  Tax breakdown preserved in `totals.rcmTax*` for GSTR-3B RCM outward.
+- **GSTR-1 JSON now emits reverse-charge flag correctly**. Was
+  hardcoded `rchrg: 'N'` even when the bill had `reverseCharge: true`.
+  Portal was rejecting / mis-classifying RCM supplies.
+- **GSTR-1 JSON now marks SEZ bills as SEWP / SEWOP** instead of `'R'`
+  (regular). GSTN validators were flagging these on upload.
+- **Cess amounts now flow into every GSTR-1 / 3B JSON export**
+  (B2B / B2CS / B2CL / CDNR / HSN summary). Pre-v1.6.8 `csamt: 0` was
+  hardcoded everywhere — users selling tobacco / aerated / auto / coal
+  understated cess liability.
+- **HSN summary B2CL branch now respects `taxInclusive`**. Missing 3rd
+  arg to `computeItemTaxSplit(item, isInter, taxInclusive)` was inflating
+  taxable + IGST values for tax-inclusive large-value B2C invoices.
+- **Server-side recurring auto-fire now routes tax by state**. Was
+  hardcoding `cgst: taxTotal/2, sgst: taxTotal/2, igst: 0` regardless
+  of seller vs client state / SEZ — every interstate recurring
+  template shipped as intrastate B2B → wrong GSTR-1 bucket.
+- **`InvoicePreview` interstate detection now honours `placeOfSupply`
+  and `isSEZ`**. Bills with POS override or SEZ client had totals
+  computed as IGST but item table rendered CGST+SGST → PDF mismatch.
+
+### Fixed — Data integrity (silent data loss)
+
+- **Client fields no longer silently lost on load / save**. Both
+  `selectSavedClient` and `handleClientModalSave` were cherry-picking
+  6 fields and dropping `country / email / phone / isSEZ`. Consequence:
+  loading an SEZ client via auto-complete cleared its SEZ flag → wrong
+  tax computed → wrong filing.
+- **Initial invoice client state includes `email / phone / isSEZ`**.
+  Even when ClientModal wrote these to the client directory, they never
+  landed in `bill.data.client` because they weren't in state.
+- **Server refuses silent invoice-number overwrites**. Typo hitting an
+  existing invoice-number used to overwrite the previous bill with no
+  warning. Now returns 409 unless the client explicitly passes
+  `?overwrite=1` (used by the edit / bulk-status / auto-fire flows).
+- **Invoice-number counters no longer burn on mount**. `getNextInvoiceNumber`
+  now supports `{ peek: true }` — the form shows the next number
+  optimistically, and atomic reservation happens only on save. Cancelled
+  forms don't leave gaps in the sequence any more (CA-audited businesses
+  need gapless).
+- **Receipt numbers use the atomic counter endpoint**. Two receipts
+  saved together no longer both get `RCP/…/0007`.
+- **Recording a receipt now updates the linked invoice's paid status +
+  payment history**. Users no longer have to double-record via the
+  Dashboard payment modal.
+- **Bulk / single "Mark as Paid" now pushes a synthetic payment**.
+  Pre-v1.6.8 the row was flipped to `paid` with an empty `payments`
+  array → payment-history modal and ReportsView cashflow showed no
+  payment. Both views now stay consistent with the bill's status.
+- **Recurring invoice templates use `item.name`, not `description`**.
+  Templates using the old field silently shipped bills with blank rows
+  because server auto-fire reads `item.name`. Migration in `openEdit`
+  + server-side fallback preserves existing templates.
+- **Duplicate-invoice flow correctly decrements stock**. `_isDuplicate`
+  and `_convertToType` markers now skip the "editing an existing bill"
+  short-circuit — duplicates are new sales.
+- **GSTR-2B reconciliation respects purchase round-off**. v1.6.7's
+  new purchase round-off exposed this — books used line-item precision
+  while 2B `val` was rounded, so every rounded supplier bill flagged as
+  amount_mismatch.
+- **Backup / restore captures all localStorage keys**. Fixed:
+  - Typo `'theme'` → `'freegstbill_theme'`
+  - Added `gst_filing_status` (users lost GSTR-1 / 3B "Filed" pill marks)
+  - Added `freegstbill_dismissedUpdate` + `freegstbill_pwa_dismissed_at`
+    (users got nag banners back after restore)
+  - Prefix-matched `gst_lastUsedAccountId_*` (per-profile payment
+    account preferences)
+
+### Fixed — Purchase Bill parity with Sales
+
+- **Decimal quantities** — was `min="1"`, blocked 2.5 kg / 0.5 hr.
+  Now `min="0" step="any"`.
+- **Custom tax rate** — dropdown was 0 / 5 / 12 / 18 / 28. Missing
+  0.1% (agriculture) / 0.25% (rough diamonds) / 3% (jewellery) / bespoke.
+  Now includes those + an "Other…" option that prompts for any rate.
+- **Cess field** — suppliers of tobacco / aerated / motor vehicles / coal
+  charge GST + Cess. Pre-v1.6.8 there was no slot for it → ITC on cess
+  was silently lost in GSTR-3B Table 4(A). New Cess % column per item;
+  totals strip shows cess line when non-zero.
+
+### Fixed — Dev environment
+
+- **Vite dev proxy points at port 47371** (Express default since v1.5.2),
+  was `3001`. `npm run dev` now works for contributors without manual
+  config edits.
+
+---
+
 ## [1.6.7] — 2026-04-30
 
 Two reported UX fixes — purchase-bill round-off was missing, and the

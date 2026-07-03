@@ -4,9 +4,22 @@ import DOMPurify from 'dompurify';
 import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById } from '../utils';
 
 const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
+  // Interstate detection must match InvoiceGenerator.jsx — it honours
+  // details.placeOfSupply (POS override) and client.isSEZ (SEZ supplies
+  // are always interstate regardless of physical state). Without this
+  // the totals block could show IGST while the item table showed
+  // CGST+SGST for the same bill (POS override or SEZ client).
+  //
+  // Cheapest correct signal: totals.igst > 0 means the computation upstream
+  // routed the tax as IGST — so trust that, and fall back to the state
+  // comparison only if totals aren't populated (e.g. legacy JSON with no
+  // igst field).
   const businessState = profile?.state?.trim().toLowerCase();
   const clientState = client?.state?.trim().toLowerCase();
-  const isInterstate = businessState && clientState && businessState !== clientState;
+  const isInterstate = (typeof totals?.igst === 'number' && totals.igst > 0)
+    || !!client?.isSEZ
+    || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
+    || (businessState && clientState && businessState !== clientState);
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
   // Seller's country drives tax label (GST / VAT / SST / MwSt etc.) and bank label.
   const sellerCC = getCountryConfig(profile?.country);

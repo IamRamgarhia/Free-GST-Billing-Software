@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Receipt, Plus, Trash2, Search, X, Download, Printer } from 'lucide-react';
-import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile } from '../store';
+import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
 import { formatCurrency, numberToWords } from '../utils';
 import { toast } from './Toast';
 
@@ -43,11 +43,19 @@ export default function ReceiptVoucher() {
     loadData();
   }, []);
 
-  const getNextReceiptNo = () => {
-    const count = receipts.length + 1;
-    const now = new Date();
-    const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    return `RCP/${fy}-${String(fy + 1).slice(-2)}/${String(count).padStart(4, '0')}`;
+  // Peek at the next receipt number using the SAME atomic counter that
+  // invoice numbers use. Pre-v1.6.8 this counted `receipts.length + 1`
+  // which raced under concurrent saves + two tabs.
+  const getNextReceiptNo = async () => {
+    try {
+      return await getNextInvoiceNumber('RCP', { peek: true });
+    } catch {
+      // Fallback preserves old behaviour if server is offline mid-mount
+      const count = receipts.length + 1;
+      const now = new Date();
+      const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      return `RCP/${fy}-${String(fy + 1).slice(-2)}/${String(count).padStart(4, '0')}`;
+    }
   };
 
   const filtered = search.trim()
@@ -56,8 +64,9 @@ export default function ReceiptVoucher() {
         (r.receiptNo || '').toLowerCase().includes(search.toLowerCase()))
     : receipts;
 
-  const openAdd = () => {
-    setForm({ ...emptyForm, receiptNo: getNextReceiptNo() });
+  const openAdd = async () => {
+    const receiptNo = await getNextReceiptNo();
+    setForm({ ...emptyForm, receiptNo });
     setShowForm(true);
   };
 
@@ -79,11 +88,56 @@ export default function ReceiptVoucher() {
     if (!form.clientName.trim()) { toast('Client name required', 'warning'); return; }
     if (!form.amount || parseFloat(form.amount) <= 0) { toast('Enter valid amount', 'warning'); return; }
     try {
+      // Reserve the receipt number atomically at save time (matches invoice
+      // pattern). If the peek is still valid, this returns the same number.
+      let receiptNo = form.receiptNo;
+      try {
+        receiptNo = await getNextInvoiceNumber('RCP');
+      } catch { /* fall back to peeked number */ }
+
       const receipt = {
         ...form,
+        receiptNo,
         amount: parseFloat(form.amount),
       };
       await saveReceipt(receipt);
+
+      // P1 #19: propagate the payment to the linked invoice so the Dashboard
+      // shows the invoice as paid/partial and doesn't require the user to
+      // double-record via the payment modal. If no invoice link, skip
+      // silently — receipts against ad-hoc payments (advances, deposits)
+      // aren't tied to any bill.
+      if (form.againstInvoice && form.againstInvoice.trim()) {
+        try {
+          const bill = bills.find(b => b.invoiceNumber === form.againstInvoice.trim() || b.id === form.againstInvoice.trim());
+          if (bill) {
+            const paidAmount = parseFloat(form.amount);
+            const priorPayments = bill.payments || [];
+            const already = priorPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            const newTotal = already + paidAmount;
+            const nextStatus = newTotal >= (Number(bill.totalAmount) || 0) ? 'paid' : 'partial';
+            const modeMap = { 'Bank Transfer': 'bank-transfer', 'UPI': 'upi', 'Cash': 'cash', 'Cheque': 'cheque', 'Card': 'card', 'Other': 'other' };
+            const updated = {
+              ...bill,
+              paidAmount: newTotal,
+              status: nextStatus,
+              payments: [
+                ...priorPayments,
+                {
+                  amount: paidAmount,
+                  date: form.date,
+                  mode: modeMap[form.paymentMode] || 'other',
+                  note: `Receipt ${receiptNo}${form.referenceNo ? ' · ref ' + form.referenceNo : ''}`,
+                  recordedAt: new Date().toISOString(),
+                  receiptNo,
+                },
+              ],
+            };
+            await saveBill(updated, { overwrite: true });
+          }
+        } catch { /* non-fatal: receipt is saved; user can manually update the bill */ }
+      }
+
       toast('Receipt saved', 'success');
       closeForm();
       loadData();

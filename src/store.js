@@ -8,7 +8,16 @@ async function apiFetch(url, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) {
+    // Preserve server-provided error message (used e.g. for 409 duplicate
+    // invoice number). Attach status so callers can branch on it.
+    let body = null;
+    try { body = await res.json(); } catch { /* non-JSON body */ }
+    const err = new Error(body?.error || `API error: ${res.status}`);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
   return res.json();
 }
 
@@ -99,10 +108,27 @@ export const setEnabledModules = (map) => {
 // ---- Invoice counter ----
 // Uses the atomic /meta/:key/increment endpoint so two concurrent saves can't both
 // read 5 and both write 6 (= duplicate invoice numbers, which is a GST audit failure).
-export const getNextInvoiceNumber = async (prefix = 'INV') => {
+//
+// Since v1.6.8: pass { peek: true } to preview the number WITHOUT reserving it.
+// Used by InvoiceGenerator to show the next number on form mount — the atomic
+// reservation happens only when the user actually saves. Cancelled forms no
+// longer burn counter values, so CA-audited businesses keep gapless sequences.
+export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false } = {}) => {
   const settings = await getInvoiceNumberSettings();
   const key = `counter_${prefix}`;
-  const { value: next } = await apiFetch(`${API}/meta/${key}/increment`, { method: 'POST', body: JSON.stringify({}) });
+  let next;
+  if (peek) {
+    // Read the current counter and add 1 — that's what the next atomic
+    // increment would return. Concurrent writes might make the peek stale
+    // by save time; the save path always uses the atomic increment, so
+    // any drift is invisibly corrected there.
+    const { value: current } = await apiFetch(`${API}/meta/${key}`);
+    const currentNum = Number(current) || (settings.startNumber || 1) - 1;
+    next = currentNum + 1;
+  } else {
+    const inc = await apiFetch(`${API}/meta/${key}/increment`, { method: 'POST', body: JSON.stringify({}) });
+    next = inc.value;
+  }
 
   if (settings.format === 'random') {
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -124,8 +150,13 @@ export const getNextInvoiceNumber = async (prefix = 'INV') => {
 };
 
 // ---- Bills ----
-export const saveBill = async (bill) => {
-  return apiFetch(`${API}/bills`, { method: 'POST', body: JSON.stringify(bill) });
+// Pass overwrite: true when the caller knows they're updating an existing
+// bill (edit flow, bulk-status change, auto-fire re-process). Default is
+// to refuse silent overwrites — server returns 409 with an actionable
+// message that the UI can show as "Invoice number already exists".
+export const saveBill = async (bill, { overwrite = false } = {}) => {
+  const qs = overwrite ? '?overwrite=1' : '';
+  return apiFetch(`${API}/bills${qs}`, { method: 'POST', body: JSON.stringify(bill) });
 };
 
 export const getAllBills = async () => {
@@ -268,13 +299,26 @@ export const deleteBusinessProfile = async (id) => {
 // ---- Export / Import ----
 // localStorage keys that are part of the "user's data" and should ride along in any
 // backup. Each key is documented with what it stores and whether losing it matters.
+// Exact keys we back up + restore. Wildcard patterns handled separately
+// below because localStorage doesn't have a native "keys matching pattern"
+// API — we iterate localStorage and match.
 const EXPORTABLE_LOCALSTORAGE_KEYS = [
-  'gst_customUnits',          // user-defined units (e.g. Carat, Bundle) for line items
-  'gst_regionMode',            // 'india' | 'international' | 'both'
-  'gst_enabledModules',        // map of disabled feature toggles
-  'freegstbill_invoiceOptions',// per-invoice display preference defaults
-  'theme',                     // light/dark
-  'freegstbill_onboarded',     // skip welcome wizard on next launch
+  'gst_customUnits',                 // user-defined units for line items
+  'gst_regionMode',                  // 'india' | 'international' | 'both'
+  'gst_enabledModules',              // map of disabled feature toggles
+  'gst_filing_status',               // GSTR-1/3B "Filed" pill states per period key
+  'freegstbill_invoiceOptions',      // per-invoice display preference defaults
+  'freegstbill_theme',               // light/dark (was written as 'theme' in the old whitelist — typo)
+  'freegstbill_onboarded',           // skip welcome wizard on next launch
+  'freegstbill_dismissedUpdate',     // version the user dismissed the update banner for
+  'freegstbill_pwa_dismissed_at',    // 14-day PWA-install-banner cooldown timestamp
+];
+
+// Keys matched by prefix. Currently used for per-profile last-used payment
+// account (gst_lastUsedAccountId_<profileId>) so multi-account preferences
+// survive backup/restore.
+const EXPORTABLE_LOCALSTORAGE_PREFIXES = [
+  'gst_lastUsedAccountId_',
 ];
 
 const collectLocalStorage = () => {
@@ -282,13 +326,26 @@ const collectLocalStorage = () => {
   EXPORTABLE_LOCALSTORAGE_KEYS.forEach(k => {
     try { const v = localStorage.getItem(k); if (v !== null) out[k] = v; } catch { /* sandboxed */ }
   });
+  // Prefix-matched keys — iterate all localStorage keys and include any hit.
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (EXPORTABLE_LOCALSTORAGE_PREFIXES.some(p => k.startsWith(p))) {
+        out[k] = localStorage.getItem(k);
+      }
+    }
+  } catch { /* sandboxed */ }
   return out;
 };
+
+const isRestorable = (k) => EXPORTABLE_LOCALSTORAGE_KEYS.includes(k)
+  || EXPORTABLE_LOCALSTORAGE_PREFIXES.some(p => k.startsWith(p));
 
 const restoreLocalStorage = (map) => {
   if (!map || typeof map !== 'object') return;
   Object.entries(map).forEach(([k, v]) => {
-    if (!EXPORTABLE_LOCALSTORAGE_KEYS.includes(k)) return; // ignore foreign keys
+    if (!isRestorable(k)) return; // ignore foreign keys — never let a backup smuggle unrelated writes in
     try { localStorage.setItem(k, v); } catch { /* ignore */ }
   });
 };

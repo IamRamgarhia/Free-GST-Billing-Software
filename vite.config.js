@@ -148,8 +148,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // Express default port is 47371 (v1.5.2+); was 3001 in earlier versions.
+      // Reading data/port.txt would be more robust but requires a file read
+      // at Vite config time — this default catches 99% of dev sessions.
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:47371',
         changeOrigin: true,
       }
     }

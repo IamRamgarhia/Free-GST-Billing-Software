@@ -103,6 +103,19 @@ app.post('/api/bills', (req, res) => {
   const bill = req.body;
   if (!bill || !bill.id) return res.status(400).json({ error: 'Bill must have an id' });
   const filePath = path.join(DATA_DIR, 'bills', safeFileName(bill.id) + '.json');
+
+  // Dupe-check: the invoice-number field is free-text on the client, so a
+  // typo (INV/2026/0007 typed again for a fresh bill) would silently
+  // overwrite the previous saved bill. That's data loss. Require the
+  // client to pass ?overwrite=1 to allow it — used for edits + auto-fire
+  // re-processing. Otherwise refuse with 409 so the UI can prompt the user.
+  const overwrite = req.query.overwrite === '1' || req.query.overwrite === 'true';
+  if (!overwrite && fs.existsSync(filePath)) {
+    return res.status(409).json({
+      error: 'A bill with this invoice number already exists',
+      invoiceNumber: bill.id,
+    });
+  }
   writeJSON(filePath, bill);
   res.json({ success: true });
 });
@@ -855,7 +868,10 @@ function processDueRecurring() {
       const invoiceNumber = nextInvoiceNumber(prefix);
       const invoiceDate = today;
 
-      // Recompute totals quickly — match the frontend's calc shape closely.
+      // Recompute totals — must match the frontend's calc shape closely, and
+      // MUST route the tax split correctly. Pre-v1.6.8 this hardcoded
+      // cgst/sgst = taxTotal/2 for every bill, so every interstate recurring
+      // template shipped as intrastate B2B → wrong tax bucket → wrong GSTR-1.
       let subtotal = 0, totalDiscount = 0, taxTotal = 0;
       for (const item of (tpl.items || [])) {
         const amount = (item.quantity || 0) * (item.rate || 0);
@@ -866,8 +882,25 @@ function processDueRecurring() {
         taxTotal += (afterDiscount * (item.taxPercent || 0)) / 100;
       }
       const totalAmount = subtotal - totalDiscount + taxTotal;
-      const totals = { subtotal, totalDiscount, taxableAmount: subtotal - totalDiscount,
-        cgst: taxTotal / 2, sgst: taxTotal / 2, igst: 0, total: totalAmount, cess: 0, tcsAmount: 0, tdsAmount: 0, roundOff: 0,
+
+      // Interstate detection mirrors InvoiceGenerator.jsx / InvoicePreview.jsx:
+      //   - SEZ client → always interstate
+      //   - Explicit placeOfSupply override → compare that to seller state
+      //   - Otherwise → seller state vs client state
+      const norm = (s) => (s || '').trim().toLowerCase();
+      const sellerState = norm(profile.state);
+      const clientState = norm(tpl.clientState);
+      const pos = norm(tpl.placeOfSupply);
+      const isInterstate = !!tpl.isSEZ
+        || (pos && sellerState && pos !== sellerState)
+        || (sellerState && clientState && sellerState !== clientState);
+
+      const totals = {
+        subtotal, totalDiscount, taxableAmount: subtotal - totalDiscount,
+        cgst: isInterstate ? 0 : taxTotal / 2,
+        sgst: isInterstate ? 0 : taxTotal / 2,
+        igst: isInterstate ? taxTotal : 0,
+        total: totalAmount, cess: 0, tcsAmount: 0, tdsAmount: 0, roundOff: 0,
       };
 
       const bill = {
@@ -894,7 +927,12 @@ function processDueRecurring() {
             isSEZ: tpl.isSEZ,
           },
           details: { invoiceNumber, invoiceDate, dueDate: '', placeOfSupply: '' },
-          items: tpl.items || [],
+          // Normalize item.name from legacy description field (v1.6.7-and-earlier
+          // templates used `description` — auto-fired bills rendered blank rows).
+          items: (tpl.items || []).map(i => ({
+            ...i,
+            name: i.name || i.description || '',
+          })),
           totals,
           invoiceType: tpl.invoiceType || 'tax-invoice',
           customTerms: tpl.customTerms || '',
