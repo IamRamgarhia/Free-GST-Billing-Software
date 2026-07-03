@@ -1,12 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Calculator, Landmark, FileText, TrendingUp, Upload, Save, Info, Check, X, ChevronRight } from 'lucide-react';
+import { Calculator, Landmark, FileText, TrendingUp, Upload, Save, Info, Check, X, ChevronRight, Briefcase, Clock, Download } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
 import { formatCurrency } from '../utils';
 import {
   compareRegimes,
+  computeTax,
   parseBankStatement,
   AUTO_CATEGORY_RULES,
   DEDUCTION_CAPS,
+  compute44AD,
+  compute44ADA,
+  compute44AE,
+  computeAdvanceTaxSchedule,
+  compute234BInterest,
+  compute234CInterest,
+  ADVANCE_TAX_SCHEDULE,
+  buildITR4FieldMap,
 } from '../utils/itr.js';
 import { toast } from './Toast';
 
@@ -16,8 +25,10 @@ import { toast } from './Toast';
 // Import tab, for instance, without going through a global store.
 const TABS = [
   { key: 'calculator', label: 'Regime Calculator', icon: Calculator, help: 'Compare Old vs New (Section 115BAC) — auto-picks the cheaper regime' },
+  { key: 'presumptive', label: 'Presumptive (§44AD/ADA)', icon: Briefcase, help: 'Skip full books — declare 6/8% (business) or 50% (professional) of turnover' },
+  { key: 'advance',    label: 'Advance Tax',       icon: Clock,    help: 'Four installment schedule with §234B/C interest calculation' },
   { key: 'bank',       label: 'Bank Statement Import', icon: Upload, help: 'Upload SBI / HDFC / ICICI / Axis / Kotak / PNB / Yes Bank CSV — auto-categorises' },
-  { key: 'summary',    label: 'ITR Summary',    icon: FileText, help: 'Consolidated view of income, expenses, deductions, and tax' },
+  { key: 'summary',    label: 'ITR Summary',    icon: FileText, help: 'Consolidated view + ITR-4 Filing Summary PDF' },
 ];
 
 // FY 2024-25 (AY 2025-26) is the assessment year the app targets. The tax
@@ -44,6 +55,30 @@ export default function IncomeTax() {
   });
 
   const [bankImport, setBankImport] = useState({ bankName: '', transactions: [] });
+
+  // Presumptive taxation state — separate from Regime Calculator inputs
+  // because the flow is different: user comes in either wanting to check
+  // eligibility, OR to commit to presumptive filing for the year.
+  // Persisted separately to localStorage.
+  const [presumptiveInputs, setPresumptiveInputs] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('gst_itrPresumptive') || '{}');
+      return {
+        section: '44AD',
+        digitalReceipts: 0, cashReceipts: 0, declaredIncome: 0,
+        heavyVehicleMonths: 0, heavyVehicleTonnage: 12, lightVehicleMonths: 0,
+        ...saved,
+      };
+    } catch { return { section: '44AD', digitalReceipts: 0, cashReceipts: 0, declaredIncome: 0, heavyVehicleMonths: 0, heavyVehicleTonnage: 12, lightVehicleMonths: 0 }; }
+  });
+
+  // Advance Tax state — TDS credit + payments made so far
+  const [advanceInputs, setAdvanceInputs] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('gst_itrAdvanceTax') || '{}');
+      return { tdsCredit: 0, payments: [], mode: 'regular', ...saved };
+    } catch { return { tdsCredit: 0, payments: [], mode: 'regular' }; }
+  });
 
   useEffect(() => {
     Promise.all([
@@ -87,6 +122,31 @@ export default function IncomeTax() {
     } catch { /* localStorage full — surface via existing quota toast */ }
   }, [inputs]);
 
+  useEffect(() => {
+    try { localStorage.setItem('gst_itrPresumptive', JSON.stringify(presumptiveInputs)); } catch { /* ignore */ }
+  }, [presumptiveInputs]);
+  useEffect(() => {
+    try { localStorage.setItem('gst_itrAdvanceTax', JSON.stringify(advanceInputs)); } catch { /* ignore */ }
+  }, [advanceInputs]);
+
+  // Presumptive result — recomputes when the section or inputs change
+  const presumptive = useMemo(() => {
+    if (presumptiveInputs.section === '44AD') return compute44AD(presumptiveInputs);
+    if (presumptiveInputs.section === '44ADA') return compute44ADA(presumptiveInputs);
+    if (presumptiveInputs.section === '44AE') return compute44AE(presumptiveInputs);
+    return null;
+  }, [presumptiveInputs]);
+
+  // Advance-tax schedule — depends on the total tax under the RECOMMENDED regime
+  const advanceSchedule = useMemo(() => {
+    return computeAdvanceTaxSchedule(
+      comparison[comparison.recommended].totalTax,
+      advanceInputs.tdsCredit,
+      advanceInputs.payments,
+      advanceInputs.mode
+    );
+  }, [comparison, advanceInputs]);
+
   // Regime comparison recomputes live from inputs. `compareRegimes` runs both
   // scenarios and picks the cheaper. Rendered whether or not the user has
   // filled anything — a zero-input result is still useful.
@@ -125,6 +185,30 @@ export default function IncomeTax() {
         />
       )}
 
+      {tab === 'presumptive' && (
+        <PresumptiveTab
+          presumptiveInputs={presumptiveInputs}
+          setPresumptiveInputs={setPresumptiveInputs}
+          presumptive={presumptive}
+          onPushToCalculator={() => {
+            if (!presumptive) return;
+            setInputs(prev => ({ ...prev, businessIncome: presumptive.presumptiveIncome }));
+            setTab('calculator');
+            toast(`Presumptive income of ${formatCurrency(presumptive.presumptiveIncome)} pushed to calculator`, 'success');
+          }}
+        />
+      )}
+
+      {tab === 'advance' && (
+        <AdvanceTaxTab
+          advanceInputs={advanceInputs}
+          setAdvanceInputs={setAdvanceInputs}
+          schedule={advanceSchedule}
+          totalTax={comparison[comparison.recommended].totalTax}
+          recommended={comparison.recommended}
+        />
+      )}
+
       {tab === 'bank' && (
         <BankImportTab
           bankImport={bankImport}
@@ -160,10 +244,237 @@ export default function IncomeTax() {
           profile={profile}
           comparison={comparison}
           inputs={inputs}
+          presumptive={presumptive}
+          advanceSchedule={advanceSchedule}
           fy={CURRENT_FY}
+          ay={CURRENT_AY}
         />
       )}
     </div>
+  );
+}
+
+// ============================================================================
+// Presumptive Income sub-tab (§44AD / §44ADA / §44AE)
+// ============================================================================
+function PresumptiveTab({ presumptiveInputs, setPresumptiveInputs, presumptive, onPushToCalculator }) {
+  const set = (patch) => setPresumptiveInputs(prev => ({ ...prev, ...patch }));
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div className="glass-panel p-4">
+        <h3 className="section-title" style={{ marginTop: 0 }}>Section</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+          {[
+            { key: '44AD',  label: '§44AD',  hint: 'Trading / Retail / Manufacturing' },
+            { key: '44ADA', label: '§44ADA', hint: 'Professionals (CA, doctor, lawyer, consultant)' },
+            { key: '44AE',  label: '§44AE',  hint: 'Transporters (goods carriage owners)' },
+          ].map(opt => (
+            <button key={opt.key}
+              className={`btn ${presumptiveInputs.section === opt.key ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.8rem', padding: '0.5rem', flexDirection: 'column', alignItems: 'stretch' }}
+              onClick={() => set({ section: opt.key })}>
+              <strong>{opt.label}</strong>
+              <span style={{ fontSize: '0.68rem', opacity: 0.75, marginTop: 4 }}>{opt.hint}</span>
+            </button>
+          ))}
+        </div>
+
+        {presumptiveInputs.section === '44AD' && (
+          <>
+            <NumberInput label="Turnover received DIGITALLY (UPI/NEFT/RTGS/cheque)" hint="Taxed at 6%. From FY 2023-24, ≤ ₹3Cr allowed if cash ≤ 5% of turnover." value={presumptiveInputs.digitalReceipts} onChange={v => set({ digitalReceipts: v })} />
+            <NumberInput label="Turnover received in CASH" hint="Taxed at 8%. Keep cash ≤ 5% of turnover to qualify for the ₹3Cr limit." value={presumptiveInputs.cashReceipts} onChange={v => set({ cashReceipts: v })} />
+            <NumberInput label="Actual profit (optional override)" hint="If your books show higher profit than 6/8%, declare that instead. You cannot declare less." value={presumptiveInputs.declaredIncome} onChange={v => set({ declaredIncome: v })} />
+          </>
+        )}
+
+        {presumptiveInputs.section === '44ADA' && (
+          <>
+            <NumberInput label="Gross receipts (digital)" hint="Taxed flat at 50% of gross receipts. ≤ ₹75L (was ₹50L) if cash ≤ 5%." value={presumptiveInputs.digitalReceipts} onChange={v => set({ digitalReceipts: v })} />
+            <NumberInput label="Gross receipts (cash)" value={presumptiveInputs.cashReceipts} onChange={v => set({ cashReceipts: v })} />
+            <NumberInput label="Actual profit (optional override)" hint="If actual profit > 50%, declare that instead. Cannot go below 50%." value={presumptiveInputs.declaredIncome} onChange={v => set({ declaredIncome: v })} />
+          </>
+        )}
+
+        {presumptiveInputs.section === '44AE' && (
+          <>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>Applicable when you own ≤ 10 goods vehicles at any time in the year.</p>
+            <NumberInput label="Heavy vehicles (> 12,000 kg): sum of vehicle-months" hint="Example: 2 vehicles × 12 months = 24. Rate ₹1,000 / tonne / month." value={presumptiveInputs.heavyVehicleMonths} onChange={v => set({ heavyVehicleMonths: v })} />
+            <NumberInput label="Heavy vehicle gross tonnage (avg)" value={presumptiveInputs.heavyVehicleTonnage} onChange={v => set({ heavyVehicleTonnage: v })} />
+            <NumberInput label="Light vehicles: sum of vehicle-months" hint="Rate ₹7,500 / month." value={presumptiveInputs.lightVehicleMonths} onChange={v => set({ lightVehicleMonths: v })} />
+          </>
+        )}
+      </div>
+
+      <div>
+        {presumptive && (
+          <div className="glass-panel p-4" style={{ marginBottom: '1rem' }}>
+            <h3 className="section-title" style={{ marginTop: 0 }}>Presumptive computation</h3>
+            {presumptiveInputs.section !== '44AE' && (
+              <>
+                <Row label="Turnover / gross receipts" value={presumptive.turnover} />
+                <Row label={`Deemed income @ ${presumptiveInputs.section === '44ADA' ? '50%' : '6% / 8%'}`} value={presumptive.deemedIncome} muted />
+              </>
+            )}
+            {presumptiveInputs.section === '44AE' && (
+              <>
+                <Row label="Heavy vehicles (₹1,000 × tonnes × months)" value={presumptive.heavyIncome} muted />
+                <Row label="Light vehicles (₹7,500 × months)" value={presumptive.lightIncome} muted />
+              </>
+            )}
+            <Row label="Declared income" value={presumptive.presumptiveIncome} bold big />
+
+            {presumptive.notes.length > 0 && (
+              <div style={{ marginTop: '0.75rem', padding: '0.5rem', background: 'var(--warn-bg, #fffbeb)', borderRadius: 6, fontSize: '0.78rem' }}>
+                {presumptive.notes.map((n, i) => (<p key={i} style={{ margin: i > 0 ? '0.5rem 0 0' : 0 }}>{n}</p>))}
+              </div>
+            )}
+
+            {presumptive.isEligible !== false && (
+              <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={onPushToCalculator}>
+                <ChevronRight size={15} /> Use {formatCurrency(presumptive.presumptiveIncome)} as Business Income
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="glass-panel p-4" style={{ fontSize: '0.82rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <Info size={16} style={{ flexShrink: 0, marginTop: 2, color: 'var(--primary)' }} />
+            <div>
+              <strong>Why presumptive taxation?</strong>
+              <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
+                <li>Skip full books of account + audit (§44AB)</li>
+                <li>Skip advance-tax installments — pay 100% by 15 March</li>
+                <li>Simpler ITR-4 (Sugam) form instead of ITR-3</li>
+                <li>Once opted in, must continue for 5 assessment years — opting out early disqualifies you from §44AD for the next 5 years</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Advance Tax sub-tab
+// ============================================================================
+function AdvanceTaxTab({ advanceInputs, setAdvanceInputs, schedule, totalTax, recommended }) {
+  const set = (patch) => setAdvanceInputs(prev => ({ ...prev, ...patch }));
+
+  const addPayment = () => {
+    const today = new Date().toISOString().split('T')[0];
+    set({ payments: [...(advanceInputs.payments || []), { date: today, amount: 0 }] });
+  };
+  const updatePayment = (idx, patch) => {
+    set({ payments: advanceInputs.payments.map((p, i) => i === idx ? { ...p, ...patch } : p) });
+  };
+  const removePayment = (idx) => {
+    set({ payments: advanceInputs.payments.filter((_, i) => i !== idx) });
+  };
+
+  const interest234C = compute234CInterest(schedule);
+  const interest234B = compute234BInterest(schedule);
+
+  return (
+    <>
+      <div className="glass-panel p-4" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <h3 className="section-title" style={{ margin: 0 }}>Advance Tax Schedule</h3>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <input type="checkbox" checked={advanceInputs.mode === 'presumptive'}
+                onChange={e => set({ mode: e.target.checked ? 'presumptive' : 'regular' })} />
+              Presumptive (pay 100% by 15 March)
+            </label>
+          </div>
+        </div>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>
+          Based on your recommended <strong style={{ textTransform: 'uppercase' }}>{recommended}</strong> Regime total tax of <strong>{formatCurrency(totalTax)}</strong>.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <NumberInput label="TDS already deducted" hint="From salary, contract payments, interest — as per Form 26AS" value={advanceInputs.tdsCredit} onChange={v => set({ tdsCredit: v })} />
+          <div>
+            <Row label="Total tax liability" value={totalTax} />
+            <Row label="Less: TDS credit" value={-(Number(advanceInputs.tdsCredit) || 0)} muted={!advanceInputs.tdsCredit} />
+            <Row label="Net advance-tax liability" value={schedule.netLiability} bold />
+          </div>
+        </div>
+
+        {!schedule.applies && (
+          <div style={{ padding: '0.75rem', background: 'var(--success-bg, #ecfdf5)', borderRadius: 6, fontSize: '0.85rem' }}>
+            <Check size={14} style={{ display: 'inline', marginRight: 4 }} />
+            {schedule.note}
+          </div>
+        )}
+      </div>
+
+      {schedule.applies && (
+        <>
+          <div className="glass-panel p-0" style={{ marginBottom: '1rem', overflow: 'hidden' }}>
+            <table className="data-table" style={{ marginBottom: 0 }}>
+              <thead>
+                <tr>
+                  <th>Installment</th>
+                  <th>Due Date</th>
+                  <th style={{ textAlign: 'right' }}>% cumulative</th>
+                  <th style={{ textAlign: 'right' }}>This installment</th>
+                  <th style={{ textAlign: 'right' }}>Paid by due date</th>
+                  <th style={{ textAlign: 'right' }}>Shortfall</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedule.schedule.map(row => (
+                  <tr key={row.installment}>
+                    <td>#{row.installment}</td>
+                    <td>{row.label}</td>
+                    <td style={{ textAlign: 'right' }}>{(row.cumulativePct * 100).toFixed(0)}%</td>
+                    <td style={{ textAlign: 'right' }}>{formatCurrency(row.installmentDue)}</td>
+                    <td style={{ textAlign: 'right' }}>{formatCurrency(row.totalPaidByDue)}</td>
+                    <td style={{ textAlign: 'right', color: row.shortfall > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>
+                      {formatCurrency(row.shortfall)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="glass-panel p-4">
+              <h4 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Payments made</h4>
+              {(advanceInputs.payments || []).length === 0 && <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No advance-tax payments recorded yet.</p>}
+              {(advanceInputs.payments || []).map((p, i) => (
+                <div key={i} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                  <input type="date" className="form-input" style={{ fontSize: '0.82rem', padding: '0.35rem' }}
+                    value={p.date} onChange={e => updatePayment(i, { date: e.target.value })} />
+                  <input type="number" className="form-input" style={{ fontSize: '0.82rem', padding: '0.35rem' }}
+                    value={p.amount || ''} placeholder="Amount"
+                    onChange={e => updatePayment(i, { amount: parseFloat(e.target.value) || 0 })} />
+                  <button className="icon-btn icon-btn-red" onClick={() => removePayment(i)} title="Remove"><X size={14} /></button>
+                </div>
+              ))}
+              <button className="btn btn-secondary" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }} onClick={addPayment}>
+                + Add payment
+              </button>
+            </div>
+
+            <div className="glass-panel p-4">
+              <h4 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Interest under §234B / §234C</h4>
+              <Row label="§234C — installment shortfall" value={interest234C} muted={!interest234C} />
+              <Row label="§234B — post year-end delay (1% per month)" value={interest234B} muted={!interest234B} />
+              <Row label="Total interest" value={interest234B + interest234C} bold />
+              <div style={{ marginTop: '0.75rem', padding: '0.5rem', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <strong>§234C</strong>: 1% per month for shortfalls in Q1-Q3 (3 months each) and Q4 (1 month). Waived if you paid ≥ 12% by 15 Jun / 36% by 15 Sep.<br /><br />
+                <strong>§234B</strong>: 1% per month from 1 April of AY if you paid less than 90% of tax by 31 March.
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -454,7 +765,93 @@ function BankImportTab({ bankImport, setBankImport, onCommit }) {
 // ============================================================================
 // ITR Summary sub-tab — consolidated snapshot
 // ============================================================================
-function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, fy }) {
+function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, presumptive, advanceSchedule, fy, ay }) {
+  const generateITR4PDF = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const tax = comparison[comparison.recommended];
+      // Build the ITR-4 field map from all inputs
+      const rows = buildITR4FieldMap(inputs, tax, presumptive?.presumptiveIncome ? presumptive : null, inputs.deductions);
+
+      let y = 15;
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+      doc.text('ITR-4 (Sugam) Filing Summary', 105, y, { align: 'center' });
+      y += 6;
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+      doc.text(`FY ${fy} · AY ${ay} · Regime: ${comparison.recommended.toUpperCase()} · Generated ${new Date().toLocaleDateString('en-IN')}`, 105, y, { align: 'center' });
+      y += 6;
+
+      // Assessee block
+      if (profile?.businessName) {
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+        doc.rect(15, y, 180, 22, 'S');
+        doc.text('Assessee', 20, y + 5);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        doc.text(`Name: ${profile.businessName}`, 20, y + 11);
+        if (profile.gstin) doc.text(`GSTIN: ${profile.gstin}`, 20, y + 16);
+        if (profile.pan) doc.text(`PAN: ${profile.pan}`, 120, y + 11);
+        y += 26;
+      }
+
+      // Fields grouped by section
+      let currentSection = '';
+      for (const r of rows) {
+        if (y > 265) { doc.addPage(); y = 20; }
+        if (r.section !== currentSection) {
+          currentSection = r.section;
+          y += 4;
+          doc.setFillColor(30, 64, 175); doc.setTextColor(255);
+          doc.rect(15, y, 180, 6, 'F');
+          doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+          doc.text(r.section, 17, y + 4);
+          doc.setTextColor(0);
+          y += 8;
+        }
+        doc.setFontSize(r.big ? 10 : 8.5);
+        doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
+        doc.text(r.field, 17, y);
+        const val = typeof r.value === 'number' ? formatCurrency(r.value) : String(r.value || '');
+        doc.text(val, 190, y, { align: 'right' });
+        if (r.note) {
+          y += 4;
+          doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(120);
+          doc.text(r.note, 20, y);
+          doc.setTextColor(0);
+        }
+        y += 5;
+      }
+
+      // Advance tax summary
+      if (advanceSchedule?.applies) {
+        if (y > 245) { doc.addPage(); y = 20; }
+        y += 4;
+        doc.setFillColor(30, 64, 175); doc.setTextColor(255);
+        doc.rect(15, y, 180, 6, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+        doc.text('E — Advance Tax', 17, y + 4);
+        doc.setTextColor(0); y += 8;
+
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+        advanceSchedule.schedule.forEach(row => {
+          doc.text(`Installment #${row.installment} (${row.label})`, 17, y);
+          doc.text(formatCurrency(row.installmentDue), 130, y, { align: 'right' });
+          doc.text(`Paid: ${formatCurrency(row.totalPaidByDue)}`, 190, y, { align: 'right' });
+          y += 5;
+        });
+      }
+
+      // Footer
+      doc.setFontSize(7); doc.setFont('helvetica', 'italic');
+      doc.text('Generated by Free GST Billing Software. Verify against your books + Form 26AS before filing on incometax.gov.in.', 105, 285, { align: 'center' });
+
+      doc.save(`ITR-4-Summary-${profile?.businessName?.replace(/[^\w]+/g, '-') || 'assessee'}-${ay}.pdf`);
+      toast('ITR-4 Summary PDF downloaded', 'success');
+    } catch (e) {
+      toast('Could not generate PDF', 'error');
+      console.error('ITR-4 PDF', e);
+    }
+  };
   const inFY = (dateStr) => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
@@ -542,14 +939,29 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, f
         </div>
       </div>
 
+      <div className="glass-panel p-4" style={{ marginTop: '1rem', background: 'linear-gradient(135deg, rgba(30,64,175,0.05) 0%, rgba(5,150,105,0.05) 100%)', border: '1px solid var(--primary)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h3 className="section-title" style={{ margin: 0, color: 'var(--primary)' }}>ITR-4 (Sugam) Filing Summary PDF</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+              One PDF with every ITR-4 field pre-computed. Copy each value into the corresponding box on incometax.gov.in — or hand the PDF to your CA.
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={generateITR4PDF}>
+            <Download size={16} /> Download ITR-4 Summary
+          </button>
+        </div>
+      </div>
+
       <div className="glass-panel p-4" style={{ marginTop: '1rem' }}>
-        <h3 className="section-title">Coming soon in v1.8.0</h3>
+        <h3 className="section-title">Coming next in v1.9.0</h3>
         <ul style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, paddingLeft: '1.2rem', lineHeight: 1.7 }}>
-          <li><strong>Full deductions manager</strong> — 80C / 80D / 80TTA / 80CCD with document upload</li>
-          <li><strong>Presumptive taxation module</strong> — Section 44AD / 44ADA / 44AE</li>
-          <li><strong>Advance tax calculator</strong> with due-date reminders</li>
-          <li><strong>ITR-4 (Sugam) Filing Summary PDF</strong> — every field pre-filled with the amount + source</li>
-          <li><strong>Form 26AS reconciliation</strong> — upload TDS certificate, cross-check</li>
+          <li><strong>Form 16 upload + parse</strong> — auto-extract salary + TDS + exemptions</li>
+          <li><strong>Capital Gains module</strong> — Zerodha / Groww / ICICI Direct CSV import</li>
+          <li><strong>House Property module</strong> — multi-property, home-loan interest §24(b)</li>
+          <li><strong>ITR-1 / ITR-2 / ITR-3 support</strong> — for salaried + rental + capital-gains assessees</li>
+          <li><strong>ITR JSON export</strong> — upload directly to the IT portal</li>
+          <li><strong>Form 26AS reconciliation</strong> — upload TDS certificate</li>
         </ul>
       </div>
     </>

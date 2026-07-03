@@ -543,3 +543,323 @@ function parseAmt(v) {
 }
 
 function round2(n) { return Math.round(n * 100) / 100; }
+
+// ============================================================================
+// Presumptive taxation — Sections 44AD, 44ADA, 44AE
+// ----------------------------------------------------------------------------
+// Small businesses can skip maintaining full books by declaring a fixed
+// percentage of turnover / gross receipts as income. Available to individuals,
+// HUFs, partnership firms (not LLPs); ITR-4 (Sugam) is the return form.
+// Once opted in, must continue for 5 assessment years — opting out early
+// disqualifies §44AD for the next 5 years.
+// ============================================================================
+
+/**
+ * Section 44AD — presumptive business income for eligible businesses
+ * (traders, retailers, manufacturers) with turnover up to ₹2 crore
+ * (₹3 crore if aggregate cash receipts ≤ 5% of turnover, from FY 2023-24).
+ *
+ * Deemed income:
+ *   - 6% of turnover received via banking channels / digital modes
+ *   - 8% of turnover received in cash
+ * User can voluntarily declare MORE than the deemed % if their actual
+ * profit is higher (tax authorities never object to over-declaration).
+ *
+ * @param {object} input
+ * @param {number} input.digitalReceipts — turnover via NEFT/UPI/RTGS/cheque
+ * @param {number} input.cashReceipts    — turnover received in cash
+ * @param {number} [input.declaredIncome] — optional user override (must ≥ deemed)
+ * @returns { turnover, presumptiveIncome, isEligible, notes[] }
+ */
+export function compute44AD({ digitalReceipts = 0, cashReceipts = 0, declaredIncome }) {
+  const digital = Math.max(0, Number(digitalReceipts) || 0);
+  const cash = Math.max(0, Number(cashReceipts) || 0);
+  const turnover = digital + cash;
+  const notes = [];
+
+  // Threshold: ₹2Cr default, ₹3Cr if cash receipts ≤ 5% of turnover
+  const cashPct = turnover > 0 ? cash / turnover : 0;
+  const threshold = cashPct <= 0.05 ? 30_000_000 : 20_000_000;
+  const isEligible = turnover <= threshold;
+  if (!isEligible) {
+    notes.push(`Turnover of ${formatINR(turnover)} exceeds the §44AD limit of ${formatINR(threshold)}. You must maintain regular books and file ITR-3 with a Tax Audit Report (§44AB).`);
+  }
+  if (cashPct > 0.05 && turnover <= 30_000_000) {
+    notes.push(`${(cashPct * 100).toFixed(1)}% of your turnover is in cash — above the 5% threshold. Reduce cash receipts to qualify for the ₹3Cr limit.`);
+  }
+
+  const deemed = round2(digital * 0.06 + cash * 0.08);
+  const finalIncome = Math.max(deemed, Number(declaredIncome) || 0);
+
+  if (Number(declaredIncome) && Number(declaredIncome) < deemed) {
+    notes.push(`Declared income (${formatINR(declaredIncome)}) is less than the presumptive minimum (${formatINR(deemed)}). Assessee must maintain full books and file ITR-3.`);
+  }
+
+  return {
+    turnover: round2(turnover),
+    digitalReceipts: round2(digital),
+    cashReceipts: round2(cash),
+    deemedIncome: deemed,
+    presumptiveIncome: round2(finalIncome),
+    isEligible,
+    section: '44AD',
+    threshold,
+    notes,
+  };
+}
+
+/**
+ * Section 44ADA — presumptive taxation for professionals
+ * (doctors, lawyers, CAs, engineers, architects, technical consultants,
+ * interior designers, film-industry professionals, and any notified profession).
+ *
+ * Turnover cap: ₹50L (was), ₹75L from FY 2023-24 (if cash receipts ≤ 5%).
+ * Deemed income: **50% of gross receipts** — professionals get to write off
+ * half their fees as expenses without proving anything.
+ */
+export function compute44ADA({ digitalReceipts = 0, cashReceipts = 0, declaredIncome }) {
+  const digital = Math.max(0, Number(digitalReceipts) || 0);
+  const cash = Math.max(0, Number(cashReceipts) || 0);
+  const turnover = digital + cash;
+  const notes = [];
+
+  const cashPct = turnover > 0 ? cash / turnover : 0;
+  const threshold = cashPct <= 0.05 ? 7_500_000 : 5_000_000;
+  const isEligible = turnover <= threshold;
+  if (!isEligible) {
+    notes.push(`Gross receipts of ${formatINR(turnover)} exceed the §44ADA limit of ${formatINR(threshold)}. Full books + ITR-3 + audit (§44AB) apply.`);
+  }
+
+  const deemed = round2(turnover * 0.50);
+  const finalIncome = Math.max(deemed, Number(declaredIncome) || 0);
+
+  if (Number(declaredIncome) && Number(declaredIncome) < deemed) {
+    notes.push(`Declared income is below 50% of gross receipts. Full books required.`);
+  }
+
+  return {
+    turnover: round2(turnover),
+    digitalReceipts: round2(digital),
+    cashReceipts: round2(cash),
+    deemedIncome: deemed,
+    presumptiveIncome: round2(finalIncome),
+    isEligible,
+    section: '44ADA',
+    threshold,
+    notes,
+  };
+}
+
+/**
+ * Section 44AE — presumptive taxation for transporters (goods-carriage owners).
+ * Applies when the assessee owns ≤ 10 goods vehicles at any time in the year.
+ * Deemed income per vehicle per month:
+ *   - Heavy (> 12,000 kg gross weight): ₹1,000 per tonne
+ *   - Light: ₹7,500
+ */
+export function compute44AE({ heavyVehicleMonths = 0, heavyVehicleTonnage = 0, lightVehicleMonths = 0, declaredIncome }) {
+  const heavy = round2(Number(heavyVehicleMonths) * Number(heavyVehicleTonnage) * 1000);
+  const light = round2(Number(lightVehicleMonths) * 7500);
+  const deemed = heavy + light;
+  const finalIncome = Math.max(deemed, Number(declaredIncome) || 0);
+  return {
+    heavyIncome: heavy,
+    lightIncome: light,
+    deemedIncome: deemed,
+    presumptiveIncome: round2(finalIncome),
+    section: '44AE',
+    notes: [],
+  };
+}
+
+// ============================================================================
+// Advance Tax — Sections 208, 234B, 234C
+// ----------------------------------------------------------------------------
+// Every assessee with tax liability ≥ ₹10,000 (after TDS) must pay advance
+// tax in four installments. Missing them triggers interest under 234B/234C.
+// Presumptive-taxation opters (§44AD/§44ADA) can pay 100% in one shot by 15 Mar.
+// ============================================================================
+
+/**
+ * Advance-tax installment schedule for FY 2024-25.
+ * Each entry: due date + cumulative % of total tax to have paid by that date.
+ */
+export const ADVANCE_TAX_SCHEDULE = [
+  { installment: 1, dueDate: '2024-06-15', cumulativePct: 0.15, label: 'By 15 June' },
+  { installment: 2, dueDate: '2024-09-15', cumulativePct: 0.45, label: 'By 15 Sept' },
+  { installment: 3, dueDate: '2024-12-15', cumulativePct: 0.75, label: 'By 15 Dec' },
+  { installment: 4, dueDate: '2025-03-15', cumulativePct: 1.00, label: 'By 15 March' },
+];
+
+/**
+ * Compute the advance-tax schedule.
+ * @param {number} totalTax — total tax liability for the FY (after §87A rebate)
+ * @param {number} tdsAlreadyDeducted — TDS credit already claimed
+ * @param {Array<{date:string, amount:number}>} paid — installments already paid
+ * @param {'regular'|'presumptive'} mode — presumptive allows single 15-Mar payment
+ * @returns {object}
+ */
+export function computeAdvanceTaxSchedule(totalTax, tdsAlreadyDeducted = 0, paid = [], mode = 'regular') {
+  const netLiability = Math.max(0, totalTax - (Number(tdsAlreadyDeducted) || 0));
+  if (netLiability < 10_000) {
+    return {
+      netLiability, applies: false,
+      note: 'Net liability (after TDS) is below ₹10,000 — no advance tax required.',
+      schedule: [],
+    };
+  }
+  // Presumptive-mode assessees: single 100% installment on 15 March
+  const rows = (mode === 'presumptive' ? [ADVANCE_TAX_SCHEDULE[3]] : ADVANCE_TAX_SCHEDULE)
+    .map((row, i, arr) => {
+      const cumulativeDue = round2(netLiability * row.cumulativePct);
+      const totalPaidByDue = paid
+        .filter(p => p.date <= row.dueDate)
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const shortfall = Math.max(0, cumulativeDue - totalPaidByDue);
+      const prevCumulative = mode === 'presumptive' ? 0 : (arr[i - 1]?.cumulativePct || 0);
+      const installmentDue = round2(netLiability * (row.cumulativePct - prevCumulative));
+      return {
+        ...row,
+        installmentDue,
+        cumulativeDue,
+        totalPaidByDue,
+        shortfall,
+      };
+    });
+  const totalPaid = paid.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  return {
+    applies: true,
+    netLiability,
+    totalPaid: round2(totalPaid),
+    totalOutstanding: round2(Math.max(0, netLiability - totalPaid)),
+    schedule: rows,
+    mode,
+  };
+}
+
+/**
+ * Section 234C interest — for shortfall in any installment.
+ * 1% per month for 3 months for installments 1-3; 1% for 1 month for installment 4.
+ * Waived if you paid ≥ 12% by 15 Jun / 36% by 15 Sept (i.e. slight under-payment ok).
+ */
+export function compute234CInterest(schedule) {
+  if (!schedule.applies || !schedule.schedule.length) return 0;
+  let interest = 0;
+  const netLiab = schedule.netLiability;
+  const [i1, i2, i3, i4] = schedule.schedule;
+  // Q1: 12% waiver, 3 months at 1%
+  if (i1 && i1.totalPaidByDue < 0.12 * netLiab) {
+    const shortfall = round2(netLiab * 0.15 - i1.totalPaidByDue);
+    interest += Math.max(0, shortfall) * 0.03;
+  }
+  // Q2: 36% waiver, 3 months at 1%
+  if (i2 && i2.totalPaidByDue < 0.36 * netLiab) {
+    const shortfall = round2(netLiab * 0.45 - i2.totalPaidByDue);
+    interest += Math.max(0, shortfall) * 0.03;
+  }
+  // Q3: 3 months at 1%
+  if (i3) {
+    const shortfall = round2(netLiab * 0.75 - i3.totalPaidByDue);
+    interest += Math.max(0, shortfall) * 0.03;
+  }
+  // Q4: 1 month at 1%
+  if (i4) {
+    const shortfall = round2(netLiab - i4.totalPaidByDue);
+    interest += Math.max(0, shortfall) * 0.01;
+  }
+  return round2(interest);
+}
+
+/**
+ * Section 234B interest — for shortfall of ≥ 10% of total tax by 31 Mar.
+ * 1% per month from 1 Apr of the AY until date of payment.
+ * @param {object} schedule — output of computeAdvanceTaxSchedule
+ * @param {string} assessmentPaymentDate — ISO date; defaults to today
+ */
+export function compute234BInterest(schedule, assessmentPaymentDate) {
+  if (!schedule.applies) return 0;
+  const paidByYearEnd = schedule.totalPaid;
+  const netLiab = schedule.netLiability;
+  if (paidByYearEnd >= 0.9 * netLiab) return 0;
+  const shortfall = round2(netLiab - paidByYearEnd);
+  // From April 1 of AY. For FY 2024-25, that's 2025-04-01.
+  const fyEnd = new Date('2025-04-01');
+  const payDate = assessmentPaymentDate ? new Date(assessmentPaymentDate) : new Date();
+  const monthsElapsed = Math.max(1, Math.ceil((payDate - fyEnd) / (1000 * 60 * 60 * 24 * 30)));
+  return round2(shortfall * 0.01 * monthsElapsed);
+}
+
+// ============================================================================
+// ITR-4 field mapping for the Filing Summary PDF
+// ----------------------------------------------------------------------------
+// Each entry maps a computed value to the exact line item on the ITR-4 form
+// (AY 2025-26) so the user can copy-paste into the IT portal. Update annually
+// when CBDT releases the new AY schema.
+// ============================================================================
+
+/**
+ * Build the ITR-4 field list from computed tax + presumptive income + deductions.
+ * Order matches the physical layout of ITR-4 Sugam.
+ * Each row: { field, section, value, note? }
+ */
+export function buildITR4FieldMap(inputs, tax, presumptive, deductions) {
+  const rows = [];
+  // Personal info (user fills manually — we can't infer PAN from the app)
+  rows.push({ section: 'Part A — General', field: 'PAN', value: '', note: 'Fill from your profile' });
+  rows.push({ section: 'Part A — General', field: 'Filing Status', value: 'Filed under §139(1) — before due date' });
+  rows.push({ section: 'Part A — General', field: 'Aadhaar', value: '', note: 'Must be linked' });
+
+  // Nature of business
+  if (presumptive?.section === '44AD') {
+    rows.push({ section: 'Part A — Nature of Business', field: 'Section 44AD (Trading / Retail / Manufacturing)', value: 'Yes' });
+    rows.push({ section: 'Part A — Nature of Business', field: 'Gross Turnover (digital)', value: presumptive.digitalReceipts });
+    rows.push({ section: 'Part A — Nature of Business', field: 'Gross Turnover (cash)', value: presumptive.cashReceipts });
+  } else if (presumptive?.section === '44ADA') {
+    rows.push({ section: 'Part A — Nature of Business', field: 'Section 44ADA (Profession)', value: 'Yes' });
+    rows.push({ section: 'Part A — Nature of Business', field: 'Gross Receipts', value: presumptive.turnover });
+  } else if (presumptive?.section === '44AE') {
+    rows.push({ section: 'Part A — Nature of Business', field: 'Section 44AE (Transport)', value: 'Yes' });
+  }
+
+  // Part B — Gross Total Income
+  const salary = Number(inputs.salary) || 0;
+  const std = tax.standardDeduction || 0;
+  rows.push({ section: 'B — Income', field: 'B1. Salary (gross)', value: salary, note: salary > 0 ? 'From Form 16' : undefined });
+  if (std) rows.push({ section: 'B — Income', field: '  Less: Standard Deduction', value: -std });
+  rows.push({ section: 'B — Income', field: '  Net Salary', value: Math.max(0, salary - std) });
+  rows.push({ section: 'B — Income', field: 'B2. House Property (net)', value: Number(inputs.housePropertyIncome) || 0 });
+  rows.push({ section: 'B — Income', field: 'B3. Business / Profession', value: presumptive?.presumptiveIncome ?? (Number(inputs.businessIncome) || 0), note: presumptive ? `Presumptive @ §${presumptive.section}` : 'From books' });
+  rows.push({ section: 'B — Income', field: 'B4. Other Sources', value: Number(inputs.otherSources) || 0 });
+  rows.push({ section: 'B — Income', field: 'B5. Gross Total Income', value: tax.grossTotalIncome, bold: true });
+
+  // Part C — Deductions
+  if (tax.regime === 'old') {
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80C', value: Math.min(150_000, Number(deductions?.['80C']) || 0) });
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80CCD(1B) — NPS', value: Math.min(50_000, Number(deductions?.['80CCD1B']) || 0) });
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80D — Health Insurance', value: Math.min(100_000, Number(deductions?.['80D']) || 0) });
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80TTA — Savings Interest', value: Math.min(10_000, Number(deductions?.['80TTA']) || 0) });
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80E — Education Loan Interest', value: Number(deductions?.['80E']) || 0 });
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80G — Donations', value: Number(deductions?.['80G']) || 0 });
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '  Total Chapter VI-A', value: tax.allowedDeductions, bold: true });
+  } else {
+    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80CCD(2) — Employer NPS', value: Number(deductions?.['80CCD2']) || 0, note: 'Only deduction allowed under new regime' });
+  }
+
+  // Part D — Tax computation
+  rows.push({ section: 'D — Tax Computation', field: 'D1. Taxable Income', value: tax.taxableIncome, bold: true });
+  rows.push({ section: 'D — Tax Computation', field: 'D2. Tax on Total Income (slab)', value: tax.slabTax });
+  if (tax.stcgTax) rows.push({ section: 'D — Tax Computation', field: '   + STCG (15%)', value: tax.stcgTax });
+  if (tax.ltcgTax) rows.push({ section: 'D — Tax Computation', field: '   + LTCG (10%)', value: tax.ltcgTax });
+  if (tax.rebate87A) rows.push({ section: 'D — Tax Computation', field: '   − §87A Rebate', value: -tax.rebate87A });
+  if (tax.surcharge) rows.push({ section: 'D — Tax Computation', field: '   + Surcharge', value: tax.surcharge });
+  rows.push({ section: 'D — Tax Computation', field: '   + Health & Ed Cess (4%)', value: tax.cess });
+  rows.push({ section: 'D — Tax Computation', field: 'D3. TOTAL TAX PAYABLE', value: tax.totalTax, bold: true, big: true });
+
+  return rows;
+}
+
+// ---- internal ---------------------------------------------------------------
+function formatINR(n) {
+  const rounded = Math.round(Number(n) || 0);
+  return '₹' + rounded.toLocaleString('en-IN');
+}

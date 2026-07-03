@@ -172,10 +172,47 @@ export default function SettingsView({ onSaved }) {
   const handleImageUpload = (field, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) { toast('Image must be under 500KB', 'warning'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => setProfile(prev => ({ ...prev, [field]: ev.target.result }));
-    reader.readAsDataURL(file);
+    // P2 #34 — MIME + dimension guards. accept="image/*" in the input is
+    // trivially bypassable; a HEIC or WebP too large silently blows PDF
+    // rendering + file size. Downscale via canvas keeps quality reasonable.
+    const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    if (!ALLOWED_MIME.includes(file.type)) {
+      toast('Only PNG, JPEG, WebP, or SVG images are supported', 'warning');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast('Image is over 2MB — please compress first (tinypng.com works well)', 'warning');
+      return;
+    }
+    // SVGs are vector — no need to downscale, just embed as-is
+    if (file.type === 'image/svg+xml') {
+      const reader = new FileReader();
+      reader.onload = (ev) => setProfile(prev => ({ ...prev, [field]: ev.target.result }));
+      reader.readAsDataURL(file);
+      return;
+    }
+    // Raster: load into an Image, downscale to max 1024px on the longer edge
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const ratio = MAX / Math.max(width, height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.92);
+      setProfile(prev => ({ ...prev, [field]: dataUrl }));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast('Could not decode that image', 'error'); };
+    img.src = url;
   };
 
   const removeImage = (field) => setProfile(prev => ({ ...prev, [field]: '' }));

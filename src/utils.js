@@ -377,7 +377,43 @@ export const getUpcomingFilings = (today = new Date()) => {
       push(`Form 27EQ (TCS Q ending ${nextMonth.toLocaleString('en-IN', { month: 'short' })})`, new Date(y, m + 1, 15));
     }
   }
+
+  // Advance-tax installments — same 60-day lookahead. Users on the presumptive
+  // scheme (single 15-Mar payment) still see all four so they can plan cashflow,
+  // but the interest calc only fires against the 15-Mar row.
+  const advDates = [
+    { label: 'Advance Tax Installment 1 (15% cumulative)', date: new Date(t.getFullYear(), 5, 15) },   // 15 Jun
+    { label: 'Advance Tax Installment 2 (45% cumulative)', date: new Date(t.getFullYear(), 8, 15) },   // 15 Sep
+    { label: 'Advance Tax Installment 3 (75% cumulative)', date: new Date(t.getFullYear(), 11, 15) },  // 15 Dec
+    { label: 'Advance Tax Installment 4 (100% — final)',    date: new Date(t.getFullYear() + (t.getMonth() >= 2 ? 1 : 0), 2, 15) }, // 15 Mar
+  ];
+  advDates.forEach(a => push(a.label, a.date));
+
+  // ITR filing due dates (annually)
+  const itrYear = t.getMonth() >= 3 ? t.getFullYear() : t.getFullYear() - 1;
+  push('ITR filing (non-audit) — due', new Date(itrYear + 1, 6, 31));  // 31 July
+  push('ITR filing (audit / §44AB) — due', new Date(itrYear + 1, 9, 31)); // 31 Oct
+
   return out.sort((a, b) => a.daysAway - b.daysAway);
+};
+
+// Fiscal-year dropdown options for the last N years. Was previously
+// duplicated in 5 files (Dashboard / PurchaseBills / ExpenseTracker /
+// GSTReturns / ReportsView) — extracted here so a bugfix only has to
+// touch one place. Each entry: { value, label, from, to }.
+export const getFYOptions = (n = 5, today = new Date()) => {
+  const currentYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const options = [];
+  for (let i = 0; i < n; i++) {
+    const y = currentYear - i;
+    options.push({
+      value: `${y}-${y + 1}`,
+      label: `FY ${y}-${String(y + 1).slice(-2)}`,
+      from: `${y}-04-01`,
+      to: `${y + 1}-03-31`,
+    });
+  }
+  return options;
 };
 
 // Get filing period as MMYYYY from a date range

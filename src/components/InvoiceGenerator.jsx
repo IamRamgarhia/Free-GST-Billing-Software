@@ -290,24 +290,39 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, invoiceOptions, isMeaningfulInvoice]);
 
-  // Save-before-leave guard. If the user has typed something real but the auto-save hasn't
-  // landed yet, prompt before they navigate away — works for the in-app Back button and
-  // for browser-level navigation (refresh, close tab).
-  const handleBack = async () => {
+  // Save-before-leave guard. P2 #32 rewrites this from the dangerous
+  // browser `confirm()` (OK = save, Cancel = stay — users conditioned to
+  // "Cancel = discard" hit Cancel expecting to leave) to a proper 3-option
+  // modal. Modal state below; handleBack just opens it.
+  const [leaveModal, setLeaveModal] = useState(false);
+  const handleBack = () => {
     if (isMeaningfulInvoice() && autoSaveStatus !== 'saved') {
-      const choice = window.confirm('You have unsaved changes on this invoice.\n\nClick OK to save and exit, or Cancel to keep editing.');
-      if (!choice) return; // stay on the page
+      setLeaveModal(true);
+      return;
+    }
+    clearDraft();
+    onBack();
+  };
+
+  const leaveActions = {
+    saveAndExit: async () => {
       try {
         setAutoSaveStatus('saving');
         await saveInvoiceToDB(true);
         toast('Invoice saved', 'success');
+        clearDraft();
+        setLeaveModal(false);
+        onBack();
       } catch {
         toast('Save failed — staying on the page so you can retry', 'error');
-        return;
       }
-    }
-    clearDraft();
-    onBack();
+    },
+    discardAndExit: () => {
+      clearDraft();
+      setLeaveModal(false);
+      onBack();
+    },
+    cancel: () => setLeaveModal(false),
   };
 
   useEffect(() => {
@@ -1786,9 +1801,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     if (!e.target.value) return;
                     const preset = TERMS_PRESETS.find(p => p.id === e.target.value);
                     if (!preset) return;
+                    // P2 #33 — "never ask again" via sessionStorage flag.
+                    // Users iterating through 3 presets to compare shouldn't
+                    // see 3 confirm dialogs. Ask once per session; subsequent
+                    // presets swap silently until they close the tab.
                     if (customTerms && customTerms.replace(/<[^>]*>/g, '').trim()) {
-                      if (!confirm('Replace your current Terms with this preset? Your existing text will be lost.')) {
-                        e.target.value = ''; return;
+                      const skipConfirm = sessionStorage.getItem('gst_termsPresetConfirmed') === '1';
+                      if (!skipConfirm) {
+                        const proceed = confirm('Replace your current Terms with this preset? Your existing text will be lost.\n\n(This confirmation is shown once per session — subsequent preset swaps will happen silently.)');
+                        if (!proceed) { e.target.value = ''; return; }
+                        try { sessionStorage.setItem('gst_termsPresetConfirmed', '1'); } catch { /* ignore */ }
                       }
                     }
                     setCustomTerms(preset.body);
@@ -1886,6 +1908,30 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           </div>
         </div>
       </div>
+
+      {/* P2 #32 — 3-option leave modal. Replaces the previous confusing
+          browser confirm() where OK=save was counterintuitive. */}
+      {leaveModal && (
+        <div className="modal-overlay" onClick={leaveActions.cancel}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <h3 style={{ marginTop: 0 }}>Unsaved changes</h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              This invoice has changes that haven't been saved yet. What do you want to do?
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary" onClick={leaveActions.cancel}>
+                Keep editing
+              </button>
+              <button className="btn btn-secondary" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={leaveActions.discardAndExit}>
+                Discard &amp; leave
+              </button>
+              <button className="btn btn-primary" onClick={leaveActions.saveAndExit}>
+                Save &amp; leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

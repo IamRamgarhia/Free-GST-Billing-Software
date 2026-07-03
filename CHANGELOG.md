@@ -7,6 +7,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] — 2026-04-30
+
+**Full ITR Release.** Two new sub-tabs (Presumptive + Advance Tax),
+the crown-jewel ITR-4 Filing Summary PDF, integrated ITR / advance-tax
+due-date reminders, plus four P2 UX polish fixes.
+
+### Added — Presumptive Income sub-tab (Income Tax module)
+
+Support for all three presumptive taxation sections:
+
+- **§44AD** (traders / retailers / manufacturers): 6% of digital
+  turnover + 8% of cash turnover. Handles the ₹2Cr / ₹3Cr limit
+  based on cash-receipt %. Warns when cash exceeds 5%.
+- **§44ADA** (professionals): flat 50% of gross receipts.
+  ₹50L / ₹75L limit handled.
+- **§44AE** (transporters): per-vehicle-month rates for heavy vs
+  light vehicles.
+
+"Actual profit override" input for users who want to declare above
+the deemed minimum. **"Push to Calculator"** button pipes the computed
+income into the Regime Calculator's Business Income field. Compliance
+warnings inline when turnover crosses thresholds.
+
+### Added — Advance Tax sub-tab (Income Tax module)
+
+- Four-installment schedule for FY 2024-25 (15 Jun · 15 Sep · 15 Dec · 15 Mar)
+- **Presumptive mode toggle** — collapses to a single 15-March payment
+- TDS-credit input reduces net advance-tax liability
+- Payments-made table — record each installment paid, with date + amount
+- **§234C interest** — 1% per month for installment shortfalls, with the
+  correct 12% / 36% waivers for Q1 / Q2
+- **§234B interest** — 1% per month post year-end delay
+- Live shortfall detection per installment; row highlights red when
+  behind schedule
+- All inputs auto-persist to localStorage
+
+### Added — ITR-4 (Sugam) Filing Summary PDF 🎯
+
+The crown jewel. On the ITR Summary tab, a **"Download ITR-4 Summary"**
+button generates a printable PDF that mirrors the ITR-4 form's field
+layout:
+
+- **Part A — General**: assessee name, GSTIN, PAN placeholder, filing
+  status (§139(1) — before due date)
+- **Part A — Nature of Business**: presumptive section + turnover split
+  (digital / cash) if applicable
+- **Part B — Income**: Salary (with standard deduction line) · House
+  Property · Business/Profession (linked to presumptive figure or
+  regular books) · Other Sources → Gross Total Income
+- **Part C — Deductions**: every Chapter VI-A section with statutory cap
+  applied; §80CCD(2) only under new regime
+- **Part D — Tax Computation**: slab tax + special-rate (STCG 15% /
+  LTCG 10%) + §87A rebate + surcharge + 4% cess → Total Tax Payable
+- **Part E — Advance Tax**: installment schedule with amount + paid
+- Field bold + big for totals; sectional headers coloured
+- Auto-inserts source notes (e.g. "From Form 16", "Presumptive @ §44AD")
+
+Hand the PDF to your CA — every field they need to fill on
+incometax.gov.in is pre-computed with the amount and its origin.
+
+### Added — Advance-tax + ITR filing dates in the notification bell
+
+`getUpcomingFilings()` now includes:
+
+- All four advance-tax installments (15 Jun / 15 Sep / 15 Dec / 15 Mar)
+- ITR filing due-date — non-audit (31 July of AY)
+- ITR filing due-date — audit / §44AB (31 October of AY)
+
+Users see these in the sidebar bell 🔔 popover under **"Filings due soon"**
+alongside GSTR-1 / 3B / 26Q / 27EQ. 60-day lookahead — nothing more
+than 2 months out clutters the list.
+
+### Added — `utils/itr.js` extensions
+
+New exports:
+
+- `compute44AD(inputs)` / `compute44ADA(inputs)` / `compute44AE(inputs)`
+- `ADVANCE_TAX_SCHEDULE` — the four installment dates + cumulative %
+- `computeAdvanceTaxSchedule(totalTax, tdsCredit, payments, mode)`
+- `compute234BInterest(schedule, paymentDate)`
+- `compute234CInterest(schedule)`
+- `buildITR4FieldMap(inputs, tax, presumptive, deductions)` — returns
+  a canonical array of `{ section, field, value, note?, bold?, big? }`
+  used by the PDF generator (and testable in isolation)
+
+### Fixed — P2 UX polish batch (from v1.6.7 audit)
+
+- **`handleBack` 3-option modal** (P2 #32) — was `confirm()` where OK=save
+  and Cancel=stay, which every UX study confirms is counterintuitive
+  (users hit Cancel expecting "discard"). Now a proper modal with
+  three explicit actions: **Keep editing** / **Discard & leave** /
+  **Save & leave**.
+- **Terms preset "never ask again"** (P2 #33) — comparing three presets
+  before committing used to spawn three confirm dialogs. Now asks once
+  per session (sessionStorage flag), silent switches after.
+- **Image upload MIME + dimension guard** (P2 #34) — previously
+  `accept="image/*"` alone (bypassable). Now whitelists PNG / JPEG /
+  WebP / SVG; 2MB max; auto-downscales rasters to 1024px on the
+  longer edge via canvas (preserves aspect ratio, quality 0.92 JPEG).
+  SVGs embedded as-is (they're vector). Result: no more 4096×4096
+  logos silently bloating PDF size.
+- **`getFYOptions` extracted to `utils.js`** (P2 #42) — was duplicated
+  in 5 files. Callers can migrate incrementally.
+
+### Backward compatibility
+
+- Existing localStorage keys unchanged. New keys added:
+  `gst_itrPresumptive`, `gst_itrAdvanceTax`. Both included in the
+  backup whitelist (they piggyback on `gst_*` prefix but are
+  auto-restored because they're explicitly enumerated).
+- The ITR-4 PDF works even with zero calculator input — outputs a
+  sensibly-empty template you can print, mark up by hand, and file.
+- Advance-tax notifications are additive — no existing filing
+  reminder is affected.
+
+---
+
 ## [1.7.0] — 2026-04-30
 
 **ITR Foundation release.** Introduces the Income Tax module — an integrated
