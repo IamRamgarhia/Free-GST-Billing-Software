@@ -1137,6 +1137,96 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   overflow: hidden;
 }
 
+/* Paper-size variants (v1.8.1). Width + min-height are set inline from
+   getPaperSize() so PDF captures at the right physical dimensions. These
+   rules add layout adjustments for the compact formats. */
+
+/* A5 — half a sheet. Same layout, slightly smaller type. */
+.paper-a5.invoice-preview-container {
+  min-height: 210mm;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.paper-a5 h1 { font-size: 1.35rem; }
+.paper-a5 h2 { font-size: 1.15rem; }
+.paper-a5 table { font-size: 10.5px; }
+
+/* Thermal — 80mm / 58mm receipt printer roll. Single-column, dense,
+   monospace-ish. All decorative color panels + gradients removed since
+   thermal printers are black-and-white and drying complex fills wastes
+   ribbon / thermal paper. */
+.paper-thermal.invoice-preview-container {
+  min-height: unset;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 0;
+  border: none; box-shadow: none; border-radius: 0;
+  background: white;
+}
+.paper-thermal h1, .paper-thermal h2, .paper-thermal h3 {
+  font-size: 12px !important;
+  margin: 6px 0 !important;
+  text-align: center;
+  border-bottom: 1px dashed #000 !important;
+  padding-bottom: 2px !important;
+  background: transparent !important;
+  color: #000 !important;
+}
+.paper-thermal .invoice-header-modern,
+.paper-thermal .invoice-header-classic,
+.paper-thermal .invoice-header-minimal {
+  padding: 4px 6px !important;
+  background: transparent !important;
+  color: #000 !important;
+  gap: 4px !important;
+}
+.paper-thermal .invoice-header-modern * ,
+.paper-thermal .invoice-header-classic *,
+.paper-thermal .invoice-header-minimal * { color: #000 !important; background: transparent !important; }
+.paper-thermal .invoice-header-modern img,
+.paper-thermal .invoice-header-classic img,
+.paper-thermal .invoice-header-minimal img { max-height: 40px; }
+.paper-thermal table {
+  font-size: 10px !important;
+  width: 100%;
+  border-collapse: collapse;
+}
+.paper-thermal table th,
+.paper-thermal table td {
+  padding: 2px 4px !important;
+  border-bottom: 1px dashed #ddd !important;
+  background: transparent !important;
+  color: #000 !important;
+}
+.paper-thermal .invoice-section,
+.paper-thermal .invoice-block {
+  padding: 4px 6px !important;
+  background: transparent !important;
+}
+.paper-thermal .totals-block {
+  border-top: 1px dashed #000 !important;
+  padding-top: 4px !important;
+  background: transparent !important;
+}
+/* Hide the fancy QR panel on 58mm — not enough width. On 80mm keep it small. */
+.paper-thermal-58 canvas,
+.paper-thermal-58 .upi-qr,
+.paper-thermal-58 .qr-block { display: none !important; }
+.paper-thermal-80 canvas,
+.paper-thermal-80 .upi-qr,
+.paper-thermal-80 .qr-block img { max-width: 60px; max-height: 60px; }
+/* Hide multi-column grid layouts on thermal — stack everything. */
+.paper-thermal .grid,
+.paper-thermal [class*="grid-"] {
+  display: block !important;
+}
+.paper-thermal .invoice-footer {
+  padding: 4px 6px !important;
+  text-align: center;
+  font-size: 9px !important;
+  border-top: 1px dashed #000 !important;
+}
+
 /* Header */
 .inv-header {
   display: flex;

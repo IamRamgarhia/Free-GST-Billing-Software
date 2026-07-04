@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode } from '../utils';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize } from '../utils';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
@@ -98,6 +98,10 @@ const DEFAULT_OPTIONS = {
   showItemQty: true,
   showRoundOff: false,
   invoiceMode: 'goods',    // 'goods' | 'services' | 'mixed' — drives default unit + dropdown filter
+  // Paper / print size (v1.8.1). 'a4' | 'a5' | 'thermal80' | 'thermal58'.
+  // Thermal formats switch InvoicePreview to a compact single-column layout
+  // suitable for 80mm / 58mm POS printers; A5 is a smaller two-column sheet.
+  paperSize: 'a4',
   recurring: null,         // null OR { enabled, frequency, interval, nextDate, endMode, endDate, maxOccurrences }
   showCess: false,         // when true, exposes per-line Cess % input (India-only)
   reverseCharge: false,    // when true, GST is paid by the recipient (Section 9(3)/9(4))
@@ -198,6 +202,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // Peek-on-mount + reserve-on-save (P0 #9) avoids burning counter values on
   // cancelled/abandoned forms.
   const numberReserved = useRef(!!editingBill);
+  // Whether the bill has been successfully persisted to the server AT LEAST
+  // ONCE this session. Editing = true from the start (bill already exists).
+  // For new bills, flips to true after the first successful save. Used to
+  // decide whether subsequent saves need overwrite: true (they do — same
+  // invoice number, otherwise the server 409s).
+  const hasBeenSaved = useRef(!!editingBill);
 
   const typeConfig = INVOICE_TYPES[invoiceType];
   const showGST = invoiceOptions.showGST;
@@ -264,13 +274,34 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return items.some(item => (item.name || '').trim() && (item.quantity || 0) * (item.rate || 0) > 0);
   }, [client?.name, items, editingBill]);
 
-  // Debounced auto-save to server (2s after last change), gated on meaningful content.
+  // Debounced auto-save (2s after last change), gated on meaningful content.
+  //
+  // v1.8.1 CHANGE: for NEW bills that haven't been explicitly saved yet,
+  // auto-save persists ONLY to the sessionStorage draft (via the effect
+  // below that saves invoiceOptions). It does NOT hit the server or reserve
+  // a counter number.
+  //
+  // Reason: users reported that opening "New Invoice" and typing burned
+  // a counter value even if they never clicked Save. Auto-save was the
+  // culprit — it fired 2s after any meaningful edit and atomically
+  // reserved. The counter should only increment when the user commits.
+  //
+  // For EDITING existing bills (or after the first manual save), auto-save
+  // still writes through to the server so mid-session edits are safe.
   useEffect(() => {
     if (!hasInitialized.current) return;
     if (!details.invoiceNumber) return;
     if (!isMeaningfulInvoice()) {
-      // Reset status badge if user emptied the invoice — stops "All changes saved" from lying.
       setAutoSaveStatus(s => s === 'saved' ? 'idle' : s);
+      return;
+    }
+
+    // NEW-bill guard: skip server auto-save until the user has explicitly
+    // saved once. The sessionStorage draft is still auto-persisted via the
+    // separate effect below, so nothing is lost if the tab crashes.
+    if (!editingBill && !hasBeenSaved.current) {
+      setAutoSaveStatus('saved');
+      setTimeout(() => setAutoSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
       return;
     }
 
@@ -806,11 +837,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       payments: editingBill?.payments || [],
       data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions, taxInclusive }
     };
-    // Editing an existing bill (or the "convert to tax invoice" flow) must
-    // pass overwrite: true. A fresh bill goes without → server 409s if a
-    // typo hits an existing invoice number.
+    // Editing an existing bill → always overwrite. NEW bill on second-and-
+    // later save this session → also overwrite (same invoice number, would
+    // otherwise 409). NEW bill on first save → no overwrite, so a typo
+    // hitting an existing invoice number gets caught by the server.
+    const shouldOverwrite = !!editingBill || hasBeenSaved.current;
     try {
-      await saveBill(bill, { overwrite: !!editingBill });
+      await saveBill(bill, { overwrite: shouldOverwrite });
+      // Mark that the invoice has been persisted at least once — subsequent
+      // saves (auto-save, Save & Leave, Save & Download) can safely overwrite.
+      hasBeenSaved.current = true;
     } catch (err) {
       if (err?.status === 409) {
         toast(`Invoice number ${bill.id} already exists. Change it before saving.`, 'error');
@@ -936,7 +972,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     //     clean line-art / glyphs efficiently. On Retina/4K screens we go higher.
     //   - JPEG quality 0.95 vs old 0.92: gain in legibility for small text outweighs
     //     the modest size bump.
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    // Paper size (v1.8.1) — read from invoiceOptions. A4 default; A5 uses
+    // jsPDF's built-in format; thermal 80mm/58mm use custom [width, height].
+    // Thermal formats use a tall single-column layout — the InvoicePreview
+    // component branches on options.paperSize CSS class to render compact.
+    const paperCfg = getPaperSize(invoiceOptions.paperSize);
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: paperCfg.jsPdfFormat, compress: true });
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfPageHeight = pdf.internal.pageSize.getHeight();
     const extraPages = printRef.current.querySelectorAll('[data-pdf-page]');
@@ -960,7 +1001,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       onclone: (clonedDoc) => {
         clonedDoc.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; });
         const inv = clonedDoc.getElementById('invoice-preview');
-        if (inv) { inv.style.width = '210mm'; inv.style.overflow = 'visible'; inv.style.minHeight = 'unset'; inv.style.border = 'none'; inv.style.boxShadow = 'none'; inv.style.borderRadius = '0'; }
+        if (inv) {
+          // Match the target paper width so html2canvas captures at the right
+          // aspect ratio. jsPDF will scale to fit the page width; we set the
+          // HTML width to widthMm so glyphs land where CSS put them.
+          inv.style.width = `${paperCfg.widthMm}mm`;
+          inv.style.overflow = 'visible'; inv.style.minHeight = 'unset';
+          inv.style.border = 'none'; inv.style.boxShadow = 'none'; inv.style.borderRadius = '0';
+        }
         clonedDoc.querySelectorAll('[data-pdf-page]').forEach(el => el.style.display = 'none');
       }
     });
@@ -1448,6 +1496,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   { group: 'Compliance flags (India)', items: [
                     ['reverseCharge', 'Reverse Charge applies (Section 9(3)/9(4)) — recipient pays GST'],
                   ]},
+                  // Paper-size selector rendered outside the checkbox-grid pattern
+                  // — see the block below the .map(). Adding a group marker here
+                  // keeps the visual flow but the actual UI is a dropdown.
+                  { group: '__PAPER_SIZE__', items: [] },
                   { group: 'Footer', items: [
                     ['showBankDetails', 'Bank details'],
                     ['showAccountLabel', 'Show "Pay via: <account>" label above bank block'],
@@ -1457,25 +1509,44 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showTerms', 'Terms & Conditions'],
                     ['showNotes', 'Notes / Remarks'],
                   ]},
-                ].map(section => (
-                  <div key={section.group} style={{ marginBottom: '0.6rem' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>{section.group}</div>
-                    <div className="options-grid">
-                      {section.items.map(([key, label]) => {
-                        // These default to OFF; everything else defaults to ON.
-                        const offByDefault = key === 'showRoundOff' || key === 'showAccountLabel'
-                          || key === 'showCess' || key === 'reverseCharge';
-                        const checked = offByDefault ? !!invoiceOptions[key] : invoiceOptions[key] !== false;
-                        return (
-                          <label key={key} className="option-toggle">
-                            <input type="checkbox" checked={checked} onChange={() => toggleOption(key)} />
-                            <span>{label}</span>
-                          </label>
-                        );
-                      })}
+                ].map(section => {
+                  if (section.group === '__PAPER_SIZE__') {
+                    return (
+                      <div key="paper-size" style={{ marginBottom: '0.6rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Paper / print size</div>
+                        <select className="form-input" style={{ fontSize: '0.85rem' }}
+                          value={invoiceOptions.paperSize || 'a4'}
+                          onChange={e => setInvoiceOptions(prev => ({ ...prev, paperSize: e.target.value }))}>
+                          {Object.entries(PAPER_SIZES).map(([key, ps]) => (
+                            <option key={key} value={key}>{ps.label}</option>
+                          ))}
+                        </select>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>
+                          {getPaperSize(invoiceOptions.paperSize).hint}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={section.group} style={{ marginBottom: '0.6rem' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>{section.group}</div>
+                      <div className="options-grid">
+                        {section.items.map(([key, label]) => {
+                          // These default to OFF; everything else defaults to ON.
+                          const offByDefault = key === 'showRoundOff' || key === 'showAccountLabel'
+                            || key === 'showCess' || key === 'reverseCharge';
+                          const checked = offByDefault ? !!invoiceOptions[key] : invoiceOptions[key] !== false;
+                          return (
+                            <label key={key} className="option-toggle">
+                              <input type="checkbox" checked={checked} onChange={() => toggleOption(key)} />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
                   <button type="button" className="btn btn-secondary"
                     onClick={() => {

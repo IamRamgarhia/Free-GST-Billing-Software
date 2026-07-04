@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.1] — 2026-04-30
+
+Two user-reported bugs + one new feature.
+
+### Fixed — Invoice numbers no longer incremented on every "New Invoice" click
+
+**The bug**: opening the New Invoice form and typing anything meaningful
+would burn a counter value even if the user never clicked Save. Because
+auto-save fires 2s after the last edit and calls `saveInvoiceToDB`,
+which atomically reserves. If the user abandoned the form and opened
+another, the next number was N+1 already. CA-audited businesses require
+gapless sequences — this bug was creating gaps.
+
+**The fix**: for NEW bills that haven't been explicitly saved yet, the
+2-second auto-save skips the server persist step entirely. The
+sessionStorage draft is still auto-persisted (so a browser crash mid-
+edit doesn't lose typed content), but the counter is only atomically
+reserved when the user clicks **Save**, **Save & Leave**, or **Save &
+Download PDF**. Once the first successful save lands, auto-save flips
+back on as normal.
+
+For editing existing bills: unchanged behaviour — auto-save writes
+through to the server every 2 seconds so mid-session edits are safe.
+
+### Fixed — "Save failed" toast when navigating back
+
+The toast fired when auto-save and Save & Leave raced on the same
+invoice. Auto-save posted with `overwrite=false`, succeeded; Save & Leave
+then also posted with `overwrite=false`, and the server correctly 409'd
+because the file already existed at that ID.
+
+Added a `hasBeenSaved` ref that flips to `true` after the first
+successful server persist this session. Subsequent saves — whether from
+auto-save, Save & Leave, or Save & Download — now pass `overwrite=true`.
+Server accepts the write, "Save failed" no longer fires spuriously.
+
+The first save still uses `overwrite=false` so a typo hitting an
+existing invoice number is still caught (v1.6.8's dupe-check protection
+is preserved for the case it was meant to catch).
+
+### Added — Paper / print size options
+
+Requested by users with POS thermal printers and A5 preferences.
+
+New **"Paper / print size"** dropdown in the Customize panel (right side
+of the invoice form). Four options:
+
+- **A4 (default)** — 210 × 297 mm. Same as before, no behaviour change.
+- **A5 (compact)** — 148 × 210 mm. Half sheet, saves paper. Same layout
+  as A4, slightly smaller type.
+- **80mm Thermal (POS receipt)** — 80 mm wide roll. Compact single-
+  column layout, black-on-white, no decorative colour panels, smaller
+  UPI QR (60 × 60 px). Fits standard restaurant / retail POS printers.
+- **58mm Thermal (compact receipt)** — 58 mm wide roll. Even narrower;
+  UPI QR is hidden entirely (not enough width to scan reliably). For
+  portable / mobile thermal printers.
+
+How it works: `invoiceOptions.paperSize` (persisted with each bill).
+The **preview** container width + CSS class update live in the editor
+so what-you-see matches what-you-print. The **PDF** is generated at the
+correct `jsPDF` page size — A4 / A5 use jsPDF's built-in formats;
+thermal uses a custom `[width, 297mm]` page (long strip that thermal
+printers cut at content end). Existing bills default to A4 — no
+migration needed.
+
+### CSS additions
+
+New `.paper-a4` / `.paper-a5` / `.paper-thermal-80` / `.paper-thermal-58`
+classes on `.invoice-preview-container`. Thermal formats:
+
+- Force black-on-white — no gradient panels or coloured backgrounds
+- Monospace fallback font for receipt-like density
+- Grid layouts collapse to stacked single column
+- Table borders switch to 1px dashed (thermal printers render dashed
+  crisper than solid at fine sizes)
+- UPI QR hidden on 58mm; scaled to 60×60 on 80mm
+
+---
+
 ## [1.8.0] — 2026-04-30
 
 **Full ITR Release.** Two new sub-tabs (Presumptive + Advance Tax),

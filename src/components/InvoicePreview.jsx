@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import DOMPurify from 'dompurify';
-import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById } from '../utils';
+import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize } from '../utils';
 
 const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
   // Interstate detection must match InvoiceGenerator.jsx — it honours
@@ -263,8 +263,22 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     );
   };
 
+  // Paper-size class + width (v1.8.1). Preview container adopts the target
+  // paper's width in mm so what-you-see matches what-you-print. Thermal
+  // sizes get a `.paper-thermal` class the CSS uses to switch to a compact
+  // single-column layout (smaller fonts, no fancy dividers, monospace).
+  const paperCfg = getPaperSize(options.paperSize);
+  const isThermal = paperCfg.kind === 'thermal';
+  const containerStyle = {
+    width: `${paperCfg.widthMm}mm`,
+    minHeight: paperCfg.kind === 'sheet' ? `${paperCfg.heightMm}mm` : undefined,
+    ...(isThermal ? { fontFamily: '"Courier New", monospace', fontSize: '11px' } : {}),
+  };
+
   return (
-    <div className="invoice-preview-container" ref={ref} id="invoice-preview">
+    <div
+      className={`invoice-preview-container ${paperCfg.cssClass}${isThermal ? ' paper-thermal' : ''}`}
+      ref={ref} id="invoice-preview" style={containerStyle}>
       {pdfStyle === 'modern' && renderModernHeader()}
       {pdfStyle === 'minimal' && renderMinimalHeader()}
       {pdfStyle === 'classic' && renderClassicHeader()}

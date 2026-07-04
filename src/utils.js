@@ -397,6 +397,60 @@ export const getUpcomingFilings = (today = new Date()) => {
   return out.sort((a, b) => a.daysAway - b.daysAway);
 };
 
+// ============================================================================
+// Paper / print sizes
+// ----------------------------------------------------------------------------
+// Invoices can render at 4 different sizes. A4 is the default (matches the
+// current preview + PDF). A5 is half a sheet — same layout, smaller. Thermal
+// 80mm and 58mm are receipt-printer strips: single-column compact layout,
+// monospace-style typography, no decorative panels.
+//
+// Each entry:
+//   jsPdfFormat  — passed to `new jsPDF({ format })`. For custom sizes it's
+//                  an array [widthMm, heightMm]. Thermal uses a large-ish
+//                  fixed height because jsPDF needs to know the page size
+//                  up-front; extra whitespace is fine on roll paper.
+//   cssClass     — applied to the invoice-preview container so styles
+//                  branch on size.
+//   kind         — 'sheet' | 'thermal'. Thermal switches to a completely
+//                  compact template.
+// ============================================================================
+export const PAPER_SIZES = {
+  a4: {
+    label: 'A4 (default)',
+    hint: 'Standard business invoice — 210 × 297 mm',
+    widthMm: 210, heightMm: 297,
+    jsPdfFormat: 'a4',
+    cssClass: 'paper-a4',
+    kind: 'sheet',
+  },
+  a5: {
+    label: 'A5 (compact)',
+    hint: 'Half sheet — 148 × 210 mm. Fits smaller printers, saves paper.',
+    widthMm: 148, heightMm: 210,
+    jsPdfFormat: 'a5',
+    cssClass: 'paper-a5',
+    kind: 'sheet',
+  },
+  thermal80: {
+    label: '80mm Thermal (POS receipt)',
+    hint: '80 mm wide roll — most restaurant / retail POS printers',
+    widthMm: 80, heightMm: 297, // jsPDF needs a height; extra whitespace OK on roll paper
+    jsPdfFormat: [80, 297],
+    cssClass: 'paper-thermal-80',
+    kind: 'thermal',
+  },
+  thermal58: {
+    label: '58mm Thermal (compact receipt)',
+    hint: '58 mm wide roll — smaller portable / mobile thermal printers',
+    widthMm: 58, heightMm: 297,
+    jsPdfFormat: [58, 297],
+    cssClass: 'paper-thermal-58',
+    kind: 'thermal',
+  },
+};
+export const getPaperSize = (key) => PAPER_SIZES[key] || PAPER_SIZES.a4;
+
 // Fiscal-year dropdown options for the last N years. Was previously
 // duplicated in 5 files (Dashboard / PurchaseBills / ExpenseTracker /
 // GSTReturns / ReportsView) — extracted here so a bugfix only has to
