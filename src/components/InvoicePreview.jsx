@@ -263,21 +263,167 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     );
   };
 
-  // Paper-size class + width (v1.8.1). Preview container adopts the target
-  // paper's width in mm so what-you-see matches what-you-print. Thermal
-  // sizes get a `.paper-thermal` class the CSS uses to switch to a compact
-  // single-column layout (smaller fonts, no fancy dividers, monospace).
+  // Paper-size class + width (v1.8.1 / adapted v1.8.2). Preview container
+  // adopts the target paper's width in mm so what-you-see matches
+  // what-you-print. For A4/A5 (sheets), the existing multi-column layout
+  // renders at scaled type. For thermal 80mm/58mm, we switch to a
+  // completely different template — see renderThermalReceipt below.
+  //
+  // The problem in v1.8.1 was: only the container width changed; the inline
+  // margins (`margin: '0 2rem'`) inside the items table + party blocks
+  // stayed at A4 sizes. On an 80mm roll, that meant the items were pushed
+  // off the right edge. v1.8.2 branches on `kind === 'thermal'` and
+  // renders a proper single-column receipt.
   const paperCfg = getPaperSize(options.paperSize);
   const isThermal = paperCfg.kind === 'thermal';
   const containerStyle = {
     width: `${paperCfg.widthMm}mm`,
     minHeight: paperCfg.kind === 'sheet' ? `${paperCfg.heightMm}mm` : undefined,
-    ...(isThermal ? { fontFamily: '"Courier New", monospace', fontSize: '11px' } : {}),
+    ...(isThermal ? { fontFamily: '"Courier New", monospace', fontSize: paperCfg.widthMm >= 80 ? '10.5px' : '9px' } : {}),
   };
+
+  // Thermal receipt render — single column, no colour panels, no margins.
+  // Used for both 80mm and 58mm; the CSS class (`paper-thermal-58` vs
+  // `paper-thermal-80`) further trims (hide QR at 58mm etc.). Inlined here
+  // rather than extracted to a helper because it needs access to all the
+  // opt() / totals / items closures. Escape-hatch: user can switch back to
+  // A4/A5 any time in Customize.
+  if (isThermal) {
+    const invoiceNum = details?.invoiceNumber || '';
+    const invoiceDate = details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN') : '';
+    const sellerCurrency = getCountryConfig(profile?.country).currency;
+    const currencySymbol = sellerCurrency === 'INR' ? '₹' : sellerCurrency;
+    const showRoundOff = opt('showRoundOff', false);
+    const showQR = opt('showUPI') && paperCfg.widthMm >= 80 && qrDataUrl;
+    return (
+      <div
+        className={`invoice-preview-container ${paperCfg.cssClass} paper-thermal`}
+        ref={ref} id="invoice-preview" style={containerStyle}>
+        <div style={{ padding: '6px 4px', textAlign: 'center', borderBottom: '1px dashed #000' }}>
+          {profile?.logo && <img src={profile.logo} alt="" style={{ maxHeight: 40, marginBottom: 4 }} />}
+          <div style={{ fontWeight: 700, fontSize: '1.05em' }}>{profile?.businessName || ''}</div>
+          {profile?.address && <div style={{ fontSize: '0.85em' }}>{profile.address}</div>}
+          {(profile?.city || profile?.state || profile?.pin) && <div style={{ fontSize: '0.85em' }}>{[profile?.city, profile?.state, profile?.pin].filter(Boolean).join(', ')}</div>}
+          {profile?.gstin && <div style={{ fontSize: '0.85em' }}>GSTIN: {profile.gstin}</div>}
+          {profile?.phone && <div style={{ fontSize: '0.85em' }}>Ph: {profile.phone}</div>}
+        </div>
+
+        <div style={{ padding: '4px', textAlign: 'center', borderBottom: '1px dashed #000', fontWeight: 700, textTransform: 'uppercase' }}>
+          {typeConfig?.label || 'Invoice'}
+        </div>
+
+        <div style={{ padding: '4px', borderBottom: '1px dashed #000', fontSize: '0.9em' }}>
+          <div><strong>#:</strong> {invoiceNum}</div>
+          <div><strong>Date:</strong> {invoiceDate}</div>
+          {client?.name && <div><strong>To:</strong> {client.name}</div>}
+          {client?.gstin && <div><strong>GSTIN:</strong> {client.gstin}</div>}
+          {client?.phone && <div><strong>Ph:</strong> {client.phone}</div>}
+        </div>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88em' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px dashed #000' }}>
+              <th style={{ textAlign: 'left', padding: '3px 4px' }}>Item</th>
+              <th style={{ textAlign: 'center', padding: '3px 2px', width: '18%' }}>Qty</th>
+              <th style={{ textAlign: 'right', padding: '3px 4px', width: '32%' }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(items || []).map((item, idx) => {
+              const amount = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+              return (
+                <tr key={idx} style={{ borderBottom: '1px dotted #ccc' }}>
+                  <td style={{ padding: '3px 4px' }}>
+                    <div style={{ fontWeight: 600 }}>{item.name || item.description || 'Item'}</div>
+                    {item.hsn && <div style={{ fontSize: '0.8em', color: '#555' }}>HSN {item.hsn}</div>}
+                    <div style={{ fontSize: '0.82em', color: '#555' }}>@ {currencySymbol}{(Number(item.rate) || 0).toFixed(2)} {showGST && item.taxPercent > 0 ? `+ ${item.taxPercent}%` : ''}</div>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '3px 2px' }}>{Number(item.quantity) || 0}{item.unit ? ` ${item.unit}` : ''}</td>
+                  <td style={{ textAlign: 'right', padding: '3px 4px' }}>{currencySymbol}{amount.toFixed(2)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div style={{ padding: '4px', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', fontSize: '0.9em' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Subtotal:</span><span>{currencySymbol}{(Number(totals?.subtotal) || 0).toFixed(2)}</span>
+          </div>
+          {Number(totals?.totalDiscount) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Discount:</span><span>-{currencySymbol}{Number(totals.totalDiscount).toFixed(2)}</span>
+            </div>
+          )}
+          {showGST && Number(totals?.cgst) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>CGST:</span><span>{currencySymbol}{Number(totals.cgst).toFixed(2)}</span>
+            </div>
+          )}
+          {showGST && Number(totals?.sgst) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>SGST:</span><span>{currencySymbol}{Number(totals.sgst).toFixed(2)}</span>
+            </div>
+          )}
+          {showGST && Number(totals?.igst) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>IGST:</span><span>{currencySymbol}{Number(totals.igst).toFixed(2)}</span>
+            </div>
+          )}
+          {Number(totals?.cess) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Cess:</span><span>{currencySymbol}{Number(totals.cess).toFixed(2)}</span>
+            </div>
+          )}
+          {showRoundOff && Number(totals?.roundOff) !== 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Round-off:</span><span>{Number(totals.roundOff) > 0 ? '+' : ''}{currencySymbol}{Number(totals.roundOff).toFixed(2)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1.08em', marginTop: 3, borderTop: '1px solid #000', paddingTop: 3 }}>
+            <span>TOTAL:</span><span>{currencySymbol}{(Number(totals?.total) || 0).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {showAmountWords && (
+          <div style={{ padding: '4px', fontSize: '0.82em', textAlign: 'center', borderBottom: '1px dashed #000' }}>
+            <em>{amountInWords(totals?.total || 0)}</em>
+          </div>
+        )}
+
+        {showBankDetails && (account?.bankName || profile?.bankName) && (
+          <div style={{ padding: '4px', fontSize: '0.85em', borderBottom: '1px dashed #000' }}>
+            <div style={{ fontWeight: 600 }}>Bank Details:</div>
+            <div>{account?.bankName || profile?.bankName}</div>
+            {(account?.accountNumber || profile?.accountNumber) && <div>A/c: {account?.accountNumber || profile?.accountNumber}</div>}
+            {(account?.ifsc || profile?.ifsc) && <div>IFSC: {account?.ifsc || profile?.ifsc}</div>}
+          </div>
+        )}
+
+        {showQR && (
+          <div style={{ padding: '4px', textAlign: 'center', borderBottom: '1px dashed #000' }}>
+            <img src={qrDataUrl} alt="UPI QR" style={{ width: 80, height: 80 }} />
+            <div style={{ fontSize: '0.75em' }}>Scan to pay via UPI</div>
+          </div>
+        )}
+
+        {showNotes && customNotes && (
+          <div style={{ padding: '4px', fontSize: '0.82em', borderBottom: '1px dashed #000' }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(customNotes) }} />
+        )}
+
+        <div style={{ padding: '6px 4px', textAlign: 'center', fontSize: '0.82em' }}>
+          <div>Thank you for your business!</div>
+          {profile?.email && <div>{profile.email}</div>}
+          <div style={{ marginTop: 4, opacity: 0.65 }}>via Free GST Billing Software</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`invoice-preview-container ${paperCfg.cssClass}${isThermal ? ' paper-thermal' : ''}`}
+      className={`invoice-preview-container ${paperCfg.cssClass}`}
       ref={ref} id="invoice-preview" style={containerStyle}>
       {pdfStyle === 'modern' && renderModernHeader()}
       {pdfStyle === 'minimal' && renderMinimalHeader()}

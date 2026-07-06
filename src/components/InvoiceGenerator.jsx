@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring } from '../store';
@@ -1062,6 +1062,48 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMeaningfulInvoice]);
 
+  // Direct print — opens the browser print dialog with the invoice PDF
+  // as the print source. Useful for thermal printers where the user has
+  // already configured their default print device + paper roll — one click
+  // and receipt comes out of the printer. Also works for A4 laser printers,
+  // just skips the PDF-download-then-open step.
+  const directPrint = async () => {
+    if (!printRef.current) return;
+    try {
+      setSaving(true);
+      const pdf = await buildPDF();
+      // Convert to blob URL and open in a hidden iframe → print → cleanup.
+      // Using an iframe (vs window.open) avoids popup-blockers and works
+      // consistently across Chrome / Edge / Firefox.
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      let printFrame = document.getElementById('fgsb-print-frame');
+      if (!printFrame) {
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'fgsb-print-frame';
+        printFrame.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:0;height:0;border:0;';
+        document.body.appendChild(printFrame);
+      }
+      printFrame.src = url;
+      printFrame.onload = () => {
+        try {
+          printFrame.contentWindow.focus();
+          printFrame.contentWindow.print();
+        } catch (err) {
+          console.error('Print failed', err);
+          // Fallback: open in a new tab so user can Ctrl+P themselves.
+          window.open(url, '_blank');
+        }
+        // Revoke after a delay so print job has time to grab the buffer.
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      };
+    } catch (e) {
+      console.error(e);
+      toast('Print failed — try Download PDF instead', 'error');
+    }
+    setSaving(false);
+  };
+
   const generatePDF = async () => {
     if (!printRef.current) return;
     try {
@@ -1130,6 +1172,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         <div className="flex gap-2">
           <button className="btn btn-primary" onClick={generatePDF} disabled={saving}>
             <Download size={18} /> {saving ? 'Generating...' : 'Download PDF'}
+          </button>
+          <button className="btn btn-secondary" onClick={directPrint} disabled={saving}
+            title={
+              (invoiceOptions.paperSize || 'a4').startsWith('thermal')
+                ? 'Send directly to your thermal printer'
+                : 'Open browser print dialog (skip the PDF download)'
+            }>
+            <Printer size={18} /> Print
           </button>
           <button className="btn btn-secondary" onClick={shareWhatsApp} disabled={saving} style={{ background: '#25d366', color: '#fff', borderColor: '#25d366' }}>
             <MessageCircle size={18} /> WhatsApp

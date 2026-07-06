@@ -61,101 +61,200 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const savedClient = clients.find(c => c.name === clientName) || { name: clientName };
       const stats = getClientStats(clientName);
+      const pageW = 210, marginL = 15, marginR = 195, tableW = marginR - marginL; // = 180
+      // Helvetica core font can't render Rupee symbol properly — use "Rs." plaintext.
+      // Numbers are formatted with Indian digit grouping (2,5,000.00 style).
+      const fmt = (n) => {
+        const v = Number(n) || 0;
+        const abs = Math.abs(v);
+        const rounded = abs.toFixed(2);
+        const parts = rounded.split('.');
+        // Indian grouping: last 3 digits, then groups of 2
+        const intPart = parts[0];
+        const last3 = intPart.slice(-3);
+        const rest = intPart.slice(0, -3);
+        const grouped = rest ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3 : last3;
+        return (v < 0 ? '-' : '') + 'Rs. ' + grouped + '.' + parts[1];
+      };
 
-      let y = 15;
-      // Header
-      doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-      doc.text('Client Statement', 105, y, { align: 'center' });
-      y += 8;
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-      doc.text(`Period: All-time · Generated ${new Date().toLocaleDateString('en-IN')}`, 105, y, { align: 'center' });
-      y += 8;
-
-      // Seller block (left)
-      if (profileForStatement?.businessName) {
-        doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-        doc.text('From:', 15, y);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-        doc.text(profileForStatement.businessName, 15, y + 5);
-        if (profileForStatement.gstin) doc.text(`GSTIN: ${profileForStatement.gstin}`, 15, y + 10);
-      }
-
-      // Client block (right)
-      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-      doc.text('To:', 120, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-      doc.text(savedClient.name || clientName, 120, y + 5);
-      const addr = [savedClient.address, savedClient.city, savedClient.state, savedClient.pin].filter(Boolean).join(', ');
-      if (addr) doc.text(doc.splitTextToSize(addr, 70), 120, y + 10);
-      if (savedClient.gstin) doc.text(`GSTIN: ${savedClient.gstin}`, 120, y + 20);
-      y += 30;
-
-      // Summary
-      doc.setFillColor(241, 245, 249);
-      doc.rect(15, y, 180, 18, 'F');
-      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-      doc.text('SUMMARY', 20, y + 5);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Invoices: ${stats.count}`, 20, y + 12);
-      doc.text(`Total Billed: ${formatCurrency(stats.total)}`, 65, y + 12);
-      doc.text(`Paid: ${formatCurrency(stats.paid)}`, 115, y + 12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(stats.unpaid > 0 ? 220 : 5, stats.unpaid > 0 ? 38 : 150, stats.unpaid > 0 ? 38 : 105);
-      doc.text(`Outstanding: ${formatCurrency(stats.unpaid)}`, 160, y + 12);
+      // ============== HEADER BAND ==============
+      doc.setFillColor(30, 64, 175);
+      doc.rect(0, 0, pageW, 22, 'F');
+      doc.setTextColor(255); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+      doc.text('CLIENT STATEMENT', pageW / 2, 12, { align: 'center' });
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.text(`Generated ${new Date().toLocaleDateString('en-IN')}  ·  Period: All invoices`, pageW / 2, 18, { align: 'center' });
       doc.setTextColor(0);
-      y += 24;
+
+      let y = 30;
+
+      // ============== FROM / TO BLOCKS (side-by-side, guaranteed non-overlap) ==============
+      const colL = marginL, colR = marginL + tableW / 2 + 5;   // 15 and 100
+      const colWidth = tableW / 2 - 5;                          // 85 mm each column
+
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100);
+      doc.text('FROM', colL, y);
+      doc.text('BILL TO', colR, y);
+      doc.setTextColor(0);
+      y += 4;
+
+      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+      doc.text(doc.splitTextToSize(profileForStatement?.businessName || '', colWidth), colL, y);
+      doc.text(doc.splitTextToSize(savedClient.name || clientName, colWidth), colR, y);
+      y += 5;
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+
+      const sellerLines = [
+        profileForStatement?.address,
+        [profileForStatement?.city, profileForStatement?.state, profileForStatement?.pin].filter(Boolean).join(', '),
+        profileForStatement?.gstin ? `GSTIN: ${profileForStatement.gstin}` : null,
+        profileForStatement?.email,
+        profileForStatement?.phone ? `Ph: ${profileForStatement.phone}` : null,
+      ].filter(Boolean);
+      const clientLines = [
+        savedClient.address,
+        [savedClient.city, savedClient.state, savedClient.pin].filter(Boolean).join(', '),
+        savedClient.gstin ? `GSTIN: ${savedClient.gstin}` : null,
+        savedClient.email,
+        savedClient.phone ? `Ph: ${savedClient.phone}` : null,
+      ].filter(Boolean);
+
+      const sellerHeight = sellerLines.length * 4;
+      const clientHeight = clientLines.length * 4;
+      let dy = 0;
+      sellerLines.forEach(line => {
+        doc.text(doc.splitTextToSize(line, colWidth), colL, y + dy);
+        dy += 4;
+      });
+      dy = 0;
+      clientLines.forEach(line => {
+        doc.text(doc.splitTextToSize(line, colWidth), colR, y + dy);
+        dy += 4;
+      });
+      y += Math.max(sellerHeight, clientHeight) + 5;
+
+      // ============== SUMMARY STRIP ==============
+      doc.setFillColor(241, 245, 249);
+      doc.rect(marginL, y, tableW, 16, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(marginL, y, tableW, 16, 'S');
+
+      const cellW = tableW / 4;
+      const summaryCells = [
+        { label: 'Invoices', value: String(stats.count) },
+        { label: 'Total Billed', value: fmt(stats.total) },
+        { label: 'Paid', value: fmt(stats.paid), color: [5, 150, 105] },
+        { label: 'Outstanding', value: fmt(stats.unpaid), color: stats.unpaid > 0 ? [220, 38, 38] : [5, 150, 105] },
+      ];
+      summaryCells.forEach((cell, i) => {
+        const cx = marginL + i * cellW + cellW / 2;
+        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
+        doc.text(cell.label.toUpperCase(), cx, y + 5, { align: 'center' });
+        doc.setFontSize(cell.label === 'Invoices' ? 12 : 10); doc.setFont('helvetica', 'bold');
+        if (cell.color) doc.setTextColor(...cell.color); else doc.setTextColor(15, 23, 42);
+        doc.text(cell.value, cx, y + 12, { align: 'center' });
+      });
+      doc.setTextColor(0);
+      y += 22;
+
+      // ============== TRANSACTION TABLE ==============
+      // Column layout — right edges. All in mm, from marginL=15 to marginR=195 (width 180).
+      const col = {
+        dateEnd: 40,       // Date left-aligned starting at 17 → ends ~40
+        invEnd: 75,        // Invoice # ends ~75
+        typeEnd: 110,      // Type ends ~110
+        amountEnd: 138,    // Amount right-aligned
+        paidEnd: 165,      // Paid right-aligned
+        balanceEnd: marginR - 2, // Balance right-aligned = 193
+      };
 
       // Table header
-      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-      doc.setFillColor(30, 64, 175); doc.setTextColor(255);
-      doc.rect(15, y, 180, 7, 'F');
-      doc.text('Date', 17, y + 5);
-      doc.text('Invoice #', 40, y + 5);
-      doc.text('Type', 75, y + 5);
-      doc.text('Amount', 130, y + 5, { align: 'right' });
-      doc.text('Paid', 155, y + 5, { align: 'right' });
-      doc.text('Balance', 190, y + 5, { align: 'right' });
+      doc.setFillColor(30, 64, 175);
+      doc.rect(marginL, y, tableW, 8, 'F');
+      doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      doc.text('Date', marginL + 2, y + 5.5);
+      doc.text('Invoice #', col.dateEnd + 2, y + 5.5);
+      doc.text('Type', col.invEnd + 2, y + 5.5);
+      doc.text('Amount', col.amountEnd, y + 5.5, { align: 'right' });
+      doc.text('Paid', col.paidEnd, y + 5.5, { align: 'right' });
+      doc.text('Balance', col.balanceEnd, y + 5.5, { align: 'right' });
       doc.setTextColor(0);
-      y += 8;
+      y += 10;
 
       // Rows
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
       let runningBalance = 0;
-      clientBills.sort((a, b) => new Date(a.invoiceDate) - new Date(b.invoiceDate))
-                 .forEach((bill, i) => {
+      const sortedBills = clientBills.slice().sort((a, b) => new Date(a.invoiceDate) - new Date(b.invoiceDate));
+      for (let i = 0; i < sortedBills.length; i++) {
+        const bill = sortedBills[i];
         const isCreditNote = bill.invoiceType === 'credit-note';
         const amount = Number(bill.totalAmount) || 0;
         const paid = Number(bill.paidAmount) || 0;
-        // Credit notes REDUCE balance owed (negative amount).
         const effectiveAmount = isCreditNote ? -amount : amount;
         const effectivePaid = isCreditNote ? 0 : paid;
         runningBalance += effectiveAmount - effectivePaid;
 
-        if (y > 265) { doc.addPage(); y = 20; }
-        if (i % 2 === 1) { doc.setFillColor(249, 250, 252); doc.rect(15, y - 3, 180, 6, 'F'); }
-        doc.text(new Date(bill.invoiceDate).toLocaleDateString('en-IN'), 17, y);
-        doc.text(bill.invoiceNumber || '', 40, y);
-        doc.text(INVOICE_TYPES[bill.invoiceType]?.label || bill.invoiceType || '', 75, y);
-        doc.text(`${isCreditNote ? '- ' : ''}${formatCurrency(amount)}`, 130, y, { align: 'right' });
-        doc.text(formatCurrency(paid), 155, y, { align: 'right' });
-        doc.setFont('helvetica', runningBalance > 0 ? 'bold' : 'normal');
-        doc.setTextColor(runningBalance > 0 ? 220 : 5, runningBalance > 0 ? 38 : 150, runningBalance > 0 ? 38 : 105);
-        doc.text(formatCurrency(runningBalance), 190, y, { align: 'right' });
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(0);
-        y += 6;
-      });
+        // Page break with header repeat
+        if (y > 270) {
+          doc.addPage(); y = 20;
+          doc.setFillColor(30, 64, 175);
+          doc.rect(marginL, y, tableW, 8, 'F');
+          doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+          doc.text('Date', marginL + 2, y + 5.5);
+          doc.text('Invoice #', col.dateEnd + 2, y + 5.5);
+          doc.text('Type', col.invEnd + 2, y + 5.5);
+          doc.text('Amount', col.amountEnd, y + 5.5, { align: 'right' });
+          doc.text('Paid', col.paidEnd, y + 5.5, { align: 'right' });
+          doc.text('Balance', col.balanceEnd, y + 5.5, { align: 'right' });
+          doc.setTextColor(0);
+          y += 10;
+        }
 
-      // Footer
-      y += 6;
-      doc.setDrawColor(200); doc.line(15, y, 195, y); y += 6;
-      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-      doc.text('CLOSING BALANCE:', 130, y, { align: 'right' });
-      doc.setTextColor(runningBalance > 0 ? 220 : 5, runningBalance > 0 ? 38 : 150, runningBalance > 0 ? 38 : 105);
-      doc.text(formatCurrency(runningBalance), 190, y, { align: 'right' });
+        // Alt row shading
+        if (i % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(marginL, y - 4, tableW, 6, 'F');
+        }
+
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
+        // Date
+        doc.text(new Date(bill.invoiceDate).toLocaleDateString('en-IN'), marginL + 2, y);
+        // Invoice #
+        const invText = doc.splitTextToSize(bill.invoiceNumber || '', col.invEnd - col.dateEnd - 4);
+        doc.text(invText[0] || '', col.dateEnd + 2, y);
+        // Type (truncate if too long)
+        const typeLabel = INVOICE_TYPES[bill.invoiceType]?.label || bill.invoiceType || '';
+        const typeText = doc.splitTextToSize(typeLabel, col.typeEnd - col.invEnd - 4);
+        doc.text(typeText[0] || '', col.invEnd + 2, y);
+        // Amount (- for credit note)
+        doc.text((isCreditNote ? '- ' : '') + fmt(amount), col.amountEnd, y, { align: 'right' });
+        // Paid
+        doc.text(fmt(paid), col.paidEnd, y, { align: 'right' });
+        // Balance (colour + bold if outstanding)
+        if (runningBalance > 0.01) {
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(220, 38, 38);
+        } else {
+          doc.setTextColor(5, 150, 105);
+        }
+        doc.text(fmt(runningBalance), col.balanceEnd, y, { align: 'right' });
+        doc.setTextColor(15, 23, 42); doc.setFont('helvetica', 'normal');
+        y += 6;
+      }
+
+      // ============== CLOSING BALANCE ==============
+      y += 4;
+      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.5);
+      doc.line(marginL, y, marginR, y); y += 8;
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+      doc.text('CLOSING BALANCE', col.paidEnd, y, { align: 'right' });
+      doc.setFontSize(12);
+      if (runningBalance > 0.01) doc.setTextColor(220, 38, 38); else doc.setTextColor(5, 150, 105);
+      doc.text(fmt(runningBalance), col.balanceEnd, y, { align: 'right' });
       doc.setTextColor(0);
-      y += 12;
-      doc.setFontSize(8); doc.setFont('helvetica', 'italic');
-      doc.text('Generated by Free GST Billing Software. Verify against your own records before payment.', 105, 285, { align: 'center' });
+
+      // ============== FOOTER ==============
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(120);
+      doc.text('Generated by Free GST Billing Software · Verify against your books before payment.', pageW / 2, 290, { align: 'center' });
 
       doc.save(`statement-${clientName.replace(/[^\w]+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
       toast('Statement PDF generated', 'success');

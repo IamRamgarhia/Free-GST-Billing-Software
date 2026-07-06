@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.2] — 2026-04-30
+
+Hotfix release addressing five user-reported bugs from v1.8.0-v1.8.1
+plus the direct-print feature request.
+
+### Fixed — 🔥 Dashboard blank page when clicking invoice checkbox
+
+The most damaging regression: clicking any checkbox on an invoice row
+crashed the Dashboard to a blank page. Cause: v1.7.0's Bulk PDF button
+referenced `<Download size={13} />` in the bulk toolbar, but `Download`
+was not imported from `lucide-react`. As soon as a checkbox was ticked,
+`selectedIds.size > 0` became true, the toolbar rendered, hit the
+undefined icon, and React crashed the entire Dashboard tree.
+
+Fixed by adding `Download` to the lucide-react import list. Sanity-swept
+all other lucide references for missing imports.
+
+### Fixed — 🔥 Income Tax module blanking on any interaction
+
+Cause: v1.8.0's `advanceSchedule` useMemo referenced `comparison` in
+its dependency array + callback body BEFORE `comparison` was declared.
+JavaScript TDZ (temporal dead zone) rules mean this throws a
+`ReferenceError` on every render of the Income Tax view — so navigating
+to it or clicking anything triggered the crash. eslint flagged this
+but the build didn't fail because it was in a hook deps array (only
+runtime-detectable).
+
+Fix: reorder — `comparison` is now declared before `advanceSchedule`.
+Also added defensive optional chaining on
+`comparison?.[comparison?.recommended]?.totalTax` so a race between
+`useMemo` recomputation and state updates can't crash again.
+
+### Fixed — A5 layout wasn't actually adapting
+
+v1.8.1's paper-size selector changed the container width and PDF format
+but the internal invoice layout stayed A4-optimized. Inline
+`margin: '0 2rem'` on tables + rem-based paddings pushed content
+off the A5 page.
+
+Added stronger `.paper-a5` CSS overrides — table margins collapse to
+8px each side, headers scale to 1.25rem, sections drop to smaller
+padding, logos shrink to 45px. Now the whole invoice fits properly
+inside 148 × 210 mm.
+
+### Fixed — Thermal 80mm / 58mm now renders a proper receipt layout
+
+Same problem: v1.8.1 changed only the container width. The Indian GST
+column layout (CGST + SGST + IGST + Tax %) never fitted on a 58mm roll,
+producing overflowing / clipped output.
+
+v1.8.2 branches on `paperCfg.kind === 'thermal'` and renders a
+completely different template:
+
+- Single-column layout (no side-by-side party blocks)
+- Compact monospace-style typography (Courier New)
+- Item table: Item · Qty · Amount (3 columns only)
+- Totals stacked vertically with dashed dividers
+- Currency prefix uses ₹ symbol at 80mm+, but hides UPI QR at 58mm
+  (not enough width to scan reliably)
+- All colour panels stripped — black on white to save thermal
+  printer ribbon / paper
+
+Users of thermal POS printers can now genuinely use this as a
+day-to-day receipt template.
+
+### Fixed — Client Statement PDF alignment
+
+Column overlap when the amount was wide (e.g. ₹12,34,567.89 would
+extend into the Type column). Rewrote the layout:
+
+- Explicit column-end coordinates so text can never overlap
+- Indian digit grouping (2,5,000 style instead of 25,000)
+- Currency prefixed with plain "Rs. " — helvetica can't render the
+  ₹ symbol properly and it was appearing as garbage in some PDF
+  readers
+- Alternating row shading now aligned to text baseline
+- Page-break repeat of the table header
+- Colored summary strip at top (Invoices count / Total / Paid /
+  Outstanding) with clear typography
+- Bold + red for outstanding balance, green when settled
+
+### Added — 🖨 Direct Print button (feature request)
+
+New **Print** button next to Download PDF on the invoice toolbar.
+Opens the browser print dialog directly with the invoice PDF loaded
+in a hidden iframe. Works with:
+
+- Any thermal printer configured as system default (send receipt
+  straight to the paper roll)
+- A4 laser / inkjet printers (skips the "download PDF then open then
+  print" flow)
+- Popup-blocker safe (uses hidden iframe, not `window.open`)
+- Fallback: opens PDF in new tab if browser blocks the auto-print
+
+Button title changes based on the selected paper size: "Send directly
+to your thermal printer" for thermal formats, "Open browser print
+dialog (skip the PDF download)" for A4 / A5.
+
+---
+
 ## [1.8.1] — 2026-04-30
 
 Two user-reported bugs + one new feature.

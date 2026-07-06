@@ -1141,15 +1141,41 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    getPaperSize() so PDF captures at the right physical dimensions. These
    rules add layout adjustments for the compact formats. */
 
-/* A5 — half a sheet. Same layout, slightly smaller type. */
+/* A5 — half a sheet. Layout scales proportionally: everything ~70% of A4
+   size so it fits inside 148mm without pushing content off the edge. The
+   InvoicePreview has inline styles (padding, margins in rem) that we
+   override here for A5 so content lands within the visible page. */
 .paper-a5.invoice-preview-container {
   min-height: 210mm;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 10.5px;
+  line-height: 1.35;
 }
-.paper-a5 h1 { font-size: 1.35rem; }
-.paper-a5 h2 { font-size: 1.15rem; }
-.paper-a5 table { font-size: 10.5px; }
+.paper-a5 h1 { font-size: 1.25rem !important; }
+.paper-a5 h2 { font-size: 1.05rem !important; }
+.paper-a5 h3 { font-size: 0.95rem !important; }
+.paper-a5 table { font-size: 9.5px !important; }
+.paper-a5 th, .paper-a5 td { padding: 3px 4px !important; }
+/* Shrink the "0 2rem" horizontal margins that push content off A5. */
+.paper-a5 .inv-table[style*="margin: 0 2rem"],
+.paper-a5 table[style*="margin: 0 2rem"] {
+  margin: 0 8px !important;
+  width: calc(100% - 16px) !important;
+}
+/* Header sections that use 1.5-2rem padding at A4 — halve for A5. */
+.paper-a5 .invoice-header-modern,
+.paper-a5 .invoice-header-classic,
+.paper-a5 .invoice-header-minimal { padding: 12px 16px !important; }
+.paper-a5 .invoice-section,
+.paper-a5 .invoice-block,
+.paper-a5 .invoice-footer,
+.paper-a5 .totals-block { padding: 8px 12px !important; }
+/* Logos + signatures don't need to be as large */
+.paper-a5 .invoice-logo,
+.paper-a5 img[alt="logo"],
+.paper-a5 img[alt="signature"] { max-height: 45px !important; }
+/* Font weight adjustments to keep readability at smaller size */
+.paper-a5 .table-total,
+.paper-a5 .totals-block strong { font-size: 1.05em !important; }
 
 /* Thermal — 80mm / 58mm receipt printer roll. Single-column, dense,
    monospace-ish. All decorative color panels + gradients removed since

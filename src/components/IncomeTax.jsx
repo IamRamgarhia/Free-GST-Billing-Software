@@ -137,20 +137,27 @@ export default function IncomeTax() {
     return null;
   }, [presumptiveInputs]);
 
-  // Advance-tax schedule — depends on the total tax under the RECOMMENDED regime
+  // Regime comparison recomputes live from inputs. `compareRegimes` runs both
+  // scenarios and picks the cheaper. Rendered whether or not the user has
+  // filled anything — a zero-input result is still useful.
+  //
+  // MUST be declared BEFORE advanceSchedule below — v1.8.1 had this reversed,
+  // causing a TDZ ReferenceError that blanked the whole Income Tax view.
+  const comparison = useMemo(() => compareRegimes(inputs), [inputs]);
+
+  // Advance-tax schedule — depends on the total tax under the RECOMMENDED regime.
+  // Defensive: if comparison hasn't yielded a valid shape yet (first render
+  // race), fall back to a zero-tax schedule so the Advance Tax tab still
+  // renders instead of crashing.
   const advanceSchedule = useMemo(() => {
+    const recTotal = comparison?.[comparison?.recommended]?.totalTax ?? 0;
     return computeAdvanceTaxSchedule(
-      comparison[comparison.recommended].totalTax,
+      recTotal,
       advanceInputs.tdsCredit,
       advanceInputs.payments,
       advanceInputs.mode
     );
   }, [comparison, advanceInputs]);
-
-  // Regime comparison recomputes live from inputs. `compareRegimes` runs both
-  // scenarios and picks the cheaper. Rendered whether or not the user has
-  // filled anything — a zero-input result is still useful.
-  const comparison = useMemo(() => compareRegimes(inputs), [inputs]);
 
   return (
     <div className="dashboard-container">
