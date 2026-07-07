@@ -461,7 +461,71 @@ export default function PrintSettings() {
               hint="Changes the header block and table styling of the A4/A5 PDF. Thermal receipts use their own compact template." />
           </SettingGroup>
 
+          {/* v1.9.2 — DARKEN ON PRINT */}
+          <SettingGroup title="Print darkness">
+            <ToggleRow label="Force darker text on printed PDF" value={settings.pdfDarkenOnPrint} onChange={v => set({ pdfDarkenOnPrint: v })}
+              hint="Fixes light-gray labels + addresses fading on paper printers. Applies automatically when generating the PDF (screen view is unchanged). Turn off if your printer already prints greys crisply." />
+          </SettingGroup>
+
+          {/* v1.9.2 — FONT SIZE SCALE */}
+          <SettingGroup title="PDF font scale">
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
+              Overall size: <strong>{Math.round((settings.pdfFontScale || 1) * 100)}%</strong>
+            </label>
+            <input type="range" min="80" max="140" step="5"
+              value={Math.round((settings.pdfFontScale || 1) * 100)}
+              onChange={e => set({ pdfFontScale: parseInt(e.target.value, 10) / 100 })}
+              style={{ width: '100%', accentColor: 'var(--primary)' }} />
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+              80% = compact (fits more per page) · 100% = default · 140% = large. Scales the entire PDF proportionally.
+            </p>
+          </SettingGroup>
+
         </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* v1.9.2 — PDF STYLE EDITOR (full color control) */}
+      {/* ============================================================ */}
+      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <div>
+            <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--primary)' }}>
+              🎨 PDF Style Editor — full control over every colour
+            </h4>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+              Match your brand. Every colour you change updates the live preview instantly and gets baked into your PDFs.
+            </p>
+          </div>
+          <ToggleRow label="Use custom colours" value={settings.userColorsEnabled} onChange={v => set({ userColorsEnabled: v })} />
+        </div>
+
+        {settings.userColorsEnabled && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
+            <ColorRow label="Primary text" value={settings.pdfPrimaryText || '#0f172a'} onChange={v => set({ pdfPrimaryText: v })}
+              hint="Main body text — client name, item names, totals." />
+            <ColorRow label="Muted text" value={settings.pdfMutedText || '#334155'} onChange={v => set({ pdfMutedText: v })}
+              hint="Labels, addresses, meta info (Date, Invoice #)." />
+            <ColorRow label="Accent colour" value={settings.pdfAccent || '#1e40af'} onChange={v => set({ pdfAccent: v })}
+              hint="Section titles + table header background." />
+            <ColorRow label="Accent text" value={settings.pdfAccentText || '#ffffff'} onChange={v => set({ pdfAccentText: v })}
+              hint="Text on the accent colour (usually white on a coloured header)." />
+            <ColorRow label="Header background" value={settings.pdfHeaderBg || '#f8fafc'} onChange={v => set({ pdfHeaderBg: v })}
+              hint="Header block behind the business name / invoice title." />
+            <ColorRow label="Divider lines" value={settings.pdfDividerColor || '#334155'} onChange={v => set({ pdfDividerColor: v })}
+              hint="Hairlines between sections + table row borders." />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                onClick={() => set({
+                  pdfPrimaryText: '#0f172a', pdfMutedText: '#334155',
+                  pdfAccent: '#1e40af', pdfAccentText: '#ffffff',
+                  pdfHeaderBg: '#f8fafc', pdfDividerColor: '#334155',
+                })}>
+                Reset colours to defaults
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* LIVE PREVIEW */}
@@ -534,6 +598,22 @@ function SelectRow({ label, value, onChange, options, hint }) {
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
       {hint && <p style={{ margin: '3px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{hint}</p>}
+    </div>
+  );
+}
+
+function ColorRow({ label, value, onChange, hint }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 4 }}>{label}</label>
+      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+        <input type="color" value={value} onChange={e => onChange(e.target.value)}
+          style={{ width: 42, height: 32, padding: 0, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }} />
+        <input type="text" value={value} onChange={e => onChange(e.target.value)}
+          className="form-input" style={{ fontSize: '0.8rem', padding: '0.3rem 0.4rem', fontFamily: 'monospace' }}
+          placeholder="#000000" />
+      </div>
+      {hint && <p style={{ margin: '3px 0 0', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{hint}</p>}
     </div>
   );
 }

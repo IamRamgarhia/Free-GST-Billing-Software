@@ -7,6 +7,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.2] — 2026-04-30
+
+Full user control. Fixes v1.9.1 bugs and adds a **PDF Style Editor** so
+users can tune every colour without waiting on developer changes.
+
+### Fixed — 🔥 Corporate + Minimalist templates now actually work
+
+**Root cause**: v1.9.1's template CSS targeted classes like
+`.invoice-header-classic` and `.invoice-header-modern` — but those
+classes don't exist in the DOM. The actual classes are `.inv-header`,
+`.inv-title`, `.inv-section-label`, `.inv-business-name`, etc.
+
+Result: **Corporate and Minimalist rendered identically to their bases**
+because none of the CSS matched anything. Fixed by rewriting the entire
+template CSS to target real DOM classes:
+
+- **Corporate**: navy gradient header, uppercase blue section labels,
+  blue table headers, white text on accent backgrounds
+- **Minimalist**: Inter font everywhere, grayscale palette, generous
+  padding, whitespace-heavy layout with hairline dividers
+
+Both are now visually distinct from Modern / Classic / Minimal.
+
+### Fixed — 🔥 A4 / A5 PDF text too light on paper
+
+User reported: preview looked fine but PDF output had labels + addresses
+in very light gray (#94a3b8 / #64748b) that faded on paper printers.
+
+**Fix**: added a `.printing-mode` CSS class that html2canvas applies to
+the clone during PDF generation. Rules force all light-gray text to a
+minimum darkness of #1e293b. Section labels darken to #0f172a. Table
+borders darken to #334155.
+
+Only applies to the PDF capture — screen preview keeps its softer
+grays for readability.
+
+**Toggle**: **Force darker text on printed PDF** in Print Settings.
+User can turn off if their printer handles grays fine.
+
+### Fixed — Muted text default darkened
+
+`pdfMutedText` default changed from `#64748b` → `#334155` (WCAG AAA
+contrast on white). Even users who don't enable `pdfDarkenOnPrint` get
+darker text out of the box.
+
+### Added — 🎨 PDF Style Editor (full colour control)
+
+Section at the bottom of Print Settings. Toggle **"Use custom colours"**
+to expose 6 colour pickers:
+
+- **Primary text** — main body (client name, items, totals)
+- **Muted text** — labels, addresses, meta info
+- **Accent colour** — section labels + table header background
+- **Accent text** — text on the accent (usually white)
+- **Header background** — behind business name / invoice title
+- **Divider lines** — hairlines between sections + table borders
+
+Each colour picker has both a colour swatch AND a hex input so users can
+type an exact brand hex code. **"Reset colours to defaults"** button.
+
+**Live preview** — every colour change updates the preview instantly.
+Persist to localStorage; ride the backup flow.
+
+### Added — 📏 PDF Font Scale slider
+
+**80% to 140%** in 5% steps. Scales the entire PDF proportionally so
+users can:
+
+- **80–90%**: fit more items per page (long invoices)
+- **100%**: default
+- **110–140%**: larger text for older customers or letterhead alignment
+
+Applied as `fontSize` on the container root; all children inherit via
+`em` cascade — everything scales together.
+
+### Backward compatibility
+
+- `userColorsEnabled: false` by default — templates use their own
+  hardcoded colours
+- `pdfDarkenOnPrint: true` by default — silently improves print quality
+  without user action
+- `pdfFontScale: 1.0` by default — no scale change
+- All existing bills render exactly the same until user opts in
+
+### Full user control philosophy
+
+The user's ask was: "make sure user has all the control they can do all
+changes dynamically so they don't need to rely on us to make changes".
+
+Every visual aspect of the PDF is now user-configurable:
+
+**Colours** (6 pickers): Primary text / Muted / Accent / Accent text /
+Header bg / Divider
+
+**Typography**: Font family (Helvetica / Times / Courier), font scale
+(80-140%), template (5 designs)
+
+**Content**: HSN / rate line / bank / UPI / signature / QR / barcode /
+watermark / T&C page / letterhead / feedback QR — all toggleable
+
+**Layout**: Margins (T/B/L/R in mm), header alignment, paper size (10+
+presets + Custom), portrait/landscape, print quality (Draft/Standard/HD)
+
+**Copy behaviour**: Auto-print / multi-copy (2/3) / reprint tracking /
+per-client preferences
+
+Nothing hardcoded requires a developer change any more.
+
+---
+
 ## [1.9.1] — 2026-04-30
 
 **All the print polish** — 7 more dynamic features on top of v1.9.0's

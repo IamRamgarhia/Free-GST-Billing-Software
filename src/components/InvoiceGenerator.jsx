@@ -1063,6 +1063,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           inv.style.width = `${paperCfg.widthMm}mm`;
           inv.style.overflow = 'visible'; inv.style.minHeight = 'unset';
           inv.style.border = 'none'; inv.style.boxShadow = 'none'; inv.style.borderRadius = '0';
+          // v1.9.2 — add printing-mode class so CSS rules force darker colours
+          // in the PDF capture. Fixes user complaint that A4/A5 output had
+          // very-light gray text that faded on paper printers. Users can
+          // turn this off in Print Settings if their printer is fine with
+          // lighter greys.
+          if (printSettings.pdfDarkenOnPrint !== false) {
+            inv.classList.add('printing-mode');
+          }
         }
         clonedDoc.querySelectorAll('[data-pdf-page]').forEach(el => el.style.display = 'none');
       }

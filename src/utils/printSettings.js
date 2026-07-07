@@ -116,8 +116,27 @@ export const DEFAULT_PRINT_SETTINGS = {
   // -- Preview zoom (app-only, saved for user's preference) --
   previewZoom: 100,          // 50-200 percent
 
-  // -- Reserved for future v1.9.2 (KOT split, cash drawer kick) --
-  // These need native printer routing / ESC-POS bridge, out of scope for PWA.
+  // ============================================================
+  // v1.9.2 — full user control over PDF colours + font scale
+  // ============================================================
+  // When userColorsEnabled = true, the following colours override any
+  // template defaults. Users can tune every aspect of the visual output
+  // without needing developer changes. Live preview updates instantly.
+  userColorsEnabled: false,
+  pdfPrimaryText: '#0f172a',    // main body text (dark)
+  pdfMutedText: '#334155',      // secondary text (labels, addresses) — v1.9.2 default darkened from #64748b
+  pdfAccent: '#1e40af',         // section labels + table header background
+  pdfAccentText: '#ffffff',     // text on accent-coloured backgrounds
+  pdfHeaderBg: '#f8fafc',       // invoice header block background (modern template)
+  pdfDividerColor: '#334155',   // hairlines between sections (darkened default)
+
+  // Font size scale multiplier — 0.8 to 1.4. Applied via CSS transform to the
+  // whole invoice-preview-container, so everything scales proportionally.
+  pdfFontScale: 1.0,            // 1.0 = default; 0.85 = compact; 1.15 = large
+
+  // Print-mode text darkening — turn off if user has a modern high-quality
+  // printer and prefers the on-screen greys.
+  pdfDarkenOnPrint: true,       // when true, printing-mode class forces darker gray text
 };
 
 export function getPrintSettings() {

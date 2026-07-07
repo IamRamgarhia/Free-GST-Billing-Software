@@ -634,20 +634,40 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   }
 
   // v1.9.1 — company letterhead + template variant CSS class
+  // v1.9.2 — user-configurable colours via CSS custom properties + font scale
   const _ps_final = getPrintSettings();
   const letterheadOn = _ps_final.letterheadEnabled && _ps_final.letterheadImage;
   const hideHeaderBecauseLetterhead = letterheadOn && _ps_final.letterheadHideHeader;
-  const finalContainerStyle = letterheadOn ? {
+  const finalContainerStyle = {
     ...containerStyle,
-    backgroundImage: `url(${_ps_final.letterheadImage})`,
-    backgroundSize: 'cover',
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'center top',
-  } : containerStyle;
+    ...(letterheadOn ? {
+      backgroundImage: `url(${_ps_final.letterheadImage})`,
+      backgroundSize: 'cover',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'center top',
+    } : {}),
+    // v1.9.2 — CSS custom properties for user-controlled colours. Only
+    // applied when userColorsEnabled = true (data attribute gates the CSS).
+    // Each var falls back to a template default if the user doesn't set it.
+    ...(_ps_final.userColorsEnabled ? {
+      '--pdf-primary-text': _ps_final.pdfPrimaryText || '#0f172a',
+      '--pdf-muted-text':   _ps_final.pdfMutedText   || '#334155',
+      '--pdf-accent':       _ps_final.pdfAccent      || '#1e40af',
+      '--pdf-accent-text':  _ps_final.pdfAccentText  || '#ffffff',
+      '--pdf-header-bg':    _ps_final.pdfHeaderBg    || '#f8fafc',
+      '--pdf-divider':      _ps_final.pdfDividerColor|| '#334155',
+    } : {}),
+    // Font scale — CSS var used by an @media rule below AND by the root
+    // font-size for cascade. 0.8 to 1.4 range.
+    ...(Number(_ps_final.pdfFontScale) && Number(_ps_final.pdfFontScale) !== 1 ? {
+      fontSize: `${Math.max(0.8, Math.min(1.4, Number(_ps_final.pdfFontScale))) * 100}%`,
+    } : {}),
+  };
 
   return (
     <div
       className={`invoice-preview-container ${paperCfg.cssClass} template-${pdfStyleVariant}`}
+      data-user-colors={_ps_final.userColorsEnabled ? '1' : '0'}
       ref={ref} id="invoice-preview" style={finalContainerStyle}>
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}

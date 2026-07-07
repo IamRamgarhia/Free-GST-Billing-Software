@@ -1141,42 +1141,74 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    getPaperSize() so PDF captures at the right physical dimensions. These
    rules add layout adjustments for the compact formats. */
 
-/* v1.9.1 — PDF template variants. Corporate = classic base + navy accents;
-   Minimalist = minimal base + grayscale + Inter font. Both build on the
-   existing classic / minimal render paths, only adjusting colours + spacing. */
+/* ============================================================
+   v1.9.2 — PDF style system, PROPERLY targeting the actual DOM classes.
+   v1.9.1 had CSS targeting classes that didn't exist (.invoice-header-*)
+   — the templates rendered indistinguishably. Now uses the real classes:
+   .inv-header, .inv-title, .inv-meta-label, .inv-section-label,
+   .inv-business-name, .inv-party-name, .inv-tax-badge, .inv-table.
+   ============================================================ */
 
-.template-corporate .invoice-header-classic,
-.template-corporate .invoice-header-modern {
+/* ---- Corporate — formal navy header, uppercase labels ---- */
+.template-corporate .inv-header {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
   color: #f1f5f9 !important;
+  padding: 24px 32px 20px !important;
 }
-.template-corporate .invoice-header-classic h1,
-.template-corporate .invoice-header-classic h2,
-.template-corporate .invoice-header-modern h1,
-.template-corporate .invoice-header-modern h2 { color: #f1f5f9 !important; }
+.template-corporate .inv-header * { color: #f1f5f9 !important; }
+.template-corporate .inv-title,
+.template-corporate .inv-business-name { color: #ffffff !important; letter-spacing: 0.02em; }
+.template-corporate .inv-meta-label { color: #93c5fd !important; }
+.template-corporate .inv-meta-value { color: #f1f5f9 !important; }
 .template-corporate .inv-section-label {
   color: #1e40af !important;
   border-bottom: 2px solid #1e40af !important;
+  text-transform: uppercase !important;
   letter-spacing: 0.06em !important;
+  font-weight: 700 !important;
 }
-.template-corporate thead th {
+.template-corporate .inv-table thead th {
+  background: #1e40af !important;
+  color: #ffffff !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+.template-corporate .inv-tax-badge {
   background: #1e40af !important;
   color: #fff !important;
-  letter-spacing: 0.05em !important;
 }
 
+/* ---- Minimalist — grayscale + Inter + whitespace ---- */
+.template-minimalist { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; }
 .template-minimalist * {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
-.template-minimalist .invoice-header-modern,
-.template-minimalist .invoice-header-classic,
-.template-minimalist .invoice-header-minimal {
+.template-minimalist .inv-header {
   background: transparent !important;
   color: #0f172a !important;
-  padding: 32px 40px 16px !important;
+  padding: 36px 44px 20px !important;
   border-bottom: 1px solid #cbd5e1 !important;
 }
-.template-minimalist thead th {
+.template-minimalist .inv-title {
+  color: #0f172a !important;
+  font-weight: 300 !important;
+  letter-spacing: -0.01em !important;
+}
+.template-minimalist .inv-business-name {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+.template-minimalist .inv-meta-label { color: #64748b !important; text-transform: uppercase; font-size: 0.72em; letter-spacing: 0.08em; }
+.template-minimalist .inv-meta-value { color: #0f172a !important; }
+.template-minimalist .inv-section-label {
+  color: #64748b !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  font-size: 0.75em !important;
+}
+.template-minimalist .inv-table thead th {
   background: transparent !important;
   color: #64748b !important;
   border-bottom: 1px solid #94a3b8 !important;
@@ -1185,10 +1217,63 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   letter-spacing: 0.08em !important;
   font-size: 0.75em !important;
 }
-.template-minimalist .inv-section-label {
-  color: #64748b !important;
-  border-bottom: 1px solid #e2e8f0 !important;
-  font-weight: 500 !important;
+.template-minimalist .inv-tax-badge {
+  background: transparent !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* ============================================================
+   v1.9.2 — PRINTING MODE. html2canvas onclone adds .printing-mode
+   to the clone. All light grays get forced darker so paper printers
+   render them clearly. Fixes user complaint that A4/A5 PDFs had
+   very-light text that faded on print.
+   ============================================================ */
+.printing-mode .text-muted,
+.printing-mode .inv-meta-label,
+.printing-mode .inv-party-details p,
+.printing-mode .inv-sig-label {
+  color: #1e293b !important;  /* was #64748b / #94a3b8 */
+}
+.printing-mode .inv-section-label {
+  color: #0f172a !important;
+  border-color: #334155 !important;
+}
+.printing-mode .inv-business-details {
+  color: #1e293b !important;
+}
+/* Anything currently at very-light grey gets a floor value of #334155 */
+.printing-mode [style*="color: #94a3b8"],
+.printing-mode [style*="color:#94a3b8"],
+.printing-mode [style*="color: #cbd5e1"],
+.printing-mode [style*="color:#cbd5e1"],
+.printing-mode [style*="color: #64748b"],
+.printing-mode [style*="color:#64748b"] {
+  color: #1e293b !important;
+}
+/* Tables — force border colours darker on print */
+.printing-mode .inv-table th,
+.printing-mode .inv-table td,
+.printing-mode .inv-table tr {
+  border-color: #334155 !important;
+}
+
+/* v1.9.2 — user-configurable colours via CSS custom properties.
+   PrintSettings sets --pdf-primary-text etc. on the container; these
+   rules cascade them down to child elements. */
+.invoice-preview-container[data-user-colors="1"] .inv-meta-label,
+.invoice-preview-container[data-user-colors="1"] .text-muted {
+  color: var(--pdf-muted-text, #64748b) !important;
+}
+.invoice-preview-container[data-user-colors="1"] .inv-section-label {
+  color: var(--pdf-accent, #1e40af) !important;
+}
+.invoice-preview-container[data-user-colors="1"] .inv-table thead th {
+  background: var(--pdf-accent, #1e40af) !important;
+  color: var(--pdf-accent-text, #ffffff) !important;
+}
+.invoice-preview-container[data-user-colors="1"] .inv-title {
+  color: var(--pdf-primary-text, #0f172a) !important;
 }
 
 /* A4 Landscape — 297 × 210 mm. Same styles as portrait A4 but wider.
