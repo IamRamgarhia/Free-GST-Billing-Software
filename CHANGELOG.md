@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.4] — 2026-04-30
+
+Big release focused on thermal print quality — inspired by user comparison
+photos showing SMART BAZAAR / Reliance receipts (all bold + ALL CAPS +
+consistently dark) vs our v1.8.3 output (some text lighter than others,
+Large font size not rendering correctly).
+
+### Added — 🎛 Dedicated Thermal Printer Settings section
+
+New **"Thermal Printer Settings"** panel in **Settings**. 16 controls
+grouped into 4 categories:
+
+**Typography**
+- **Font family**: Monospace (Courier — thermal-optimised) / Sans-serif
+- **Font size**: Small / Medium / Large / Extra Large
+- **Font weight**: Normal / Bold (default) / Ultra bold
+- **ALL CAPS mode**: renders every text element in uppercase (SMART BAZAAR
+  style, best legibility on thermal printers)
+
+**Layout**
+- **Line spacing**: Compact / Normal / Comfortable
+- **Header alignment**: Center / Left
+- **Print contrast**: Normal / High / Ultra — applies grayscale + contrast
+  filter to logo + UPI QR so they print crisper on faded printers
+- **Force ALL CAPS in header** (business name always uppercase)
+
+**Content toggles**
+- Show business logo (on/off)
+- Show HSN code per item (on/off)
+- Show "Qty × Rate" line per item (on/off)
+- Show amount in words (on/off)
+- Show bank details (on/off)
+- Show UPI QR (on/off)
+- UPI QR size: Small (60px) / Medium (90px) / Large (120px)
+
+**Footer**
+- Custom footer message ("Thank you..." editable per business)
+- Show cut mark ✂ (on/off)
+- Feed lines after cut (0 to 6) — clearance so tear line is clean
+- Optional tagline below business name
+
+### Added — 🧪 Test Print button
+
+Clicking **"Test Print"** generates a sample receipt with:
+- Your real business profile (loaded from Settings)
+- Sample customer ("SAMPLE CUSTOMER") + 3 sample items
+- Applies your current settings live
+- Sends directly to your system's default printer (via hidden iframe)
+
+Test-and-adjust cycle without needing to create a fake invoice.
+
+### Added — 👀 Live preview inside the Settings panel
+
+Below the controls, a live 80mm thermal preview updates instantly as you
+toggle settings — see exactly what your receipt will look like without
+generating a PDF.
+
+### Fixed — 🔥 Inconsistent darkness in thermal print
+
+Root cause: some elements had explicit `fontWeight` while others inherited
+from parent CSS, so the same "bold" declaration rendered differently
+depending on browser + printer combo. Result on your printer: some text
+crisp black, other text faded gray.
+
+**Fix**: entire thermal render now sets a **root style** with explicit
+`color`, `fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, and
+`letterSpacing` — every child inherits from this. Text is now consistently
+black across every element (headers, items, totals, footer).
+
+Additionally, the **font weight applies globally** based on your setting:
+- Normal weight = 500 baseline, 700 headers
+- **Bold** (default) = 700 baseline, 900 headers
+- **Ultra bold** = 800 baseline, 900+ headers
+
+### Fixed — Large font sizes now scale correctly
+
+Previously, some inline `fontSize: '1.05em'` inheritance broke when the
+base size changed. Now every relative size is a proper `em` multiplier
+of the root font-size. Setting Font Size = **Extra Large** actually
+produces a proportionally larger receipt across all elements.
+
+### App-wide settings vs per-invoice overrides
+
+Settings you configure in **Settings → Thermal Printer Settings** become
+**app-wide defaults**. Each invoice's Customize panel can still override
+specific fields for that one bill. Priority order:
+
+1. Per-invoice `invoiceOptions.thermal*` (from Customize panel)
+2. App-wide `gst_printSettings` (from Settings)
+3. Hardcoded fallback
+
+### Added — Settings included in backup
+
+`gst_printSettings` added to the localStorage backup whitelist so users
+don't lose their print configuration when restoring from a backup. Same
+for four other v1.6.3+ keys that were previously missing:
+`gst_stockAlertSettings`, `gst_itrCalcInputs`, `gst_itrPresumptive`,
+`gst_itrAdvanceTax`.
+
+### Backward compatibility
+
+Pre-v1.8.4 bills continue to render with the default print settings
+(Bold, Medium, Monospace, ALL CAPS off) — no visual change unless the
+user opens Settings and customises. Existing per-invoice
+`thermal*` overrides still take precedence over the new defaults.
+
+---
+
 ## [1.8.3] — 2026-04-30
 
 Direct user feedback on v1.8.2 — thermal print faded, A5 needed to be

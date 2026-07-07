@@ -5,6 +5,7 @@ import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFrom
 import { Save, Upload, Download, Plus, Trash2, Edit3, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
+import PrintSettings from './PrintSettings';
 
 export default function SettingsView({ onSaved }) {
   const [profile, setProfile] = useState({
@@ -519,6 +520,9 @@ export default function SettingsView({ onSaved }) {
           </button>
         </div>
       </div>
+
+      {/* ---- Thermal Printer Settings ---- */}
+      <PrintSettings />
 
       {/* ---- Modules / Features ---- */}
       <div className="glass-panel p-6 mb-6">

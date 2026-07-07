@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import DOMPurify from 'dompurify';
 import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize } from '../utils';
+import { getPrintSettings } from '../utils/printSettings';
 
 const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
   // Interstate detection must match InvoiceGenerator.jsx — it honours
@@ -289,66 +290,160 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // opt() / totals / items closures. Escape-hatch: user can switch back to
   // A4/A5 any time in Customize.
   if (isThermal) {
-    // v1.8.3 thermal rewrite: pure black text, bolder fonts, tighter columns.
-    // v1.8.3.x adds user-configurable settings via Customize panel:
-    //   thermalFontSize: 'small' | 'medium' | 'large'
-    //   thermalCompact:  boolean — hide HSN + per-item rate line
-    //   thermalCutMark:  boolean — bottom "cut here" mark for auto-cutters
+    // v1.8.4 thermal render — every user-configurable setting from
+    // PrintSettings component flows through here. Backward compat: fields
+    // fall back to sensible defaults if the bill was created pre-v1.8.4.
+    //
+    // The app-wide printSettings (localStorage) provides DEFAULTS. Each
+    // invoice's own invoiceOptions.thermal* fields OVERRIDE those defaults.
+    // Priority: options → printSettings → hardcoded fallback.
+    const printSettings = getPrintSettings();
+    const eff = {
+      thermalFontSize:    options.thermalFontSize    ?? printSettings.fontSize,
+      thermalFontFamily:  options.thermalFontFamily  ?? printSettings.fontFamily,
+      thermalFontWeight:  options.thermalFontWeight  ?? printSettings.fontWeight,
+      thermalAllCaps:     options.thermalAllCaps     ?? printSettings.allCaps,
+      thermalLineSpacing: options.thermalLineSpacing ?? printSettings.lineSpacing,
+      thermalContrast:    options.thermalContrast    ?? printSettings.contrast,
+      thermalHeaderAlign: options.thermalHeaderAlign ?? printSettings.headerAlign,
+      thermalHeaderCaps:  options.thermalHeaderCaps  ?? printSettings.headerCaps,
+      thermalShowLogo:    options.thermalShowLogo    ?? printSettings.showLogo,
+      thermalShowHSN:     options.thermalShowHSN     ?? printSettings.showHSN,
+      thermalShowRate:    options.thermalShowRate    ?? printSettings.showRateLine,
+      thermalQrSize:      options.thermalQrSize      ?? printSettings.qrSize,
+      thermalCutMark:     options.thermalCutMark     ?? printSettings.cutMark,
+      thermalFeedLines:   options.thermalFeedLines   ?? printSettings.feedLines,
+      thermalFooterMessage: options.thermalFooterMessage ?? printSettings.footerMessage,
+      thermalTagline:     options.thermalTagline     ?? (printSettings.showTagline ? printSettings.tagline : ''),
+      thermalCompact:     options.thermalCompact     ?? false,
+    };
+
     const invoiceNum = details?.invoiceNumber || '';
     const invoiceDate = details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN') : '';
     const sellerCurrency = getCountryConfig(profile?.country).currency;
     const currencySymbol = sellerCurrency === 'INR' ? 'Rs.' : sellerCurrency;
     const showRoundOff = opt('showRoundOff', false);
-    const showQR = opt('showUPI') && paperCfg.widthMm >= 80 && qrDataUrl;
     const isNarrow = paperCfg.widthMm < 80;
-    // User settings (v1.8.3): fall back to sensible defaults if the bill
-    // was created pre-v1.8.3 (options.thermal* undefined).
-    const thermalFontSize = options.thermalFontSize || 'medium';
-    const thermalCompact = !!options.thermalCompact;
-    const thermalCutMark = options.thermalCutMark !== false;
-    const fontSizeBase = thermalFontSize === 'small' ? (isNarrow ? '8.5px' : '10px')
-                       : thermalFontSize === 'large' ? (isNarrow ? '10.5px' : '12.5px')
-                       : (isNarrow ? '9.5px' : '11px'); // medium (default)
+
+    // -- Settings pulled from `eff` (merged options + printSettings) ---------
+    const fontSize = eff.thermalFontSize || 'medium';
+    const fontFamily = eff.thermalFontFamily || 'mono';
+    const fontWeight = eff.thermalFontWeight || 'bold';
+    const allCaps = eff.thermalAllCaps === true;
+    const lineSpacing = eff.thermalLineSpacing || 'normal';
+    const contrast = eff.thermalContrast || 'normal';
+    const headerAlign = eff.thermalHeaderAlign || 'center';
+    const headerCaps = eff.thermalHeaderCaps !== false;
+    const showLogo = eff.thermalShowLogo !== false;
+    const showHSN = eff.thermalShowHSN !== false;
+    const showRate = eff.thermalShowRate !== false;
+    const qrSizePx = eff.thermalQrSize === 'small' ? 60
+                   : eff.thermalQrSize === 'large' ? 120 : 90;
+    const cutMark = eff.thermalCutMark !== false;
+    const feedLines = Number(eff.thermalFeedLines ?? 2);
+    const footerMessage = eff.thermalFooterMessage
+      || 'Thank you for your business!';
+    const tagline = eff.thermalTagline || '';
+    const thermalCompact = !!eff.thermalCompact;
+
+    // Base font-size in px based on paper width + user preference.
+    // Larger widths get slightly bigger base so 80mm reads bolder than 58mm.
+    const fontSizeMap = {
+      small:  isNarrow ? 8.5 : 10,
+      medium: isNarrow ? 9.5 : 11,
+      large:  isNarrow ? 10.5 : 12.5,
+      xlarge: isNarrow ? 11.5 : 14,
+    };
+    const fontSizeBase = (fontSizeMap[fontSize] || fontSizeMap.medium) + 'px';
+    // FontFamily: monospace prints crisper on thermal, but some printers
+    // handle sans-serif better with newer firmware.
+    const fontFamilyCss = fontFamily === 'sans'
+      ? '"Arial", "Helvetica", sans-serif'
+      : '"Courier New", "Consolas", monospace';
+    // FontWeight: baseline 500 (bold), or 800 (ultra) for the darkest print.
+    // Normal (400) is included for users on modern printers who want lighter.
+    const baseWeight = fontWeight === 'ultra' ? 800
+                     : fontWeight === 'normal' ? 500
+                     : 700; // bold (default)
+    // Bold multiplier for headers/totals — 100 heavier than baseline capped at 900
+    const strongWeight = Math.min(900, baseWeight + 200);
+    const contrastFilter = contrast === 'ultra' ? 'grayscale(1) contrast(3) brightness(0.85)'
+                        : contrast === 'high' ? 'grayscale(1) contrast(2) brightness(0.95)'
+                        : 'grayscale(1) contrast(1.4)';
+    // Line spacing → line-height multiplier
+    const lineHeight = lineSpacing === 'compact' ? 1.2
+                     : lineSpacing === 'comfortable' ? 1.6 : 1.4;
+    // Section padding pulls from spacing preference
+    const secPad = lineSpacing === 'compact' ? '3px 4px'
+                 : lineSpacing === 'comfortable' ? '8px 4px' : '5px 4px';
+    // Helper: apply ALL CAPS transformation if flag is on
+    const cap = (s) => allCaps ? String(s || '').toUpperCase() : String(s || '');
+    // Consistent divider styling (dashed lines don't print well; solid does)
     const dashLine = { borderBottom: '1px solid #000', borderTop: 'none' };
     const solidLine = { borderBottom: '2px solid #000' };
+    // Root style — EVERY visual attribute set here so nothing accidentally
+    // inherits lighter/gray from parent CSS.
+    const rootStyle = {
+      ...containerStyle,
+      color: '#000',
+      background: '#fff',
+      fontFamily: fontFamilyCss,
+      fontSize: fontSizeBase,
+      fontWeight: baseWeight,
+      lineHeight,
+      letterSpacing: allCaps ? '0.02em' : 0,
+    };
 
     return (
       <div
         className={`invoice-preview-container ${paperCfg.cssClass} paper-thermal`}
-        ref={ref} id="invoice-preview"
-        style={{ ...containerStyle, color: '#000', background: '#fff', fontWeight: 500, fontSize: fontSizeBase }}>
-        {/* Seller block */}
-        <div style={{ padding: '8px 4px 6px', textAlign: 'center', ...dashLine, color: '#000' }}>
-          {profile?.logo && <img src={profile.logo} alt="" style={{ maxHeight: 45, marginBottom: 4, filter: 'grayscale(1) contrast(1.5)' }} />}
-          <div style={{ fontWeight: 900, fontSize: '1.15em', letterSpacing: '0.02em' }}>{(profile?.businessName || '').toUpperCase()}</div>
-          {profile?.address && <div style={{ fontSize: '0.9em' }}>{profile.address}</div>}
-          {(profile?.city || profile?.state || profile?.pin) && <div style={{ fontSize: '0.9em' }}>{[profile?.city, profile?.state, profile?.pin].filter(Boolean).join(', ')}</div>}
-          {profile?.gstin && <div style={{ fontSize: '0.9em', fontWeight: 700, marginTop: 2 }}>GSTIN: {profile.gstin}</div>}
-          {profile?.phone && <div style={{ fontSize: '0.9em' }}>Ph: {profile.phone}</div>}
+        ref={ref} id="invoice-preview" style={rootStyle}>
+        {/* ================= HEADER ================= */}
+        <div style={{ padding: '8px 4px 6px', textAlign: headerAlign, ...dashLine, color: '#000' }}>
+          {showLogo && profile?.logo && (
+            <img src={profile.logo} alt="" style={{ maxHeight: 45, marginBottom: 4, filter: contrastFilter }} />
+          )}
+          <div style={{ fontWeight: strongWeight, fontSize: '1.15em', letterSpacing: '0.02em' }}>
+            {(headerCaps || allCaps) ? (profile?.businessName || '').toUpperCase() : (profile?.businessName || '')}
+          </div>
+          {tagline && <div style={{ fontSize: '0.85em', fontWeight: baseWeight, fontStyle: 'italic' }}>{cap(tagline)}</div>}
+          {profile?.address && <div style={{ fontSize: '0.9em', fontWeight: baseWeight }}>{cap(profile.address)}</div>}
+          {(profile?.city || profile?.state || profile?.pin) && (
+            <div style={{ fontSize: '0.9em', fontWeight: baseWeight }}>
+              {cap([profile?.city, profile?.state, profile?.pin].filter(Boolean).join(', '))}
+            </div>
+          )}
+          {profile?.gstin && (
+            <div style={{ fontSize: '0.9em', fontWeight: strongWeight, marginTop: 2 }}>{cap('GSTIN: ' + profile.gstin)}</div>
+          )}
+          {profile?.phone && <div style={{ fontSize: '0.9em', fontWeight: baseWeight }}>{cap('Ph: ' + profile.phone)}</div>}
         </div>
 
-        {/* Invoice type banner */}
-        <div style={{ padding: '5px 4px', textAlign: 'center', fontWeight: 900, textTransform: 'uppercase', fontSize: '1.05em', letterSpacing: '0.08em', ...dashLine }}>
+        {/* ================= TYPE BANNER ================= */}
+        <div style={{ padding: secPad, textAlign: 'center', fontWeight: strongWeight, textTransform: 'uppercase', fontSize: '1.05em', letterSpacing: '0.08em', ...dashLine }}>
           {typeConfig?.label || 'Invoice'}
         </div>
 
-        {/* Bill details */}
-        <div style={{ padding: '5px 4px', fontSize: '0.92em', ...dashLine }}>
-          <div><strong>Invoice #: </strong>{invoiceNum}</div>
-          <div><strong>Date: </strong>{invoiceDate}</div>
-          {client?.name && <div style={{ marginTop: 3 }}><strong>Bill to: </strong>{client.name}</div>}
-          {client?.gstin && <div>GSTIN: {client.gstin}</div>}
-          {client?.phone && <div>Ph: {client.phone}</div>}
+        {/* ================= INVOICE DETAILS ================= */}
+        <div style={{ padding: secPad, fontSize: '0.95em', fontWeight: baseWeight, ...dashLine }}>
+          <div><strong style={{ fontWeight: strongWeight }}>{cap('Invoice #')}: </strong>{cap(invoiceNum)}</div>
+          <div><strong style={{ fontWeight: strongWeight }}>{cap('Date')}: </strong>{cap(invoiceDate)}</div>
+          {client?.name && (
+            <div style={{ marginTop: 3 }}>
+              <strong style={{ fontWeight: strongWeight }}>{cap('Bill to')}: </strong>{cap(client.name)}
+            </div>
+          )}
+          {client?.gstin && <div>{cap('GSTIN: ' + client.gstin)}</div>}
+          {client?.phone && <div>{cap('Ph: ' + client.phone)}</div>}
         </div>
 
-        {/* Items — each item on its own block so long names don't collide
-             with qty/amount columns. First line: item name (full width).
-             Second line: qty × rate → amount, right-aligned. */}
-        <div style={{ padding: '5px 4px', ...dashLine }}>
+        {/* ================= ITEMS ================= */}
+        <div style={{ padding: secPad, ...dashLine }}>
           <div style={{
-            display: 'flex', justifyContent: 'space-between', fontWeight: 900,
-            paddingBottom: 3, marginBottom: 3, borderBottom: '1px solid #000',
-            fontSize: '0.92em', textTransform: 'uppercase',
+            display: 'flex', justifyContent: 'space-between',
+            fontWeight: strongWeight, paddingBottom: 3, marginBottom: 3,
+            borderBottom: '1px solid #000', fontSize: '0.95em',
+            textTransform: 'uppercase',
           }}>
             <span>Item</span>
             <span>{isNarrow ? 'Amt' : 'Amount'}</span>
@@ -358,104 +453,121 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             const qty = Number(item.quantity) || 0;
             const rate = Number(item.rate) || 0;
             const tax = showGST && item.taxPercent > 0 ? ` +${item.taxPercent}%` : '';
+            const hsnBit = showHSN && item.hsn && !isNarrow ? '  |  HSN ' + item.hsn : '';
             return (
-              <div key={idx} style={{ marginBottom: 5, fontSize: '0.9em' }}>
-                <div style={{ fontWeight: 700 }}>
-                  {(idx + 1) + '. ' + (item.name || item.description || 'Item')}
+              <div key={idx} style={{ marginBottom: 5, fontSize: '0.95em' }}>
+                <div style={{ fontWeight: strongWeight }}>
+                  {(idx + 1) + '. ' + cap(item.name || item.description || 'Item')}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9em', paddingLeft: thermalCompact ? 0 : 8 }}>
-                  <span>
-                    {thermalCompact
-                      ? `${qty}${item.unit ? ' ' + item.unit : ''}`
-                      : `${qty}${item.unit ? ' ' + item.unit : ''} × ${currencySymbol}${rate.toFixed(2)}${tax}${item.hsn && !isNarrow ? '  |  HSN ' + item.hsn : ''}`}
-                  </span>
-                  <span style={{ fontWeight: 700 }}>{currencySymbol}{amount.toFixed(2)}</span>
-                </div>
+                {(showRate || !thermalCompact) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92em', paddingLeft: thermalCompact ? 0 : 8, fontWeight: baseWeight }}>
+                    <span>
+                      {cap(showRate
+                        ? `${qty}${item.unit ? ' ' + item.unit : ''} × ${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
+                        : `${qty}${item.unit ? ' ' + item.unit : ''}${hsnBit}`)}
+                    </span>
+                    <span style={{ fontWeight: strongWeight }}>{currencySymbol}{amount.toFixed(2)}</span>
+                  </div>
+                )}
+                {!showRate && thermalCompact && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: strongWeight, fontSize: '0.95em' }}>
+                    <span>{cap(`${qty}${item.unit ? ' ' + item.unit : ''}`)} × {currencySymbol}{amount.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        {/* Totals */}
-        <div style={{ padding: '5px 4px', fontSize: '0.95em', ...dashLine }}>
+        {/* ================= TOTALS ================= */}
+        <div style={{ padding: secPad, fontSize: '1em', fontWeight: baseWeight, ...dashLine }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Subtotal</span><span>{currencySymbol}{(Number(totals?.subtotal) || 0).toFixed(2)}</span>
+            <span>{cap('Subtotal')}</span><span>{currencySymbol}{(Number(totals?.subtotal) || 0).toFixed(2)}</span>
           </div>
           {Number(totals?.totalDiscount) > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Discount</span><span>-{currencySymbol}{Number(totals.totalDiscount).toFixed(2)}</span>
+              <span>{cap('Discount')}</span><span>-{currencySymbol}{Number(totals.totalDiscount).toFixed(2)}</span>
             </div>
           )}
           {showGST && Number(totals?.cgst) > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>CGST</span><span>{currencySymbol}{Number(totals.cgst).toFixed(2)}</span>
+              <span>{cap('CGST')}</span><span>{currencySymbol}{Number(totals.cgst).toFixed(2)}</span>
             </div>
           )}
           {showGST && Number(totals?.sgst) > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>SGST</span><span>{currencySymbol}{Number(totals.sgst).toFixed(2)}</span>
+              <span>{cap('SGST')}</span><span>{currencySymbol}{Number(totals.sgst).toFixed(2)}</span>
             </div>
           )}
           {showGST && Number(totals?.igst) > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>IGST</span><span>{currencySymbol}{Number(totals.igst).toFixed(2)}</span>
+              <span>{cap('IGST')}</span><span>{currencySymbol}{Number(totals.igst).toFixed(2)}</span>
             </div>
           )}
           {Number(totals?.cess) > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Cess</span><span>{currencySymbol}{Number(totals.cess).toFixed(2)}</span>
+              <span>{cap('Cess')}</span><span>{currencySymbol}{Number(totals.cess).toFixed(2)}</span>
             </div>
           )}
           {showRoundOff && Number(totals?.roundOff) !== 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Round-off</span><span>{Number(totals.roundOff) > 0 ? '+' : ''}{currencySymbol}{Number(totals.roundOff).toFixed(2)}</span>
+              <span>{cap('Round-off')}</span><span>{Number(totals.roundOff) > 0 ? '+' : ''}{currencySymbol}{Number(totals.roundOff).toFixed(2)}</span>
             </div>
           )}
           <div style={{
             display: 'flex', justifyContent: 'space-between',
-            fontWeight: 900, fontSize: '1.15em', marginTop: 4,
+            fontWeight: strongWeight, fontSize: '1.2em', marginTop: 4,
             ...solidLine, paddingTop: 4, borderBottom: '2px solid #000',
           }}>
-            <span>TOTAL</span><span>{currencySymbol}{(Number(totals?.total) || 0).toFixed(2)}</span>
+            <span>{cap('TOTAL')}</span><span>{currencySymbol}{(Number(totals?.total) || 0).toFixed(2)}</span>
           </div>
         </div>
 
         {showAmountWords && (
-          <div style={{ padding: '5px 4px', fontSize: '0.85em', textAlign: 'center', ...dashLine, fontStyle: 'italic' }}>
-            {amountInWords(totals?.total || 0)}
+          <div style={{ padding: secPad, fontSize: '0.9em', textAlign: 'center', ...dashLine, fontStyle: 'italic', fontWeight: baseWeight }}>
+            {cap(amountInWords(totals?.total || 0))}
           </div>
         )}
 
         {showBankDetails && (account?.bankName || profile?.bankName) && (
-          <div style={{ padding: '5px 4px', fontSize: '0.9em', ...dashLine }}>
-            <div style={{ fontWeight: 900, textAlign: 'center', marginBottom: 3 }}>BANK DETAILS</div>
-            <div>{account?.bankName || profile?.bankName}</div>
-            {(account?.accountNumber || profile?.accountNumber) && <div>A/c: {account?.accountNumber || profile?.accountNumber}</div>}
-            {(account?.ifsc || profile?.ifsc) && <div>IFSC: {account?.ifsc || profile?.ifsc}</div>}
+          <div style={{ padding: secPad, fontSize: '0.9em', fontWeight: baseWeight, ...dashLine }}>
+            <div style={{ fontWeight: strongWeight, textAlign: 'center', marginBottom: 3 }}>{cap('BANK DETAILS')}</div>
+            <div>{cap(account?.bankName || profile?.bankName)}</div>
+            {(account?.accountNumber || profile?.accountNumber) && <div>{cap('A/c: ' + (account?.accountNumber || profile?.accountNumber))}</div>}
+            {(account?.ifsc || profile?.ifsc) && <div>{cap('IFSC: ' + (account?.ifsc || profile?.ifsc))}</div>}
           </div>
         )}
 
-        {showQR && (
-          <div style={{ padding: '5px 4px', textAlign: 'center', ...dashLine }}>
-            <img src={qrDataUrl} alt="UPI QR" style={{ width: 90, height: 90, filter: 'grayscale(1) contrast(2)' }} />
-            <div style={{ fontSize: '0.85em', fontWeight: 700 }}>Scan to pay via UPI</div>
+        {opt('showUPI') && qrDataUrl && !isNarrow && (
+          <div style={{ padding: secPad, textAlign: 'center', ...dashLine }}>
+            <img src={qrDataUrl} alt="UPI QR"
+              style={{ width: qrSizePx, height: qrSizePx, filter: contrastFilter }} />
+            <div style={{ fontSize: '0.9em', fontWeight: strongWeight }}>{cap('Scan to pay via UPI')}</div>
           </div>
         )}
 
         {showNotes && customNotes && (
-          <div style={{ padding: '5px 4px', fontSize: '0.85em', ...dashLine }}
+          <div style={{ padding: secPad, fontSize: '0.9em', fontWeight: baseWeight, ...dashLine }}
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(customNotes) }} />
         )}
 
-        <div style={{ padding: '6px 4px 12px', textAlign: 'center', fontSize: '0.9em', fontWeight: 700 }}>
-          <div>*** Thank you for your business! ***</div>
-          {profile?.email && <div style={{ fontWeight: 500 }}>{profile.email}</div>}
-        </div>
-
-        {thermalCutMark && (
-          <div style={{ padding: '8px 4px 12px', textAlign: 'center', fontSize: '0.75em', letterSpacing: '0.15em', color: '#000', fontFamily: 'monospace' }}>
-            {'- - - - -  ✂  cut here  ✂  - - - - -'}
+        {footerMessage && (
+          <div style={{ padding: '6px 4px 6px', textAlign: 'center', fontSize: '0.95em', fontWeight: strongWeight }}>
+            {cap(`*** ${footerMessage} ***`)}
+            {profile?.email && <div style={{ fontWeight: baseWeight, marginTop: 2 }}>{cap(profile.email)}</div>}
           </div>
+        )}
+
+        {cutMark && (
+          <div style={{ padding: '10px 4px 4px', textAlign: 'center', fontSize: '0.85em', letterSpacing: '0.15em', color: '#000', fontFamily: 'monospace', fontWeight: strongWeight }}>
+            {'- - - - -  ✂  CUT HERE  ✂  - - - - -'}
+          </div>
+        )}
+
+        {/* Feed lines: extra blank lines at bottom so the auto-cutter (or
+             manual tear) has clearance below the cut mark. */}
+        {feedLines > 0 && (
+          <div style={{ height: `${feedLines * 8}px` }} />
         )}
       </div>
     );

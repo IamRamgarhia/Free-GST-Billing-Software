@@ -307,6 +307,11 @@ const EXPORTABLE_LOCALSTORAGE_KEYS = [
   'gst_regionMode',                  // 'india' | 'international' | 'both'
   'gst_enabledModules',              // map of disabled feature toggles
   'gst_filing_status',               // GSTR-1/3B "Filed" pill states per period key
+  'gst_printSettings',               // v1.8.4 — thermal printer defaults (font, weight, all-caps, etc.)
+  'gst_itrCalcInputs',               // v1.7.0 — regime calculator inputs
+  'gst_itrPresumptive',              // v1.8.0 — presumptive taxation state
+  'gst_itrAdvanceTax',               // v1.8.0 — advance tax state
+  'gst_stockAlertSettings',          // v1.6.3 — low-stock threshold + on/off
   'freegstbill_invoiceOptions',      // per-invoice display preference defaults
   'freegstbill_theme',               // light/dark (was written as 'theme' in the old whitelist — typo)
   'freegstbill_onboarded',           // skip welcome wizard on next launch
