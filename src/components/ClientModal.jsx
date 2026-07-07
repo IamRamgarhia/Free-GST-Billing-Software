@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES } from '../utils';
 import { getRegionMode } from '../store';
 
 export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
   // Country defaults: explicit prop (active business profile) → browser locale → 'India'.
   const fallbackCountry = defaultCountry || detectCountryFromBrowser();
-  const emptyForm = { name: '', address: '', city: '', pin: '', state: '', gstin: '', email: '', phone: '', country: fallbackCountry, isSEZ: false };
+  const emptyForm = {
+    name: '', address: '', city: '', pin: '', state: '', gstin: '', email: '', phone: '',
+    country: fallbackCountry, isSEZ: false,
+    // v1.9.1 — per-client print preferences. When set, they auto-populate
+    // invoiceOptions when the user creates a new invoice for this client.
+    // Left blank = use app-wide defaults.
+    preferredPaperSize: '',   // '' | 'a4' | 'a5' | 'thermal80' | ...
+    preferredCurrency: '',    // '' | 'INR' | 'USD' | ...
+    autoPrint: false,          // per-client auto-print override
+  };
   const [form, setForm] = useState({ ...emptyForm });
   const [taxIdWarning, setTaxIdWarning] = useState('');
 
@@ -17,6 +26,9 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
         pin: client.pin || '', state: client.state || '', gstin: client.gstin || '',
         email: client.email || '', phone: client.phone || '', country: client.country || fallbackCountry,
         isSEZ: !!client.isSEZ,
+        preferredPaperSize: client.preferredPaperSize || '',
+        preferredCurrency: client.preferredCurrency || '',
+        autoPrint: !!client.autoPrint,
       });
     } else if (show) {
       setForm({ ...emptyForm });
@@ -116,6 +128,52 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
               </label>
             </div>
           )}
+
+          {/* v1.9.1 — per-client print preferences. All optional; leave blank
+              to use the app-wide defaults from Settings. When set, they
+              auto-apply the next time an invoice is created for this client. */}
+          <div className="form-group" style={{ gridColumn: 'span 2', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+              Print preferences (optional)
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>
+              Auto-applied when you create a new invoice for this client. Leave blank to use app-wide defaults.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 3 }}>Preferred paper size</label>
+                <select className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }}
+                  value={form.preferredPaperSize}
+                  onChange={e => setForm(prev => ({ ...prev, preferredPaperSize: e.target.value }))}>
+                  <option value="">Use app default</option>
+                  {Object.entries(PAPER_SIZES).map(([key, ps]) => (
+                    <option key={key} value={key}>{ps.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 3 }}>Preferred currency</label>
+                <select className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }}
+                  value={form.preferredCurrency}
+                  onChange={e => setForm(prev => ({ ...prev, preferredCurrency: e.target.value }))}>
+                  <option value="">Use invoice default</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AED">AED (د.إ)</option>
+                  <option value="SGD">SGD (S$)</option>
+                  <option value="AUD">AUD (A$)</option>
+                </select>
+              </div>
+              <label style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer', marginTop: '0.2rem' }}>
+                <input type="checkbox" checked={!!form.autoPrint}
+                  onChange={e => setForm(prev => ({ ...prev, autoPrint: e.target.checked }))}
+                  style={{ width: 15, height: 15, accentColor: 'var(--primary)' }} />
+                <span><strong>Auto-print on save for this client</strong> — overrides global setting</span>
+              </label>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2 justify-end mt-4">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>

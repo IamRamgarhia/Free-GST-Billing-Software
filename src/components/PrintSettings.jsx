@@ -378,6 +378,89 @@ export default function PrintSettings() {
               hint="Automatic red badge in the top-left of the PDF when an invoice has been printed before. Tracks how many times each bill was printed." />
           </SettingGroup>
 
+          {/* PRINT QUALITY */}
+          <SettingGroup title="PDF quality vs file size">
+            <SelectRow label="Print quality" value={settings.pdfQuality} onChange={v => set({ pdfQuality: v })}
+              options={[
+                ['draft', 'Draft — smallest file (email-friendly)'],
+                ['standard', 'Standard — default balance'],
+                ['hd', 'HD — archival quality (largest file)'],
+              ]}
+              hint="Draft = ~50% smaller PDFs, fine for emailing. HD = crisper text at 100% zoom, larger file, better for physical archive." />
+          </SettingGroup>
+
+          {/* DUAL CURRENCY (foreign clients) */}
+          <SettingGroup title="Dual currency display">
+            <ToggleRow label="Show foreign-currency equivalent" value={settings.dualCurrencyEnabled} onChange={v => set({ dualCurrencyEnabled: v })}
+              hint="For INR invoices to foreign clients, shows the total in a second currency next to the ₹ amount. Uses YOUR manually set rate — no live conversion." />
+            {settings.dualCurrencyEnabled && (
+              <>
+                <SelectRow label="Secondary currency" value={settings.dualCurrencyCode} onChange={v => set({ dualCurrencyCode: v })}
+                  options={[
+                    ['USD', 'USD ($)'], ['EUR', 'EUR (€)'], ['GBP', 'GBP (£)'],
+                    ['AED', 'AED (د.إ)'], ['SGD', 'SGD (S$)'], ['AUD', 'AUD (A$)'], ['JPY', 'JPY (¥)'],
+                  ]} />
+                <NumInput label={`Rate (1 ${settings.dualCurrencyCode} = ? INR)`} value={settings.dualCurrencyRate}
+                  onChange={v => set({ dualCurrencyRate: v })} min={0.01} max={10000} />
+                <SelectRow label="Display position" value={settings.dualCurrencyPosition} onChange={v => set({ dualCurrencyPosition: v })}
+                  options={[
+                    ['below', 'On a line below the ₹ amount'],
+                    ['inline', 'Inline in parentheses'],
+                  ]} />
+              </>
+            )}
+          </SettingGroup>
+
+          {/* COMPANY LETTERHEAD */}
+          <SettingGroup title="Company letterhead">
+            <ToggleRow label="Use pre-printed letterhead image" value={settings.letterheadEnabled} onChange={v => set({ letterheadEnabled: v })}
+              hint="Upload your own designed letterhead as a full-page background. Invoice content prints on top. Best for businesses with formal branded stationery." />
+            {settings.letterheadEnabled && (
+              <>
+                {settings.letterheadImage ? (
+                  <>
+                    <div style={{ padding: '0.5rem', background: '#fff', borderRadius: 4, textAlign: 'center', marginBottom: '0.4rem' }}>
+                      <img src={settings.letterheadImage} alt="letterhead" style={{ maxHeight: 100, maxWidth: '100%' }} />
+                    </div>
+                    <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                      onClick={() => set({ letterheadImage: '' })}>
+                      Remove letterhead
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <label style={{ fontSize: '0.78rem', display: 'block', marginBottom: 3 }}>Upload letterhead (PNG / JPG, A4 recommended)</label>
+                    <input type="file" accept="image/png,image/jpeg,image/webp"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 3 * 1024 * 1024) { toast('Image too large (max 3MB)', 'warning'); return; }
+                        const reader = new FileReader();
+                        reader.onload = (ev) => set({ letterheadImage: ev.target.result });
+                        reader.readAsDataURL(file);
+                      }}
+                      style={{ fontSize: '0.78rem' }} />
+                  </>
+                )}
+                <ToggleRow label="Hide invoice header block" value={settings.letterheadHideHeader} onChange={v => set({ letterheadHideHeader: v })}
+                  hint="When letterhead already has your business info, hide the generated header block to avoid duplication." />
+              </>
+            )}
+          </SettingGroup>
+
+          {/* PDF TEMPLATE STYLE */}
+          <SettingGroup title="PDF template style (visual design)">
+            <SelectRow label="Template" value={settings.pdfTemplate} onChange={v => set({ pdfTemplate: v })}
+              options={[
+                ['modern', 'Modern (colorful header · default)'],
+                ['classic', 'Classic (professional / conservative)'],
+                ['minimal', 'Minimal (clean / whitespace)'],
+                ['corporate', 'Corporate (formal blue/navy)'],
+                ['minimalist', 'Minimalist (grayscale + Inter)'],
+              ]}
+              hint="Changes the header block and table styling of the A4/A5 PDF. Thermal receipts use their own compact template." />
+          </SettingGroup>
+
         </div>
       </div>
 

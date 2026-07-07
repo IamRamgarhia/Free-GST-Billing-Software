@@ -158,6 +158,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // set inside ClientModal is silently discarded on save, and reopening the
   // bill can never restore contact fields even if the saved client has them.
   const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false });
+  // v1.9.1 — preview zoom (session-only). Reads from printSettings for the
+  // initial value so the user's preference carries across bill switches.
+  const [previewZoom, setPreviewZoom] = useState(() => {
+    try { return Number(getPrintSettings().previewZoom) || 100; } catch { return 100; }
+  });
   const [details, setDetails] = useState(draft?.details || {
     invoiceNumber: '',
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -752,6 +757,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     });
     setSelectedClientId(cli.id);
     setShowClientSuggestions(false);
+    // v1.9.1 — auto-apply per-client print preferences (if set on the client
+    // record). Overrides invoice-level defaults for this session. Only fires
+    // for NEW bills (not when editing) since editing bills keep saved options.
+    if (!editingBill) {
+      const patch = {};
+      if (cli.preferredPaperSize) patch.paperSize = cli.preferredPaperSize;
+      if (cli.preferredCurrency) patch.currency = cli.preferredCurrency;
+      if (Object.keys(patch).length > 0) {
+        setInvoiceOptions(prev => ({ ...prev, ...patch }));
+      }
+    }
     toast(`Loaded client: ${cli.name}`, 'info');
   };
 
@@ -1009,7 +1025,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfPageHeight = pdf.internal.pageSize.getHeight();
     const extraPages = printRef.current.querySelectorAll('[data-pdf-page]');
-    const renderScale = Math.max(3, Math.round((window.devicePixelRatio || 1) * 2));
+    // v1.9.1 — quality-driven render scale + JPEG quality:
+    //   draft   → scale 2, JPEG 0.85 → ~50% smaller PDF, email-friendly
+    //   standard→ scale 3, JPEG 0.95 → default (existing behaviour)
+    //   hd      → scale max(4, dpr*3), JPEG 0.98 → archival quality, larger
+    const qualityCfg = {
+      draft:    { scale: 2, jpeg: 0.85 },
+      standard: { scale: Math.max(3, Math.round((window.devicePixelRatio || 1) * 2)), jpeg: 0.95 },
+      hd:       { scale: Math.max(4, Math.round((window.devicePixelRatio || 1) * 3)), jpeg: 0.98 },
+    };
+    const q = qualityCfg[printSettings.pdfQuality] || qualityCfg.standard;
+    const renderScale = q.scale;
+    const jpegQuality = q.jpeg;
 
     const captureOptions = (el) => ({
       scale: renderScale,
@@ -1043,7 +1070,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     extraPages.forEach(el => el.style.display = '');
 
     // Add main invoice page(s)
-    const mainImg = mainCanvas.toDataURL('image/jpeg', 0.95);
+    const mainImg = mainCanvas.toDataURL('image/jpeg', jpegQuality);
     const mainImgHeight = (mainCanvas.height * pdfWidth) / mainCanvas.width;
     if (mainImgHeight <= pdfPageHeight + 2) {
       pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
@@ -1061,7 +1088,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         onclone: (cd) => { cd.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; }); }
       });
       pdf.addPage();
-      pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfWidth, Math.min((c.height * pdfWidth) / c.width, pdfPageHeight), undefined, 'MEDIUM');
+      pdf.addImage(c.toDataURL('image/jpeg', jpegQuality), 'JPEG', 0, 0, pdfWidth, Math.min((c.height * pdfWidth) / c.width, pdfPageHeight), undefined, 'MEDIUM');
     }
 
     if (scalerEl) scalerEl.style.transform = '';
@@ -2317,8 +2344,24 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
         {/* Live Preview */}
         <div className="preview-pane">
-          <div className="preview-pane-label">PDF Preview — This is how your invoice will look</div>
-          <div className="preview-scaler">
+          <div className="preview-pane-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>PDF Preview — This is how your invoice will look</span>
+            {/* v1.9.1 — preview zoom controls. Persist choice per-session so
+                a large preview stays large as user navigates between bills. */}
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <button type="button" className="btn btn-secondary" title="Zoom out"
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', minWidth: 24 }}
+                onClick={() => setPreviewZoom(z => Math.max(50, z - 10))}>−</button>
+              <span style={{ fontSize: '0.72rem', minWidth: 36, textAlign: 'center', fontWeight: 600 }}>{previewZoom}%</span>
+              <button type="button" className="btn btn-secondary" title="Zoom in"
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', minWidth: 24 }}
+                onClick={() => setPreviewZoom(z => Math.min(200, z + 10))}>+</button>
+              <button type="button" className="btn btn-secondary" title="Reset to fit"
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}
+                onClick={() => setPreviewZoom(100)}>Fit</button>
+            </span>
+          </div>
+          <div className="preview-scaler" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top left' }}>
             <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
               items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
               customNotes={customNotes} extraSections={extraSections} options={invoiceOptions} />

@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.1] — 2026-04-30
+
+**All the print polish** — 7 more dynamic features on top of v1.9.0's
+12. Every one is a toggle / dropdown / input, persisted to localStorage.
+
+### Added — 📐 Print quality selector
+
+Dropdown in Print Settings: **Draft** (email-friendly, ~50% smaller PDFs)
+/ **Standard** (default) / **HD** (archival quality). Adjusts both
+html2canvas render scale AND JPEG compression quality (0.85 / 0.95 / 0.98).
+
+### Added — 🔍 Print preview zoom
+
+Zoom controls (**− / % / + / Fit**) in the top-right of the invoice
+preview pane. Zoom from 50% to 200% in 10% increments. Useful for
+inspecting fine details without generating a PDF first. Preference
+persists across bill switches.
+
+### Added — 📚 Bulk print by filter (Dashboard quick actions)
+
+New "Quick print" row below the invoice list:
+
+- **All shown (N)** — everything matching current filters
+- **Unpaid (N)** — one-click print all outstanding
+- **Overdue (N)** — one-click print all overdue
+- **Paid (N)** — one-click print all settled invoices
+
+Perfect for month-end filing or CA handoffs — no need to manually tick
+each row.
+
+### Added — 💾 Per-client print preferences
+
+Client modal has a new **"Print preferences (optional)"** section:
+
+- **Preferred paper size** — this client always gets A4 / A5 / thermal / etc.
+- **Preferred currency** — INR / USD / EUR / GBP / AED / SGD / AUD
+- **Auto-print on save** — per-client override of the global setting
+
+When you create a new invoice for that client, these settings **auto-apply**.
+Wholesale clients on thermal, retail on A4, foreign clients on USD —
+never manually pick again.
+
+### Added — 💱 Dual currency display (foreign clients)
+
+Toggle in Print Settings. When enabled AND primary currency is INR:
+
+- Shows the total in a second currency next to the ₹ amount
+- Supported: USD, EUR, GBP, AED, SGD, AUD, JPY
+- **User maintains the rate manually** — no live conversion (avoids
+  API keys, subscription fees, and rate manipulation liability)
+- Position: **On a line below** the ₹ amount, or **inline in parens**
+
+Appears below the "Amount in Words" line.
+
+### Added — 🖼 Company letterhead upload
+
+Upload your **pre-printed letterhead PNG/JPG** in Print Settings. Renders
+as a full-page background of every PDF. Content prints on top.
+
+Bonus toggle: **"Hide invoice header block"** — when your letterhead
+already has your business name + address + logo, hide the generated
+header block to avoid duplication.
+
+Perfect for businesses that have formal branded stationery designed by
+a professional designer.
+
+### Added — 🎨 2 new PDF templates (5 total)
+
+Beyond the existing Modern / Classic / Minimal, two new options:
+
+- **Corporate** — formal navy/blue header, uppercase section labels,
+  professional feel. Great for consulting / legal / finance.
+- **Minimalist** — grayscale + Inter font, generous whitespace, no
+  colour panels. Modern SaaS aesthetic.
+
+Picked in Print Settings → PDF template style.
+
+### Skipped for future consideration
+
+- **KOT split print** (restaurant kitchen router) — needs a per-category
+  printer routing UI and a native ESC/POS bridge. Deferred to v2.x.
+- **Cash drawer kick** — requires a native app helper or browser
+  extension to send raw ESC/POS commands. Not feasible in the PWA
+  runtime. Deferred to v2.x.
+
+Both documented in the roadmap. If a user really needs them today,
+they can pair a helper POS driver with the printer.
+
+### Backward compatibility
+
+All new options default to **off / neutral values**:
+
+- `pdfQuality: 'standard'` — existing behaviour
+- `dualCurrencyEnabled: false`
+- `letterheadEnabled: false`
+- `pdfTemplate: 'modern'` — matches previous default
+- `previewZoom: 100`
+
+Existing bills render identically. Nothing changes until the user opts in.
+
+---
+
 ## [1.9.0] — 2026-04-30
 
 **"Print Polish" release** — 12 new features covering everything a print

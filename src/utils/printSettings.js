@@ -90,6 +90,34 @@ export const DEFAULT_PRINT_SETTINGS = {
   // -- Reprint indicator (automatic) --
   reprintLabelEnabled: true, // when true, a "REPRINT · Copy #N" badge appears on any invoice
                              // whose printedCount > 0 (based on bill.printedCount field)
+
+  // ============================================================
+  // v1.9.1 additions — all dynamic (on/off toggles)
+  // ============================================================
+
+  // -- Print quality (PDF file size / render sharpness trade-off) --
+  pdfQuality: 'standard',    // 'draft' (email-friendly) | 'standard' (default) | 'hd' (archival)
+
+  // -- Dual currency display (for foreign clients) --
+  dualCurrencyEnabled: false,
+  dualCurrencyCode: 'USD',   // 'USD' | 'EUR' | 'GBP' | 'AED' | 'SGD' | 'AUD' — the "≈" secondary
+  dualCurrencyRate: 83,      // 1 INR = 1/rate secondary — user maintains manually (or per-invoice)
+  dualCurrencyPosition: 'below', // 'below' (line under primary) | 'inline' (same line, in parens)
+
+  // -- PDF template style (extends the existing modern/classic/minimal) --
+  pdfTemplate: 'modern',     // 'modern' | 'classic' | 'minimal' | 'corporate' | 'minimalist'
+
+  // -- Company letterhead --
+  letterheadEnabled: false,
+  letterheadImage: '',       // base64 data URL — full-page A4 background (renders behind content)
+  letterheadOpacity: 100,    // 0-100 (typically 100 for pre-designed letterhead)
+  letterheadHideHeader: true, // when using letterhead, most users hide the generated header block
+
+  // -- Preview zoom (app-only, saved for user's preference) --
+  previewZoom: 100,          // 50-200 percent
+
+  // -- Reserved for future v1.9.2 (KOT split, cash drawer kick) --
+  // These need native printer routing / ESC-POS bridge, out of scope for PWA.
 };
 
 export function getPrintSettings() {

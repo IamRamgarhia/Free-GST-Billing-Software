@@ -1141,6 +1141,56 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    getPaperSize() so PDF captures at the right physical dimensions. These
    rules add layout adjustments for the compact formats. */
 
+/* v1.9.1 — PDF template variants. Corporate = classic base + navy accents;
+   Minimalist = minimal base + grayscale + Inter font. Both build on the
+   existing classic / minimal render paths, only adjusting colours + spacing. */
+
+.template-corporate .invoice-header-classic,
+.template-corporate .invoice-header-modern {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+  color: #f1f5f9 !important;
+}
+.template-corporate .invoice-header-classic h1,
+.template-corporate .invoice-header-classic h2,
+.template-corporate .invoice-header-modern h1,
+.template-corporate .invoice-header-modern h2 { color: #f1f5f9 !important; }
+.template-corporate .inv-section-label {
+  color: #1e40af !important;
+  border-bottom: 2px solid #1e40af !important;
+  letter-spacing: 0.06em !important;
+}
+.template-corporate thead th {
+  background: #1e40af !important;
+  color: #fff !important;
+  letter-spacing: 0.05em !important;
+}
+
+.template-minimalist * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+.template-minimalist .invoice-header-modern,
+.template-minimalist .invoice-header-classic,
+.template-minimalist .invoice-header-minimal {
+  background: transparent !important;
+  color: #0f172a !important;
+  padding: 32px 40px 16px !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+.template-minimalist thead th {
+  background: transparent !important;
+  color: #64748b !important;
+  border-bottom: 1px solid #94a3b8 !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  font-size: 0.75em !important;
+}
+.template-minimalist .inv-section-label {
+  color: #64748b !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  font-weight: 500 !important;
+}
+
 /* A4 Landscape — 297 × 210 mm. Same styles as portrait A4 but wider.
    No special adjustments needed — the invoice-preview-container gets its
    width set inline (297mm) from getPaperSize, and existing layout flexes. */

@@ -73,6 +73,18 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencySymbol, minimumFractionDigits: 2 }).format(amount || 0);
   };
 
+  // v1.9.1 — dual currency display. When enabled in printSettings AND the
+  // primary currency is INR, show a secondary currency figure in parens
+  // (or on a new line) for foreign clients. E.g. ₹5,000 (≈ USD 60.24).
+  // Rate is manually maintained by user in Print Settings.
+  const _ps_dc = getPrintSettings();
+  const dualCurrencyOn = _ps_dc.dualCurrencyEnabled && currencySymbol === 'INR' && _ps_dc.dualCurrencyCode && Number(_ps_dc.dualCurrencyRate) > 0;
+  const fmtDualSecondary = (amount) => {
+    if (!dualCurrencyOn || _ps_dc.dualCurrencyPosition !== 'below') return '';
+    const secondary = (Number(amount) || 0) / Number(_ps_dc.dualCurrencyRate);
+    return '≈ ' + new Intl.NumberFormat('en-US', { style: 'currency', currency: _ps_dc.dualCurrencyCode, minimumFractionDigits: 2 }).format(secondary);
+  };
+
   const amountInWords = (num) => {
     if (currencySymbol === 'INR') return numberToWords(num);
     const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -120,7 +132,15 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     'credit-note': '#be123c',
   };
   const accent = options.accentColor || accentColors[invoiceType] || accentColors['tax-invoice'];
-  const pdfStyle = options.pdfStyle || 'classic';
+  // v1.9.1 — template style. Priority: per-invoice options.pdfStyle → app-wide
+  // printSettings.pdfTemplate → 'classic' fallback. Also accept the new
+  // "corporate" and "minimalist" values that map to existing render paths
+  // with slight tweaks (colour tint + spacing) applied via CSS class.
+  const pdfStyleRaw = options.pdfStyle || getPrintSettings().pdfTemplate || 'classic';
+  const pdfStyle = ['corporate', 'minimalist'].includes(pdfStyleRaw)
+    ? (pdfStyleRaw === 'corporate' ? 'classic' : 'minimal')
+    : pdfStyleRaw;
+  const pdfStyleVariant = pdfStyleRaw; // full value for CSS class targeting
 
   // Check if any item has discount
   const hasAnyDiscount = showDiscount && items.some(item => (item.discount || 0) > 0);
@@ -613,13 +633,25 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     );
   }
 
+  // v1.9.1 — company letterhead + template variant CSS class
+  const _ps_final = getPrintSettings();
+  const letterheadOn = _ps_final.letterheadEnabled && _ps_final.letterheadImage;
+  const hideHeaderBecauseLetterhead = letterheadOn && _ps_final.letterheadHideHeader;
+  const finalContainerStyle = letterheadOn ? {
+    ...containerStyle,
+    backgroundImage: `url(${_ps_final.letterheadImage})`,
+    backgroundSize: 'cover',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center top',
+  } : containerStyle;
+
   return (
     <div
-      className={`invoice-preview-container ${paperCfg.cssClass}`}
-      ref={ref} id="invoice-preview" style={containerStyle}>
-      {pdfStyle === 'modern' && renderModernHeader()}
-      {pdfStyle === 'minimal' && renderMinimalHeader()}
-      {pdfStyle === 'classic' && renderClassicHeader()}
+      className={`invoice-preview-container ${paperCfg.cssClass} template-${pdfStyleVariant}`}
+      ref={ref} id="invoice-preview" style={finalContainerStyle}>
+      {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
+      {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}
+      {!hideHeaderBecauseLetterhead && pdfStyle === 'classic' && renderClassicHeader()}
 
       {renderParties()}
 
@@ -748,6 +780,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             <>
               <h4 className="inv-section-label">AMOUNT IN WORDS</h4>
               <p className="inv-words-text">{amountInWords(totals.total)}</p>
+              {/* v1.9.1 — dual currency below the words line (foreign clients) */}
+              {dualCurrencyOn && (
+                <p style={{ fontSize: '0.85em', color: '#555', fontStyle: 'italic', margin: '0.15rem 0 0' }}>
+                  Total: {fmt(totals.total)} · {fmtDualSecondary(totals.total)}
+                </p>
+              )}
             </>
           )}
           {/* UPI QR Code */}

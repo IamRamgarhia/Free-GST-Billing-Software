@@ -372,6 +372,27 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     setBulkBusy(false);
   };
 
+  // v1.9.1 — Quick bulk-print by filter. Reuses the existing bulkExportPDF
+  // engine by temporarily overriding the selection with a computed set.
+  // Selection is restored afterwards.
+  const bulkPrintByFilter = async (filterKind) => {
+    const targetBills = filterKind === 'all'
+      ? filtered
+      : filtered.filter(b => (filterKind === 'unpaid' ? (b.status || 'unpaid') === 'unpaid' : b.status === filterKind));
+    if (targetBills.length === 0) {
+      toast(`No ${filterKind === 'all' ? '' : filterKind + ' '}invoices to print`, 'warning');
+      return;
+    }
+    const savedSelection = new Set(selectedIds);
+    setSelectedIds(new Set(targetBills.map(b => b.id)));
+    // Give React a tick to commit the new selection before bulkExportPDF
+    // reads getSelectedBills(). Then restore the previous selection.
+    setTimeout(async () => {
+      try { await bulkExportPDF(); }
+      finally { setSelectedIds(savedSelection); }
+    }, 20);
+  };
+
   const shareWhatsApp = (bill) => {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
@@ -588,6 +609,39 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
           <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" />
           <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" />
           {hasFilters && <button className="icon-btn icon-btn-red" onClick={clearFilters} title="Clear"><X size={15} /></button>}
+        </div>
+
+        {/* v1.9.1 — Quick bulk-print filters. One-click "print everything
+             matching X" without needing to manually tick rows. Useful for
+             month-end filing, wholesale reminders, CA handoffs. */}
+        <div style={{
+          padding: '0.5rem 0.85rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap',
+          alignItems: 'center', borderBottom: '1px solid var(--border)',
+        }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Quick print:
+          </span>
+          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+            onClick={() => bulkPrintByFilter('all')}
+            title="Combine all filtered invoices into one PDF">
+            <Download size={12} /> All shown ({filtered.length})
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+            onClick={() => bulkPrintByFilter('unpaid')}>
+            <Clock size={12} /> Unpaid ({filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+            onClick={() => bulkPrintByFilter('overdue')}>
+            <AlertTriangle size={12} /> Overdue ({filtered.filter(b => b.status === 'overdue').length})
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+            onClick={() => bulkPrintByFilter('paid')}>
+            <CheckCircle size={12} /> Paid ({filtered.filter(b => b.status === 'paid').length})
+          </button>
         </div>
 
         {/* Bulk-action toolbar — only renders when at least one row is ticked. */}
