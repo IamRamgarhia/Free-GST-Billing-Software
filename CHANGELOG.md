@@ -7,6 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.5] — 2026-04-30
+
+Full printer compatibility release. Based on user-shared printer spec
+sheet showing that 58mm thermal rolls have only 48mm printable width
+(not 58mm), plus expanded coverage for all common thermal + paper
+formats worldwide.
+
+### Fixed — Thermal printable area now matches real hardware
+
+User's shared 58mm printer spec sheet: Print Width 48mm, Paper Width 58mm.
+Our v1.8.4 sent content 58mm wide → the "Amount" column got cut off at
+the right edge because the print head physically can't reach beyond 48mm.
+
+Fixed by updating each thermal preset to use REAL printable width:
+
+| Preset | Roll width | Printable |
+|---|---|---|
+| **58mm** | 58 mm | **48 mm** ← was 58, now matches hardware |
+| **80mm** | 80 mm | **72 mm** ← was 80, now matches hardware |
+| **76mm** *(new)* | 76 mm | 68 mm |
+| **112mm** *(new)* | 112 mm | 104 mm |
+
+PDF page format now matches printable width so thermal drivers respect it.
+
+### Added — More paper size presets
+
+Standard office sizes covered for international users:
+
+- **US Letter** (216 × 279 mm) — US / Canada / Mexico standard
+- **US Legal** (216 × 356 mm) — long-form invoices
+- **B5** (176 × 250 mm) — used in some Asian markets
+- **76mm Thermal** — older kitchen printers
+- **112mm Thermal** — airline boarding passes, warehouse labels
+
+### Added — 🎯 Custom paper size
+
+New **"Custom size"** preset lets you enter ANY width + height in mm.
+Two number inputs appear in the Customize panel when selected. Below
+100mm width, the render auto-switches to thermal receipt layout; above
+100mm it uses the sheet layout. Covers every printer edge case not
+listed in the standard presets — dot-matrix, label printers, special
+stationery, etc.
+
+Tip in the UI: enter your printer's **printable** width, not the roll
+width.
+
+### Fixed — Amount column alignment on thermal
+
+User photo showed "Rs.225" and "Rs.25" on different rows didn't align
+vertically because flexbox `space-between` doesn't lock the right
+column. Now uses **CSS grid** with a fixed-width amount column:
+
+- 58mm: 16mm amount column
+- 80mm: 22mm amount column
+- Wider: 26mm amount column
+
+Result: every Amount column across every row lands at the same x
+coordinate — clean visual stack.
+
+Same fix applied to the totals block (Subtotal / CGST / SGST / Total
+all align vertically now).
+
+### Fixed — Font darkness (user's #1 request from photo)
+
+Even v1.8.4's Ultra bold rendered too light on user's specific printer.
+Added a **text-shadow trick**: `0.4px 0 0 currentColor, 0 0.4px 0 currentColor`.
+This effectively double-strokes every glyph, producing visibly darker
+print output on ALL thermal printers without needing a heavier font.
+
+Also disabled OS-level font smoothing (`WebkitFontSmoothing: antialiased`)
+which was rendering small thermal glyphs with sub-pixel gray edges.
+
+Text-shadow is active for Bold + Ultra weights; Normal weight users
+can opt out for lighter prints.
+
+### Fixed — A5 aggressive compaction (fit one page)
+
+User asked for A5 to be compact so a full invoice fits ONE page (was
+spilling to two). Applied aggressive CSS overrides:
+
+- Base font 10.5px → **9.5px**
+- Line height 1.35 → **1.25**
+- Header padding 12/16px → **8/12px**
+- Section padding 8/12px → **6/10px**
+- Terms block font 10.5px → **7.5px** with tighter line-height
+- Bank block padding halved
+- All h1/h2/h3 sized down 15%
+
+A typical 4-item GST invoice with all standard sections now comfortably
+fits on one A5 page. For very long invoices (10+ line items) the layout
+still gracefully paginates.
+
+### Backward compatibility
+
+- Existing bills default to their saved `paperSize` — no visual change
+- Pre-v1.8.5 bills on `thermal58` or `thermal80` will now render
+  slightly narrower (48mm / 72mm instead of 58mm / 80mm). This is
+  correct — hardware never rendered the full width anyway. If a user
+  needs the OLD wider behaviour, they can switch to **Custom size**
+  and enter 58 / 80 manually.
+
+---
+
 ## [1.8.4] — 2026-04-30
 
 Big release focused on thermal print quality — inspired by user comparison

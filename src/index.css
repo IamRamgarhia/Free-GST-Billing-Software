@@ -1172,41 +1172,52 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .paper-a5-landscape img[alt="logo"],
 .paper-a5-landscape img[alt="signature"] { max-height: 40px !important; }
 
-/* A5 — half a sheet. Layout scales proportionally: everything ~70% of A4
-   size so it fits inside 148mm without pushing content off the edge. The
-   InvoicePreview has inline styles (padding, margins in rem) that we
-   override here for A5 so content lands within the visible page. */
+/* A5 — half a sheet. v1.8.5 AGGRESSIVE compaction so a full invoice
+   (header + client + 4-6 items + totals + terms + footer) fits on ONE
+   A5 page. Previous version still had A4-sized padding that pushed
+   content to a second page. */
 .paper-a5.invoice-preview-container {
   min-height: 210mm;
-  font-size: 10.5px;
-  line-height: 1.35;
+  font-size: 9.5px !important;
+  line-height: 1.25 !important;
 }
-.paper-a5 h1 { font-size: 1.25rem !important; }
-.paper-a5 h2 { font-size: 1.05rem !important; }
-.paper-a5 h3 { font-size: 0.95rem !important; }
-.paper-a5 table { font-size: 9.5px !important; }
-.paper-a5 th, .paper-a5 td { padding: 3px 4px !important; }
+.paper-a5 h1 { font-size: 1.15rem !important; margin: 0 !important; }
+.paper-a5 h2 { font-size: 0.95rem !important; margin: 0 !important; }
+.paper-a5 h3 { font-size: 0.85rem !important; margin: 0 !important; }
+.paper-a5 p { margin: 2px 0 !important; }
+.paper-a5 table { font-size: 8.5px !important; }
+.paper-a5 th, .paper-a5 td { padding: 2px 4px !important; }
+.paper-a5 tr { line-height: 1.2 !important; }
+
 /* Shrink the "0 2rem" horizontal margins that push content off A5. */
 .paper-a5 .inv-table[style*="margin: 0 2rem"],
 .paper-a5 table[style*="margin: 0 2rem"] {
-  margin: 0 8px !important;
-  width: calc(100% - 16px) !important;
+  margin: 0 6px !important;
+  width: calc(100% - 12px) !important;
 }
-/* Header sections that use 1.5-2rem padding at A4 — halve for A5. */
+/* Cut all A4 header paddings by ~65% */
 .paper-a5 .invoice-header-modern,
 .paper-a5 .invoice-header-classic,
-.paper-a5 .invoice-header-minimal { padding: 12px 16px !important; }
+.paper-a5 .invoice-header-minimal { padding: 8px 12px !important; }
+/* Sections — down from 1.5rem to 6px */
 .paper-a5 .invoice-section,
 .paper-a5 .invoice-block,
 .paper-a5 .invoice-footer,
-.paper-a5 .totals-block { padding: 8px 12px !important; }
-/* Logos + signatures don't need to be as large */
+.paper-a5 .totals-block { padding: 6px 10px !important; }
+/* Smaller logos + signatures */
 .paper-a5 .invoice-logo,
 .paper-a5 img[alt="logo"],
-.paper-a5 img[alt="signature"] { max-height: 45px !important; }
-/* Font weight adjustments to keep readability at smaller size */
+.paper-a5 img[alt="signature"] { max-height: 40px !important; }
+/* Totals block emphasis */
 .paper-a5 .table-total,
-.paper-a5 .totals-block strong { font-size: 1.05em !important; }
+.paper-a5 .totals-block strong { font-size: 1em !important; }
+/* Terms text — usually the longest block, shrink hardest */
+.paper-a5 .terms-block,
+.paper-a5 [class*="terms"] { font-size: 7.5px !important; line-height: 1.25 !important; padding: 4px 8px !important; }
+/* Bank details block — tight */
+.paper-a5 .bank-block { padding: 4px 8px !important; font-size: 8.5px !important; }
+/* Reduce the standard invoice-block gap between sections */
+.paper-a5 > * { margin-bottom: 2px !important; }
 
 /* Thermal — 80mm / 58mm receipt printer roll. Single-column, dense,
    monospace-ish. All decorative color panels + gradients removed since

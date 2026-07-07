@@ -275,7 +275,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // stayed at A4 sizes. On an 80mm roll, that meant the items were pushed
   // off the right edge. v1.8.2 branches on `kind === 'thermal'` and
   // renders a proper single-column receipt.
-  const paperCfg = getPaperSize(options.paperSize);
+  const paperCfg = getPaperSize(options.paperSize, options);
   const isThermal = paperCfg.kind === 'thermal';
   const containerStyle = {
     width: `${paperCfg.widthMm}mm`,
@@ -383,6 +383,15 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     const solidLine = { borderBottom: '2px solid #000' };
     // Root style — EVERY visual attribute set here so nothing accidentally
     // inherits lighter/gray from parent CSS.
+    //
+    // v1.8.5 darkness fix: text-shadow with a 0.5px horizontal offset in the
+    // SAME colour effectively double-strokes each glyph, making thermal
+    // print noticeably darker without needing a heavier font. Combined with
+    // -webkit-text-stroke this makes even the lightest thermal printer
+    // produce crisp readable output. User can turn it OFF via Ultra weight
+    // setting if they don't need it.
+    const textDarkenShadow = fontWeight === 'normal' ? 'none'
+                           : '0.4px 0 0 currentColor, 0 0.4px 0 currentColor';
     const rootStyle = {
       ...containerStyle,
       color: '#000',
@@ -392,6 +401,10 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       fontWeight: baseWeight,
       lineHeight,
       letterSpacing: allCaps ? '0.02em' : 0,
+      textShadow: textDarkenShadow,
+      // Prevent OS-level font smoothing from lightening glyphs at small sizes
+      WebkitFontSmoothing: 'antialiased',
+      MozOsxFontSmoothing: 'grayscale',
     };
 
     return (
@@ -437,91 +450,119 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           {client?.phone && <div>{cap('Ph: ' + client.phone)}</div>}
         </div>
 
-        {/* ================= ITEMS ================= */}
-        <div style={{ padding: secPad, ...dashLine }}>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            fontWeight: strongWeight, paddingBottom: 3, marginBottom: 3,
-            borderBottom: '1px solid #000', fontSize: '0.95em',
-            textTransform: 'uppercase',
-          }}>
-            <span>Item</span>
-            <span>{isNarrow ? 'Amt' : 'Amount'}</span>
-          </div>
-          {(items || []).map((item, idx) => {
-            const amount = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
-            const qty = Number(item.quantity) || 0;
-            const rate = Number(item.rate) || 0;
-            const tax = showGST && item.taxPercent > 0 ? ` +${item.taxPercent}%` : '';
-            const hsnBit = showHSN && item.hsn && !isNarrow ? '  |  HSN ' + item.hsn : '';
-            return (
-              <div key={idx} style={{ marginBottom: 5, fontSize: '0.95em' }}>
-                <div style={{ fontWeight: strongWeight }}>
-                  {(idx + 1) + '. ' + cap(item.name || item.description || 'Item')}
-                </div>
-                {(showRate || !thermalCompact) && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92em', paddingLeft: thermalCompact ? 0 : 8, fontWeight: baseWeight }}>
-                    <span>
-                      {cap(showRate
-                        ? `${qty}${item.unit ? ' ' + item.unit : ''} × ${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
-                        : `${qty}${item.unit ? ' ' + item.unit : ''}${hsnBit}`)}
-                    </span>
-                    <span style={{ fontWeight: strongWeight }}>{currencySymbol}{amount.toFixed(2)}</span>
-                  </div>
-                )}
-                {!showRate && thermalCompact && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: strongWeight, fontSize: '0.95em' }}>
-                    <span>{cap(`${qty}${item.unit ? ' ' + item.unit : ''}`)} × {currencySymbol}{amount.toFixed(2)}</span>
-                  </div>
-                )}
+        {/* ================= ITEMS =================
+             CSS Grid with a FIXED-WIDTH amount column so every amount lines
+             up vertically no matter how long the qty/rate text is. Fixes the
+             photo issue where "Rs.225" and "Rs.25" didn't align across rows. */}
+        {(() => {
+          // Amount column width scales with paper: narrow rolls get less
+          // space; wider rolls give amounts more room.
+          const amountColMm = isNarrow ? 16 : paperCfg.widthMm < 100 ? 22 : 26;
+          const gridCols = `1fr ${amountColMm}mm`;
+          return (
+            <div style={{ padding: secPad, ...dashLine }}>
+              <div style={{
+                display: 'grid', gridTemplateColumns: gridCols,
+                fontWeight: strongWeight, paddingBottom: 3, marginBottom: 3,
+                borderBottom: '1px solid #000', fontSize: '0.95em',
+                textTransform: 'uppercase', gap: '4px',
+              }}>
+                <span>Item</span>
+                <span style={{ textAlign: 'right' }}>{isNarrow ? 'Amt' : 'Amount'}</span>
               </div>
-            );
-          })}
-        </div>
+              {(items || []).map((item, idx) => {
+                const amount = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                const qty = Number(item.quantity) || 0;
+                const rate = Number(item.rate) || 0;
+                const tax = showGST && item.taxPercent > 0 ? ` +${item.taxPercent}%` : '';
+                const hsnBit = showHSN && item.hsn && !isNarrow ? '  |  HSN ' + item.hsn : '';
+                return (
+                  <div key={idx} style={{ marginBottom: 5, fontSize: '0.95em' }}>
+                    <div style={{ fontWeight: strongWeight, wordBreak: 'break-word' }}>
+                      {(idx + 1) + '. ' + cap(item.name || item.description || 'Item')}
+                    </div>
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: gridCols, gap: '4px',
+                      fontSize: '0.92em', paddingLeft: thermalCompact ? 0 : 8, fontWeight: baseWeight,
+                    }}>
+                      <span style={{ wordBreak: 'break-word' }}>
+                        {cap(showRate
+                          ? `${qty}${item.unit ? ' ' + item.unit : ''} × ${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
+                          : `${qty}${item.unit ? ' ' + item.unit : ''}${hsnBit}`)}
+                      </span>
+                      <span style={{ textAlign: 'right', fontWeight: strongWeight }}>{currencySymbol}{amount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
-        {/* ================= TOTALS ================= */}
-        <div style={{ padding: secPad, fontSize: '1em', fontWeight: baseWeight, ...dashLine }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{cap('Subtotal')}</span><span>{currencySymbol}{(Number(totals?.subtotal) || 0).toFixed(2)}</span>
-          </div>
-          {Number(totals?.totalDiscount) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{cap('Discount')}</span><span>-{currencySymbol}{Number(totals.totalDiscount).toFixed(2)}</span>
+        {/* ================= TOTALS =================
+             Grid with fixed-width right column so every amount aligns
+             vertically (Subtotal / CGST / SGST / Total all rightmost x). */}
+        {(() => {
+          const totalsColMm = isNarrow ? 18 : paperCfg.widthMm < 100 ? 24 : 30;
+          const gridCols = `1fr ${totalsColMm}mm`;
+          const rowStyle = { display: 'grid', gridTemplateColumns: gridCols, gap: '4px' };
+          const amt = (n) => currencySymbol + (Number(n) || 0).toFixed(2);
+          return (
+            <div style={{ padding: secPad, fontSize: '1em', fontWeight: baseWeight, ...dashLine }}>
+              <div style={rowStyle}>
+                <span>{cap('Subtotal')}</span>
+                <span style={{ textAlign: 'right' }}>{amt(totals?.subtotal)}</span>
+              </div>
+              {Number(totals?.totalDiscount) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('Discount')}</span>
+                  <span style={{ textAlign: 'right' }}>-{amt(totals.totalDiscount)}</span>
+                </div>
+              )}
+              {showGST && Number(totals?.cgst) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('CGST')}</span>
+                  <span style={{ textAlign: 'right' }}>{amt(totals.cgst)}</span>
+                </div>
+              )}
+              {showGST && Number(totals?.sgst) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('SGST')}</span>
+                  <span style={{ textAlign: 'right' }}>{amt(totals.sgst)}</span>
+                </div>
+              )}
+              {showGST && Number(totals?.igst) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('IGST')}</span>
+                  <span style={{ textAlign: 'right' }}>{amt(totals.igst)}</span>
+                </div>
+              )}
+              {Number(totals?.cess) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('Cess')}</span>
+                  <span style={{ textAlign: 'right' }}>{amt(totals.cess)}</span>
+                </div>
+              )}
+              {showRoundOff && Number(totals?.roundOff) !== 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('Round-off')}</span>
+                  <span style={{ textAlign: 'right' }}>
+                    {Number(totals.roundOff) > 0 ? '+' : ''}{amt(totals.roundOff)}
+                  </span>
+                </div>
+              )}
+              <div style={{
+                ...rowStyle,
+                fontWeight: strongWeight, fontSize: '1.2em', marginTop: 4,
+                paddingTop: 4, borderTop: '1px solid #000',
+                borderBottom: '2px solid #000', paddingBottom: 4,
+              }}>
+                <span>{cap('TOTAL')}</span>
+                <span style={{ textAlign: 'right' }}>{amt(totals?.total)}</span>
+              </div>
             </div>
-          )}
-          {showGST && Number(totals?.cgst) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{cap('CGST')}</span><span>{currencySymbol}{Number(totals.cgst).toFixed(2)}</span>
-            </div>
-          )}
-          {showGST && Number(totals?.sgst) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{cap('SGST')}</span><span>{currencySymbol}{Number(totals.sgst).toFixed(2)}</span>
-            </div>
-          )}
-          {showGST && Number(totals?.igst) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{cap('IGST')}</span><span>{currencySymbol}{Number(totals.igst).toFixed(2)}</span>
-            </div>
-          )}
-          {Number(totals?.cess) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{cap('Cess')}</span><span>{currencySymbol}{Number(totals.cess).toFixed(2)}</span>
-            </div>
-          )}
-          {showRoundOff && Number(totals?.roundOff) !== 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{cap('Round-off')}</span><span>{Number(totals.roundOff) > 0 ? '+' : ''}{currencySymbol}{Number(totals.roundOff).toFixed(2)}</span>
-            </div>
-          )}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            fontWeight: strongWeight, fontSize: '1.2em', marginTop: 4,
-            ...solidLine, paddingTop: 4, borderBottom: '2px solid #000',
-          }}>
-            <span>{cap('TOTAL')}</span><span>{currencySymbol}{(Number(totals?.total) || 0).toFixed(2)}</span>
-          </div>
-        </div>
+          );
+        })()}
 
         {showAmountWords && (
           <div style={{ padding: secPad, fontSize: '0.9em', textAlign: 'center', ...dashLine, fontStyle: 'italic', fontWeight: baseWeight }}>

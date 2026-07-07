@@ -415,7 +415,28 @@ export const getUpcomingFilings = (today = new Date()) => {
 //   kind         — 'sheet' | 'thermal'. Thermal switches to a completely
 //                  compact template.
 // ============================================================================
+// ============================================================================
+// Paper / print sizes — comprehensive list covering thermal receipt rolls
+// AND standard office paper sizes. Each entry declares:
+//
+//   widthMm         — CONTENT width (printable area, not physical paper).
+//                     For thermal rolls, this is smaller than the physical
+//                     paper because the print head has margins it can't
+//                     reach (e.g. 58mm roll → 48mm printable).
+//   heightMm        — Content height (portrait). Thermal uses a large
+//                     placeholder height since roll paper is continuous.
+//   jsPdfFormat     — Either a jsPDF preset ('a4'/'a5'/'letter'/'legal')
+//                     or a custom [widthMm, heightMm] tuple for thermal.
+//   jsPdfOrientation— 'portrait' or 'landscape'.
+//   cssClass        — Added to invoice-preview-container.
+//   kind            — 'sheet' (A4/A5/Letter/Legal) or 'thermal' (roll).
+//
+// v1.8.5: expanded coverage based on user-shared 58mm printer spec sheet
+// (which showed 48mm printable area, not 58mm). Added US Letter, Legal,
+// B5, and thermal 76mm / 112mm variants.
+// ============================================================================
 export const PAPER_SIZES = {
+  // ---- Sheet paper (A4 family, Letter, Legal, B5) ------------------------
   a4: {
     label: 'A4 Portrait (default)',
     hint: 'Standard business invoice — 210 × 297 mm',
@@ -426,7 +447,7 @@ export const PAPER_SIZES = {
   },
   a4Landscape: {
     label: 'A4 Landscape',
-    hint: 'Sideways A4 — 297 × 210 mm. More columns fit; useful for detailed itemized invoices with many charges.',
+    hint: 'Sideways A4 — 297 × 210 mm. More columns fit; useful for detailed itemized invoices.',
     widthMm: 297, heightMm: 210,
     jsPdfFormat: 'a4', jsPdfOrientation: 'landscape',
     cssClass: 'paper-a4-landscape',
@@ -442,30 +463,107 @@ export const PAPER_SIZES = {
   },
   a5Landscape: {
     label: 'A5 Landscape (2 per A4 sheet)',
-    hint: 'Sideways A5 — 210 × 148 mm. Print two invoices per A4 sheet to save paper. Popular for wholesale / retail.',
+    hint: 'Sideways A5 — 210 × 148 mm. Print two invoices per A4 sheet.',
     widthMm: 210, heightMm: 148,
     jsPdfFormat: 'a5', jsPdfOrientation: 'landscape',
     cssClass: 'paper-a5-landscape',
     kind: 'sheet',
   },
+  letter: {
+    label: 'US Letter (216 × 279 mm)',
+    hint: 'US / Canada / Mexico standard business size.',
+    widthMm: 216, heightMm: 279,
+    jsPdfFormat: 'letter', jsPdfOrientation: 'portrait',
+    cssClass: 'paper-letter',
+    kind: 'sheet',
+  },
+  legal: {
+    label: 'US Legal (216 × 356 mm)',
+    hint: 'Longer than Letter — useful for detailed invoices with many line items.',
+    widthMm: 216, heightMm: 356,
+    jsPdfFormat: 'legal', jsPdfOrientation: 'portrait',
+    cssClass: 'paper-legal',
+    kind: 'sheet',
+  },
+  b5: {
+    label: 'B5 (176 × 250 mm)',
+    hint: 'Between A5 and A4 — used in some Asian markets.',
+    widthMm: 176, heightMm: 250,
+    jsPdfFormat: 'b5', jsPdfOrientation: 'portrait',
+    cssClass: 'paper-b5',
+    kind: 'sheet',
+  },
+
+  // ---- Thermal rolls ------------------------------------------------------
+  // widthMm = ACTUAL PRINTABLE area (per user's shared printer spec sheet:
+  // 58mm roll has 48mm printable, 80mm roll typically has 72mm printable).
+  // The jsPdfFormat width matches so the PDF page = printable area, and the
+  // thermal driver naturally handles the physical roll margin.
   thermal80: {
     label: '80mm Thermal (POS receipt)',
-    hint: '80 mm wide roll — most restaurant / retail POS printers',
-    widthMm: 80, heightMm: 297, // jsPDF needs a height; extra whitespace OK on roll paper
-    jsPdfFormat: [80, 297], jsPdfOrientation: 'portrait',
+    hint: '80 mm wide roll · ~72 mm printable area. Standard restaurant / retail POS printers (Epson TM, Star TSP, etc.).',
+    widthMm: 72, heightMm: 297,
+    jsPdfFormat: [72, 297], jsPdfOrientation: 'portrait',
     cssClass: 'paper-thermal-80',
     kind: 'thermal',
   },
+  thermal76: {
+    label: '76mm Thermal (kitchen printer)',
+    hint: '76 mm wide roll · ~68 mm printable area. Older Epson / Bixolon kitchen printers.',
+    widthMm: 68, heightMm: 297,
+    jsPdfFormat: [68, 297], jsPdfOrientation: 'portrait',
+    cssClass: 'paper-thermal-76',
+    kind: 'thermal',
+  },
   thermal58: {
-    label: '58mm Thermal (compact receipt)',
-    hint: '58 mm wide roll — smaller portable / mobile thermal printers',
-    widthMm: 58, heightMm: 297,
-    jsPdfFormat: [58, 297], jsPdfOrientation: 'portrait',
+    label: '58mm Thermal (compact / mobile)',
+    hint: '58 mm wide roll · ~48 mm printable area (most common on 58mm printers). Portable / battery / bluetooth thermal.',
+    widthMm: 48, heightMm: 297,
+    jsPdfFormat: [48, 297], jsPdfOrientation: 'portrait',
     cssClass: 'paper-thermal-58',
     kind: 'thermal',
   },
+  thermal112: {
+    label: '112mm Thermal (wide receipt)',
+    hint: '112 mm wide roll · ~104 mm printable area. Airline boarding passes, warehouse labels, wider receipts.',
+    widthMm: 104, heightMm: 297,
+    jsPdfFormat: [104, 297], jsPdfOrientation: 'portrait',
+    cssClass: 'paper-thermal-112',
+    kind: 'thermal',
+  },
+
+  // ---- Custom (user-specified dimensions) ---------------------------------
+  // A single "custom" preset that reads its actual dimensions from
+  // invoiceOptions.customPaperWidth / customPaperHeight. The Customize
+  // panel exposes two number inputs when this is selected.
+  custom: {
+    label: 'Custom size (any width / height)',
+    hint: 'Enter your exact printable width + height in mm. Use for uncommon printer sizes or special stationery.',
+    widthMm: 210, heightMm: 297, // fallback defaults if the user hasn't set custom values yet
+    jsPdfFormat: [210, 297], jsPdfOrientation: 'portrait',
+    cssClass: 'paper-custom',
+    kind: 'custom',
+  },
 };
-export const getPaperSize = (key) => PAPER_SIZES[key] || PAPER_SIZES.a4;
+
+// Resolve a paper-size config, applying custom dimensions if this is the
+// "custom" preset. Callers can pass the invoiceOptions object as the
+// second argument to get width/height overrides applied.
+export const getPaperSize = (key, options = {}) => {
+  const base = PAPER_SIZES[key] || PAPER_SIZES.a4;
+  if (base.kind !== 'custom') return base;
+  const w = Math.max(30, Math.min(500, Number(options.customPaperWidth) || 80));
+  const h = Math.max(50, Math.min(1200, Number(options.customPaperHeight) || 297));
+  // Custom paper defaults to thermal-style rendering when width < 100mm.
+  const kind = w < 100 ? 'thermal' : 'sheet';
+  return {
+    ...base,
+    widthMm: w, heightMm: h,
+    jsPdfFormat: [w, h],
+    kind,
+    cssClass: kind === 'thermal' ? 'paper-thermal-custom' : 'paper-custom',
+  };
+};
 
 // Fiscal-year dropdown options for the last N years. Was previously
 // duplicated in 5 files (Dashboard / PurchaseBills / ExpenseTracker /

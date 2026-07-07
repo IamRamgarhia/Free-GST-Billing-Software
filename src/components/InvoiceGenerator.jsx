@@ -986,7 +986,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // jsPDF's built-in format; thermal 80mm/58mm use custom [width, height].
     // Thermal formats use a tall single-column layout — the InvoicePreview
     // component branches on options.paperSize CSS class to render compact.
-    const paperCfg = getPaperSize(invoiceOptions.paperSize);
+    const paperCfg = getPaperSize(invoiceOptions.paperSize, invoiceOptions);
     // jsPDF orientation defaults to 'portrait' if the paper config doesn't
     // specify it, so pre-v1.8.3 saved bills keep rendering portrait.
     const pdf = new jsPDF({
@@ -1589,14 +1589,37 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                           ))}
                         </select>
                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>
-                          {getPaperSize(invoiceOptions.paperSize).hint}
+                          {getPaperSize(invoiceOptions.paperSize, invoiceOptions).hint}
                         </p>
+
+                        {/* Custom size inputs — shown only when Custom preset picked */}
+                        {invoiceOptions.paperSize === 'custom' && (
+                          <div style={{ marginTop: '0.5rem', padding: '0.55rem 0.65rem', background: 'var(--bg-secondary)', borderRadius: 6, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: 3 }}>Width (mm)</label>
+                              <input type="number" min="30" max="500" step="1"
+                                value={invoiceOptions.customPaperWidth || 80}
+                                onChange={e => setInvoiceOptions(prev => ({ ...prev, customPaperWidth: parseInt(e.target.value, 10) || 80 }))}
+                                className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.72rem', fontWeight: 600, display: 'block', marginBottom: 3 }}>Height (mm)</label>
+                              <input type="number" min="50" max="1200" step="1"
+                                value={invoiceOptions.customPaperHeight || 297}
+                                onChange={e => setInvoiceOptions(prev => ({ ...prev, customPaperHeight: parseInt(e.target.value, 10) || 297 }))}
+                                className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }} />
+                            </div>
+                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', gridColumn: 'span 2', margin: 0 }}>
+                              Tip: enter your printer's <strong>printable</strong> width, not the roll width. Most 58mm thermals print at 48mm; 80mm print at 72mm. Below 100mm switches to thermal receipt layout.
+                            </p>
+                          </div>
+                        )}
 
                         {/* Thermal-only extra settings — only shown when a
                             thermal paper size is picked. Each control maps
                             to an invoiceOptions field consumed by the
                             thermal render path in InvoicePreview. */}
-                        {getPaperSize(invoiceOptions.paperSize).kind === 'thermal' && (
+                        {getPaperSize(invoiceOptions.paperSize, invoiceOptions).kind === 'thermal' && (
                           <div style={{ marginTop: '0.6rem', padding: '0.6rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
                             <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>
                               Thermal printer settings
