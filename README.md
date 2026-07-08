@@ -169,14 +169,19 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 
 ### 📊 Comparison: Free GST Billing Software vs Paid Alternatives
 
+Every 🆕 row below is a feature we shipped in v1.10 that competitors either paywall, cripple in the free tier, or don't offer at all.
+
 | Feature | **Free GST Billing Software** | Tally Prime | Vyapar | Zoho Books | ClearTax GST |
 |---|---|---|---|---|---|
 | **Price** | ✅ **Free forever** | ₹22,500–₹67,500 one-time | ₹2,599+/year | ₹899–₹2,999/month | ~₹3,599/year+ |
 | **GST invoices (CGST/SGST/IGST)** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 🆕 **UTGST for intra-UT supplies** | ✅ Auto-detected | ⚠ Manual | ❌ | ⚠ Manual | ⚠ Manual |
 | **GSTR-1 / GSTR-3B JSON export** | ✅ | ✅ (paid tier) | ⚠ CSV only | ✅ (Standard+) | ✅ |
 | **GSTR-2B reconciliation** | ✅ | ✅ (paid tier) | ❌ | ✅ (Premium) | ✅ |
 | **E-Way Bill JSON** | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **TDS / TCS on invoices** | ✅ Form 26Q / 27EQ-ready | ✅ | ❌ | ✅ | ✅ |
+| 🆕 **TCS on right base + ₹50L threshold** | ✅ Auto (Circular 17/2020) | ⚠ Manual | ❌ | ⚠ Manual | ⚠ Manual |
+| 🆕 **Income Tax (ITR) with 234B/C interest** | ✅ Free | ❌ | ❌ | ⚠ CA add-on | ✅ (separate product) |
 | **Multi-business / multi-GSTIN** | ✅ Unlimited | ✅ (Gold tier) | ⚠ Silver tier | ✅ (Premium) | ✅ |
 | **Multi-account payments per business** | ✅ Unlimited | ✅ | ⚠ Paid | ✅ | ✅ |
 | **Custom per-line units (kg, ltr, Hrs + custom)** | ✅ | ⚠ Limited | ⚠ Paid | ✅ | ⚠ Limited |
@@ -187,13 +192,47 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 | **Open-source (MIT licensed)** | ✅ | ❌ Proprietary | ❌ Proprietary | ❌ Proprietary | ❌ Proprietary |
 | **No signup / no email collected** | ✅ | ✅ | ❌ Phone+OTP | ❌ Email login | ❌ Email login |
 | **Recurring invoices auto-generation** | ✅ | ✅ | ⚠ Paid | ✅ | ⚠ |
-| **In-app searchable user guide** | ✅ | ❌ External PDF | ❌ External | ❌ External | ❌ External |
+| 🆕 **9 one-click design presets (Modern / Corporate / Retail Brand / …)** | ✅ | ❌ | ⚠ 2-3 templates (paid tier) | ⚠ Paid | ❌ |
+| 🆕 **Split-view live preview (settings + preview side-by-side)** | ✅ | ❌ | ❌ | ⚠ Small preview | ❌ |
+| 🆕 **User-configurable PDF colours (accent, header, text, divider)** | ✅ Every colour | ❌ | ❌ | ⚠ Accent only (paid) | ❌ |
+| 🆕 **Print margins (mm) — top/bottom/left/right** | ✅ | ⚠ Paid tier | ❌ | ⚠ Paid | ❌ |
+| 🆕 **Multi-language section labels (English/Hindi/Tamil/Marathi/Bengali)** | ✅ Free | ⚠ Paid | ❌ | ❌ | ❌ |
+| 🆕 **Multi-page Rule 48 (Original/Duplicate/Triplicate) — rows never cut** | ✅ | ✅ | ⚠ Paid Gold | ⚠ Paid | ⚠ Paid |
+| 🆕 **Watermark (DUPLICATE / DRAFT / custom) on PDF** | ✅ | ⚠ Paid | ⚠ Paid Silver | ✅ | ⚠ Paid |
+| 🆕 **Auto-print payment receipt (with view/edit/delete history)** | ✅ | ⚠ Paid | ⚠ Paid | ⚠ Paid | ⚠ Paid |
+| 🆕 **Bulk PDF export with progress + cancel** | ✅ Free | ⚠ Paid | ❌ | ⚠ Paid | ⚠ Paid |
+| 🆕 **Ctrl+K command palette (search invoices/clients/products)** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 🆕 **Notification bell (overdue + low stock + filings + updates)** | ✅ | ⚠ Basic | ⚠ Paid | ✅ | ⚠ |
+| 🆕 **Automatic daily backup + Trash bin (30-day retention)** | ✅ Free | ⚠ Manual export | ⚠ Paid cloud-sync | ✅ Cloud-only | ✅ Cloud-only |
+| 🆕 **Transactional restore (rollback on error)** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 🆕 **Setup wizard with 6 business-type presets** | ✅ | ❌ | ⚠ Basic | ⚠ Basic | ⚠ Basic |
+| 🆕 **In-app searchable user guide** | ✅ | ❌ External PDF | ❌ External | ❌ External | ❌ External |
+| 🆕 **Barcode + QR of invoice number on PDF** | ✅ Every invoice | ⚠ Paid | ⚠ Paid | ❌ | ❌ |
+| 🆕 **Feedback QR (Google Reviews link) on PDF** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 🆕 **Google Drive backup + PDF upload (opt-in)** | ✅ Free (your OAuth) | ❌ | ⚠ Paid | ✅ (Premium) | ❌ |
 
 *Last verified 2026. Competitors' features change; verify on their pricing pages.*
+
+### 💰 What you'd pay elsewhere for what's free here
+
+If we priced every 🆕 feature at the going rate on the paid alternatives:
+
+- **Custom PDF branding + design presets**: paid tier on Vyapar, Zoho, ClearTax
+- **Multi-copy Rule 48**: Vyapar Gold (₹3,999/yr), Tally paid module
+- **Watermarks**: Vyapar Silver (₹2,599/yr)
+- **Auto-print payment receipts**: standard on ClearTax + Zoho Standard
+- **Bulk export**: paid tier on all four
+- **Daily backup with Trash bin**: cloud-only (paid) on Zoho + ClearTax
+- **ITR module** (with 234B/C, surcharge cap, 80D senior tiers): ClearTax sells this as a separate ~₹1,500/yr product
+- **Multi-language invoices**: Tally paid module
+
+**Total that would cost you ~₹8,000–₹15,000/year on the competing stack.** Here: **₹0, forever, MIT-licensed.**
 
 ---
 
 ## Key Features
+
+> 🆕 **New in v1.10** (highlighted with 🆕 throughout): DOM-level multi-page pagination · GST Rule 48 multi-copy for multi-page invoices · **UTGST bucket** (Chandigarh/Ladakh/A&N/Lakshadweep/DN&DD) · TCS 206C(1H) on receipt-including-GST per CBDT Circular 17/2020 · ₹50L per-counterparty TDS/TCS threshold · **Payment Receipt with view/edit/delete history** · **9 one-click design presets** (Modern / Classic / Corporate / Minimalist / Colorful / Compact / Enterprise / IT Services / Retail Brand) · **Print & PDF split-view live preview** · Print margins · PDF Font Family + Font Scale · Multi-language section labels · Setup wizard with 6 business presets · Automatic daily backup + Trash bin · Notification bell · Ctrl+K command palette · Bulk export with progress & cancel · CORS lockdown · Route lazy-loading (main bundle -46%)
 
 ### :receipt: Invoicing & Billing
 
@@ -201,13 +240,24 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 |---------|---------|
 | **5 Invoice Types** | Tax Invoice, Proforma/Estimate, Bill of Supply, Credit Note, Delivery Challan |
 | **Auto GST Calculation** | CGST + SGST for intra-state, IGST for inter-state — uses *Place of Supply* override and SEZ flag (Section 16, IGST Act) |
+| 🆕 **UTGST Bucket** | Intra-UT supplies for Chandigarh, Ladakh, Andaman & Nicobar, Lakshadweep, Dadra & Nagar Haveli / Daman & Diu correctly file as CGST + **UTGST** instead of CGST + SGST — required by GSTN portal (Chapter II of GST Act) |
+| 🆕 **Interstate Detection Guard** | Blank business-state produces a warning + block instead of silently defaulting to intra-state (fresh installs can no longer ship interstate invoices with wrong tax split) |
 | **HSN/SAC Codes** | Add HSN or SAC codes per line item with correct tax rates |
 | **Per-Line Units of Measurement** | kg, ltr, mtr, ft, hrs, pcs, sqft + 15 more — plus user-defined custom units (Carat, Bundle, anything). UQC propagated to GSTR-1 and E-Way Bill |
 | **TDS / TCS on Invoices** | Section 194Q / 194C / 194J / 194I / 194H / 194O / 195 (TDS) and 206C(1H) / 52 (TCS) with per-quarter Form 26Q / 27EQ-ready CSV reports |
+| 🆕 **TCS on Right Base + ₹50L Threshold** | Section 206C(1H) computed on receipt **including GST** per CBDT Circular 17/2020 (not pre-GST subtotal). ₹50 lakh annual per-counterparty threshold properly enforced — no over-collection on the first invoice |
 | **UPI QR Code** | Auto-generated QR code on every Indian-rupee invoice from your UPI ID |
 | **Multi-Currency** | Bill in INR + 21 other currencies (USD, EUR, GBP, AED, AUD, SGD, CAD, MYR, ZAR, NGN, KES, SAR, NPR, BDT, LKR, PKR, PHP, IDR, NZD, etc.) with locale-correct formatting and amount-in-words for each |
 | **Country-Aware Tax Labels** | "GST" for India, "VAT" for UAE/UK/EU, "SST" for Malaysia, "MwSt" for Germany, "TVA" for France, "PPN" for Indonesia — auto-applied based on seller country |
 | **3 PDF Styles** | Classic / Modern / Minimal layouts with customisable accent colour and high-quality multi-page export |
+| 🆕 **9 One-Click Design Presets** | Modern (indigo, filled headers) · Classic (mono ALL CAPS, SMART BAZAAR style) · Corporate (navy + gold, premium) · Minimalist (hairlines, airy) · Colorful (warm orange, retail/cafe) · Compact (max lines per page) · Enterprise (blue accent, e-commerce feel) · IT Services (deep navy heading) · Retail Brand (logo-first, HSN column). Each preset shapes **both PDF colours + thermal typography** in one click |
+| 🆕 **Multi-Page Rule 48 Compliant PDF** | DOM-level pagination snaps page breaks to safe row boundaries — table rows never cut mid-content across pages. Multi-copy (ORIGINAL / DUPLICATE / TRIPLICATE) correctly duplicates every page for goods invoices |
+| 🆕 **Print Margins (mm)** | Top / Bottom / Left / Right margins in mm — shifts content inside every PDF page. Essential for pre-printed letterhead and printers with built-in edge margins |
+| 🆕 **PDF Font Family** | Helvetica (default, cleanest) · Times New Roman (traditional / formal) · Courier (monospace / receipt style). Independent of thermal typography setting |
+| 🆕 **PDF Font Scale (80% – 140%)** | Slider that multiplies with the base size preset. Fit more per page (80%) or bump up for older customers (140%) — proportional across the whole invoice |
+| 🆕 **Multi-Language Section Labels** | English, Hindi, Tamil, Marathi, Bengali — or override any individual label to match your brand. `BILL TO` → `बिल किसे`, `TAX INVOICE` → `கர சாலான்`, etc. |
+| 🆕 **PDF User Colours** | Fully user-configurable palette — primary text, muted text, accent, accent text, header background, divider colour. Live preview updates as you type |
+| 🆕 **Print & PDF Split-View Live Preview** | 70+ settings on the left, sticky preview on the right. Tabs for PDF (A4) · Thermal (80mm) · Split view — every change reflects instantly without scrolling |
 | **Granular PDF Field Control** | 30+ togglable fields grouped by section (Header, Client, Items table, Totals, Footer). Hide-all / Reset-default in one click |
 | **Round-off + Currency Exchange Rate Snapshot** | Optional round-to-nearest-rupee line and FX rate stored on the invoice for accurate historical reports |
 | **Rich-Text Terms & Notes** | Bold, italic, underline, lists, headings, links — all DOMPurify-sanitised. **13 India-specific Terms presets** by business type (SME, Freelancer, Manufacturer, Retail, Restaurant, IT/SaaS, Construction, Medical, Education, Transport, Real Estate, E-commerce, Export-LUT) |
@@ -245,6 +295,11 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 | **Expense Tracker** | Record expenses with category, vendor, GST % for automatic ITC calculation |
 | **Recurring Invoices** | Templates for retainer clients — weekly, monthly, quarterly, yearly with auto-advance |
 | **Payment Receipts & Vouchers** | Generate payment receipts linked to invoices with amount in words |
+| 🆕 **Auto-Print Payment Receipt** | Recording a payment auto-opens a printable receipt (business header, receipt number, invoice number, mode, amount in Indian words, running balance). Print via browser Print → Save as PDF |
+| 🆕 **Payment History CRUD** | Every payment has a stable id + Receipt (reprint) / Edit note / Delete actions. Deleting a payment recomputes totals + status automatically |
+| 🆕 **Notification Bell** | Overdue invoices, low stock, upcoming GST filings, and update banners all surface in a single click-out popover with badge count |
+| 🆕 **Ctrl+K Command Palette** | Spotlight-style search across invoices, clients, products, and every settings section. Select an invoice → opens for edit in one keystroke |
+| 🆕 **Setup Wizard** | 3-step first-run wizard with 6 business-type presets (Retail / Freelancer / Restaurant / Wholesale / Manufacturing / Service). Configures paper size, language, and defaults in 90 seconds |
 | **Purchase Bills** | Record purchase invoices for ITC tracking and expense management |
 | **Multi-Business Profiles** | Switch between multiple businesses with separate GSTIN, bank details, logo, signature |
 
@@ -258,6 +313,9 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 | **Low Stock Alerts** | Monitor inventory levels across your product catalog |
 | **GST Return Summaries** | GSTR-1, GSTR-3B, HSN summaries auto-generated from your invoices and expenses |
 | **Dashboard Stats** | Total revenue, tax collected, invoice count, outstanding amount at a glance |
+| 🆕 **Client Analytics** | Top clients by revenue, worst payers (average days-to-payment), client mix — data straight from your invoice ledger |
+| 🆕 **Product Performance** | Best-sellers, most units sold, revenue by product — surfaces which items to restock or push |
+| 🆕 **Income Tax (ITR) Computation** | Full-featured ITR module: old vs. new regime compare, salary/business/capital-gains slabs, deductions with senior-citizen-aware 80D caps, Section 234B/234C interest with calendar-month accuracy, surcharge with 15% cap on 111A/112A gains (Finance Act 2022), presumptive-mode advance-tax schedule, ITR-4 Sugam field map |
 
 ### :outbox_tray: Sharing & Export
 
@@ -269,6 +327,9 @@ Most billing software in India — Zoho Invoice, Vyapar, Tally, myBillBook — c
 | **Google Drive Auto-Upload (PDFs)** | Invoices auto-upload to your own Google Drive after download (optional, OAuth via your Client ID) |
 | **Google Drive JSON Backup** | Optional checkbox in Export to upload the JSON backup to your Drive's `<Folder> - Backups` subfolder alongside the local download |
 | **Granular Backup / Restore** | Pick exactly what to back up via checkboxes — profile, profiles, invoices, clients, products, expenses, purchases, recurring, receipts, terms templates, settings, local prefs (custom units, theme, region, modules). Import previews counts before restoring |
+| 🆕 **Automatic Daily Backup + Trash Bin** | Every day the server snapshots your entire `data/` folder into `data/backups/YYYY-MM-DD/`. 30-day retention with auto-purge. Deleted invoices move to a Trash bin (30-day retention) with one-click Restore |
+| 🆕 **Transactional Restore** | Restoring a backup snapshots your live data FIRST — if the restore errors partway through, it rolls back automatically. No more losing everything on a bad restore |
+| 🆕 **Bulk PDF Export with Progress + Cancel** | Combine any selection of invoices into one multi-page PDF. Progress toast every 5 invoices, event-loop yield between renders, Cancel button. Works on 50+ invoices without freezing the tab |
 | **CSV Import** | Bulk import clients and products from CSV files |
 | **Mobile Web Share** | Web Share API attaches PDF to WhatsApp or any app on mobile |
 
