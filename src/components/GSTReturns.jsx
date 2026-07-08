@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
 import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC } from '../utils';
@@ -561,14 +561,26 @@ export default function GSTReturns() {
     }
   };
 
-  const filteredBills = bills.filter(bill => {
+  // v1.10.4 — audit H13. Prior code rebuilt these arrays every render
+  // (clicking any of ~10 tab pills with 500 bills × 5 items ran
+  // ~20k operations per interaction). Now memoized on the same
+  // input deps used by filterByPeriod. The downstream computations
+  // (b2bRows, hsnMap, warnings, etc.) still run per render but consume
+  // stable arrays — subsequent memoizations can layer on later without
+  // touching this file's export helpers.
+  const filteredBills = useMemo(() => bills.filter(bill => {
     const type = bill.invoiceType || 'tax-invoice';
     if (!GST_TYPES.includes(type)) return false;
     if (!bill.data) return false;
     return filterByPeriod(bill.invoiceDate);
-  });
-  const allFilteredBills = bills.filter(bill => bill.data && filterByPeriod(bill.invoiceDate));
-  const filteredExpenses = expenses.filter(exp => filterByPeriod(exp.date));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [bills, filterMode, fyFilter, quarterFilter, monthFilter, yearFilter]);
+  const allFilteredBills = useMemo(() => bills.filter(bill => bill.data && filterByPeriod(bill.invoiceDate)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bills, filterMode, fyFilter, quarterFilter, monthFilter, yearFilter]);
+  const filteredExpenses = useMemo(() => expenses.filter(exp => filterByPeriod(exp.date)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expenses, filterMode, fyFilter, quarterFilter, monthFilter, yearFilter]);
 
   // ========== Classification ==========
   const creditNotes = filteredBills.filter(b => (b.invoiceType || 'tax-invoice') === 'credit-note');

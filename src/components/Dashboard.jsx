@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download } from 'lucide-react';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
@@ -61,7 +61,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const [clients, setClients] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
 
-  const fyOptions = getFYOptions();
+  // v1.10.4 — audit M14. getFYOptions is date-based (only changes across
+  // April-1 boundary); memoize with an empty dep so we run it once per
+  // component mount, not on every render.
+  const fyOptions = useMemo(() => getFYOptions(), []);
 
   const loadBills = async () => {
     try {
@@ -447,7 +450,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     setSearch(''); setTypeFilter('all'); setStatusFilter('all'); setFyFilter('all'); setDateFrom(''); setDateTo('');
   };
 
-  const hasFilters = search || typeFilter !== 'all' || statusFilter !== 'all' || fyFilter !== 'all' || dateFrom || dateTo;
+  // v1.10.4 — trivial boolean, still cheap but consistent with the rest.
+  const hasFilters = useMemo(
+    () => Boolean(search || typeFilter !== 'all' || statusFilter !== 'all' || fyFilter !== 'all' || dateFrom || dateTo),
+    [search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo]);
 
   const sendReminder = (bill) => {
     const clientPhone = bill.clientPhone || bill.data?.client?.phone || '';
@@ -469,13 +475,17 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     return savedClient?.phone || '';
   };
 
-  const overdueBills = bills.filter(b => b.status === 'overdue');
-  // Group overdue totals by currency for banner display
-  const overdueByCurrency = {};
-  for (const b of overdueBills) {
-    const cur = b.currency || b.data?.invoiceOptions?.currency || 'INR';
-    overdueByCurrency[cur] = (overdueByCurrency[cur] || 0) + (b.totalAmount || 0) - (b.paidAmount || 0);
-  }
+  // v1.10.4 — audit M14. Both were rebuilt every render even though
+  // they only change when `bills` changes.
+  const overdueBills = useMemo(() => bills.filter(b => b.status === 'overdue'), [bills]);
+  const overdueByCurrency = useMemo(() => {
+    const acc = {};
+    for (const b of overdueBills) {
+      const cur = b.currency || b.data?.invoiceOptions?.currency || 'INR';
+      acc[cur] = (acc[cur] || 0) + (b.totalAmount || 0) - (b.paidAmount || 0);
+    }
+    return acc;
+  }, [overdueBills]);
   const overdueStr = Object.entries(overdueByCurrency).map(([cur, amt]) => formatCurrency(amt, cur)).join(' + ');
 
   return (

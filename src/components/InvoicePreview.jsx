@@ -73,11 +73,16 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencySymbol, minimumFractionDigits: 2 }).format(amount || 0);
   };
 
-  // v1.9.1 — dual currency display. When enabled in printSettings AND the
-  // primary currency is INR, show a secondary currency figure in parens
-  // (or on a new line) for foreign clients. E.g. ₹5,000 (≈ USD 60.24).
-  // Rate is manually maintained by user in Print Settings.
-  const _ps_dc = getPrintSettings();
+  // v1.10.4 — Single read of print settings per render. Prior code
+  // called getPrintSettings() at 6 different points, each hitting
+  // localStorage.getItem + JSON.parse. Multiplied by every keystroke
+  // in InvoiceGenerator (which rerenders the preview), this was a
+  // measurable hot spot. Now: one lookup + downstream aliases keep
+  // JSX shape untouched.
+  const _ps = getPrintSettings();
+  // Aliases for the different callsites below; all point to the same
+  // object so they stay in sync.
+  const _ps_dc = _ps;
   // v1.9.3 — same settings alias used by getLabel() calls throughout the JSX
   const _ps_labels = _ps_dc;
   const dualCurrencyOn = _ps_dc.dualCurrencyEnabled && currencySymbol === 'INR' && _ps_dc.dualCurrencyCode && Number(_ps_dc.dualCurrencyRate) > 0;
@@ -134,20 +139,18 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     'credit-note': '#be123c',
   };
   // v1.9.14 — When userColorsEnabled is on, pdfAccent MUST feed the
-  // header-block background too. Previously the modern renderer used
-  // `accent` (invoice-type default) so users could pick any pdfAccent
-  // colour and the modern-style coloured header stayed the same. This
-  // was a real bug: "colors not chnage for the FOOTER AND HEADER".
-  const _psForAccent = getPrintSettings();
+  // header-block background too.
+  // v1.10.4 — reuses `_ps` from top of function (was a fresh
+  // getPrintSettings() call — one of 6 in this render).
   const accent = options.accentColor
-    || (_psForAccent.userColorsEnabled && _psForAccent.pdfAccent)
+    || (_ps.userColorsEnabled && _ps.pdfAccent)
     || accentColors[invoiceType]
     || accentColors['tax-invoice'];
   // v1.9.1 — template style. Priority: per-invoice options.pdfStyle → app-wide
   // printSettings.pdfTemplate → 'classic' fallback. Also accept the new
   // "corporate" and "minimalist" values that map to existing render paths
   // with slight tweaks (colour tint + spacing) applied via CSS class.
-  const pdfStyleRaw = options.pdfStyle || getPrintSettings().pdfTemplate || 'classic';
+  const pdfStyleRaw = options.pdfStyle || _ps.pdfTemplate || 'classic';
   const pdfStyle = ['corporate', 'minimalist'].includes(pdfStyleRaw)
     ? (pdfStyleRaw === 'corporate' ? 'classic' : 'minimal')
     : pdfStyleRaw;
@@ -328,7 +331,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     // The app-wide printSettings (localStorage) provides DEFAULTS. Each
     // invoice's own invoiceOptions.thermal* fields OVERRIDE those defaults.
     // Priority: options → printSettings → hardcoded fallback.
-    const printSettings = getPrintSettings();
+    const printSettings = _ps;  // v1.10.4 — reuse top-of-function read
     const eff = {
       thermalFontSize:    options.thermalFontSize    ?? printSettings.fontSize,
       thermalFontFamily:  options.thermalFontFamily  ?? printSettings.fontFamily,
@@ -646,7 +649,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
 
   // v1.9.1 — company letterhead + template variant CSS class
   // v1.9.2 — user-configurable colours via CSS custom properties + font scale
-  const _ps_final = getPrintSettings();
+  const _ps_final = _ps;  // v1.10.4 — reuse top-of-function read
   const letterheadOn = _ps_final.letterheadEnabled && _ps_final.letterheadImage;
   const hideHeaderBecauseLetterhead = letterheadOn && _ps_final.letterheadHideHeader;
 
@@ -1017,7 +1020,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           // v1.9.0: signature source priority — profile.signature (per-business,
           // legacy), then printSettings.signatureImage (app-wide default set
           // via Print Settings). Same for the signatory name.
-          const printCfg = getPrintSettings();
+          const printCfg = _ps;  // v1.10.4 — reuse top-of-function read
           const sigImg = profile?.signature || (printCfg.signatureShow !== false ? printCfg.signatureImage : null);
           const sigName = profile?.businessName || printCfg.signatureName;
           if (!showSignature || !sigImg) return null;

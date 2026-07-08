@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.4] — 2026-07-08
+
+**Bundle 5 of 6 from the deep architectural audit.** React performance.
+10 of 12 findings closed (2 deferred as noted). Verified in real
+Chromium: **main bundle 811 KB → 438 KB (–46%)** on first paint.
+
+### H12 — Route-level lazy loading (biggest win)
+
+Prior: `App.jsx` imported all 12 views eagerly. Dashboard's first
+paint downloaded + parsed GSTReturns (1952 LOC), InvoiceGenerator
+(2409), IncomeTax (1038), SettingsView (1479), PrintSettings (1294),
+UserGuideView, ReportsView, etc. — even though the user only sees
+Dashboard.
+
+Now:
+- **Eager**: `Dashboard`, `InvoiceGenerator`, `SetupWizard`,
+  `WelcomeGuide`, `ToastContainer` (default landing + primary action).
+- **Lazy**: everything else via `React.lazy(() => import(...))` +
+  a `Suspense` boundary with a small spinner.
+- Vite emits per-view chunks: SettingsView 102 KB, GSTReturns 88 KB,
+  IncomeTax 51 KB, ReportsView 23 KB, UserGuideView 24 KB,
+  ClientsView 17 KB, PurchaseBills 17 KB, ExpenseTracker 13 KB,
+  ReceiptVoucher 12 KB, RecurringInvoices 11 KB, InventoryView 8 KB.
+
+Result: **initial `index.js` chunk 811 KB → 438 KB.** Same total
+download for offline PWA users (chunks precached), but ~half the
+initial parse cost.
+
+### H15 — Totals is `useMemo`, not `useEffect` + `setTotals`
+
+Prior: on every keystroke in InvoiceGenerator, the totals `useEffect`
+called `setTotals(compute(...))` — which triggered a SECOND full
+render pass to pick up the new totals. Doubled the work per character.
+
+Now: `useMemo` on the same inputs. Computed inline during the same
+render — no second pass. Same math, same output (still delegates to
+`computeInvoiceTotals` extracted in v1.10.1).
+
+### H16 — Cache `getPrintSettings()` per render in InvoicePreview
+
+Prior: 6 separate `getPrintSettings()` calls in InvoicePreview, each
+doing `localStorage.getItem` + `JSON.parse`. Multiplied by the
+keystroke-driven re-renders from InvoiceGenerator, this was a
+measurable hot spot.
+
+Now: single `const _ps = getPrintSettings()` at the top of the
+component, downstream aliases point at the same object.
+
+### H13 — Memoize the heaviest GSTReturns filters
+
+Prior: `filteredBills`, `allFilteredBills`, `filteredExpenses` rebuilt
+on every render (~2500 iterations on 500 bills × 5 items × any tab
+click).
+
+Now: three `useMemo`s keyed on the base data + filter selections.
+Downstream tables (`b2bRows`, `hsnMap`, etc.) still recompute per
+render but consume stable arrays — subsequent memoizations can layer
+on later without touching the many exporter callbacks that reference
+these values.
+
+### M14 — Dashboard `useMemo`s
+
+`fyOptions` (date-based, changes only at April-1 → `[]` deps),
+`hasFilters` boolean, `overdueBills` filter, `overdueByCurrency`
+aggregation — all `useMemo`d on the right deps.
+
+### M15 — Kill the 3-second title→aria polling
+
+Prior: `setInterval(mirrorTitleToAria, 3000)` polled the whole DOM
+every 3s to backfill aria-labels on new `.icon-btn` elements. Idle
+work forever, for a paper-thin accessibility win.
+
+Now: `MutationObserver` on `document.body` fires only when new nodes
+enter the DOM — the actual event we care about. Existing buttons
+still processed once at mount.
+
+### M16 — Debounce the invoiceOptions server POST
+
+Prior: every checkbox flip fired `saveInvoiceDisplayOptions()` (a
+network POST). Wiggling a toggle 10× → 10 requests.
+
+Now: 800ms debounce on the server call. localStorage stays synchronous
+(needed for reload persistence). Cleanup on unmount via
+`clearTimeout(timerRef.current)`.
+
+### Not addressed in this bundle (deferred)
+
+- **H14 — LineItem row memo.** Extracting a `<LineItem>` component,
+  memoizing it, and stabilizing the onChange handlers requires
+  restructuring ~120 lines of JSX + closure captures. Higher risk than
+  fits this bundle. Marked as follow-up.
+- **M11, M12, M13 — App-level palette/notification refetch churn.**
+  Requires reworking how `App.jsx` orchestrates data fetches across
+  navigations. Would touch too many surfaces at once; queued for a
+  dedicated `App.jsx` state pass.
+- **M26 — `store.js` real state layer.** Same reason — needs its own
+  design pass. Today's 460 lines of fetch wrappers are correct, just
+  not optimal.
+
+### Notes
+
+- Total precache stayed ~890 KiB (view chunks are still precached so
+  offline users get instant navigation). The win is initial *parse*
+  time, not download.
+- No behavioral changes. Every fix is a perf-only refactor.
+
+---
+
 ## [1.10.3] — 2026-07-08
 
 **Bundle 4 of 6 from the deep architectural audit.** PDF generation

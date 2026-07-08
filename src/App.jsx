@@ -1,24 +1,55 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients } from './store';
 import { isModuleEnabled, getUpcomingFilings } from './utils';
+// v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
+// imported all 12 views (~15k LOC combined), so a first-paint on
+// Dashboard downloaded and parsed GSTReturns (1952), InvoiceGenerator
+// (2409), IncomeTax (1038), SettingsView (1479), PrintSettings (1294)
+// etc. before the user even asked for them.
+//
+// Now:
+//  - Dashboard stays eager — it's the default landing route.
+//  - InvoiceGenerator stays eager — new-invoice is the primary action
+//    reachable from Ctrl+K / manifest shortcut / big blue button.
+//  - Every other view is React.lazy → own Vite chunk → fetched on
+//    first navigation only. Suspense fallback is a lightweight spinner.
+// Result: smaller initial JS payload; each heavy view chunk-caches
+// once fetched.
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
-import SettingsView from './components/SettingsView';
-import ClientsView from './components/ClientsView';
-import InventoryView from './components/InventoryView';
-import ReportsView from './components/ReportsView';
-import ExpenseTracker from './components/ExpenseTracker';
-import RecurringInvoices from './components/RecurringInvoices';
-import ReceiptVoucher from './components/ReceiptVoucher';
-import GSTReturns from './components/GSTReturns';
-import IncomeTax from './components/IncomeTax';
 import SetupWizard from './components/SetupWizard';
-import { getPrintSettings } from './utils/printSettings';
-import PurchaseBills from './components/PurchaseBills';
-import UserGuideView from './components/UserGuideView';
-import WelcomeGuide from './components/WelcomeGuide';
 import ToastContainer from './components/Toast';
+import WelcomeGuide from './components/WelcomeGuide';
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const ClientsView = lazy(() => import('./components/ClientsView'));
+const InventoryView = lazy(() => import('./components/InventoryView'));
+const ReportsView = lazy(() => import('./components/ReportsView'));
+const ExpenseTracker = lazy(() => import('./components/ExpenseTracker'));
+const RecurringInvoices = lazy(() => import('./components/RecurringInvoices'));
+const ReceiptVoucher = lazy(() => import('./components/ReceiptVoucher'));
+const GSTReturns = lazy(() => import('./components/GSTReturns'));
+const IncomeTax = lazy(() => import('./components/IncomeTax'));
+const PurchaseBills = lazy(() => import('./components/PurchaseBills'));
+const UserGuideView = lazy(() => import('./components/UserGuideView'));
+import { getPrintSettings } from './utils/printSettings';
+
+// v1.10.4 — Lightweight Suspense fallback shown while a lazy view
+// downloads. Purely visual — no data fetching, no state.
+function ViewLoading() {
+  return (
+    <div style={{ padding: '3rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+        <span style={{
+          display: 'inline-block', width: 14, height: 14, border: '2px solid var(--border)',
+          borderTopColor: 'var(--primary)', borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        Loading…
+      </div>
+    </div>
+  );
+}
 
 function App() {
   // v1.9.3 — Setup Wizard shown on first-run (before onboardingComplete = true)
@@ -466,26 +497,44 @@ function App() {
   //   2. Global ESC handler for any open modal (adds `.esc-closable` class
   //      to overlays; ESC clicks their close button or backdrop).
   useEffect(() => {
-    const mirrorTitleToAria = () => {
-      document.querySelectorAll('button.icon-btn[title]:not([aria-label])').forEach(btn => {
+    // v1.10.4 — audit M15. Prior code polled the DOM every 3 seconds
+    // to mirror title→aria-label on new .icon-btn elements. Constant
+    // idle-time work for a paper-thin accessibility win. Replaced with
+    // a MutationObserver that fires ONLY when new buttons enter the
+    // DOM. Existing buttons get the treatment once at mount.
+    const mirrorTitleToAria = (root = document) => {
+      root.querySelectorAll('button.icon-btn[title]:not([aria-label])').forEach(btn => {
         btn.setAttribute('aria-label', btn.getAttribute('title'));
       });
     };
     mirrorTitleToAria();
-    const interval = setInterval(mirrorTitleToAria, 3000);
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.addedNodes.length) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1) {  // Element
+              if (node.matches?.('button.icon-btn[title]:not([aria-label])')) {
+                node.setAttribute('aria-label', node.getAttribute('title'));
+              }
+              mirrorTitleToAria(node);
+            }
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
     // Global ESC → click the topmost modal-overlay (dismisses it).
     const onEsc = (e) => {
       if (e.key !== 'Escape') return;
       const overlays = Array.from(document.querySelectorAll('.modal-overlay'));
       const top = overlays[overlays.length - 1];
       if (!top) return;
-      // Skip if the palette is handling ESC itself
       if (showPalette) return;
-      // Fire a click on the overlay backdrop to trigger the existing onClick close
       top.click();
     };
     window.addEventListener('keydown', onEsc);
-    return () => { clearInterval(interval); window.removeEventListener('keydown', onEsc); };
+    return () => { observer.disconnect(); window.removeEventListener('keydown', onEsc); };
   }, [showPalette]);
 
   // Palette-only arrow / Enter / Esc nav. Filtered list dep keeps the
@@ -712,6 +761,9 @@ function App() {
             profile={profile} editingBill={editingBill}
           />
         )}
+        {/* v1.10.4 — All lazy views under one Suspense boundary. Only the
+             matched view's chunk actually loads; others stay unfetched. */}
+        <Suspense fallback={<ViewLoading />}>
         {currentView === 'clients' && (
           <ClientsView onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
         )}
@@ -745,6 +797,7 @@ function App() {
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />
         )}
+        </Suspense>
       </div>
 
       {/* Update modal — release notes + Export-backup-first nudge + Update Now */}

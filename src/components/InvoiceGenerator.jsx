@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -177,7 +177,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [units, setUnits] = useState(getAllUnits());
   const [taxInclusive, setTaxInclusive] = useState(draft?.taxInclusive || false);
 
-  const [totals, setTotals] = useState({ subtotal: 0, totalDiscount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 });
+  // v1.10.4 — totals is now a `useMemo` (was a `useState` fed by
+  // `useEffect + setTotals` which forced a second full render on every
+  // keystroke). Same value on every render for the same inputs; the
+  // extra render pass per character was the biggest perf hit in this
+  // component per the audit's finding H15.
   const [saving, setSaving] = useState(false);
   const [termsTemplates, setTermsTemplates] = useState([]);
   const [selectedTermsId, setSelectedTermsId] = useState(draft?.selectedTermsId || '');
@@ -242,12 +246,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return n;
   };
 
-  // Persist options to both localStorage (instant) and server (durable)
+  // Persist options — v1.10.4 audit M16.
+  // Prior: every checkbox flip fired an immediate `/api/display-options`
+  // POST. Wiggling a toggle 10× → 10 network requests. localStorage
+  // stays synchronous (needed for reload persistence); the server POST
+  // is now debounced 800ms so quick option-tweak spins settle to one
+  // request.
+  const optionsPersistTimer = useRef(null);
   useEffect(() => {
     localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(invoiceOptions));
     if (hasInitialized.current) {
-      saveInvoiceDisplayOptions(invoiceOptions).catch(() => {});
+      clearTimeout(optionsPersistTimer.current);
+      optionsPersistTimer.current = setTimeout(() => {
+        saveInvoiceDisplayOptions(invoiceOptions).catch(() => {});
+      }, 800);
     }
+    return () => clearTimeout(optionsPersistTimer.current);
   }, [invoiceOptions]);
 
   // Load saved display options from server on mount (overrides localStorage if available)
@@ -523,18 +537,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setInvoiceOptions(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // v1.10.1 — Totals math extracted into the pure `computeInvoiceTotals`
-  // helper in utils.js so it can be unit-tested (see scripts/tax-test.mjs).
-  // The prior ~120-line inline effect had 8 known bugs closed by that
-  // extraction: UTGST, interstate on blank state, RCM+inclusive, TCS
-  // base, ₹50L threshold, cess in totalTaxAmount, per-line rounding,
-  // NaN-safe coercion.
-  useEffect(() => {
-    setTotals(computeInvoiceTotals({
-      items, profile, client, details, showGST, taxInclusive,
-      invoiceOptions,
-    }));
-  }, [items, client.state, client?.isSEZ, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, details?.placeOfSupply]);
+  // v1.10.4 — useMemo replaces the prior useEffect+setTotals pair. Same
+  // math (extracted to pure `computeInvoiceTotals` in v1.10.1), but
+  // computed inline during render so React doesn't double-render on
+  // every keystroke.
+  const totals = useMemo(() => computeInvoiceTotals({
+    items, profile, client, details, showGST, taxInclusive,
+    invoiceOptions,
+  }), [items, client.state, client?.isSEZ, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, details?.placeOfSupply]);
 
   // Warn when the seller's state is missing for Indian GST invoices — without it, the
   // interstate detection silently defaults to intrastate (CGST+SGST) which is a real money bug.
