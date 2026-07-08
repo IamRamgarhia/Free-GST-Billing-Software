@@ -1257,6 +1257,21 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .printing-mode .inv-table tr {
   border-color: #334155 !important;
 }
+/* v1.9.11 — HSN codes, business address, GSTIN line, party details:
+   these were faded on PDF paper output per reference photos user shared. */
+.printing-mode .inv-td-muted,
+.printing-mode .inv-td-hsn,
+.printing-mode .inv-business-address,
+.printing-mode .inv-business-gstin,
+.printing-mode .inv-party-address,
+.printing-mode .inv-item-hsn {
+  color: #1e293b !important;
+}
+.printing-mode .inv-terms,
+.printing-mode .inv-notes,
+.printing-mode .inv-footer-note {
+  color: #334155 !important;
+}
 
 /* v1.9.8 — Print Settings split layout. Sticky preview on the right;
    collapses to stacked on narrow screens so mobile users don't get a
@@ -1613,7 +1628,10 @@ a:focus-visible {
 .inv-td-name { font-weight: 600; color: #1e293b; white-space: normal; word-wrap: break-word; overflow-wrap: break-word; }
 .inv-td-center { text-align: center; }
 .inv-td-right { text-align: right; }
-.inv-td-muted { color: #94a3b8; }
+/* v1.9.11 — HSN column was rendering at #94a3b8 which was almost
+   invisible on PDF paper output (user complaint with reference photo).
+   Bumped to a readable dark grey; .printing-mode drops it even darker. */
+.inv-td-muted { color: #475569; }
 .inv-td-amount { font-weight: 600; color: #0f172a; white-space: nowrap; }
 
 .inv-tr-even td { background: #fafbfc; }

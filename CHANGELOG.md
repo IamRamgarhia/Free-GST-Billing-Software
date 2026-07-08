@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.11] — 2026-07-08
+
+Fixes the "light text on printed PDF" complaint (user shared a photo:
+HSN codes + business address + T&C were rendering almost invisible on
+paper). Adds three new design presets modeled on reference invoices the
+user liked (Amazon / LTIMindtree / Nike style).
+
+### Fixed — HSN codes and muted text no longer fade on printed PDFs
+
+The HSN/SAC column used `.inv-td-muted { color: #94a3b8 }` — a very
+light grey that looked fine on screen but disappeared on paper. Bumped
+default to `#475569`, and extended `.printing-mode` (applied during
+PDF export via html2canvas onclone) to force these classes darker:
+
+- `.inv-td-muted` — HSN codes → `#1e293b`
+- `.inv-business-address`, `.inv-business-gstin` → `#1e293b`
+- `.inv-party-address` → `#1e293b`
+- `.inv-terms`, `.inv-notes`, `.inv-footer-note` → `#334155`
+
+Existing `pdfDarkenOnPrint` toggle still respected — users who want the
+lighter on-screen look on paper can turn it off.
+
+### Added — Three new design presets
+
+Modeled on the reference invoices shared by user. Same underlying
+template machinery + distinctive color palettes:
+
+- **🛒 Enterprise** — Sky-blue accent, prominent branding, e-commerce
+  feel. Modeled on Amazon-style tax invoices.
+- **💻 IT Services** — Deep navy heading, comfortable spacing.
+  Modeled on consulting/IT-firm invoices (LTIMindtree style).
+- **👟 Retail Brand** — Black-on-white minimalist. Logo-first, clean
+  rows with HSN column. Modeled on brand retail invoices (Nike style).
+
+Total presets now: **9** (Modern, Classic, Corporate, Minimalist,
+Colorful, Compact, Enterprise, IT Services, Retail Brand).
+
+### Notes
+
+- These presets don't mimic the exact header layouts (logo position,
+  side-by-side buyer info block) — those require template-CSS changes
+  in InvoicePreview, which is scheduled for a bigger release. What you
+  get today is the color palette + typography vibe from each.
+- Existing invoices unaffected. Presets only apply when clicked.
+
+---
+
 ## [1.9.10] — 2026-07-08
 
 Design presets now shape the thermal receipt too, not just the PDF.

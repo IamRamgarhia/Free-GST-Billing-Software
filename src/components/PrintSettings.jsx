@@ -128,6 +128,65 @@ const DESIGN_PRESETS = [
       showRateLine: false,
     },
   },
+  // v1.9.11 — three new presets modeled on reference invoices user
+  // shared (Amazon / LTIMindtree / Nike style). Same PDF template
+  // machinery — just distinctive color + typography combos.
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    icon: '🛒',
+    description: 'Bold blue header, prominent branding. E-commerce feel.',
+    settings: {
+      pdfTemplate: 'modern',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#0f172a', pdfMutedText: '#1e293b',
+      pdfAccent: '#0284c7', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#ffffff', pdfDividerColor: '#0284c7',
+      pdfDarkenOnPrint: true,
+      // Thermal — sans bold clean
+      fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
+      lineSpacing: 'normal', allCaps: false,
+      headerAlign: 'left', headerCaps: true, contrast: 'high',
+      showHSN: true,
+    },
+  },
+  {
+    id: 'itservices',
+    name: 'IT Services',
+    icon: '💻',
+    description: 'Navy heading, highlighted total box. Consulting look.',
+    settings: {
+      pdfTemplate: 'corporate',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#0f172a', pdfMutedText: '#1e293b',
+      pdfAccent: '#1e3a8a', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#eff6ff', pdfDividerColor: '#1e3a8a',
+      pdfDarkenOnPrint: true,
+      // Thermal — sans bold comfortable
+      fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
+      lineSpacing: 'comfortable', allCaps: false,
+      headerAlign: 'left', headerCaps: true, contrast: 'high',
+    },
+  },
+  {
+    id: 'retail',
+    name: 'Retail Brand',
+    icon: '👟',
+    description: 'Logo-first, clean rows with HSN column. Brand-forward.',
+    settings: {
+      pdfTemplate: 'minimalist',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#0a0a0a', pdfMutedText: '#262626',
+      pdfAccent: '#0a0a0a', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#ffffff', pdfDividerColor: '#0a0a0a',
+      pdfDarkenOnPrint: true,
+      // Thermal — sans bold normal
+      fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
+      lineSpacing: 'normal', allCaps: false,
+      headerAlign: 'left', headerCaps: true, contrast: 'high',
+      showHSN: true,
+    },
+  },
 ];
 
 // ============================================================================
