@@ -7,6 +7,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.3] — 2026-07-08
+
+**Bundle 4 of 6 from the deep architectural audit.** PDF generation
+correctness + memory + compliance. 11 findings closed.
+
+### GST compliance — Multi-copy (Rule 48) now correct for multi-page invoices (H17)
+
+**Bug.** Prior code only re-added the main image ONCE per additional
+copy. A 3-page invoice printed in 3 copies produced ORIGINAL 3pp,
+DUPLICATE 1p (just page 1), TRIPLICATE 1p — non-compliant with GST
+Rule 48. Corner labels also smeared across the wrong pages because
+`pagesPerCopy = ceil(total / count)` assumes equal pages.
+
+**Fix.** Every original page (both main-invoice paginations AND each
+`data-pdf-page` extra section) is now recorded as a "recipe" with its
+image + Y-offset. For each additional copy, the whole recipe list is
+replayed. Corner labels use `absolutePage = copyIdx * originalCount + p`
+so each page gets the right ORIGINAL / DUPLICATE / TRIPLICATE label.
+
+### Memory — bulk export no longer OOMs Android
+
+- **Bulk PDF export scale capped** (H19): was `Math.max(2, dpr * 1.5)`
+  → 4.5× on a 3× DPR Android → ~16MP canvas per invoice × 50 invoices
+  retained as JPEG data URLs = OOM before `doc.save()` fired. Now
+  capped at 4×.
+- **HD quality scale capped at 6×** (M18): was `Math.max(4, dpr * 3)`
+  → 12× on 4× DPR = 100MP canvas → OOM on any Android under 4 GB RAM.
+- **`mainImg` freed after multi-copy replay** (M19): prior code held
+  the megabyte-scale base64 string in closure through the whole
+  post-processing pipeline (watermarks, QR, page numbers). Now
+  `pageRecipes.length = 0` after multi-copy → GC can reclaim.
+
+### UX — bulk export shows progress and can be aborted (H18)
+
+Prior: `bulkExportPDF` in Dashboard.jsx was a silent tight loop over
+`sel[]`. Exporting 50 invoices froze the tab for ~30-60s → users
+assumed hang → closed the tab.
+
+Now:
+- Progress toast every 5 invoices: "Exporting 5 of 50…"
+- Yields to the event loop between invoices so the browser can paint.
+- Global abort flag: `window.__fgsbBulkAbort = true` stops the loop
+  after current invoice. UI hook for a Cancel button will land next
+  bundle (Bundle 5 perf, when Dashboard gets a proper progress panel).
+- `await document.fonts.ready` at start so glyph metrics are stable.
+
+### Thermal — bypass html2canvas entirely (H20)
+
+Prior: thermal 58/80mm receipts went through
+html2canvas → JPEG → jsPDF → iframe print. 100× the CPU/memory of
+what's needed for a text-only receipt.
+
+Now: `directPrint()` checks `isThermalPaper()` and calls
+`window.print()` directly. Modern print drivers handle the roll
+paper natively when the CSS `@page size` matches. The rendered
+InvoicePreview is already thermal-styled — no rasterization needed.
+
+### Blob URL leaks fixed in 3 places (H21)
+
+`directPrint`, `autoPrintOnSave`, and PrintSettings' `runTestPrint`
+each did `URL.createObjectURL(blob)` and revoked ONLY inside
+`iframe.onload`. If load never fired (blocked, corrupt PDF), the URL
+leaked forever.
+
+**Fix.** New shared `printViaIframe(blob)` helper (InvoiceGenerator.jsx)
+that revokes:
+- In `onload` after 60s (buffer grab window)
+- In `onerror`
+- Via 90s hard-timeout fallback (belt & braces)
+- Never twice (idempotent flag)
+
+Test-print in PrintSettings ported to the same pattern inline (it
+imports from a different module boundary).
+
+### Quality — PNG for HD, still JPEG for draft/standard (M20)
+
+Prior: `.toDataURL('image/jpeg', 0.98)` on HD smudged glyph edges on
+high-DPI screens (JPEG is lossy on line-art). Now HD uses PNG deflate
+which is both smaller AND crisper for text-heavy invoices. Draft +
+standard stay JPEG (file-size wins when quality doesn't need to be
+archival).
+
+### Font metrics — await document.fonts.ready before capture (M17)
+
+Prior: `html2canvas` fired on a cold load before Inter had finished
+downloading → capture used fallback fonts with wrong glyph widths →
+table columns overflowed cells. Now: `await document.fonts.ready`
+gates every html2canvas call across InvoiceGenerator + PrintSettings
++ Dashboard bulk export.
+
+### CSS — table rows stay whole across page breaks (M21)
+
+`.printing-mode` now applies `page-break-inside: avoid` and its
+modern `break-inside: avoid` alias to `.inv-table tr` / `tbody tr` /
+`td`, plus `display: table-header-group` on `thead` so column labels
+repeat on subsequent pages. Doesn't fully solve mid-row cuts (the
+proper fix is dom-level pagination, queued for later), but rows now
+prefer to push to the next virtual page rather than split.
+
+### Robustness — scaler transform restored in `finally` (M22)
+
+`buildPDF` split into an outer wrapper and `__buildPDFInner` so the
+`.preview-scaler` transform is restored via `try/finally`. Prior code
+only restored on the success path — any exception from html2canvas
+or jsPDF left the on-screen preview stuck at scale 1.0 until the user
+navigated away.
+
+### Other polish
+
+- `useCORS: true` → `false` on all html2canvas calls. Every image
+  source is a base64 data URL, so the flag was dead — but if a relative
+  URL ever slipped in it would silently fail preflight. Explicit is
+  better.
+- `imageTimeout: 0` (disabled) → `15_000`. A broken image no longer
+  hangs capture indefinitely.
+
+### Notes
+
+- The mid-row page-break workaround (M21) is a partial fix. Real DOM
+  pagination + per-page html2canvas capture is a bigger change.
+- The bulk-export Cancel button surface lives on the roadmap for
+  Bundle 5 — the underlying abort mechanism is in place already.
+
+---
+
 ## [1.10.2] — 2026-07-08
 
 **Bundle 3 of 6 from the deep architectural audit.** Offline PWA

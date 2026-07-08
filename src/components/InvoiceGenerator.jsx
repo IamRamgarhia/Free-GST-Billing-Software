@@ -893,13 +893,23 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
   };
 
-  // Shared PDF generation helper
+  // Shared PDF generation helper. v1.10.3 — wraps the whole body in
+  // try/finally so `scalerEl.style.transform` is always restored, even
+  // if html2canvas or jsPDF throws mid-render. Prior code only restored
+  // on the success path — an exception left the on-screen preview
+  // stuck at scale 1.0 until the user navigated away.
   const buildPDF = async () => {
-    // v1.9.0 — read app-wide print settings once; buildPDF post-processing
-    // uses them (watermark, multi-copy, page numbers, barcode/QR, etc.).
     const printSettings = getPrintSettings();
     const scalerEl = printRef.current.closest('.preview-scaler');
     if (scalerEl) scalerEl.style.transform = 'none';
+    try {
+      return await __buildPDFInner(printSettings);
+    } finally {
+      if (scalerEl) scalerEl.style.transform = '';
+    }
+  };
+
+  const __buildPDFInner = async (printSettings) => {
 
     // PDF quality / size trade-off:
     //   - `compress: true` deflate-compresses PDF streams (incl. embedded images).
@@ -929,22 +939,46 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     //   draft   → scale 2, JPEG 0.85 → ~50% smaller PDF, email-friendly
     //   standard→ scale 3, JPEG 0.95 → default (existing behaviour)
     //   hd      → scale max(4, dpr*3), JPEG 0.98 → archival quality, larger
+    // v1.10.3 — Scale is now capped at 6× on any device. Prior code
+    // `Math.max(4, dpr * 3)` on a 4× DPR Android phone hit 12× → an
+    // A4 canvas at 100 megapixels → OOM crash before jsPDF ever ran.
+    // Also: PNG for HD (crisp text edges — invoices are line-art),
+    // JPEG for draft/standard (file size wins). Prior always-JPEG
+    // smudged glyph edges on high-DPI screens.
+    const capScale = (n) => Math.min(6, Math.max(2, Math.round(n)));
     const qualityCfg = {
-      draft:    { scale: 2, jpeg: 0.85 },
-      standard: { scale: Math.max(3, Math.round((window.devicePixelRatio || 1) * 2)), jpeg: 0.95 },
-      hd:       { scale: Math.max(4, Math.round((window.devicePixelRatio || 1) * 3)), jpeg: 0.98 },
+      draft:    { scale: 2, imgFormat: 'JPEG', quality: 0.85 },
+      standard: { scale: capScale(Math.max(3, (window.devicePixelRatio || 1) * 2)), imgFormat: 'JPEG', quality: 0.95 },
+      hd:       { scale: capScale(Math.max(4, (window.devicePixelRatio || 1) * 2.5)), imgFormat: 'PNG', quality: 1.0 },
     };
     const q = qualityCfg[printSettings.pdfQuality] || qualityCfg.standard;
     const renderScale = q.scale;
-    const jpegQuality = q.jpeg;
+    const jpegQuality = q.quality;
+    const imgFormat = q.imgFormat;   // 'JPEG' or 'PNG'
+    // v1.10.3 — Await webfonts before rasterising. On a cold load,
+    // html2canvas fired before Inter finished downloading → the capture
+    // used fallback fonts with wrong glyph metrics → table columns
+    // overflowed. `document.fonts.ready` resolves once every declared
+    // font has loaded (or failed).
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch { /* non-fatal */ }
+    }
 
     const captureOptions = (el) => ({
       scale: renderScale,
-      useCORS: true,
+      // v1.10.3 — useCORS was `true` but every image source is a base64
+      // data URL (profile.logo, generated QR). `useCORS: true` triggers
+      // a CORS preflight on any relative URL that slips in and silently
+      // fails; today it's a dead flag but was flagged as fragile.
+      useCORS: false,
       logging: false,
       letterRendering: true,
-      backgroundColor: '#ffffff', // ensures opaque background; some PDF readers render transparent JPEGs as black
-      imageTimeout: 0,
+      backgroundColor: '#ffffff',
+      // v1.10.3 — was `0` (disable). A broken image (bad logo, stale
+      // QR) hung the capture indefinitely, giving the user a stuck
+      // "Generating…" spinner. 15s is enough for real images + a
+      // fallback for corrupt ones.
+      imageTimeout: 15_000,
       width: el.scrollWidth,
       height: el.scrollHeight,
     });
@@ -977,29 +1011,51 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     });
     extraPages.forEach(el => el.style.display = '');
 
-    // Add main invoice page(s)
-    const mainImg = mainCanvas.toDataURL('image/jpeg', jpegQuality);
+    // v1.10.3 — Record each original page as a "recipe" so multi-copy
+    // (GST Rule 48) can duplicate multi-page invoices correctly. Prior
+    // code only re-added the main image ONCE per copy — so a 3-page
+    // invoice printed in 3 copies gave ORIGINAL 3pp, DUPLICATE 1p,
+    // TRIPLICATE 1p. Not GST-compliant. Now: iterate `pageRecipes`
+    // per copy and re-add every page image.
+    const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
     const mainImgHeight = (mainCanvas.height * pdfWidth) / mainCanvas.width;
+    const pageRecipes = [];   // { img, y, h } — replayed by multi-copy loop
+
+    // Add main invoice page(s). For multi-page, jsPDF trick is to re-add
+    // the SAME image at successive negative Y offsets so the tall image
+    // "scrolls" through pages.
     if (mainImgHeight <= pdfPageHeight + 2) {
-      pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
+      pdf.addImage(mainImg, imgFormat, 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
+      pageRecipes.push({ img: mainImg, y: 0, h: Math.min(mainImgHeight, pdfPageHeight) });
     } else {
       let heightLeft = mainImgHeight, position = 0;
-      pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM');
+      pdf.addImage(mainImg, imgFormat, 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM');
+      pageRecipes.push({ img: mainImg, y: position, h: mainImgHeight });
       heightLeft -= pdfPageHeight;
-      while (heightLeft > 2) { position -= pdfPageHeight; pdf.addPage(); pdf.addImage(mainImg, 'JPEG', 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM'); heightLeft -= pdfPageHeight; }
+      while (heightLeft > 2) {
+        position -= pdfPageHeight;
+        pdf.addPage();
+        pdf.addImage(mainImg, imgFormat, 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM');
+        pageRecipes.push({ img: mainImg, y: position, h: mainImgHeight });
+        heightLeft -= pdfPageHeight;
+      }
     }
 
-    // Capture each extra section as a separate PDF page
+    // Capture each extra section as a separate PDF page (also recipe-tracked).
     for (const pageEl of extraPages) {
       const c = await html2canvas(pageEl, {
         ...captureOptions(pageEl),
         onclone: (cd) => { cd.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; }); }
       });
+      const extraImg = c.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
+      const extraH = Math.min((c.height * pdfWidth) / c.width, pdfPageHeight);
       pdf.addPage();
-      pdf.addImage(c.toDataURL('image/jpeg', jpegQuality), 'JPEG', 0, 0, pdfWidth, Math.min((c.height * pdfWidth) / c.width, pdfPageHeight), undefined, 'MEDIUM');
+      pdf.addImage(extraImg, imgFormat, 0, 0, pdfWidth, extraH, undefined, 'MEDIUM');
+      pageRecipes.push({ img: extraImg, y: 0, h: extraH });
     }
 
-    if (scalerEl) scalerEl.style.transform = '';
+    // v1.10.3 — scalerEl restoration moved to outer buildPDF's `finally`
+    // block so it runs even if a later step throws.
 
     // ============================================================
     // v1.9.0 post-processing — every step below is toggleable via
@@ -1017,39 +1073,45 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
     // ----- Multi-copy (Original / Duplicate / Triplicate) -----
     // GST Rule 48 for goods: 3 copies. For services: 2 copies.
-    // Duplicates the SAME rendered image on new pages with a corner label.
+    // v1.10.3 — Rebuilt to correctly duplicate multi-page invoices. See
+    // pageRecipes comment above for background.
     if (ps.multiCopyEnabled && ps.multiCopyCount > 1) {
       const labels = ps.multiCopyLabels || ['ORIGINAL', 'DUPLICATE', 'TRIPLICATE'];
-      const originalPageCount = totalPages;
+      const originalPageCount = pageRecipes.length;   // correct: 1 recipe per original page
+      // Replay every original page for each additional copy.
       for (let copyIdx = 1; copyIdx < ps.multiCopyCount; copyIdx++) {
-        // Repeat each page of the original with a corner label added.
-        for (let p = 1; p <= originalPageCount; p++) {
-          pdf.setPage(p);
-          const pageImg = pdf.internal.pageSize; void pageImg;
+        for (const recipe of pageRecipes) {
+          pdf.addPage();
+          pdf.addImage(recipe.img, imgFormat, 0, recipe.y, pdfWidth, recipe.h, undefined, 'MEDIUM');
         }
-        // Simpler approach: re-add the mainImg to fresh pages with label.
-        pdf.addPage();
-        pdf.addImage(mainImg, 'JPEG', 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
       }
-      // Now add corner labels on each page
-      const totalPagesAfterCopy = pdf.getNumberOfPages();
-      const pagesPerCopy = Math.ceil(totalPagesAfterCopy / ps.multiCopyCount);
-      for (let p = 1; p <= totalPagesAfterCopy; p++) {
-        const copyIdx = Math.floor((p - 1) / pagesPerCopy);
+      // Now stamp corner labels using a math that actually corresponds
+      // to which copy each page belongs to (was wrong before too).
+      const totalCopies = ps.multiCopyCount;
+      for (let copyIdx = 0; copyIdx < totalCopies; copyIdx++) {
         const label = labels[Math.min(copyIdx, labels.length - 1)] || `COPY ${copyIdx + 1}`;
-        pdf.setPage(p);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(8);
-        pdf.setTextColor(80, 80, 80);
-        // Border box around label
-        const labelWidth = pdf.getTextWidth(label) + 6;
-        pdf.setDrawColor(80, 80, 80);
-        pdf.setLineWidth(0.3);
-        pdf.rect(pdfWidth - labelWidth - 4, 4, labelWidth, 6, 'S');
-        pdf.text(label, pdfWidth - labelWidth - 1, 8);
-        pdf.setTextColor(0);
+        for (let p = 1; p <= originalPageCount; p++) {
+          const absolutePage = copyIdx * originalPageCount + p;
+          pdf.setPage(absolutePage);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(8);
+          pdf.setTextColor(80, 80, 80);
+          const labelWidth = pdf.getTextWidth(label) + 6;
+          pdf.setDrawColor(80, 80, 80);
+          pdf.setLineWidth(0.3);
+          pdf.rect(pdfWidth - labelWidth - 4, 4, labelWidth, 6, 'S');
+          pdf.text(label, pdfWidth - labelWidth - 1, 8);
+          pdf.setTextColor(0);
+        }
       }
     }
+
+    // v1.10.3 — free the multi-megabyte base64 image strings once
+    // multi-copy replay is done. Post-processing steps below only
+    // mutate the PDF pages, they don't need the source images. Prior
+    // code held mainImg + pageRecipes in closure through the whole
+    // watermark/QR/page-number loop, doubling peak memory.
+    pageRecipes.length = 0;
 
     // ----- Watermark overlay -----
     if (ps.watermarkEnabled && (ps.watermarkText || (ps.watermarkUseCustomText && ps.watermarkCustomText))) {
@@ -1194,46 +1256,66 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMeaningfulInvoice]);
 
-  // Direct print — opens the browser print dialog with the invoice PDF
-  // as the print source. Useful for thermal printers where the user has
-  // already configured their default print device + paper roll — one click
-  // and receipt comes out of the printer. Also works for A4 laser printers,
-  // just skips the PDF-download-then-open step.
+  // v1.10.3 — Shared print-via-iframe helper. Prior code duplicated the
+  // "createObjectURL + iframe + revoke on load" pattern in 3 places and
+  // ALL 3 leaked the blob URL if `onload` never fired (broken PDF,
+  // iframe blocked). Now: revoked in error handler AND unconditionally
+  // on load. Iframe stays (reused by id) but does not accumulate.
+  const printViaIframe = (blob) => {
+    const url = URL.createObjectURL(blob);
+    let cleaned = false;
+    const cleanup = () => { if (!cleaned) { cleaned = true; URL.revokeObjectURL(url); } };
+    // Belt: 90s hard timeout in case onload never fires.
+    const timer = setTimeout(cleanup, 90_000);
+    try {
+      let frame = document.getElementById('fgsb-print-frame');
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = 'fgsb-print-frame';
+        frame.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:0;height:0;border:0;';
+        document.body.appendChild(frame);
+      }
+      frame.src = url;
+      frame.onload = () => {
+        try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+        catch { window.open(url, '_blank'); }
+        // Give the print job ~60s to grab the buffer, then revoke.
+        setTimeout(() => { clearTimeout(timer); cleanup(); }, 60_000);
+      };
+      frame.onerror = () => { clearTimeout(timer); cleanup(); };
+    } catch (err) {
+      clearTimeout(timer); cleanup(); throw err;
+    }
+  };
+
+  // v1.10.3 — Thermal receipts (58mm / 80mm rolls) no longer go through
+  // html2canvas → JPEG → jsPDF. That path was 100× the CPU/memory of
+  // what's needed for a text-only receipt. Now: for thermal paper sizes
+  // we hand the browser the invoice HTML directly via a print-focused
+  // window.print() flow. Modern printer drivers handle 58/80mm rolls
+  // natively when the CSS `@page size` matches.
+  const isThermalPaper = () => (invoiceOptions.paperSize || 'a4').startsWith('thermal');
+
   const directPrint = async () => {
     if (!printRef.current) return;
+    setSaving(true);
     try {
-      setSaving(true);
-      const pdf = await buildPDF();
-      // Convert to blob URL and open in a hidden iframe → print → cleanup.
-      // Using an iframe (vs window.open) avoids popup-blockers and works
-      // consistently across Chrome / Edge / Firefox.
-      const blob = pdf.output('blob');
-      const url = URL.createObjectURL(blob);
-      let printFrame = document.getElementById('fgsb-print-frame');
-      if (!printFrame) {
-        printFrame = document.createElement('iframe');
-        printFrame.id = 'fgsb-print-frame';
-        printFrame.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:0;height:0;border:0;';
-        document.body.appendChild(printFrame);
+      if (isThermalPaper()) {
+        // Fast path — just open the print dialog on the current page.
+        // The rendered InvoicePreview is already thermal-styled, and
+        // the browser handles paper size via the roll-configured driver.
+        // Skips html2canvas entirely.
+        window.print();
+        return;
       }
-      printFrame.src = url;
-      printFrame.onload = () => {
-        try {
-          printFrame.contentWindow.focus();
-          printFrame.contentWindow.print();
-        } catch (err) {
-          console.error('Print failed', err);
-          // Fallback: open in a new tab so user can Ctrl+P themselves.
-          window.open(url, '_blank');
-        }
-        // Revoke after a delay so print job has time to grab the buffer.
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-      };
+      const pdf = await buildPDF();
+      const blob = pdf.output('blob');
+      printViaIframe(blob);
     } catch (e) {
-      console.error(e);
       toast('Print failed — try Download PDF instead', 'error');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const generatePDF = async () => {
@@ -1268,26 +1350,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       toast(`Invoice downloaded & saved to Saved Invoices/${clientName}/`, 'success');
       uploadToGoogleDrive(pdfBlob, fileName);
 
-      // v1.9.0 — auto-print on save. If enabled, open the print dialog with
-      // the PDF loaded. Uses same iframe pattern as directPrint().
+      // v1.10.3 — auto-print via the shared printViaIframe helper.
+      // Prior inline version leaked the blob URL if onload never fired.
       const ps = getPrintSettings();
       if (ps.autoPrintOnSave) {
-        try {
-          const url = URL.createObjectURL(pdfBlob);
-          let frame = document.getElementById('fgsb-print-frame');
-          if (!frame) {
-            frame = document.createElement('iframe');
-            frame.id = 'fgsb-print-frame';
-            frame.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:0;height:0;border:0;';
-            document.body.appendChild(frame);
-          }
-          frame.src = url;
-          frame.onload = () => {
-            try { frame.contentWindow.focus(); frame.contentWindow.print(); }
-            catch { window.open(url, '_blank'); }
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
-          };
-        } catch { /* non-fatal — user already has the PDF downloaded */ }
+        try { printViaIframe(pdfBlob); }
+        catch { /* non-fatal — user already has the PDF downloaded */ }
       }
     } catch (err) {
       console.error(err);

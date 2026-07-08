@@ -235,18 +235,29 @@ export default function PrintSettings() {
         const html2canvas = (await import('html2canvas')).default;
         if (!previewRef.current) { toast('Preview not ready', 'error'); return; }
 
+        // v1.10.3 — await fonts + capped scale + blob leak fix.
+        if (document.fonts && document.fonts.ready) {
+          try { await document.fonts.ready; } catch { /* non-fatal */ }
+        }
+        const capScale = Math.min(6, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.5)));
         const canvas = await html2canvas(previewRef.current, {
-          scale: Math.max(2, (window.devicePixelRatio || 1) * 1.5),
-          backgroundColor: '#ffffff', useCORS: true, logging: false,
+          scale: capScale,
+          backgroundColor: '#ffffff', useCORS: false, logging: false,
         });
-        const width = 80; // 80mm thermal width for the test print
+        const width = 80;
         const height = (canvas.height * width) / canvas.width;
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [width, Math.max(150, height)] });
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, width, height, undefined, 'FAST');
 
-        // Print via hidden iframe (same pattern as invoice direct-print)
+        // v1.10.3 — blob URL revoked in `finally`-equivalent (timer +
+        // load handler both trigger cleanup once). Prior code only
+        // revoked in onload; if the iframe never loaded (blocked, bad
+        // PDF), the blob URL leaked forever.
         const blob = pdf.output('blob');
         const url = URL.createObjectURL(blob);
+        let cleaned = false;
+        const cleanup = () => { if (!cleaned) { cleaned = true; URL.revokeObjectURL(url); } };
+        const timer = setTimeout(cleanup, 90_000);
         let frame = document.getElementById('fgsb-print-frame');
         if (!frame) {
           frame = document.createElement('iframe');
@@ -258,8 +269,9 @@ export default function PrintSettings() {
         frame.onload = () => {
           try { frame.contentWindow.focus(); frame.contentWindow.print(); }
           catch { window.open(url, '_blank'); }
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          setTimeout(() => { clearTimeout(timer); cleanup(); }, 60_000);
         };
+        frame.onerror = () => { clearTimeout(timer); cleanup(); };
         toast('Test print sent to your default printer', 'success');
       } catch (e) {
         console.error('Test print failed', e);

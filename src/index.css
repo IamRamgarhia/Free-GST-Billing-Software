@@ -1269,6 +1269,21 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .printing-mode .inv-table tr {
   border-color: #334155 !important;
 }
+/* v1.10.3 — Keep table rows whole across the html2canvas capture. When
+   a multi-page invoice's tall image gets stamped at negative Y offsets,
+   rows near the page seam get cut mid-content. `page-break-inside:
+   avoid` on <tr> nudges html2canvas' layout so rows push to the next
+   virtual page instead. Also repeat <thead> on each page via
+   table-header-group so users can read column labels on page 2+. */
+.printing-mode .inv-table tr,
+.printing-mode .inv-table tbody tr,
+.printing-mode .inv-table td {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+.printing-mode .inv-table thead {
+  display: table-header-group !important;
+}
 /* v1.9.11 — HSN codes, business address, GSTIN line, party details:
    these were faded on PDF paper output per reference photos user shared. */
 .printing-mode .inv-td-muted,

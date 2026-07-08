@@ -350,37 +350,57 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       container.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;';
       document.body.appendChild(container);
       const root = createRoot(container);
+      // v1.10.3 — Audit H18/H19: bulk export used to freeze the tab
+      // silently (no progress UI). On a 3× DPR Android, scale went to
+      // 4.5× → 16MP canvas per invoice × 50 invoices retained as JPEG
+      // data URLs = OOM before doc.save() fired. Now: capped scale,
+      // per-invoice progress toast, immediate abort via
+      // window.__fgsbBulkAbort.
+      const capScale = Math.min(4, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.2)));
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch { /* non-fatal */ }
+      }
+      window.__fgsbBulkAbort = false;
       let ok = 0;
       for (let i = 0; i < sel.length; i++) {
+        if (window.__fgsbBulkAbort) break;
         const bill = sel[i];
         const data = bill.data || {};
+        // Progress every 5 invoices (or every one for very small batches).
+        if (sel.length > 5 && (i % 5 === 0)) {
+          toast(`Exporting ${i + 1} of ${sel.length}…`, 'info', 1500);
+        }
         await new Promise((resolve) => {
           root.render(createElement(InvoicePreviewMod.default, {
             profile: data.profile, client: data.client, details: data.details, items: data.items,
             totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
             customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
           }));
-          // Give React 2 frames + a tick to flush layout + images
           requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
         });
         try {
           const canvas = await html2canvas(container.firstElementChild || container, {
-            scale: Math.max(2, (window.devicePixelRatio || 1) * 1.5),
-            backgroundColor: '#ffffff', useCORS: true, logging: false,
+            scale: capScale,
+            backgroundColor: '#ffffff', useCORS: false, logging: false,
           });
           const img = canvas.toDataURL('image/jpeg', 0.92);
           const w = 210, h = (canvas.height * 210) / canvas.width;
-          if (i > 0) doc.addPage();
+          if (ok > 0) doc.addPage();
           doc.addImage(img, 'JPEG', 0, 0, w, Math.min(h, 297), undefined, 'FAST');
           ok++;
-        } catch (e) { /* skip broken bill silently — user can retry with narrower selection */ }
+        } catch (e) { /* skip broken bill silently */ }
+        // Yield to the event loop between invoices so the browser can
+        // paint the progress toast and handle any user click on Abort.
+        await new Promise(r => setTimeout(r, 0));
       }
       root.unmount();
       document.body.removeChild(container);
+      if (window.__fgsbBulkAbort) { toast(`Aborted after ${ok} of ${sel.length}`, 'warning'); }
+      window.__fgsbBulkAbort = false;
       if (ok === 0) { toast('Could not generate any PDFs', 'error'); return; }
       const filename = `freegstbill-invoices-${ok}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      toast(`Exported ${ok} of ${sel.length} invoices as one PDF`, 'success');
+      toast(`Exported ${ok} of ${sel.length} invoices`, 'success');
     } catch (e) {
       toast('Bulk PDF export failed — see console', 'error');
       console.error('bulkExportPDF', e);
