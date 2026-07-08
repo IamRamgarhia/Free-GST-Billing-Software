@@ -1236,11 +1236,27 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const mainImgHeight = (mainCanvas.height * pdfWidth) / mainCanvas.width;
     const pageRecipes = [];
 
-    if (mainImgHeight <= pdfPageHeight + 2) {
+    // v1.10.9 — Wire print margins. Prior code ignored `marginTop/Bottom/
+    // Left/Right` from printSettings entirely — the UI existed, defaults
+    // were in printSettings.js, but no consumer read them. Now: margins
+    // shift the invoice image inside each PDF page. Useful for
+    // pre-printed letterheads where content must clear the top logo,
+    // or for printers with built-in edge margins.
+    const mTop = Math.max(0, Number(printSettings.marginTop) || 0);
+    const mBottom = Math.max(0, Number(printSettings.marginBottom) || 0);
+    const mLeft = Math.max(0, Number(printSettings.marginLeft) || 0);
+    const mRight = Math.max(0, Number(printSettings.marginRight) || 0);
+    const contentWidth = Math.max(20, pdfWidth - mLeft - mRight);
+    const contentHeight = Math.max(20, pdfPageHeight - mTop - mBottom);
+    // Recompute the image's rendered height using the reduced content width
+    // so aspect ratio stays correct after margins are applied.
+    const scaledImgHeight = (mainCanvas.height * contentWidth) / mainCanvas.width;
+
+    if (scaledImgHeight <= contentHeight + 2) {
       // Single-page fits — no cropping needed.
       const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
-      pdf.addImage(mainImg, imgFormat, 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
-      pageRecipes.push({ img: mainImg, y: 0, h: Math.min(mainImgHeight, pdfPageHeight) });
+      pdf.addImage(mainImg, imgFormat, mLeft, mTop, contentWidth, Math.min(scaledImgHeight, contentHeight), undefined, 'MEDIUM');
+      pageRecipes.push({ img: mainImg, y: mTop, h: Math.min(scaledImgHeight, contentHeight), x: mLeft, w: contentWidth });
     } else {
       // v1.10.8 multi-page path — snap page breaks to safe DOM row boundaries.
       //
@@ -1253,8 +1269,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       }
       canvasBoundariesPx.sort((a, b) => a - b);
 
-      // 2. How many canvas pixels correspond to one PDF page height?
-      const pdfPageHeightCanvasPx = pdfPageHeight * (mainCanvas.width / pdfWidth);
+      // 2. How many canvas pixels correspond to one CONTENT height?
+      // v1.10.9 — was pdfPageHeight * (mainCanvas.width / pdfWidth). Now
+      // uses contentHeight (page - top - bottom margins) so page breaks
+      // respect the margin band.
+      const pdfPageHeightCanvasPx = contentHeight * (mainCanvas.width / contentWidth);
 
       // 3. Walk the canvas top-to-bottom, allocating pages. For each
       //    page: find the largest boundary ≤ naive end, but > current
@@ -1286,6 +1305,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       }
 
       // 4. For each page, crop mainCanvas → temp canvas → data URL → PDF.
+      // v1.10.9 — Applies margins to each cropped page image.
       for (let i = 0; i < pageSplits.length; i++) {
         const { start, end } = pageSplits[i];
         const cropHeight = end - start;
@@ -1294,15 +1314,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         tmp.width = mainCanvas.width;
         tmp.height = cropHeight;
         const ctx = tmp.getContext('2d');
-        // White fill first so a JPEG doesn't render transparent as black.
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, tmp.width, cropHeight);
         ctx.drawImage(mainCanvas, 0, -start);
         const pageImg = tmp.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
-        const pageMmHeight = (cropHeight * pdfWidth) / mainCanvas.width;
+        const pageMmHeight = (cropHeight * contentWidth) / mainCanvas.width;
         if (i > 0) pdf.addPage();
-        pdf.addImage(pageImg, imgFormat, 0, 0, pdfWidth, pageMmHeight, undefined, 'MEDIUM');
-        pageRecipes.push({ img: pageImg, y: 0, h: pageMmHeight });
+        pdf.addImage(pageImg, imgFormat, mLeft, mTop, contentWidth, pageMmHeight, undefined, 'MEDIUM');
+        pageRecipes.push({ img: pageImg, y: mTop, h: pageMmHeight, x: mLeft, w: contentWidth });
       }
     }
 
@@ -1347,7 +1366,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       for (let copyIdx = 1; copyIdx < ps.multiCopyCount; copyIdx++) {
         for (const recipe of pageRecipes) {
           pdf.addPage();
-          pdf.addImage(recipe.img, imgFormat, 0, recipe.y, pdfWidth, recipe.h, undefined, 'MEDIUM');
+          // v1.10.9 — margins carry through to duplicated copies via
+          // recipe.x/w (fallback to 0/pdfWidth for legacy shapes).
+          pdf.addImage(recipe.img, imgFormat,
+            recipe.x ?? 0, recipe.y,
+            recipe.w ?? pdfWidth, recipe.h,
+            undefined, 'MEDIUM');
         }
       }
       // Now stamp corner labels using a math that actually corresponds

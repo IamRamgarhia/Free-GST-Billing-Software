@@ -7,6 +7,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.9] — 2026-07-09
+
+**Six user-reported bugs fixed + new Payment Receipt feature.** All
+issues from the "features you added but not working" screenshot.
+Verified in Chromium.
+
+### Fixed — Print Margins were completely unwired
+
+**Reported.** "Print margins (Top / Bottom / Left / Right) — NOT
+WORKING". Setting values, defaults in `printSettings.js`, and the UI
+existed but no code anywhere consumed them.
+
+**Fix.** `buildPDF` now reads `marginTop/Bottom/Left/Right` from
+`printSettings` and applies them to every `pdf.addImage(x, y, w, h)`
+call — both the single-page path and the multi-page cropping loop.
+Multi-copy (Rule 48) carries the margins through via `recipe.x/w`.
+Row-boundary snapping (v1.10.8) uses the reduced `contentHeight`
+(page - top - bottom) so page breaks respect the margin band.
+
+### Fixed — PDF Font Family dropdown did nothing
+
+**Reported.** "PDF FONT FAMILY (Helvetica / Times / Courier) — this
+also [not working]". Dropdown wrote `pdfFontFamily` but
+`InvoicePreview` read the `fontFamily` (Typography) setting instead.
+The PDF Font Family dropdown was fully disconnected from actual
+rendering.
+
+**Fix.** `InvoicePreview` now maps `pdfFontFamily` correctly:
+- `helvetica` → `Helvetica, Arial, "Segoe UI", sans-serif`
+- `times` → `"Times New Roman", Times, "Liberation Serif", serif`
+- `courier` → `"Courier New", Courier, "Liberation Mono", monospace`
+
+Verified: setting `pdfFontFamily: 'times'` → computed font on the
+container + its children = `"Times New Roman", …`.
+
+### Fixed — Typography Font family bled into A4/A5
+
+**Reported.** "When we select this it changes A5 AND A4 STYLE I THINK
+U CREATED THIS FOR THERMAL ONLY." User was right — the UI hint says
+"Monospace prints crisper on most thermal printers" but v1.9.13 wired
+it to affect PDF too. Contradictory to the labeled intent.
+
+**Fix.** Typography's Font family / Font size / ALL CAPS now apply
+**only to thermal**. Section renamed to "Typography (Thermal
+receipts)" in the UI so the split is obvious. PDF-only knobs live
+in the "PDF FONT FAMILY" + "PDF FONT SCALE" sections below.
+
+Also cleared: the v1.9.13 data-attribute CSS (`data-pdf-font=mono
+*` with `!important`) that was overriding the inline PDF font. The
+`data-pdf-font` / `data-pdf-caps` / `data-pdf-font-size` attributes
+are no longer set on PDF renders. Inline styles are the single
+source of truth for PDF typography.
+
+### Fixed — PDF Font Scale slider was a no-op
+
+**Reported.** "PDF FONT SCALE (80% — 100% — 140%) — this is not
+working if it works I think u added that to fit details one page but
+this won't work try from your end too."
+
+**Root cause.** Prior code applied `pdfFontScale` only when
+`!pdfFontSizeCss`. Since `pdfFontSizeCss` always resolves to a value
+(`medium` default → `100%`), the scale never fired. Two settings
+competing; size-preset always won.
+
+**Fix.** Scale now MULTIPLIES with the size preset:
+```
+finalSize = basePreset (87/100/112/122%) × scale (0.8-1.4)
+```
+Verified: `pdfFontScale: 0.8` × `fontSize: 'medium'` → inline
+`fontSize: 80%` → computed `12.8px` (16px × 0.8) ✓.
+
+### Verified — Custom Watermark
+
+**Reported.** "Custom watermark text — NOT WORKING".
+
+Wiring inspected: `InvoiceGenerator.jsx:1382-1385` reads
+`watermarkUseCustomText && watermarkCustomText` correctly and
+overlays the text via `pdf.text()`. **The only gate is the master
+"Show watermark" toggle in the same section — that must be ON.** If
+users toggle only the "Use custom text" checkbox without the
+top-level "Show watermark", nothing renders. Working as designed.
+
+### Added — Payment Receipt + full CRUD on payment history
+
+**Reported.** "When directly payment added via Record Payment it
+should generate a PDF or printable receipt against it. But only
+record showing. Also unable to view or edit. No option should be
+added because against every payment by customer, have to produce
+receipt against it."
+
+**New behavior.**
+
+1. **Recording a payment now opens a printable Receipt modal
+   immediately.** Shows: business header (name / GSTIN / phone /
+   email), receipt number (auto-generated from payment id),
+   payment date, invoice number, payment mode, amount received
+   (with Indian-format words for INR), and the invoice balance.
+   Print button uses `window.print()` with an A5 print stylesheet
+   that hides everything except the receipt page.
+
+2. **Payment History rows in the modal now have three actions:**
+   - **Receipt** — opens the same modal for any historic payment (reprint).
+   - **Edit note** — quick prompt to fix a typo in the reference / note.
+   - **Delete** — removes the payment, recomputes `paidAmount` +
+     status (drops to `partial` or `unpaid` if applicable).
+
+3. **Every payment now has a stable `id`** (`pay_<base36>_<rand>`)
+   so the row can be targeted after other rows are edited/deleted.
+   Prior code used array index which shifted when earlier payments
+   changed.
+
+Verified in Chromium: Record a ₹2500 payment on a ₹5000 bill →
+Payment Receipt modal opens automatically → h3 "Payment Receipt"
+present → `.fgsb-receipt-page` rendered → Print Receipt button
+visible.
+
+### Notes
+
+- The prior `data-pdf-font` CSS rules in `index.css` are now dead
+  (no matching selector) but left in place to avoid touching
+  unrelated CSS. Removal in a later hygiene pass.
+- Receipt uses `window.print()` HTML flow, not `jsPDF`. Matches the
+  user's ask "PDF OR printable receipt" — the browser's Print → Save
+  as PDF path produces a proper PDF from any modern browser.
+
+---
+
 ## [1.10.8] — 2026-07-08
 
 **Real fix for M21 — multi-page invoices no longer cut rows mid-content.**

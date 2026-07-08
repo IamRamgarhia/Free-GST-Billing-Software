@@ -658,13 +658,35 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // template-* rules, so users saw the font stay put no matter what
   // they picked. Inline styles beat every CSS class regardless of
   // specificity — this is the reliable path.
+  //
+  // v1.10.9 — decoupled Typography settings from PDF. The Typography
+  // section explicitly says "Monospace prints crisper on most thermal
+  // printers" — users reasonably expect it to be thermal-only.
+  // Meanwhile the dedicated "PDF FONT FAMILY" dropdown (helvetica /
+  // times / courier) had NO consumer at all — clicking it did
+  // nothing. Now: Typography → thermal only. `pdfFontFamily` →
+  // actual PDF font. Font weight + ALL CAPS still bridge to PDF via
+  // Typography (they're layout-neutral choices).
+  const PDF_FAMILY_MAP = {
+    helvetica: 'Helvetica, Arial, "Segoe UI", sans-serif',
+    times:     '"Times New Roman", Times, "Liberation Serif", serif',
+    courier:   '"Courier New", Courier, "Liberation Mono", monospace',
+  };
   const pdfFontFamilyCss = !isThermal
-    ? (_ps_final.fontFamily === 'mono'
-        ? '"Courier New", "Consolas", monospace'
-        : '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif')
+    ? (PDF_FAMILY_MAP[_ps_final.pdfFontFamily] || PDF_FAMILY_MAP.helvetica)
     : undefined;
-  const PDF_FONT_SIZE_PCT = { small: '87%', medium: '100%', large: '112%', xlarge: '122%' };
-  const pdfFontSizeCss = !isThermal ? (PDF_FONT_SIZE_PCT[_ps_final.fontSize] || '100%') : undefined;
+
+  // v1.10.9 — Font Scale slider (80%–140%) now MULTIPLIES with the
+  // font-size preset instead of being overridden by it. Prior code
+  // had `... && !pdfFontSizeCss` — since pdfFontSizeCss always
+  // resolved to a value ("medium" default = "100%"), font scale never
+  // took effect. Bug reproducible: slider to 80% → no visible change.
+  const PDF_FONT_SIZE_PCT = { small: 87, medium: 100, large: 112, xlarge: 122 };
+  const basePct = !isThermal ? (PDF_FONT_SIZE_PCT[_ps_final.fontSize] || 100) : 100;
+  const scale = Number(_ps_final.pdfFontScale);
+  const clampedScale = isFinite(scale) && scale > 0 ? Math.max(0.8, Math.min(1.4, scale)) : 1.0;
+  const pdfFontSizeCss = !isThermal ? `${Math.round(basePct * clampedScale)}%` : undefined;
+
   const PDF_FONT_WEIGHT = { normal: 400, bold: 600, ultra: 800 };
   const pdfFontWeightCss = !isThermal ? (PDF_FONT_WEIGHT[_ps_final.fontWeight] || 400) : undefined;
   const pdfCapsOn = !isThermal && _ps_final.allCaps === true;
@@ -688,16 +710,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       '--pdf-header-bg':    _ps_final.pdfHeaderBg    || '#f8fafc',
       '--pdf-divider':      _ps_final.pdfDividerColor|| '#334155',
     } : {}),
-    // v1.9.14 — inline typography (see comment above)
+    // v1.9.14/1.10.9 — inline typography. pdfFontSizeCss already folds
+    // in the pdfFontScale multiplier (see the compute above).
     ...(pdfFontFamilyCss ? { fontFamily: pdfFontFamilyCss } : {}),
     ...(pdfFontSizeCss ? { fontSize: pdfFontSizeCss } : {}),
     ...(pdfFontWeightCss ? { fontWeight: pdfFontWeightCss } : {}),
     ...(pdfCapsOn ? { textTransform: 'uppercase' } : {}),
-    // Font scale — 0.8 to 1.4 range. Applied on top of fontSize base
-    // by re-computing pct * scale.
-    ...(Number(_ps_final.pdfFontScale) && Number(_ps_final.pdfFontScale) !== 1 && !pdfFontSizeCss ? {
-      fontSize: `${Math.max(0.8, Math.min(1.4, Number(_ps_final.pdfFontScale))) * 100}%`,
-    } : {}),
   };
 
   return (
@@ -705,10 +723,6 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       className={`invoice-preview-container ${paperCfg.cssClass} template-${pdfStyleVariant}`}
       data-user-colors={_ps_final.userColorsEnabled ? '1' : '0'}
       data-row-density={_ps_final.rowDensity || 'normal'}
-      data-pdf-font={!isThermal ? (_ps_final.fontFamily || 'sans') : undefined}
-      data-pdf-font-size={!isThermal ? (_ps_final.fontSize || 'medium') : undefined}
-      data-pdf-font-weight={!isThermal ? (_ps_final.fontWeight || 'normal') : undefined}
-      data-pdf-caps={!isThermal && _ps_final.allCaps ? '1' : undefined}
       ref={ref} id="invoice-preview" style={finalContainerStyle}>
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}

@@ -413,14 +413,14 @@ export default function PrintSettings() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-        {/* TYPOGRAPHY */}
-        <SettingGroup title="Typography">
+        {/* TYPOGRAPHY — thermal-only since v1.10.9 */}
+        <SettingGroup title="Typography (Thermal receipts)">
           <SelectRow label="Font family" value={settings.fontFamily} onChange={v => set({ fontFamily: v })}
             options={[
               ['mono', 'Monospace (Courier) — thermal-optimized'],
               ['sans', 'Sans-serif (Arial-like)'],
             ]}
-            hint="Monospace prints crisper on most thermal printers." />
+            hint="Applies to THERMAL receipts only. For A4/A5 PDFs use the 'PDF FONT FAMILY' section below." />
           <SelectRow label="Font size" value={settings.fontSize} onChange={v => set({ fontSize: v })}
             options={[
               ['small', 'Small (fits more per receipt)'],

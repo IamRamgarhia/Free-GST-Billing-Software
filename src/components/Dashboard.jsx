@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download } from 'lucide-react';
+import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer } from 'lucide-react';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions } from '../utils';
+import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { toast } from './Toast';
 
 const STATUS_CONFIG = {
@@ -13,6 +13,117 @@ const STATUS_CONFIG = {
 
 // v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
 // from ../utils so a bugfix touches one file, not five.
+
+// v1.10.9 — Payment Receipt modal. Renders a printable receipt for a
+// specific payment against a specific invoice. Print button uses
+// window.print() and the CSS injected on mount hides everything else so
+// only the receipt shows on paper.
+function ReceiptModal({ target, onClose }) {
+  const { bill, payment, remaining } = target;
+  const currency = bill.currency || bill.data?.invoiceOptions?.currency || 'INR';
+  const businessName = bill.data?.profile?.businessName || 'Your Business';
+  const businessAddress = bill.data?.profile?.address || '';
+  const businessGstin = bill.data?.profile?.gstin || '';
+  const businessPhone = bill.data?.profile?.phone || '';
+  const businessEmail = bill.data?.profile?.email || '';
+  const clientName = bill.data?.client?.name || bill.clientName || 'Client';
+  const clientAddress = bill.data?.client?.address || '';
+  const clientPhone = bill.data?.client?.phone || '';
+  const receiptNo = `RCPT-${(payment.id || '').replace('pay_', '').toUpperCase().slice(0, 10)}`;
+  const paymentModeLabel = {
+    'bank-transfer': 'Bank Transfer', 'upi': 'UPI', 'cash': 'Cash',
+    'cheque': 'Cheque', 'card': 'Card', 'other': 'Other',
+  }[payment.mode] || payment.mode;
+
+  const doPrint = () => {
+    let styleEl = document.getElementById('fgsb-receipt-print-css');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'fgsb-receipt-print-css';
+      styleEl.textContent = `
+        @media print {
+          body * { visibility: hidden !important; }
+          .fgsb-receipt-page, .fgsb-receipt-page * { visibility: visible !important; }
+          .fgsb-receipt-page { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: #fff !important; color: #000 !important; }
+          .fgsb-receipt-noprint { display: none !important; }
+          @page { size: A5; margin: 12mm; }
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+    window.print();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="fgsb-receipt-noprint" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <h3 className="section-title" style={{ margin: 0 }}>Payment Receipt</h3>
+          <button className="icon-btn" onClick={onClose} title="Close"><X size={18} /></button>
+        </div>
+        <div className="fgsb-receipt-page" style={{
+          background: '#fff', color: '#111', padding: '1.5rem 1.75rem',
+          border: '1px solid #e5e7eb', borderRadius: 6, fontFamily: 'Helvetica, Arial, sans-serif',
+        }}>
+          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, letterSpacing: '0.05em' }}>{businessName}</div>
+            {businessAddress && <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: 3 }}>{businessAddress}</div>}
+            <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: 3 }}>
+              {businessGstin && <>GSTIN: <strong>{businessGstin}</strong> · </>}
+              {businessPhone && <>Ph: {businessPhone} · </>}
+              {businessEmail}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
+            PAYMENT RECEIPT
+          </div>
+          <table style={{ width: '100%', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+            <tbody>
+              <tr><td style={{ padding: '3px 0', color: '#475569' }}>Receipt No.</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{receiptNo}</td></tr>
+              <tr><td style={{ padding: '3px 0', color: '#475569' }}>Payment Date</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{payment.date ? new Date(payment.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td></tr>
+              <tr><td style={{ padding: '3px 0', color: '#475569' }}>Against Invoice</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{bill.invoiceNumber}</td></tr>
+              <tr><td style={{ padding: '3px 0', color: '#475569' }}>Payment Mode</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{paymentModeLabel}</td></tr>
+              {payment.note && <tr><td style={{ padding: '3px 0', color: '#475569' }}>Ref / Note</td><td style={{ textAlign: 'right' }}>{payment.note}</td></tr>}
+            </tbody>
+          </table>
+          <div style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '0.75rem', marginBottom: '0.75rem' }}>
+            <div style={{ fontSize: '0.75rem', color: '#475569' }}>Received with thanks from</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: 3 }}>{clientName}</div>
+            {clientAddress && <div style={{ fontSize: '0.72rem', color: '#475569' }}>{clientAddress}</div>}
+            {clientPhone && <div style={{ fontSize: '0.72rem', color: '#475569' }}>Ph: {clientPhone}</div>}
+          </div>
+          <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, padding: '0.75rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontSize: '0.85rem', color: '#334155' }}>Amount Received</span>
+              <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>{formatCurrency(payment.amount, currency)}</span>
+            </div>
+            {currency === 'INR' && (
+              <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: 4, fontStyle: 'italic' }}>
+                In words: {numberToWords(Number(payment.amount) || 0)}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#334155', marginBottom: '1rem' }}>
+            <span>Invoice Total: <strong>{formatCurrency(Number(bill.totalAmount) || 0, currency)}</strong></span>
+            <span>Total Paid: <strong>{formatCurrency(Number(bill.paidAmount) || 0, currency)}</strong></span>
+            <span>Balance: <strong style={{ color: remaining > 0 ? '#dc2626' : '#059669' }}>{formatCurrency(remaining, currency)}</strong></span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2rem', fontSize: '0.75rem', color: '#475569' }}>
+            <div><div style={{ borderTop: '1px solid #94a3b8', paddingTop: 4, minWidth: 140, textAlign: 'center' }}>Customer Signature</div></div>
+            <div><div style={{ borderTop: '1px solid #94a3b8', paddingTop: 4, minWidth: 140, textAlign: 'center' }}>For {businessName}</div></div>
+          </div>
+          <div style={{ fontSize: '0.68rem', color: '#94a3b8', textAlign: 'center', marginTop: '0.75rem' }}>
+            This is a computer-generated receipt. Recorded on {new Date(payment.recordedAt || Date.now()).toLocaleString('en-IN')}.
+          </div>
+        </div>
+        <div className="fgsb-receipt-noprint" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
+          <button className="btn btn-primary" onClick={doPrint}><Printer size={16} /> Print Receipt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const [bills, setBills] = useState([]);
@@ -47,6 +158,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   }, [visibleColumns]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [paymentModal, setPaymentModal] = useState(null);
+  // v1.10.9 — receipt modal state. Opens automatically after
+  // recordPayment succeeds; can also be opened via openReceiptFor(...)
+  // for reprints.
+  const [receiptTarget, setReceiptTarget] = useState(null); // { bill, payment, remaining }
   const [paymentInput, setPaymentInput] = useState({ amount: '', date: '', mode: 'bank-transfer', note: '' });
   const [showRemindAll, setShowRemindAll] = useState(false);
   const [profile, setProfileState] = useState(null);
@@ -194,9 +309,6 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
 
   const recordPayment = async () => {
     const amount = parseFloat(paymentInput.amount);
-    // Validate the amount up front — reject negatives, NaN, zero, and "more than
-    // the outstanding balance". Without this, a typo can record ₹9,999,999 against
-    // a ₹10,000 invoice and silently invert the books.
     if (!isFinite(amount) || amount <= 0) {
       toast('Enter a positive payment amount', 'warning'); return;
     }
@@ -204,21 +316,65 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const billTotal = Number(bill.totalAmount) || 0;
     const alreadyPaid = Number(bill.paidAmount) || 0;
     const outstanding = Math.max(0, billTotal - alreadyPaid);
-    if (amount > outstanding + 0.01) { // 0.01 fudge for rounding
+    if (amount > outstanding + 0.01) {
       const proceed = confirm(`This payment (${formatCurrency(amount, bill.currency)}) is more than the outstanding balance (${formatCurrency(outstanding, bill.currency)}). Record it as an overpayment anyway?`);
       if (!proceed) return;
     }
-    const payments = [...(bill.payments || []), {
+    const paymentEntry = {
+      // v1.10.9 — persistent id so this specific payment can be
+      // targeted later (reprint receipt, edit note, delete). Prior code
+      // relied on array index which shifted when earlier payments were
+      // edited.
+      id: 'pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       amount, date: paymentInput.date, mode: paymentInput.mode,
       note: paymentInput.note, recordedAt: new Date().toISOString(),
-    }];
+    };
+    const payments = [...(bill.payments || []), paymentEntry];
     const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    await saveBill({
+    const updatedBill = {
       ...bill, payments, paidAmount: totalPaid,
       status: totalPaid >= billTotal ? 'paid' : 'partial',
-    }, { overwrite: true });
+    };
+    await saveBill(updatedBill, { overwrite: true });
     toast(`Payment of ${formatCurrency(amount, bill.currency)} recorded`, 'success');
+    // v1.10.9 — auto-open Receipt for the payment just recorded so the
+    // user sees the printable output immediately. Prior code only saved
+    // the JSON row; users had no receipt to hand the customer.
     setPaymentModal(null);
+    setReceiptTarget({ bill: updatedBill, payment: paymentEntry, remaining: Math.max(0, billTotal - totalPaid) });
+    loadBills();
+  };
+
+  // v1.10.9 — Reprint / view an existing payment's receipt.
+  const openReceiptFor = (bill, payment) => {
+    const totalPaid = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    setReceiptTarget({ bill, payment, remaining: Math.max(0, Number(bill.totalAmount || 0) - totalPaid) });
+  };
+
+  // v1.10.9 — Delete a specific payment. Recomputes totals + status.
+  const deletePayment = async (bill, paymentId) => {
+    if (!confirm('Delete this payment? The invoice will revert to unpaid/partial if the sum drops below the total.')) return;
+    const payments = (bill.payments || []).filter(p => (p.id || '') !== paymentId);
+    const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const total = Number(bill.totalAmount) || 0;
+    const updated = { ...bill, payments, paidAmount: totalPaid, status: totalPaid >= total && total > 0 ? 'paid' : (totalPaid > 0 ? 'partial' : 'unpaid') };
+    await saveBill(updated, { overwrite: true });
+    toast('Payment deleted', 'success');
+    setPaymentModal(updated);
+    loadBills();
+  };
+
+  // v1.10.9 — Update the note on an existing payment.
+  const editPaymentNote = async (bill, paymentId) => {
+    const target = (bill.payments || []).find(p => (p.id || '') === paymentId);
+    if (!target) return;
+    const newNote = window.prompt('Payment note / reference:', target.note || '');
+    if (newNote === null) return;
+    const payments = (bill.payments || []).map(p => (p.id || '') === paymentId ? { ...p, note: newNote } : p);
+    const updated = { ...bill, payments };
+    await saveBill(updated, { overwrite: true });
+    toast('Payment updated', 'success');
+    setPaymentModal(updated);
     loadBills();
   };
 
@@ -898,12 +1054,26 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
               <div style={{ marginTop: '1rem' }}>
                 <label className="form-label">Payment History</label>
                 <div className="payment-history">
+                  {/* v1.10.9 — each row now has View Receipt / Edit Note /
+                      Delete actions. Prior code showed values only with no
+                      way to reprint or fix a typo. */}
                   {paymentModal.payments.map((p, i) => (
-                    <div key={i} className="payment-row">
-                      <span>{new Date(p.date).toLocaleDateString('en-IN')}</span>
-                      <span className="font-bold">{formatCurrency(p.amount, paymentModal.currency)}</span>
-                      <span className="text-muted">{p.mode}</span>
-                      {p.note && <span className="text-muted">{p.note}</span>}
+                    <div key={p.id || i} className="payment-row" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ minWidth: 90 }}>{p.date ? new Date(p.date).toLocaleDateString('en-IN') : '—'}</span>
+                      <span className="font-bold" style={{ minWidth: 100 }}>{formatCurrency(p.amount, paymentModal.currency)}</span>
+                      <span className="text-muted" style={{ minWidth: 90 }}>{p.mode}</span>
+                      {p.note && <span className="text-muted" style={{ flex: 1 }}>· {p.note}</span>}
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.25rem' }}>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                          onClick={() => openReceiptFor(paymentModal, p)}
+                          title="View / Print receipt for this payment"><Receipt size={12} /> Receipt</button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                          onClick={() => editPaymentNote(paymentModal, p.id)}
+                          title="Edit the note / reference"><Edit3 size={12} /></button>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                          onClick={() => deletePayment(paymentModal, p.id)}
+                          title="Delete this payment"><Trash2 size={12} /></button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -915,6 +1085,15 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* v1.10.9 — Payment Receipt modal. Opens automatically after
+           recordPayment; can also be opened from the Payment History rows
+           in the Record Payment modal above. Print via window.print() —
+           the CSS below hides everything except .fgsb-receipt-page when
+           printing. */}
+      {receiptTarget && (
+        <ReceiptModal target={receiptTarget} onClose={() => setReceiptTarget(null)} />
       )}
     </div>
   );
