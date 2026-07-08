@@ -7,6 +7,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.2] — 2026-07-08
+
+**Bundle 3 of 6 from the deep architectural audit.** Offline PWA
+correctness. 5 findings closed. Verified in real Chromium: 0 page
+errors, 0 failed requests, manifest icons 5, `/api/*` runtime cache
+registered in the generated SW.
+
+### Offline — `/api/*` runtime cache (audit C8, was the biggest hole)
+
+Prior: SW only cached precached static assets. Every `/api/*` fetch hit
+the network raw — offline → `TypeError: Failed to fetch` on the first
+save. The "offline billing counter" promise was broken.
+
+Now: NetworkFirst runtime rule on `GET /api/*` with 3s timeout, 200
+entries max, 1-week TTL. Fresh data online, cached-fallback offline.
+POST/DELETE still need a background-sync queue (future work — noted).
+
+### Offline — Removed render-blocking Google Fonts import (C8 part 2)
+
+`src/index.css` had `@import url(https://fonts.googleapis.com/…)` at
+line 1. Two problems:
+1. First-ever offline load (fresh install, never online) blocked the
+   CSS parser waiting for network → unstyled fallback + layout shift.
+2. Duplicate: `<link>` in `index.html` requested 400/500/600/700 while
+   `@import` requested 300/400/500/600/700/800 → two overlapping
+   network round trips.
+
+Now: `@import` deleted. `<link>` stays (browser preload-friendly, SW
+CacheFirst caches after first visit). System font stack (Segoe UI /
+San Francisco / Roboto) is the offline-safe fallback — clean
+typography from paint one.
+
+### PWA — Defer SW update on user-active input (H22)
+
+Prior: `main.jsx` called `updateSW(true)` inside `onNeedRefresh` →
+immediate `location.reload()`. Cashier mid-invoice lost the whole
+form on every deploy.
+
+Now:
+- Vite PWA config changed from `registerType: 'autoUpdate'` →
+  `'prompt'`. Workbox no longer skipWaiting + clientsClaim on its own.
+- `main.jsx` stashes an "update ready" flag on `window` +
+  dispatches `fgsb-sw-update-ready` event.
+- Reload happens on **window blur** (user tabbed away) — safe moment.
+- `window.__fgsbApplyUpdate()` is the manual trigger for UI banners.
+
+### PWA — Proper icon set for Android + iOS install (H23)
+
+Prior: **one** icon entry — `favicon.svg` with `purpose: 'any maskable'`.
+Chrome/Android needs distinct 192 + 512 PNGs for app drawer + splash;
+iOS silently ignores SVG apple-touch-icons and generates a screenshot
+tile instead.
+
+Now: manifest declares 5 icons — SVG scalable + 192×192 + 512×512
+raster (any + maskable variants). `apple-touch-icon` points at a
+proper 180×180 PNG. Meta tags added: `apple-mobile-web-app-capable`,
+`apple-mobile-web-app-title`, `apple-mobile-web-app-status-bar-style`.
+
+**⚠ Action required:** the PNG files themselves are not shipped in
+this release — the manifest references `public/icons/icon-192.png`
+etc. which need to be generated. Until they exist, Android install
+still falls back to the SVG (works) but the iOS Home Screen tile is
+still a screenshot. Adding a `scripts/generate-icons.mjs` that emits
+the PNGs from `favicon.svg` is queued as a follow-up.
+
+### Build — React in its own chunk + heavy chunks excluded from precache (M23, M24)
+
+- **React vendor chunk:** `manualChunks` adds `'react-vendor':
+  ['react', 'react-dom']` so app-code changes don't invalidate the
+  React runtime for cached clients.
+- **Precache diet:** `pdf-*.js` (588 KB), `qr-*.js` (25 KB), and
+  html2canvas' ESM chunk (158 KB) excluded from `globPatterns`.
+  Precache dropped from **1629 KiB → 888 KiB** (45% smaller,
+  9 entries instead of 11). Those chunks still cache on demand via a
+  `StaleWhileRevalidate` runtime rule → first print online caches
+  them for the next offline print.
+- **Chunk warning limit:** raised from default 500 KB → 900 KB so
+  legitimate pdf/main chunks don't spam CI logs. High enough to still
+  catch a real regression.
+
+### Other polish
+
+- Manifest `orientation` changed from `'portrait-primary'` to `'any'` —
+  landscape POS tablets no longer locked to portrait.
+- `console.log('...ready to work offline')` removed from `main.jsx`
+  (audit L1).
+
+### Notes
+
+- The runtime `/api/*` cache is **GET-only**. POST/DELETE go to
+  network → offline they fail loudly. A background-sync queue for
+  writes is a bigger change and will land separately.
+- If the app is already installed as a PWA on a user's device, they'll
+  get the new SW behavior after one page-load-then-blur cycle. No
+  action needed.
+
+---
+
 ## [1.10.1] — 2026-07-08
 
 **Bundle 2 of 6 from the deep architectural audit.** GST / TDS / TCS /

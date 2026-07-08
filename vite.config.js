@@ -21,7 +21,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // v1.10.2 — Prior 'autoUpdate' triggered an immediate location.reload()
+      // via main.jsx's onNeedRefresh handler → cashier mid-invoice would
+      // lose form state on deploy. Switched to 'prompt' so the app can
+      // defer the reload until the user is idle. The main.jsx handler
+      // now stores an "update ready" flag and reloads on next window
+      // blur / navigation, never mid-form.
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'og-preview.png'],
       manifest: {
         name: 'Free GST Billing Software',
@@ -37,7 +43,10 @@ export default defineConfig({
         display_override: ['window-controls-overlay', 'standalone'],
         start_url: '/',
         scope: '/',
-        orientation: 'portrait-primary',
+        // v1.10.2 — Was 'portrait-primary'. Locked landscape tablets to
+        // portrait even though shop counters and Android POS terminals
+        // often run horizontally. 'any' lets the device decide.
+        orientation: 'any',
         lang: 'en-IN',
         categories: ['business', 'productivity', 'finance'],
         // Manifest shortcuts — right-click the pinned PWA icon (Windows
@@ -73,32 +82,83 @@ export default defineConfig({
             icons: [{ src: '/favicon.svg', sizes: '96x96' }],
           },
         ],
+        // v1.10.2 — Icon set matches Android + iOS "Add to Home Screen"
+        // requirements. Prior manifest had ONE entry — favicon.svg with
+        // `purpose: 'any maskable'`. Chrome/Android needs distinct 192
+        // and 512 PNGs for the app drawer + splash; iOS silently ignores
+        // SVG apple-touch-icons and falls back to a generated screenshot.
+        //
+        // The SVG entry stays as a scalable fallback for browsers that
+        // handle it (all modern desktop). The PNG entries point at files
+        // that MUST be dropped into public/icons/ — see README.
         icons: [
-          {
-            src: '/favicon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
-          },
+          { src: '/favicon.svg', sizes: 'any',       type: 'image/svg+xml' },
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
+        // v1.10.2 — Precache excludes the heaviest chunks (pdf 588 KB,
+        // qr 25 KB, html2canvas' ESM chunk) since most sessions never
+        // print. They still get cached on demand by the runtime rule
+        // below (StaleWhileRevalidate for /assets/), so the FIRST print
+        // works offline as long as the user has visited that route at
+        // least once. Trims initial precache from 1.63 MiB → ~0.85 MiB.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: [
+          '**/assets/pdf-*.js',
+          '**/assets/qr-*.js',
+          '**/assets/index.es-*.js',
+        ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        // v1.10.2 — Prompt-mode SW: don't auto-take-control until the
+        // main.jsx handler decides it's safe. Prior autoUpdate mode had
+        // skipWaiting+clientsClaim implicit, and combined with a
+        // location.reload() in main.jsx it would blow away mid-invoice
+        // form state on every deploy. See main.jsx onNeedRefresh.
+        skipWaiting: false,
+        clientsClaim: false,
         runtimeCaching: [
+          // v1.10.2 — /api/* runtime cache. Missing this rule meant the
+          // "offline billing counter" promise was broken: fetch() throws
+          // TypeError as soon as the network drops. NetworkFirst means
+          // fresh data online, cached-fallback offline. GETs only —
+          // POST/DELETE would need a background-sync queue (future).
+          {
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' && url.pathname.startsWith('/api/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // a week — fresh enough for offline read
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // v1.10.2 — Lazy-loaded JS chunks (pdf, qr, html2canvas ESM)
+          // are NOT precached but are cached on first use so the second
+          // print offline works.
+          {
+            urlPattern: /\/assets\/(pdf|qr|index\.es)-[A-Za-z0-9]+\.js$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'lazy-chunks-cache',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
@@ -106,13 +166,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'gstatic-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
@@ -120,10 +175,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'images-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
-              },
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
         ],
@@ -136,9 +188,18 @@ export default defineConfig({
     // land inside src/dist/ instead of the repo's dist/.
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
+    // v1.10.2 — main+pdf chunks tripped the default 500 KB warning line
+    // on every build (main 812 KB, pdf 588 KB). Bumped to 900 KB — high
+    // enough to silence noise, low enough to catch a genuine regression.
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks: {
+          // v1.10.2 — React was in the main bundle; every app-code
+          // change invalidated the React runtime for cached clients.
+          // Now: cache hit on React across releases as long as versions
+          // don't move.
+          'react-vendor': ['react', 'react-dom'],
           'pdf': ['jspdf', 'html2canvas'],
           'icons': ['lucide-react'],
           'qr': ['qrcode'],

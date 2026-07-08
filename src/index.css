@@ -1,4 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* v1.10.2 — Removed render-blocking `@import url(https://fonts.googleapis.com/...)`.
+   Two problems it caused:
+   1. First-ever offline load (fresh install, never online) blocked the
+      whole stylesheet parser waiting for the network → unstyled fallback,
+      layout shift.
+   2. Duplicate fetch: this @import requested Inter 300/400/500/600/700/800
+      while `<link>` in src/index.html requested 400/500/600/700 — two
+      separate network round trips for overlapping weights.
+   The `<link>` in the HTML remains (it's preload-friendly and the SW
+   caches it after first visit). Weights we actually use in components
+   are covered. Fallback stack is the system font (Segoe UI, San
+   Francisco, Roboto) so pre-cache users get clean typography
+   immediately. */
 
 :root {
   --primary: #2563eb;

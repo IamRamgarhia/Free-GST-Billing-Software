@@ -47,7 +47,18 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
+    <!--
+      v1.10.2 — iOS Home Screen support. Prior version had a single
+      apple-touch-icon pointing at favicon.svg, which iOS silently
+      ignored (Safari requires PNG for apple-touch-icon and generates
+      a screenshot tile otherwise). The PNGs referenced below need to
+      be placed into public/icons/ — see README section "PWA icons".
+    -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-180.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="GST Billing" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.webmanifest" />
