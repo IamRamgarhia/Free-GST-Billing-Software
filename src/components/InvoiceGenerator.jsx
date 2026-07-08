@@ -234,9 +234,24 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // Tax label and rate presets follow the seller's country, not the client's, since
   // the seller charges and remits the tax. Sellers without a country fall back to India.
   const sellerCountryConfig = getCountryConfig(profile?.country);
-  const countryTaxRates = sellerCountryConfig.taxRates && sellerCountryConfig.taxRates.length
+  // v1.10.5 — audit M25 fix. Merge user's custom tax rates from Print
+  // Settings into the country's default preset list. Prior code
+  // persisted `customTaxRates` in localStorage but never read them
+  // back, so the "Custom tax rate presets" UI in Print Settings was
+  // dead weight. Now: user adds 3, 0.25, 7.5 → they appear in the
+  // per-line tax dropdown alongside 0/5/12/18/28.
+  const _psPrintForRates = getPrintSettings();
+  const customRates = Array.isArray(_psPrintForRates.customTaxRates)
+    ? _psPrintForRates.customTaxRates.map(Number).filter(n => isFinite(n) && n >= 0 && n <= 100)
+    : [];
+  const baseCountryRates = sellerCountryConfig.taxRates && sellerCountryConfig.taxRates.length
     ? sellerCountryConfig.taxRates
     : [0, 5, 12, 18, 28];
+  const countryTaxRates = useMemo(
+    () => [...new Set([...baseCountryRates, ...customRates])].sort((a, b) => a - b),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [baseCountryRates.join(','), customRates.join(',')]
+  );
   const taxLabel = sellerCountryConfig.taxLabel || 'GST';
 
   // Clamp a numeric input to non-negative (and finite). Used for qty/rate/discount.
@@ -672,6 +687,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       const patch = {};
       if (cli.preferredPaperSize) patch.paperSize = cli.preferredPaperSize;
       if (cli.preferredCurrency) patch.currency = cli.preferredCurrency;
+      // v1.10.5 — audit M25. `autoPrint` was saved on the client record
+      // but never applied. Now: when a client has autoPrint=true, this
+      // invoice inherits ps.autoPrintOnSave for the session so the PDF
+      // fires straight to the default printer on Save.
+      if (cli.autoPrint) patch.clientAutoPrint = true;
       if (Object.keys(patch).length > 0) {
         setInvoiceOptions(prev => ({ ...prev, ...patch }));
       }
@@ -1361,9 +1381,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       uploadToGoogleDrive(pdfBlob, fileName);
 
       // v1.10.3 — auto-print via the shared printViaIframe helper.
-      // Prior inline version leaked the blob URL if onload never fired.
+      // v1.10.5 — also fire when the loaded client has autoPrint=true,
+      // even if the app-wide autoPrintOnSave is off (per-client override).
       const ps = getPrintSettings();
-      if (ps.autoPrintOnSave) {
+      if (ps.autoPrintOnSave || invoiceOptions.clientAutoPrint) {
         try { printViaIframe(pdfBlob); }
         catch { /* non-fatal — user already has the PDF downloaded */ }
       }

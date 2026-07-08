@@ -182,19 +182,15 @@ export const DEFAULT_PRINT_SETTINGS = {
   customTaxRates: [],            // [0.1, 0.25, 3, 7.5] etc.
 
   // -- Custom invoice extra fields --
-  // Up to 5 free-form key:value pairs rendered under the client block.
-  // Example: [{ label: 'PO Reference', value: 'PO-2026-042' }]
-  customInvoiceFields: [],       // per-invoice overrides via invoiceOptions
+  // v1.10.5 — NOT YET WIRED. Setting exists so a future consumer can
+  // add it without a data migration; UI in PrintSettings was removed
+  // (was configurable but never rendered on the invoice, per audit M25).
+  customInvoiceFields: [],
 
   // -- Column widths (items table, sheet PDFs) --
-  // Percent widths. Must sum to 100 (validated). Missing keys = auto-fill.
+  // v1.10.5 — NOT YET WIRED. See customInvoiceFields note above.
   columnWidths: {
-    item: 35,    // description
-    hsn: 10,
-    qty: 8,
-    rate: 15,
-    tax: 12,
-    amount: 20,
+    item: 35, hsn: 10, qty: 8, rate: 15, tax: 12, amount: 20,
   },
 
   // -- Saved custom PDF templates --
@@ -217,9 +213,12 @@ export const DEFAULT_PRINT_SETTINGS = {
   // filings + low stock, it also checks overdue invoices and surfaces
   // them here. Users get a bell-badge count; clicking opens the affected
   // bill's WhatsApp share prefilled with a reminder message.
-  reminderEnabled: true,             // show overdue-invoice reminders in bell centre
-  reminderDaysBeforeDue: 3,          // notify N days before due date (0 = disable pre-due nag)
-  reminderDaysAfterOverdue: [1, 7, 14, 30], // send reminder N days after overdue
+  reminderEnabled: true,             // consumed by notification bell (overdue count)
+  // v1.10.5 — the three below are NOT YET WIRED. Setting shape kept so
+  // a future notification-send integration doesn't need a data migration;
+  // UI in PrintSettings was removed per audit M25.
+  reminderDaysBeforeDue: 3,
+  reminderDaysAfterOverdue: [1, 7, 14, 30],
   reminderTemplate: 'Hi {client}, this is a friendly reminder about invoice {invoice_number} for {amount} dated {invoice_date}. Kindly make the payment at your earliest convenience. Thank you!',
 };
 

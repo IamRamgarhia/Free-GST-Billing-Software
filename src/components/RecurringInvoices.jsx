@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Plus, Edit3, Trash2, Play, Pause, Calendar, X, Save } from 'lucide-react';
+import { RefreshCw, Plus, Edit3, Trash2, Play, Pause, X, Save } from 'lucide-react';
 import { getAllRecurring, saveRecurring, deleteRecurring, getAllClients, saveBill, getNextInvoiceNumber } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';

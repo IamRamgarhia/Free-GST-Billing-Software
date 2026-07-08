@@ -994,8 +994,13 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             </div>
           )}
           {/* Terms and notes accept rich HTML; same DOMPurify sanitization the extraSections
-              block uses, which keeps b/i/u/lists/links/headings and strips everything else. */}
-          {(() => {
+              block uses, which keeps b/i/u/lists/links/headings and strips everything else.
+              v1.10.5 — audit M25 fix. `termsSeparatePage` was a saved
+              setting the UI toggled but nothing consumed. Now: when
+              true, T&C + notes render inside a `data-pdf-page` container
+              (same mechanism the extraSections feature uses). buildPDF's
+              extraPages loop then captures it as its own PDF page. */}
+          {!_ps.termsSeparatePage && (() => {
             const termsHtml = customTerms ? DOMPurify.sanitize(customTerms) : '';
             const hasTerms = termsHtml && termsHtml.replace(/<[^>]*>/g, '').trim();
             return showTerms && hasTerms ? (
@@ -1005,7 +1010,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               </div>
             ) : null;
           })()}
-          {(() => {
+          {!_ps.termsSeparatePage && (() => {
             const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
             const hasNotes = notesHtml && notesHtml.replace(/<[^>]*>/g, '').trim();
             return showNotes && hasNotes ? (
@@ -1016,6 +1021,33 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             ) : null;
           })()}
         </div>
+        {/* v1.10.5 — Separate T&C page. Uses the same data-pdf-page
+             attribute the extraSections feature uses, so buildPDF's
+             existing extraPages loop captures it on its own page. */}
+        {_ps.termsSeparatePage && (customTerms || customNotes) && (
+          <div data-pdf-page="terms" style={{ padding: '2rem', pageBreakBefore: 'always', breakBefore: 'page' }}>
+            {(() => {
+              const termsHtml = customTerms ? DOMPurify.sanitize(customTerms) : '';
+              const hasTerms = termsHtml && termsHtml.replace(/<[^>]*>/g, '').trim();
+              return showTerms && hasTerms ? (
+                <div className="inv-footer-block">
+                  <h4 className="inv-section-label">{getLabel(_ps_labels, 'terms')}</h4>
+                  <div className="inv-terms inv-rich" dangerouslySetInnerHTML={{ __html: termsHtml }} />
+                </div>
+              ) : null;
+            })()}
+            {(() => {
+              const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
+              const hasNotes = notesHtml && notesHtml.replace(/<[^>]*>/g, '').trim();
+              return showNotes && hasNotes ? (
+                <div className="inv-footer-block" style={{ marginTop: '2rem' }}>
+                  <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
+                  <div className="inv-terms inv-rich" dangerouslySetInnerHTML={{ __html: notesHtml }} />
+                </div>
+              ) : null;
+            })()}
+          </div>
+        )}
         {(() => {
           // v1.9.0: signature source priority — profile.signature (per-business,
           // legacy), then printSettings.signatureImage (app-wide default set

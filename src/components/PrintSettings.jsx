@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Printer, TestTube, RotateCcw, Info, Search, Save as SaveIcon, Trash2 } from 'lucide-react';
+import { Printer, TestTube, RotateCcw, Info, Save as SaveIcon, Trash2 } from 'lucide-react';
 import { toast } from './Toast';
 import InvoicePreview from './InvoicePreview';
 import { getProfile } from '../store';
@@ -941,40 +941,17 @@ export default function PrintSettings() {
           hint="Comma-separated numbers. Between 0 and 100." />
       </div>
 
-      {/* -- CUSTOM INVOICE EXTRA FIELDS (v1.9.3 lite) -- */}
-      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
-          🏷 Custom fields (default on every invoice)
-        </h4>
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>
-          Add labels that show under the client block on every invoice. Example: "PO Reference", "Delivery Slot", "Site Address". Value is filled per-invoice.
-        </p>
-        <ExtraFieldsEditor
-          fields={settings.customInvoiceFields || []}
-          onChange={v => set({ customInvoiceFields: v })} />
-      </div>
-
-      {/* -- COLUMN WIDTHS -- */}
-      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
-          📏 Items table column widths (percent)
-        </h4>
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>
-          Must sum to 100%. Applies to A4/A5 sheet PDFs (thermal receipts use their own layout).
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
-          {['item', 'hsn', 'qty', 'rate', 'tax', 'amount'].map(col => (
-            <NumInput key={col} label={col === 'item' ? 'Description' : col.toUpperCase()}
-              value={settings.columnWidths?.[col] ?? DEFAULT_PRINT_SETTINGS.columnWidths[col]}
-              min={4} max={80}
-              onChange={v => set({ columnWidths: { ...settings.columnWidths, [col]: v } })} />
-          ))}
-        </div>
-        <button type="button" className="btn btn-secondary" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}
-          onClick={() => set({ columnWidths: { ...DEFAULT_PRINT_SETTINGS.columnWidths } })}>
-          Reset to defaults
-        </button>
-      </div>
+      {/* v1.10.5 — audit M25. Three unwired UI sections deleted here:
+           * "Custom fields (default on every invoice)" — customInvoiceFields
+             was saved but never rendered on the invoice.
+           * "Items table column widths" — columnWidths were saved but no
+             code applied them to .inv-table columns.
+           * "Payment reminder scheduling" (below saved-templates) —
+             reminderTemplate + reminderDaysAfter* had no send-side wiring.
+         The setting defaults stay in printSettings.js so existing
+         localStorage payloads still parse (extra keys are ignored). If
+         someone wants these features, the settings shape is ready — the
+         missing piece is the consumer code. */}
 
       {/* -- SAVED CUSTOM TEMPLATES -- */}
       <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
@@ -996,26 +973,9 @@ export default function PrintSettings() {
           }} />
       </div>
 
-      {/* v1.9.4 — PAYMENT REMINDER SCHEDULING */}
-      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
-          🔔 Payment reminder scheduling
-        </h4>
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
-          The notification bell surfaces overdue invoices on your schedule. Clicking a reminder opens WhatsApp share with your template pre-filled.
-        </p>
-        <ToggleRow label="Enable payment reminders" value={settings.reminderEnabled} onChange={v => set({ reminderEnabled: v })} />
-        {settings.reminderEnabled && (
-          <>
-            <NumInput label="Notify N days before due date (0 = disable)" value={settings.reminderDaysBeforeDue}
-              onChange={v => set({ reminderDaysBeforeDue: v })} min={0} max={30} />
-            <TextRow label="Reminder message template"
-              value={settings.reminderTemplate}
-              onChange={v => set({ reminderTemplate: v })}
-              hint="Placeholders: {client} · {invoice_number} · {amount} · {invoice_date} · {due_date}" />
-          </>
-        )}
-      </div>
+      {/* v1.10.5 — reminder-scheduling UI removed. See M25 audit note
+           above the SAVED TEMPLATES section. Notification bell still
+           surfaces overdue bills using `reminderEnabled` alone. */}
 
         </div>{/* end .print-settings-body */}
 

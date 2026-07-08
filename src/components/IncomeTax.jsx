@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Calculator, Landmark, FileText, TrendingUp, Upload, Save, Info, Check, X, ChevronRight, Briefcase, Clock, Download } from 'lucide-react';
+import { Calculator, Landmark, FileText, TrendingUp, Upload, Info, Check, X, ChevronRight, Briefcase, Clock, Download } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
 import { formatCurrency } from '../utils';
 import {

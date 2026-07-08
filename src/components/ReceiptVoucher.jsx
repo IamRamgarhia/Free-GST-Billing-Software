@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Receipt, Plus, Trash2, Search, X, Download, Printer } from 'lucide-react';
+import { Receipt, Plus, Trash2, Search, Printer } from 'lucide-react';
 import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
 import { formatCurrency, numberToWords } from '../utils';
 import { toast } from './Toast';

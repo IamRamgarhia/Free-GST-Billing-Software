@@ -423,12 +423,18 @@ function App() {
       acts.push({ label: `View update — v${updateInfo.latest}`, hint: '', category: 'update', run: () => setShowUpdateModal(true) });
     }
     // v1.9.4 — cross-app search: invoices, clients, products
+    // v1.10.5 — audit H24 fix. Prior code dispatched
+    // `CustomEvent('fgsb-open-bill', { detail: b.id })` but no one
+    // listened for it — selecting an invoice in the palette silently
+    // dropped the ID and just landed on Dashboard. Now: reuse
+    // handleEditInvoice() directly, which is already the canonical way
+    // to open a bill for editing (works from Dashboard row-click too).
     searchCorpus.bills.forEach(b => {
       acts.push({
         label: `📄 ${b.invoiceNumber || 'INV-?'} — ${b.clientName || 'No client'}`,
         hint: b.invoiceDate ? new Date(b.invoiceDate).toLocaleDateString('en-IN') : '',
         category: 'invoice',
-        run: () => { setCurrentView('dashboard'); setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb-open-bill', { detail: b.id })), 100); },
+        run: () => handleEditInvoice(b),
       });
     });
     searchCorpus.clients.forEach(c => {

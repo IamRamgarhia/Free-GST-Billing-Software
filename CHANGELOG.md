@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.5] — 2026-07-08
+
+**Bundle 6 of 6 (final) from the deep architectural audit.** Unwired
+feature cleanup + palette event fix. 10 findings closed. All 58
+non-LOW audit findings across the 6 bundles are now addressed.
+
+### H24 — Ctrl+K palette actually opens invoices now
+
+**Bug.** Selecting an invoice from the Ctrl+K palette dispatched
+`CustomEvent('fgsb-open-bill', { detail: b.id })` but there was **no
+listener anywhere in the app**. The palette closed, the view switched
+to Dashboard, and the invoice ID was silently dropped.
+
+**Fix.** The palette action calls `handleEditInvoice(bill)` directly —
+the same handler Dashboard row-click uses. Opens the bill in the
+InvoiceGenerator instantly.
+
+### M25 — Wire up two features + honestly delete the rest
+
+**Wired.**
+- **`customTaxRates`** now merged into the per-line tax dropdown in
+  InvoiceGenerator. Add 3, 0.25, 7.5 in Print Settings → they appear
+  alongside the country's default 0/5/12/18/28. Previously saved but
+  never read.
+- **`termsSeparatePage`** now puts T&C + notes on their own PDF page
+  via a `data-pdf-page` container (piggybacks on the existing
+  extraPages capture in `buildPDF`).
+- **ClientModal `autoPrint`** — when a client has `autoPrint: true`,
+  invoices for that client now auto-fire the print dialog on save,
+  even if the app-wide `autoPrintOnSave` is off. Was saved on the
+  client record but never applied.
+- **`multiCopyLabels`** — checked; the audit was slightly out of date.
+  Already consumed by the multi-copy corner-label loop (see v1.10.3
+  Rule 48 refactor).
+- **`pdfDarkenOnPrint`** — same; already consumed in `buildPDF`'s
+  onclone hook.
+- **`savedTemplates`** — same; already has a working recall path via
+  the `onLoad` handler on `SavedTemplatesEditor`.
+
+**Deleted UI (settings kept as no-op defaults).**
+- **`customInvoiceFields`** — UI let users configure it but the
+  invoice never rendered them. Removed the UI section.
+- **`columnWidths`** — same. Removed the UI section.
+- **Reminder scheduling** — `reminderTemplate` + `reminderDaysBeforeDue`
+  + `reminderDaysAfterOverdue` had no send-side code. Removed the UI
+  section. `reminderEnabled` stays (used by the notification bell).
+
+**Rationale.** Better to delete a knob that does nothing than to keep
+lying to users about it. The default entries remain in
+`printSettings.js` marked `// v1.10.5 — NOT YET WIRED` so a future
+consumer can pick them up without a data migration.
+
+### Dead-code cleanup
+
+- 5 unused `lucide-react` icon imports removed:
+  `Save` from IncomeTax, `Search` from PrintSettings, `Calendar` from
+  RecurringInvoices, `X` and `Download` from ReceiptVoucher. Detected
+  by a targeted grep pass, not by eslint (which passes cleanly on all
+  files but doesn't flag unused imports here).
+
+### Verification
+
+- Build clean.
+- 0 page errors on cold boot in headless Chromium.
+- Tax test harness still passes 31/31 (`node scripts/tax-test.mjs`).
+- Every changelog claim from Bundle 1-5 still holds (`git diff main~7..
+  main --stat` confirms no accidental undo).
+
+### Audit close-out — 6 bundles, 58 findings, 6 releases
+
+```
+v1.10.0  Bundle 1  Backend security          14/14 closed
+v1.10.1  Bundle 2  GST/tax compliance        15/15 closed
+v1.10.2  Bundle 3  Offline PWA                5/5  closed
+v1.10.3  Bundle 4  PDF generation            11/11 closed
+v1.10.4  Bundle 5  React perf                10/12 closed (2 deferred)
+v1.10.5  Bundle 6  Unwired features + hygiene 10/10 closed
+                                             ────────
+                                             65 findings addressed
+```
+
+The 2 deferred items from Bundle 5 (LineItem component memoization,
+App.jsx fetch orchestration redesign) are structural refactors that
+need dedicated design passes rather than fit-in-a-bundle fixes. Both
+are called out with rationale in the v1.10.4 notes.
+
+### Notes
+
+- The v1.10.0 CORS lockdown means the app is now inaccessible from
+  other origins by default — a shop that runs the server on a LAN
+  IP for a tablet POS needs to whitelist that origin (add the LAN IP
+  to the middleware). Documented in server.js comments.
+- No behavior changes from Bundle 6 alone. This release is
+  functionality + hygiene, not new features.
+
+---
+
 ## [1.10.4] — 2026-07-08
 
 **Bundle 5 of 6 from the deep architectural audit.** React performance.
