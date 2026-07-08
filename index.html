@@ -234,10 +234,34 @@
     (function () {
       'use strict';
 
+      // v1.9.6 — Polling redesigned to eliminate console spam.
+      //
+      // BEFORE: every 2 seconds we scanned 50 ports (47371-47420) in
+      // parallel looking for the server. When the server was down, that
+      // meant ~25 failed fetches per second flooding DevTools console
+      // with net::ERR_CONNECTION_REFUSED for every port + hitting the
+      // OS's TCP stack constantly. User's screenshot showed dozens of
+      // errors per few seconds.
+      //
+      // AFTER:
+      //   - On startup: try cached port. If it fails, do ONE full scan.
+      //     After that, we remember whichever port worked (or `null` if
+      //     none did).
+      //   - Regular polls (every 2s): only ping the KNOWN port. No scans.
+      //   - If server transitions to stopped: exponential backoff
+      //     (2s → 5s → 15s → stopped). No more auto-polling.
+      //   - "Retry now" button appears in stopped state → resets backoff,
+      //     does a fresh scan.
+      //
+      // Net result when server is down: ~1 request every 15s max, not
+      // 25 per second.
       var DEFAULT_PORT = 47371;
       var SCAN_RANGE = 50;
       var activePort = DEFAULT_PORT;
       var pollTimer = null;
+      var didInitialScan = false;
+      var consecutiveFailures = 0;
+      var currentInterval = 2000; // ms; grows on failure, resets on success
 
       try {
         var cached = window.sessionStorage && sessionStorage.getItem('fgsb_port');
@@ -269,18 +293,35 @@
         });
       }
 
-      function findRunningPort() {
-        return pingPort(activePort).then(function (hit) {
-          if (hit) return hit;
-          var probes = [];
-          for (var p = DEFAULT_PORT; p < DEFAULT_PORT + SCAN_RANGE; p++) {
-            probes.push(pingPort(p));
-          }
-          return Promise.all(probes).then(function (results) {
-            for (var i = 0; i < results.length; i++) { if (results[i]) return results[i]; }
-            return null;
-          });
+      // Full scan of the port range — used ONLY on first mount + when
+      // user explicitly clicks "Retry now". Never on regular polls.
+      function fullScan() {
+        var probes = [];
+        for (var p = DEFAULT_PORT; p < DEFAULT_PORT + SCAN_RANGE; p++) {
+          probes.push(pingPort(p));
+        }
+        return Promise.all(probes).then(function (results) {
+          for (var i = 0; i < results.length; i++) { if (results[i]) return results[i]; }
+          return null;
         });
+      }
+
+      // Regular poll: only pings the KNOWN cached port. No scan.
+      // Returns the hit object (with port + version) or null.
+      function findRunningPort() {
+        // On first check, run the initial scan so we find the server even
+        // if the cached port is stale. After that, only ping the known
+        // port. User can force a re-scan via the "Retry now" button.
+        if (!didInitialScan) {
+          didInitialScan = true;
+          return pingPort(activePort).then(function (hit) {
+            if (hit) return hit;
+            return fullScan();
+          });
+        }
+        // Regular tick — only ping the cached port. If it fails, we back
+        // off in checkServer(). No console spam.
+        return pingPort(activePort);
       }
 
       function setStatus(state, message, detail) {
@@ -310,32 +351,81 @@
         var c = $('info-checked'); if (c) c.textContent = new Date().toLocaleTimeString();
       }
 
+      function schedulePoll() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(checkServer, currentInterval);
+      }
+
       function checkServer() {
         return findRunningPort().then(function (hit) {
           if (hit) {
             activePort = hit.port;
             try { sessionStorage.setItem('fgsb_port', String(hit.port)); } catch (e) {}
+            // Success — reset backoff, poll every 2s
+            consecutiveFailures = 0;
+            currentInterval = 2000;
             setStatus('running', 'Server is running on port ' + hit.port, 'Click "Open Billing App" to launch in a new tab.');
             setButtons(true, hit.port);
             setInfo(true, hit.port, hit.version);
+            schedulePoll();
           } else {
-            setStatus('stopped', 'Server is not running', 'Click "Start Server" - your browser may ask to allow freegstbill://. Click Allow.');
+            // Failure — increment counter, back off exponentially, and
+            // eventually stop auto-polling. User then uses "Retry now".
+            consecutiveFailures += 1;
+            var detailMsg = 'Click "Start Server" — your browser may ask to allow freegstbill://. Click Allow.';
+            if (consecutiveFailures === 1) currentInterval = 5000;
+            else if (consecutiveFailures === 2) currentInterval = 15000;
+            else if (consecutiveFailures >= 3) {
+              currentInterval = 0; // stop
+              detailMsg = 'Auto-check paused after 3 failures. Click "Retry now" to check again.';
+            }
+            setStatus('stopped', 'Server is not running', detailMsg);
             setButtons(false);
             setInfo(false);
+            showRetryButton(currentInterval === 0);
+            if (currentInterval > 0) schedulePoll();
           }
         }).catch(function (e) {
           setStatus('stopped', 'Error checking server', 'Open browser DevTools (F12) Console for details.');
           if (window.console && console.error) console.error('Launcher status check failed:', e);
+          currentInterval = 0;
+          showRetryButton(true);
         });
       }
 
+      // Retry button injected below the status pill when polling has
+      // stopped due to repeated failures. Clicking it does a full scan
+      // and resets the backoff so regular polling resumes on success.
+      function showRetryButton(visible) {
+        var existing = $('retry-btn');
+        if (!visible) {
+          if (existing) existing.style.display = 'none';
+          return;
+        }
+        if (existing) { existing.style.display = ''; return; }
+        var btn = document.createElement('button');
+        btn.id = 'retry-btn';
+        btn.className = 'btn';
+        btn.style.cssText = 'margin-top:10px;font-size:0.85rem;padding:6px 12px;';
+        btn.textContent = '↻ Retry now';
+        btn.addEventListener('click', function () {
+          didInitialScan = false; // force a full scan
+          consecutiveFailures = 0;
+          currentInterval = 2000;
+          btn.style.display = 'none';
+          checkServer();
+        });
+        var status = $('status');
+        if (status && status.parentNode) status.parentNode.insertBefore(btn, status.nextSibling);
+      }
+
       function startPolling() {
+        consecutiveFailures = 0;
+        currentInterval = 2000;
         checkServer();
-        if (pollTimer) clearInterval(pollTimer);
-        pollTimer = setInterval(checkServer, 2000);
       }
       function stopPolling() {
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
       }
 
       // Pause polls when tab is backgrounded (saves CPU).
@@ -345,9 +435,19 @@
         });
       } catch (e) {}
 
-      // Burst-poll after clicks so status updates within a second.
+      // Burst-poll after Start/Stop clicks so status updates within a
+      // second. Uses ONLY the known port (not scan) — the user's action
+      // triggered this, so we know we're looking for the same server.
+      // After the burst, regular polling resumes at 2s.
       function burst(durationMs) {
         var start = Date.now();
+        // Reset the backoff so the burst polls at fast interval + the
+        // subsequent regular polling doesn't inherit any prior failure count.
+        consecutiveFailures = 0;
+        currentInterval = 2000;
+        // Force a fresh scan on Start click since the server may come up
+        // on a different port than the cached one.
+        didInitialScan = false;
         var burstTimer = setInterval(function () {
           checkServer();
           if (Date.now() - start > durationMs) clearInterval(burstTimer);

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.6] — 2026-04-30
+
+Hotfix: Launcher was flooding the browser console with
+`ERR_CONNECTION_REFUSED` errors when the server was down.
+
+### Fixed — Launcher no longer spams the console
+
+**Root cause**: the Launcher (`index.html` at repo root) polled every
+2 seconds by scanning ALL 50 ports in the range 47371–47420 in parallel.
+When the server was stopped (e.g. right after `Update FreeGSTBill.bat`
+finished, before the new server had started), that produced ~25 failed
+fetches per second, each logging `net::ERR_CONNECTION_REFUSED` to
+DevTools. User's screenshot showed dozens of errors in the console
+history.
+
+**Fix — rewrote the polling logic**:
+
+1. **On mount** — try the cached port. If it fails, do ONE full scan
+   of the port range. Remember the result.
+2. **Regular polls** — only ping the KNOWN port. No more scans.
+3. **Exponential backoff on failure** — 2 s → 5 s → 15 s → stopped.
+4. **"↻ Retry now" button** — appears below the status pill when
+   auto-polling has stopped. Click resets backoff + does a fresh scan.
+
+**Net effect when server is down**:
+- Before: ~25 requests/sec (50 in flight every 2 s)
+- After: ~1 request every 15 s max, and eventually 0 (Retry required)
+
+The button flows: **Start Server** click still triggers a burst poll
+(fast checks for 30 s) and forces a fresh scan since the server may
+have come up on a different port than the cached one.
+
+### Backward compatibility
+
+- Existing users get the fix on next `Update FreeGSTBill.bat`
+- Only touches `index.html` (the Launcher) — no server changes
+- No visual change when the server is running
+
+---
+
 ## [1.9.5] — 2026-04-30
 
 **"Business Intelligence + Safety Net"** — new Reports tabs, automatic
