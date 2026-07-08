@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.8] — 2026-07-08
+
+**Real fix for M21 — multi-page invoices no longer cut rows mid-content.**
+This was the biggest still-open item from the deep audit.
+
+### Before
+
+Prior code (from v1.9.x) rendered the whole invoice as one tall canvas,
+then stamped the SAME image on each PDF page at increasing negative-Y
+offsets:
+
+```
+Page 1: y = 0             → shows canvas rows 0…297mm
+Page 2: y = -297mm        → shows canvas rows 297…594mm
+Page 3: y = -594mm        → shows canvas rows 594…891mm
+```
+
+The seam between pages fell wherever `pdfPageHeight × N` landed —
+almost always mid-row. Table cells were cut in half, discount lines
+were split across pages, tax columns landed on different sheets from
+the item they belonged to. v1.10.3 added CSS `page-break-inside: avoid`
++ `display: table-header-group` as mitigation, but that only nudges
+html2canvas's layout — it doesn't guarantee the seam.
+
+### After
+
+1. **DOM row boundaries measured before html2canvas capture.** Collects
+   `bottom` positions of `.inv-table tbody tr`, `thead tr`,
+   `.inv-header`, `.inv-parties`, `.inv-footer-block`, `.inv-totals`,
+   and any `[data-pdf-page-boundary]` escape-hatches.
+
+2. **After capture, boundaries convert DOM px → canvas px** by the
+   `mainCanvas.width / containerWidth` scale.
+
+3. **The multi-page loop walks the canvas top-to-bottom.** For each
+   page: naive end = pageStart + pdfPageHeight (in canvas px). Look
+   back through boundaries for the LARGEST one ≤ naive end but
+   > pageStart+20 (progress guarantee). Snap to that. If no boundary
+   fits (single "row" bigger than a page — a huge terms block), fall
+   back to hard-slice so we still print rather than infinite-loop.
+
+4. **Each page gets its own cropped image.** No more "same tall image
+   at different Y offsets" — each recipe in `pageRecipes` has its own
+   image, drawn from `mainCanvas` onto a temp canvas at exact crop
+   dimensions. Multi-copy (Rule 48) still works — the loop iterates
+   the recipes.
+
+### Verified
+
+Chromium test with a 25-item invoice: page 1/2 seam algorithm picked
+DOM-px row bottom `1108` (the row from 1074→1108 fits fully on page
+1; the row from 1108→1142 goes entirely on page 2). Naive break would
+have been at `1123` — 15px into the middle of a row. **0 mid-row cuts,
+2-page PDF, 1.3 MB, 0 page errors.**
+
+### Compatibility
+
+- Multi-copy (Rule 48) unchanged in behavior — replays the same
+  cropped-per-page recipes across ORIGINAL / DUPLICATE / TRIPLICATE.
+- Watermark, page numbers, page header, invoice QR / barcode still
+  post-processed onto the final PDF pages (no dependency on the
+  image-stamp mechanism).
+- Extra pages (`data-pdf-page` — the Bundle 6 `termsSeparatePage`
+  feature) unchanged.
+- Single-page invoices skip the cropping path entirely — same
+  performance as before.
+
+### Notes
+
+- Two structural items remain honest open follow-ups: `/api/*`
+  POST/DELETE background-sync queue (writes offline), and store.js
+  redesigned as a real state layer (M11/M12/M13/M26 from audit
+  Bundle 5). Both are their own PR-sized efforts.
+
+---
+
 ## [1.10.7] — 2026-07-08
 
 **Follow-up bundle** — the four highest-value items from the "what's

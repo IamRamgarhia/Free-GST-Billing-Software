@@ -1168,7 +1168,40 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       height: el.scrollHeight,
     });
 
-    // Hide extra pages, capture main invoice
+    // Hide extra pages, capture main invoice.
+    // v1.10.8 — audit M21 real fix. Prior code stamped the same tall
+    // canvas at successive negative-Y offsets. Any row straddling a
+    // pdfPageHeight boundary was cut mid-content on the PDF seam.
+    // Now: pre-measure the DOM row boundaries so we can crop each
+    // virtual page at a safe row-boundary instead of blindly slicing
+    // every pdfPageHeight mm.
+    //
+    // Elements collected as "no-split-inside" anchors:
+    //  • Every <tr> in the items table  → keep rows whole.
+    //  • .inv-header / .inv-parties     → keep title + billing block whole.
+    //  • .inv-footer-block              → keep bank / T&C / notes whole.
+    //  • [data-pdf-page-boundary]       → escape hatch for future needs.
+    //
+    // The set collected here is DOM pixels relative to printRef.current.
+    // We convert to canvas pixels below (× domToCanvasScale) once html2canvas
+    // has returned and we know the true canvas.width.
+    const collectRowBoundaries = (container) => {
+      const containerRect = container.getBoundingClientRect();
+      const nodes = container.querySelectorAll(
+        '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
+        '.inv-footer-block, .inv-totals, [data-pdf-page-boundary]'
+      );
+      const set = new Set([0]);
+      nodes.forEach(el => {
+        const r = el.getBoundingClientRect();
+        set.add(Math.max(0, r.bottom - containerRect.top));
+        set.add(Math.max(0, r.top - containerRect.top));
+      });
+      return [...set].sort((a, b) => a - b);
+    };
+    const domBoundariesPx = collectRowBoundaries(printRef.current);
+    const domContainerWidth = printRef.current.getBoundingClientRect().width;
+
     extraPages.forEach(el => el.style.display = 'none');
     const mainCanvas = await html2canvas(printRef.current, {
       ...captureOptions(printRef.current),
@@ -1197,32 +1230,79 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     extraPages.forEach(el => el.style.display = '');
 
     // v1.10.3 — Record each original page as a "recipe" so multi-copy
-    // (GST Rule 48) can duplicate multi-page invoices correctly. Prior
-    // code only re-added the main image ONCE per copy — so a 3-page
-    // invoice printed in 3 copies gave ORIGINAL 3pp, DUPLICATE 1p,
-    // TRIPLICATE 1p. Not GST-compliant. Now: iterate `pageRecipes`
-    // per copy and re-add every page image.
-    const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
+    // (GST Rule 48) can duplicate multi-page invoices correctly.
+    // v1.10.8 — Each recipe is now its own cropped image (was: one
+    // shared tall image with negative-Y offsets). See M21 note above.
     const mainImgHeight = (mainCanvas.height * pdfWidth) / mainCanvas.width;
-    const pageRecipes = [];   // { img, y, h } — replayed by multi-copy loop
+    const pageRecipes = [];
 
-    // Add main invoice page(s). For multi-page, jsPDF trick is to re-add
-    // the SAME image at successive negative Y offsets so the tall image
-    // "scrolls" through pages.
     if (mainImgHeight <= pdfPageHeight + 2) {
+      // Single-page fits — no cropping needed.
+      const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
       pdf.addImage(mainImg, imgFormat, 0, 0, pdfWidth, Math.min(mainImgHeight, pdfPageHeight), undefined, 'MEDIUM');
       pageRecipes.push({ img: mainImg, y: 0, h: Math.min(mainImgHeight, pdfPageHeight) });
     } else {
-      let heightLeft = mainImgHeight, position = 0;
-      pdf.addImage(mainImg, imgFormat, 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM');
-      pageRecipes.push({ img: mainImg, y: position, h: mainImgHeight });
-      heightLeft -= pdfPageHeight;
-      while (heightLeft > 2) {
-        position -= pdfPageHeight;
-        pdf.addPage();
-        pdf.addImage(mainImg, imgFormat, 0, position, pdfWidth, mainImgHeight, undefined, 'MEDIUM');
-        pageRecipes.push({ img: mainImg, y: position, h: mainImgHeight });
-        heightLeft -= pdfPageHeight;
+      // v1.10.8 multi-page path — snap page breaks to safe DOM row boundaries.
+      //
+      // 1. Convert DOM-pixel boundaries → canvas-pixel boundaries.
+      const domToCanvasScale = mainCanvas.width / domContainerWidth;
+      const canvasBoundariesPx = domBoundariesPx.map(y => y * domToCanvasScale);
+      const totalCanvasHeightPx = mainCanvas.height;
+      if (!canvasBoundariesPx.includes(totalCanvasHeightPx)) {
+        canvasBoundariesPx.push(totalCanvasHeightPx);
+      }
+      canvasBoundariesPx.sort((a, b) => a - b);
+
+      // 2. How many canvas pixels correspond to one PDF page height?
+      const pdfPageHeightCanvasPx = pdfPageHeight * (mainCanvas.width / pdfWidth);
+
+      // 3. Walk the canvas top-to-bottom, allocating pages. For each
+      //    page: find the largest boundary ≤ naive end, but > current
+      //    page start (progress guarantee).
+      const pageSplits = [];
+      let pageStart = 0;
+      let safety = 0;
+      while (pageStart < totalCanvasHeightPx && safety++ < 100) {
+        const naiveEnd = pageStart + pdfPageHeightCanvasPx;
+        if (naiveEnd >= totalCanvasHeightPx) {
+          pageSplits.push({ start: pageStart, end: totalCanvasHeightPx });
+          break;
+        }
+        // Prefer the LAST boundary at or before naiveEnd; must exceed pageStart.
+        let safeEnd = null;
+        for (let i = canvasBoundariesPx.length - 1; i >= 0; i--) {
+          const b = canvasBoundariesPx[i];
+          if (b <= naiveEnd + 1 && b > pageStart + 20) {   // +20px min progress
+            safeEnd = b;
+            break;
+          }
+        }
+        // No safe boundary found in range (a single "row" bigger than a page,
+        // e.g. a huge terms block). Fall back to a hard slice — but still
+        // print SOMETHING rather than looping forever.
+        if (safeEnd === null) safeEnd = naiveEnd;
+        pageSplits.push({ start: pageStart, end: safeEnd });
+        pageStart = safeEnd;
+      }
+
+      // 4. For each page, crop mainCanvas → temp canvas → data URL → PDF.
+      for (let i = 0; i < pageSplits.length; i++) {
+        const { start, end } = pageSplits[i];
+        const cropHeight = end - start;
+        if (cropHeight < 1) continue;
+        const tmp = document.createElement('canvas');
+        tmp.width = mainCanvas.width;
+        tmp.height = cropHeight;
+        const ctx = tmp.getContext('2d');
+        // White fill first so a JPEG doesn't render transparent as black.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tmp.width, cropHeight);
+        ctx.drawImage(mainCanvas, 0, -start);
+        const pageImg = tmp.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
+        const pageMmHeight = (cropHeight * pdfWidth) / mainCanvas.width;
+        if (i > 0) pdf.addPage();
+        pdf.addImage(pageImg, imgFormat, 0, 0, pdfWidth, pageMmHeight, undefined, 'MEDIUM');
+        pageRecipes.push({ img: pageImg, y: 0, h: pageMmHeight });
       }
     }
 
