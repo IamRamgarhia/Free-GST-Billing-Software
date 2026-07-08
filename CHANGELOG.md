@@ -7,6 +7,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.7] — 2026-07-08
+
+**Follow-up bundle** — the four highest-value items from the "what's
+still pending" list. Verified in real Chromium.
+
+### PNG icon set (Bundle 3 follow-up)
+
+v1.10.2 shipped the manifest declarations for `/icons/icon-192.png`
+etc. but left an **⚠ Action required** note in the changelog because
+the PNGs themselves weren't generated. Consequences:
+- Android "Add to Home Screen" fell back to SVG (worked, but no
+  adaptive-icon safe zone → the icon could get cropped by circle /
+  squircle / teardrop masks).
+- iOS silently ignored the SVG `apple-touch-icon` and rendered a
+  screenshot tile of the current page.
+
+Now: `scripts/generate-icons.mjs` + `npm run icons` emits the full 5
+PNGs from `public/favicon.svg` via `sharp`:
+
+```
+icon-192.png             192×192   4.5 KB  any
+icon-512.png             512×512  16.5 KB  any
+maskable-192.png         192×192   2.9 KB  maskable (62% inset + solid #1e40af bg)
+maskable-512.png         512×512  12.3 KB  maskable
+apple-touch-180.png      180×180   4.1 KB  any
+```
+
+Verified: all five return `200` from `/icons/*.png`.
+
+### `<LineItem>` extracted + memoized (H14 from Bundle 5)
+
+This was the biggest deferred perf finding. Prior:
+- Item list was inlined into `InvoiceGenerator`'s render → typing one
+  character in row 1 of a 20-item invoice re-rendered ALL 20 rows.
+- Handlers were inline arrow functions → new identity every parent
+  render, so `React.memo` wouldn't have helped even if the row were
+  extracted.
+- `filterUnitsByMode()` ran in an IIFE per row per render.
+- `getProductSuggestions(item.id)` was called TWICE per row per
+  render.
+
+Fix:
+1. Extracted `<LineItem>` component with a **19-prop contract**
+   (item, invoiceOptions, taxInclusive, showGST, taxLabel, units,
+   countryTaxRates, filterUnitsByMode, invoiceMode, currency,
+   profileCountry, suggestions, 6 handlers, clampNonNeg).
+2. Wrapped in `React.memo` — shallow comparison; only re-renders
+   when the specific item's prop reference changes.
+3. Handlers wrapped in `useCallback` with correct dep lists so their
+   identities stay stable: `handleItemChange` (`[]`), `selectProduct`
+   (`[countryTaxRates]`), `getProductSuggestions` (`[productSearch,
+   products]`), `removeItem` (`[]`), `clampNonNeg` (`[]`),
+   `handleAddCustomUnit` (`[handleItemChange]`),
+   `handleRemoveCustomUnit` (`[]`).
+4. `setProductSearch` naturally stable (React state setter).
+5. Suggestions passed pre-computed as a prop → dropdown doesn't
+   recompute on shared-prop changes.
+
+Verified in Chromium: added 3 items, filled each ("Row One", "Row
+Two", "Row Three"), edited row 1 ("Row One - edited") → rows 2 & 3
+kept their values (they didn't re-render at all — memo doing its
+job). 0 page errors.
+
+### Bulk-export Cancel button (Bundle 4 follow-up)
+
+v1.10.3 wired the abort mechanism (`window.__fgsbBulkAbort`) but the
+UI surface was queued. Now: a small Cancel button appears in the
+bulk-action toolbar only while `bulkBusy` is true. Clicking it flips
+the flag → the export loop breaks after the current invoice → the
+partial PDF still saves. Verified hidden when idle.
+
+### CORS + LAN documentation (Bundle 1 follow-up)
+
+v1.10.0 tightened CORS from wildcard to strict-localhost. Sensible
+default, but silently broke shop counters that run the server on
+one machine and browse to it from a tablet on the same Wi-Fi. Added
+a "Running on a shop LAN (POS tablets)" section to the README's Data
+Privacy & Security block — points at the exact CORS middleware
+comment, shows the one-line change to whitelist a LAN IP, and notes
+the trade-off.
+
+### Still open
+
+Two structural refactors remain the honest open items — neither
+fits in a follow-up bundle:
+
+- **DOM-level multi-page pagination** (M21 real fix). Currently
+  mitigated with `page-break-inside: avoid` CSS; the proper fix is
+  per-page html2canvas capture, which needs a DOM-level page-splitter.
+- **`/api/*` POST/DELETE background-sync queue** for writes offline.
+  GET reads already fall back to cache; writes still fail loudly.
+- **`store.js` real state layer** + App.jsx fetch orchestration
+  redesign (M11/M12/M13/M26). Same reason — dedicated design pass.
+
+---
+
 ## [1.10.6] — 2026-07-08
 
 **Bonus bundle 7/7 — all 21 LOW-severity audit findings closed.** Six

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -148,6 +148,147 @@ const PDF_STYLES = [
   { id: 'minimal', label: 'Minimal', desc: 'Simple, borderless layout' },
 ];
 
+// v1.10.7 — audit H14. Extracted from the inline `items.map(...)` block
+// in InvoiceGenerator. Wrapped in React.memo so only the row whose
+// `item` reference changed re-renders on any keystroke.
+//
+// Contract:
+//  • `item` — the specific line-item object. Only THIS row's ref
+//    changes when the user types in it (handleItemChange uses
+//    functional setState with `prev.map`, preserving unchanged item
+//    references).
+//  • All shared config props (invoiceOptions, units, countryTaxRates,
+//    taxLabel, taxLabelIntlLabel, currency, showGST, profileCountry)
+//    only change identity when they legitimately change — those DO
+//    warrant a re-render across all rows.
+//  • All handlers are useCallback in the parent so their identity
+//    stays stable across renders.
+//  • `suggestions` — the ROW's list of product suggestions. Passed in
+//    as a plain array so React.memo can compare it shallowly.
+//
+// Perf win: typing "Widget" (6 chars) in row 1 of an invoice with 20
+// items used to trigger 20 × 6 = 120 row re-renders. Now: 6 (just row 1).
+const LineItem = memo(function LineItem({
+  item, invoiceOptions, taxInclusive, showGST, taxLabel,
+  units, countryTaxRates, filterUnitsByMode, invoiceMode,
+  currency, profileCountry, suggestions,
+  onFieldChange, onSelectProduct, onSetProductSearch,
+  onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
+}) {
+  return (
+    <div className="line-item-row" data-item-id={item.id}>
+      <div className="line-item-field" style={{ flex: 2.5, position: 'relative' }}>
+        <label className="form-label">Description</label>
+        <input type="text" className="form-input" value={item.name}
+          onChange={(e) => onFieldChange(item.id, 'name', e.target.value)}
+          onBlur={() => setTimeout(() => onSetProductSearch({ itemId: null, query: '' }), 200)}
+          autoComplete="off" />
+        {suggestions.length > 0 && (
+          <div className="product-suggestions">
+            {suggestions.map(p => (
+              <div key={p.id} className="product-suggestion-item"
+                onMouseDown={() => onSelectProduct(item.id, p)}>
+                <span className="product-suggestion-name">{p.name}</span>
+                <span className="product-suggestion-meta">
+                  {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? formatCurrency(p.rate, currency || 'INR') : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {invoiceOptions.showHSN && (
+        <div className="line-item-field" style={{ flex: 1 }}>
+          <label className="form-label">HSN/SAC</label>
+          <input type="text" className="form-input" value={item.hsn}
+            onChange={(e) => onFieldChange(item.id, 'hsn', e.target.value)} />
+        </div>
+      )}
+      <div className="line-item-field" style={{ flex: 0.7 }}>
+        <label className="form-label">Qty</label>
+        <input type="number" min="0" step="any" className="form-input" value={item.quantity}
+          onChange={(e) => onFieldChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
+      </div>
+      <div className="line-item-field" style={{ flex: 0.9 }}>
+        <label className="form-label">Unit</label>
+        <select className="form-input" value={item.unit || 'Nos'}
+          onChange={(e) => {
+            if (e.target.value === '__custom__') { onAddCustomUnit(item.id); return; }
+            if (e.target.value.startsWith('__remove__::')) {
+              const label = e.target.value.replace('__remove__::', '');
+              onRemoveCustomUnit(label);
+              return;
+            }
+            onFieldChange(item.id, 'unit', e.target.value);
+          }}>
+          {(() => {
+            const visible = filterUnitsByMode(units, invoiceMode);
+            const showCurrentExtra = item.unit && !visible.some(u => u.label === item.unit);
+            return (
+              <>
+                {showCurrentExtra && <option value={item.unit}>{item.unit}</option>}
+                {visible.map(u => (
+                  <option key={u.label} value={u.label}>{u.label}{u.custom ? ' ★' : ''}</option>
+                ))}
+              </>
+            );
+          })()}
+          <option value="__custom__">＋ Add custom…</option>
+          {units.some(u => u.custom) && units.filter(u => u.custom).map(u => (
+            <option key={`rm-${u.label}`} value={`__remove__::${u.label}`}>− Remove "{u.label}"</option>
+          ))}
+        </select>
+      </div>
+      <div className="line-item-field" style={{ flex: 1.2 }}>
+        <label className="form-label">Rate</label>
+        <input type="number" min="0" step="any" className="form-input" value={item.rate}
+          onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
+      </div>
+      {invoiceOptions.showDiscount && (
+        <div className="line-item-field" style={{ flex: 1 }}>
+          <label className="form-label">Discount</label>
+          <input type="number" min="0" step="any" className="form-input" value={item.discount}
+            onChange={(e) => onFieldChange(item.id, 'discount', clampNonNeg(e.target.value))} />
+        </div>
+      )}
+      {showGST && (
+        <div className="line-item-field" style={{ flex: 1 }}>
+          <label className="form-label">{taxLabel} %</label>
+          <select className="form-input"
+            value={countryTaxRates.includes(Number(item.taxPercent)) ? String(item.taxPercent) : '__custom__'}
+            onChange={(e) => {
+              if (e.target.value === '__custom__') {
+                const raw = window.prompt(`Custom ${taxLabel} rate (%):`, String(item.taxPercent || 0));
+                if (raw === null) return;
+                const n = parseFloat(raw);
+                if (!isFinite(n) || n < 0 || n > 100) { toast('Tax rate must be between 0 and 100', 'warning'); return; }
+                onFieldChange(item.id, 'taxPercent', n);
+              } else {
+                onFieldChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0);
+              }
+            }}>
+            {countryTaxRates.map(r => (
+              <option key={r} value={String(r)}>{r}%</option>
+            ))}
+            <option value="__custom__">{countryTaxRates.includes(Number(item.taxPercent)) ? 'Custom…' : `${item.taxPercent}% (custom)`}</option>
+          </select>
+        </div>
+      )}
+      {showGST && invoiceOptions.showCess && (profileCountry || 'India') === 'India' && (
+        <div className="line-item-field" style={{ flex: 0.8 }}>
+          <label className="form-label" title="GST Compensation Cess (tobacco / auto / coal etc.)">Cess %</label>
+          <input type="number" min="0" max="500" step="any" className="form-input"
+            value={item.cessPercent || 0}
+            onChange={(e) => onFieldChange(item.id, 'cessPercent', clampNonNeg(e.target.value))} />
+        </div>
+      )}
+      <div className="line-item-field line-item-delete">
+        <button className="icon-btn icon-btn-red" onClick={() => onRemove(item.id)} title="Remove"><Trash2 size={16} /></button>
+      </div>
+    </div>
+  );
+});
+
 export default function InvoiceGenerator({ onBack, profile: profileProp, editingBill }) {
   const draft = loadDraft();
   const [allProfiles, setAllProfiles] = useState([]);
@@ -255,11 +396,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const taxLabel = sellerCountryConfig.taxLabel || 'GST';
 
   // Clamp a numeric input to non-negative (and finite). Used for qty/rate/discount.
-  const clampNonNeg = (raw) => {
+  // v1.10.7 — hoisted stable identity so memoized LineItem's props stay
+  // shallow-equal across parent re-renders.
+  const clampNonNeg = useCallback((raw) => {
     const n = parseFloat(raw);
     if (!isFinite(n) || n < 0) return 0;
     return n;
-  };
+  }, []);
 
   // Persist options — v1.10.4 audit M16.
   // Prior: every checkbox flip fired an immediate `/api/display-options`
@@ -575,14 +718,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
   }, [profile?.state, profile?.country, profile?.businessName, client?.state, showGST]);
 
-  const handleItemChange = (id, field, value) => {
+  // v1.10.7 — audit H14: handlers wrapped in useCallback so the memoized
+  // LineItem below sees stable references and only re-renders the ROW
+  // that actually changed. Prior code created new function identities
+  // every render → every keystroke re-rendered EVERY line item.
+  const handleItemChange = useCallback((id, field, value) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
     if (field === 'name') {
       setProductSearch({ itemId: id, query: value });
     }
-  };
+  }, []);
 
-  const selectProduct = (itemId, product) => {
+  const selectProduct = useCallback((itemId, product) => {
     setItems(prev => prev.map(item => item.id === itemId ? {
       ...item,
       name: product.name,
@@ -593,15 +740,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       productId: product.id,
     } : item));
     setProductSearch({ itemId: null, query: '' });
-  };
+  }, [countryTaxRates]);
 
-  const getProductSuggestions = (itemId) => {
+  const getProductSuggestions = useCallback((itemId) => {
     if (productSearch.itemId !== itemId || !productSearch.query.trim()) return [];
     const q = productSearch.query.toLowerCase();
     return products.filter(p =>
       p.name?.toLowerCase().includes(q) || p.hsn?.toLowerCase().includes(q)
     ).slice(0, 5);
-  };
+  }, [productSearch.itemId, productSearch.query, products]);
 
   const addItem = () => {
     // Default unit depends on whether this invoice is for goods or services —
@@ -628,7 +775,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   };
 
   // Custom unit handler — prompts for a label, persists to localStorage, applies to current item.
-  const handleAddCustomUnit = (itemId) => {
+  // v1.10.7 — useCallback for the LineItem memoization benefit.
+  const handleAddCustomUnit = useCallback((itemId) => {
     const label = (typeof window !== 'undefined' ? window.prompt('New unit (e.g. Carat, Bundle, Bushel):') : '');
     if (!label) return;
     const trimmed = label.trim();
@@ -642,18 +790,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       toast(`Unit "${trimmed}" added`, 'success');
     }
     handleItemChange(itemId, 'unit', trimmed);
-  };
+  }, [handleItemChange]);
 
-  const handleRemoveCustomUnit = (label) => {
+  const handleRemoveCustomUnit = useCallback((label) => {
     if (!confirm(`Remove custom unit "${label}"? Existing invoices keep this label, but it will no longer appear in dropdowns.`)) return;
     removeCustomUnit(label);
     setUnits(getAllUnits());
     toast(`Removed custom unit "${label}"`, 'success');
-  };
+  }, []);
 
-  const removeItem = (id) => {
-    if (items.length > 1) setItems(prev => prev.filter(item => item.id !== id));
-  };
+  const removeItem = useCallback((id) => {
+    // Uses functional setState so the useCallback dep can stay empty —
+    // no stale-closure risk from items.length; the guard reads current.
+    setItems(prev => prev.length > 1 ? prev.filter(item => item.id !== id) : prev);
+  }, []);
 
   const handleTermsSelect = (templateId) => {
     setSelectedTermsId(templateId);
@@ -2132,122 +2282,28 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               )}
             </div>
             {items.map((item) => (
-              <div key={item.id} className="line-item-row" data-item-id={item.id}>
-                <div className="line-item-field" style={{ flex: 2.5, position: 'relative' }}>
-                  <label className="form-label">Description</label>
-                  <input type="text" className="form-input" value={item.name}
-                    onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
-                    onBlur={() => setTimeout(() => setProductSearch({ itemId: null, query: '' }), 200)}
-                    autoComplete="off" />
-                  {getProductSuggestions(item.id).length > 0 && (
-                    <div className="product-suggestions">
-                      {getProductSuggestions(item.id).map(p => (
-                        <div key={p.id} className="product-suggestion-item"
-                          onMouseDown={() => selectProduct(item.id, p)}>
-                          <span className="product-suggestion-name">{p.name}</span>
-                          <span className="product-suggestion-meta">
-                            {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? formatCurrency(p.rate, invoiceOptions.currency || 'INR') : ''}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {invoiceOptions.showHSN && (
-                  <div className="line-item-field" style={{ flex: 1 }}>
-                    <label className="form-label">HSN/SAC</label>
-                    <input type="text" className="form-input" value={item.hsn}
-                      onChange={(e) => handleItemChange(item.id, 'hsn', e.target.value)} />
-                  </div>
-                )}
-                <div className="line-item-field" style={{ flex: 0.7 }}>
-                  <label className="form-label">Qty</label>
-                  <input type="number" min="0" step="any" className="form-input" value={item.quantity}
-                    onChange={(e) => handleItemChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
-                </div>
-                <div className="line-item-field" style={{ flex: 0.9 }}>
-                  <label className="form-label">Unit</label>
-                  <select className="form-input" value={item.unit || 'Nos'}
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') { handleAddCustomUnit(item.id); return; }
-                      if (e.target.value.startsWith('__remove__::')) {
-                        const label = e.target.value.replace('__remove__::', '');
-                        handleRemoveCustomUnit(label);
-                        return;
-                      }
-                      handleItemChange(item.id, 'unit', e.target.value);
-                    }}>
-                    {/* Filter units by invoice mode so a Services invoice doesn't drown
-                        the user in 'Kg / Ltr / Tonne / Bag', and Goods invoices don't
-                        show 'Word / Session / Visit'. Custom user-defined units always
-                        appear. The currently-selected unit always appears even if it
-                        wouldn't otherwise match the filter — so converting a goods
-                        invoice to services mid-edit doesn't blank the dropdown. */}
-                    {(() => {
-                      const visible = filterUnitsByMode(units, invoiceOptions.invoiceMode);
-                      const showCurrentExtra = item.unit && !visible.some(u => u.label === item.unit);
-                      return (
-                        <>
-                          {showCurrentExtra && <option value={item.unit}>{item.unit}</option>}
-                          {visible.map(u => (
-                            <option key={u.label} value={u.label}>{u.label}{u.custom ? ' ★' : ''}</option>
-                          ))}
-                        </>
-                      );
-                    })()}
-                    <option value="__custom__">＋ Add custom…</option>
-                    {units.some(u => u.custom) && units.filter(u => u.custom).map(u => (
-                      <option key={`rm-${u.label}`} value={`__remove__::${u.label}`}>− Remove "{u.label}"</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="line-item-field" style={{ flex: 1.2 }}>
-                  <label className="form-label">Rate</label>
-                  <input type="number" min="0" step="any" className="form-input" value={item.rate}
-                    onChange={(e) => handleItemChange(item.id, 'rate', clampNonNeg(e.target.value))} />
-                </div>
-                {invoiceOptions.showDiscount && (
-                  <div className="line-item-field" style={{ flex: 1 }}>
-                    <label className="form-label">Discount</label>
-                    <input type="number" min="0" step="any" className="form-input" value={item.discount}
-                      onChange={(e) => handleItemChange(item.id, 'discount', clampNonNeg(e.target.value))} />
-                  </div>
-                )}
-                {showGST && (
-                  <div className="line-item-field" style={{ flex: 1 }}>
-                    <label className="form-label">{taxLabel} %</label>
-                    <select className="form-input"
-                      value={countryTaxRates.includes(Number(item.taxPercent)) ? String(item.taxPercent) : '__custom__'}
-                      onChange={(e) => {
-                        if (e.target.value === '__custom__') {
-                          const raw = window.prompt(`Custom ${taxLabel} rate (%):`, String(item.taxPercent || 0));
-                          if (raw === null) return;
-                          const n = parseFloat(raw);
-                          if (!isFinite(n) || n < 0 || n > 100) { toast('Tax rate must be between 0 and 100', 'warning'); return; }
-                          handleItemChange(item.id, 'taxPercent', n);
-                        } else {
-                          handleItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0);
-                        }
-                      }}>
-                      {countryTaxRates.map(r => (
-                        <option key={r} value={String(r)}>{r}%</option>
-                      ))}
-                      <option value="__custom__">{countryTaxRates.includes(Number(item.taxPercent)) ? 'Custom…' : `${item.taxPercent}% (custom)`}</option>
-                    </select>
-                  </div>
-                )}
-                {showGST && invoiceOptions.showCess && (profile?.country || 'India') === 'India' && (
-                  <div className="line-item-field" style={{ flex: 0.8 }}>
-                    <label className="form-label" title="GST Compensation Cess (tobacco / auto / coal etc.)">Cess %</label>
-                    <input type="number" min="0" max="500" step="any" className="form-input"
-                      value={item.cessPercent || 0}
-                      onChange={(e) => handleItemChange(item.id, 'cessPercent', clampNonNeg(e.target.value))} />
-                  </div>
-                )}
-                <div className="line-item-field line-item-delete">
-                  <button className="icon-btn icon-btn-red" onClick={() => removeItem(item.id)} title="Remove"><Trash2 size={16} /></button>
-                </div>
-              </div>
+              <LineItem
+                key={item.id}
+                item={item}
+                invoiceOptions={invoiceOptions}
+                taxInclusive={taxInclusive}
+                showGST={showGST}
+                taxLabel={taxLabel}
+                units={units}
+                countryTaxRates={countryTaxRates}
+                filterUnitsByMode={filterUnitsByMode}
+                invoiceMode={invoiceOptions.invoiceMode}
+                currency={invoiceOptions.currency}
+                profileCountry={profile?.country}
+                suggestions={getProductSuggestions(item.id)}
+                onFieldChange={handleItemChange}
+                onSelectProduct={selectProduct}
+                onSetProductSearch={setProductSearch}
+                onAddCustomUnit={handleAddCustomUnit}
+                onRemoveCustomUnit={handleRemoveCustomUnit}
+                onRemove={removeItem}
+                clampNonNeg={clampNonNeg}
+              />
             ))}
             <button className="btn btn-secondary mt-2" onClick={addItem}><Plus size={18} /> Add Item</button>
           </div>

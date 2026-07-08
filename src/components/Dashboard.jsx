@@ -733,6 +733,17 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}><FileText size={13} /> Export JSON</button>
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkExportPDF}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} title="Combine selected invoices into one multi-page PDF — CAs love this for filing archives"><Download size={13} /> Bulk PDF</button>
+            {/* v1.10.7 — Cancel button for the in-flight bulk export. The
+                 underlying abort flag was wired in v1.10.3; this is the
+                 UI surface promised by that changelog. Setting the flag
+                 stops the export loop after the current invoice, so
+                 whatever's already assembled still gets saved. */}
+            {bulkBusy && (
+              <button type="button" className="btn btn-secondary"
+                onClick={() => { window.__fgsbBulkAbort = true; }}
+                style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--warn-text)', borderColor: 'var(--warn-border)' }}
+                title="Stop the bulk export after the current invoice — partial results still get saved."><X size={13} /> Cancel</button>
+            )}
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkDelete}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
               <Trash2 size={13} /> Delete

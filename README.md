@@ -510,6 +510,28 @@ We believe every business in India deserves professional billing software withou
 | **Do I need internet?** | Only for the first install (`npm install`). After that, everything works offline. |
 | **How do I backup?** | Settings → Export Data → save JSON file. Import on any machine. |
 
+### Running on a shop LAN (POS tablets)
+
+Since v1.10.0, the Express server accepts requests only from
+`localhost` (`127.0.0.1`, `[::1]`). If you run the server on one
+machine and access it from a POS tablet on the same Wi-Fi:
+
+1. Find the server machine's LAN IP (e.g. `192.168.1.42`).
+2. Open [server.js](server.js), find the CORS middleware near the top
+   (search for `v1.10.0 — CORS lockdown`), and add your LAN origin
+   to the allowlist regex:
+
+   ```js
+   /^https?:\/\/192\.168\.1\.42(:\d+)?$/i.test(origin) ||
+   ```
+
+3. Restart the server.
+4. From the tablet's browser, hit `http://192.168.1.42:47371/`.
+
+If you don't lock the middleware to specific IPs, any device on the
+same Wi-Fi (including guests) can hit your server. That's the trade —
+the default is safest, LAN access is opt-in.
+
 ---
 
 ## Contributing
