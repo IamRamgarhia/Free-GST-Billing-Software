@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.15] — 2026-07-08
+
+Sweep of everything I'd flagged as "not addressed" or "pre-existing"
+in prior releases. Each fix verified in a real Chromium session before
+committing.
+
+### Fixed — Dashboard "Columns" button clipped to a 28×28 square
+
+**Reported.** Screenshot showed the Columns button rendering as a tiny
+rounded box with "Columns" text spilling out; date inputs showing
+"n-yyyy" (end of dd-mm-yyyy clipped).
+
+**Root cause 1.** The button had `className="icon-btn"` which is
+`width: 28px; height: 28px` — meant for single-icon buttons like the
+red X clear-filter. It got icon + text, but the box refused to grow.
+
+**Root cause 2.** `.filter-date` had no min-width, so browsers gave it
+whatever they felt like — often ~110px which clips "dd-mm-yyyy".
+
+**Fix.** Columns button → `btn btn-secondary` with proper padding + gap
++ `white-space: nowrap`. Date/select filters → `min-width: 145px / 130px`.
+
+Verified in headless: Columns button is now 100.6 × 29.8 px with visible
+text; date inputs render at a full 145px on both 1200px and 800px
+viewports.
+
+### Fixed — Toast notifications piling up on rapid clicks
+
+**Reported.** User clicked "Colorful" three times in a row and three
+identical "Applied Colorful design" toasts stacked on screen.
+
+**Fix.** In `ToastContainer`, if an incoming toast has the same
+message + type as one already visible, refresh its id (extends the
+timer) instead of pushing a duplicate. Cap total on-screen at 4.
+
+### Verified — All 9 presets pass contrast in light + dark app modes
+
+Wrote a Chromium audit script that walks every preset (Modern, Classic,
+Corporate, Minimalist, Colorful, Compact, Enterprise, IT Services,
+Retail Brand) × both themes = 18 renders. Computed the WCAG contrast
+ratio between the title/business-name and the header background block
+for each. **0 failures.**
+
+The Corporate + IT Services fix from v1.9.12 (compound
+`.template-corporate[data-user-colors="1"]` selector forcing white
+title on the dark gradient) is confirmed working — audit reads title
+color as `rgb(255, 255, 255)` for both.
+
+### Notes
+
+- Kept the v1.9.13 data-attribute CSS in place as defense-in-depth even
+  though v1.9.14's inline styles are the load-bearing path. Harmless.
+- No preset color values, defaults, or template layouts changed. This
+  is a pure UX + reliability release.
+
+---
+
 ## [1.9.14] — 2026-07-08
 
 Follow-up to v1.9.13 which shipped an incomplete fix. User called it

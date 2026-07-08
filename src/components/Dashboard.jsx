@@ -625,9 +625,9 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
           <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" />
           <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" />
           {hasFilters && <button className="icon-btn icon-btn-red" onClick={clearFilters} title="Clear" aria-label="Clear filters"><X size={15} /></button>}
-          <button type="button" className="icon-btn" onClick={() => setShowColumnPicker(v => !v)}
+          <button type="button" className="btn btn-secondary" onClick={() => setShowColumnPicker(v => !v)}
             title="Choose which columns to show" aria-label="Column picker"
-            style={{ marginLeft: 'auto' }}>
+            style={{ marginLeft: 'auto', fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
             <FileText size={15} /> Columns
           </button>
         </div>

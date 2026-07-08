@@ -2198,7 +2198,12 @@ kbd {
   background: white;
   color: var(--text);
   cursor: pointer;
+  /* v1.9.15 — user reported date input clipping to "n-yyyy" on narrow
+     dashboard views. Browsers give <input type="date"> whatever width
+     they feel like; force a comfortable minimum. */
+  min-width: 130px;
 }
+.filter-date { min-width: 145px; }
 
 .filter-select:focus, .filter-date:focus {
   outline: none;
