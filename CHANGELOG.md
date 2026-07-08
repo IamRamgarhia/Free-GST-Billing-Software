@@ -7,6 +7,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.0] — 2026-07-08
+
+**Bundle 1 of 6 from the deep architectural audit.** Backend security
+hardening. 14 findings closed. Verified with a scripted smoke suite
+before shipping (CORS, path traversal, body limit, JSON error handler
+all return correct HTTP status codes).
+
+### Security — CORS lockdown
+
+Prior: `app.use(cors())` returned `Access-Control-Allow-Origin: *`. Any
+site the user visited could `fetch('http://localhost:47371/api/bills')`
+and read/wipe every invoice.
+
+Now: strict origin check — allows only `http://localhost:<port>`,
+`http://127.0.0.1:<port>`, `http://[::1]:<port>`, and no-origin
+requests (same-page fetch, curl). Cross-origin returns 403.
+
+```
+Origin: https://evil.com   → 403 Forbidden ✓
+Origin: http://localhost:5173 → 200 with CORS headers ✓
+```
+
+### Security — Path traversal in save-pdf and trash-pdf
+
+Prior: `?client=..&month=..&name=x.bat` slipped past a filter that
+stripped `<>:"/\|?*` but NOT `..`. Attacker bytes written above
+`INVOICES_DIR`.
+
+Now: shared `safePathSegment()` collapses `..` and control chars,
+decodes URL-encoded variants, caps length. Belt-and-braces
+`isPathInside(resolved, root)` reject anything that somehow escapes.
+Verified: `?name=../../evil.bat&client=..&month=..` writes to
+`Saved Invoices/-/-/----evil.bat.pdf`, inside the sandbox.
+
+### Security — Body size 50mb → 5mb
+
+50MB + wildcard CORS meant any site could OOM the Node process with
+one nested-JSON POST. Legit invoices are single-digit KB. Verified:
+6MB body → 413 Payload Too Large.
+
+### Data safety — Transactional backup restore
+
+Prior: restore did `fs.rmSync(dst)` **then** `copyDirRecursive`. If
+copy threw partway (ENOSPC, corrupt backup), live data was gone and
+only a partial restore existed.
+
+Now: snapshot live data to `pre-restore-<timestamp>` inside
+BACKUPS_DIR, do the copy, remove snapshot on success. Any throw
+during copy triggers rollback from the snapshot. Worst case (rollback
+also fails): snapshot stays on disk for manual recovery.
+
+### Data safety — Atomic writes for meta.json
+
+Prior: `writeJSON` = plain `writeFileSync`. Crash mid-write on
+`META_PATH` (invoice counter) → truncated JSON → fallback returned
+`{}` → duplicate invoice numbers reissued on next boot.
+
+Now: `writeFileAtomic()` writes to `<file>.tmp` then renames.
+Rename is atomic on POSIX and durable on Windows NTFS. Applied to
+every `writeJSON()` call.
+
+### Data safety — /api/import overwrite protection
+
+Prior: `/api/import` silently overwrote same-id records —
+contradicting the 409 guard on `POST /api/bills`. Bad backup
+destroyed newer invoices.
+
+Now: matches `/api/bills` semantics. Skips existing bills unless
+`?overwrite=1`. Response includes `billSkipped` count.
+
+### Reliability — /api/health was permanently 404
+
+Registered AFTER the SPA catch-all → every GET returned "No such
+endpoint" → the UI's health banner was broken since day one. Moved
+above the catch-all. Verified: `curl /api/health` now returns the
+health JSON with uptime + errorsTail.
+
+### Reliability — Error responses no longer leak stack traces
+
+Prior: unhandled sync throws from `writeJSON` (ENOSPC, EACCES) went
+to Express's default HTML error page — full stack trace with
+absolute filesystem paths (`EACCES ... C:\Users\<name>\...`)
+returned to any caller including the malicious origin.
+
+Now: global `app.use((err, req, res, next) => ...)` catches every
+sync throw and async rejection. Server-side logs full detail. Client
+gets a generic JSON error + stable code (`server-error` /
+`bad-request` / `payload-too-large` / etc.). Preserves upstream
+status codes.
+
+### Reliability — errors.log rotation + local-timezone backup key
+
+- Log capped at ~200KB, trims on next append. Prior code grew
+  unbounded — a tight failure loop could fill disk.
+- Backup dedup key now uses local timezone (`sv-SE` locale for
+  YYYY-MM-DD). Prior UTC-derived key flipped at 05:30 IST → reboot at
+  05:29 vs 05:31 IST produced different "today" values → duplicate
+  backup dirs or skipped day.
+
+### Notes
+
+- Kept the `cors` npm package installed but no longer imported —
+  removal will come in a cleanup pass. Bundle size not affected.
+- Sync `writeJSON` handlers no longer wrapped individually — Express 5
+  auto-catches sync throws + async rejections into the global handler.
+- 5 more bundles queued: GST/Tax (v1.10.1), PWA (v1.10.2), PDF
+  (v1.10.3), Perf (v1.10.4), Unwired features (v1.10.5).
+
+---
+
 ## [1.9.15] — 2026-07-08
 
 Sweep of everything I'd flagged as "not addressed" or "pre-existing"

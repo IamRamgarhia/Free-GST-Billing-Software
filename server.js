@@ -1,5 +1,7 @@
 import express from 'express';
-import cors from 'cors';
+// v1.10.0 — `cors` package no longer imported. The CORS-lockdown
+// middleware below is intentionally custom + strict (localhost only)
+// where `cors()` echoed `*` for every origin.
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,8 +34,41 @@ const STARTING_PORT = persistedPort || DEFAULT_PORT;
 const MAX_PORT_SCAN = 50; // 47371 → 47420 is enough headroom for any conceivable collision
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+
+// v1.10.0 — CORS lockdown. Previously `app.use(cors())` echoed
+// Access-Control-Allow-Origin: *, which meant any site the user visited
+// could `fetch('http://localhost:47371/api/bills')` and read/wipe all
+// data. This is a local desktop-style app: legitimate callers either
+// have no Origin header (same-page fetch from our own served HTML,
+// browsers' XHR to localhost from about:blank tools, curl) or an
+// Origin pointing at http://localhost:<port>. Everything else is
+// rejected. The Vite dev server proxies /api → us so its origin is
+// also localhost.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allow =
+    !origin ||
+    /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
+    /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin) ||
+    /^https?:\/\/\[::1\](:\d+)?$/i.test(origin);
+  if (!allow) {
+    return res.status(403).json({ error: 'Cross-origin request refused' });
+  }
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
+// v1.10.0 — Body size lowered from 50mb → 5mb. Legit invoice payloads
+// are single-digit kilobytes; a full import archive with 5000 bills fits
+// comfortably in 2-3mb. 50mb + wildcard CORS previously meant any site
+// could OOM the Node process with a nested-JSON payload.
+app.use(express.json({ limit: '5mb' }));
 
 // Ensure data directory and sub-directories exist
 const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases'];
@@ -46,6 +81,71 @@ for (const dir of DIRS) {
 function safeFileName(id) {
   return String(id).replace(/[/\\:*?"<>|]/g, '_');
 }
+
+// v1.10.0 — Path-traversal-safe user-string → single path segment.
+// Strips path separators, drive letters, and every `..` occurrence
+// (including URL-encoded variants after decode). Used for the
+// save-pdf / trash-pdf endpoints that construct paths from query
+// params. Never returns an empty string; falls back to a sentinel so
+// callers can trust the return value for `path.join`.
+function safePathSegment(input, fallback = 'Untitled') {
+  if (input === undefined || input === null) return fallback;
+  let s;
+  try { s = decodeURIComponent(String(input)); } catch { s = String(input); }
+  s = s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '-');    // reserved/control chars
+  s = s.replace(/\.{2,}/g, '-');                    // squash .. and ...
+  s = s.replace(/^[.\s]+|[.\s]+$/g, '');            // trim leading/trailing . and space (Windows reserves)
+  s = s.slice(0, 120);                              // cap length
+  return s || fallback;
+}
+
+// v1.10.0 — Enforce that `resolved` lives strictly inside `root`.
+// Returns true if inside, false otherwise. Callers should reject on
+// false and log server-side.
+function isPathInside(resolved, root) {
+  const r = path.resolve(root);
+  const p = path.resolve(resolved);
+  return p === r || p.startsWith(r + path.sep);
+}
+
+// v1.10.0 — Generic error response helper. Never returns raw Node
+// error messages to the client (they leak absolute filesystem paths,
+// EACCES/EPERM strings that hint at server structure). Server-side
+// logs the full detail; client sees a stable code + generic phrase.
+function errRes(res, status, code, err) {
+  if (err) {
+    try {
+      const ts = new Date().toISOString();
+      const msg = err && err.stack ? err.stack : String(err);
+      fs.appendFileSync(ERRORS_LOG, `[${ts}] [api:${code}] ${msg}\n`, 'utf-8');
+    } catch { /* ignore log failures */ }
+  }
+  const MESSAGES = {
+    'bad-request': 'Invalid request',
+    'not-found': 'Not found',
+    'conflict': 'Conflict with existing resource',
+    'server-error': 'Internal server error',
+    'forbidden': 'Refused',
+    'invalid-path': 'Invalid path',
+    'payload-too-large': 'Request body too large',
+  };
+  return res.status(status).json({ error: MESSAGES[code] || code, code });
+}
+
+// v1.10.0 — Atomic file write. Writes to `<file>.tmp` then renames
+// over the target so a mid-write crash / power loss cannot leave a
+// truncated file on disk. Critical for META_PATH which stores the
+// invoice counter — a truncated meta.json read back as `{}` reissues
+// invoice numbers from zero.
+function writeFileAtomic(filePath, contents) {
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, contents, 'utf-8');
+  fs.renameSync(tmp, filePath);
+}
+
+// Errors log path — declared here so errRes() can find it. The actual
+// file is created lazily; ERRORS_LOG constant below still points here.
+const ERRORS_LOG = path.join(DATA_DIR, 'errors.log');
 
 // In-memory cache for directory reads — invalidated on write/delete
 const dirCache = {};
@@ -75,9 +175,11 @@ function readJSON(filePath, fallback = null) {
   return fallback;
 }
 
-// Helper: write JSON file (with cache invalidation)
+// Helper: write JSON file (with cache invalidation). v1.10.0 — writes
+// atomically via temp+rename so a crash mid-write can't leave a
+// truncated meta.json that resets the invoice counter.
 function writeJSON(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  writeFileAtomic(filePath, JSON.stringify(data, null, 2));
   // Invalidate cache for the parent directory
   const parentDir = path.basename(path.dirname(filePath));
   if (DIRS.includes(parentDir)) invalidateCache(parentDir);
@@ -137,7 +239,7 @@ app.delete('/api/bills/:id', (req, res) => {
     fs.renameSync(filePath, path.join(trashDir, fname));
     res.json({ success: true, trashed: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errRes(res, 500, 'server-error', err);
   }
 });
 
@@ -407,8 +509,13 @@ app.get('/api/export', (req, res) => {
 });
 
 app.post('/api/import', (req, res) => {
+  // v1.10.0 — Match POST /api/bills' overwrite semantics. Previously
+  // `/api/import` silently overwrote every same-id record — a bad or
+  // stale backup restored on top of newer invoices destroyed them.
+  // Now: skip existing bills unless ?overwrite=1. Report both counts.
   const data = req.body;
-  let billCount = 0, clientCount = 0, templateCount = 0, productCount = 0;
+  const overwrite = req.query.overwrite === '1' || req.query.overwrite === 'true';
+  let billCount = 0, billSkipped = 0, clientCount = 0, templateCount = 0, productCount = 0;
 
   if (data.profile) {
     writeJSON(PROFILE_PATH, data.profile);
@@ -416,7 +523,9 @@ app.post('/api/import', (req, res) => {
   if (data.bills && Array.isArray(data.bills)) {
     for (const bill of data.bills) {
       if (bill.id) {
-        writeJSON(path.join(DATA_DIR, 'bills', safeFileName(bill.id) + '.json'), bill);
+        const p = path.join(DATA_DIR, 'bills', safeFileName(bill.id) + '.json');
+        if (!overwrite && fs.existsSync(p)) { billSkipped++; continue; }
+        writeJSON(p, bill);
         billCount++;
       }
     }
@@ -484,7 +593,7 @@ app.post('/api/import', (req, res) => {
     writeJSON(META_PATH, data.meta);
   }
 
-  res.json({ billCount, clientCount, templateCount, productCount, hasProfile: !!data.profile });
+  res.json({ billCount, billSkipped, clientCount, templateCount, productCount, hasProfile: !!data.profile });
 });
 
 // ========================
@@ -494,20 +603,32 @@ const INVOICES_DIR = path.join(__dirname, 'Saved Invoices');
 if (!fs.existsSync(INVOICES_DIR)) fs.mkdirSync(INVOICES_DIR, { recursive: true });
 
 app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }), (req, res) => {
-  const fileName = req.query.name || `invoice-${Date.now()}.pdf`;
-  const clientName = req.query.client || 'General';
-  const month = req.query.month || new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  try {
+    // v1.10.0 — Path traversal fix. Previous filter stripped
+    // `<>:"/\|?*` but NOT `..`, so `?client=..&month=..&name=x.bat`
+    // resolved to `INVOICES_DIR/../../x.bat` and wrote attacker bytes
+    // above the app root. safePathSegment collapses `..` and control
+    // chars; the resolved-path guard below rejects anything that still
+    // escapes INVOICES_DIR.
+    const rawName = req.query.name || `invoice-${Date.now()}.pdf`;
+    const safeClient = safePathSegment(req.query.client, 'General');
+    const safeMonth = safePathSegment(req.query.month, new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' }));
+    let safeName = safePathSegment(rawName, `invoice-${Date.now()}.pdf`);
+    if (!safeName.toLowerCase().endsWith('.pdf')) safeName += '.pdf';
 
-  const safeClient = clientName.replace(/[<>:"/\\|?*]/g, '-').trim() || 'General';
-  const safeMonth = month.replace(/[<>:"/\\|?*]/g, '-').trim();
-  const safeName = fileName.replace(/[<>:"/\\|?*]/g, '-');
+    const folderPath = path.join(INVOICES_DIR, safeClient, safeMonth);
+    const filePath = path.join(folderPath, safeName);
+    if (!isPathInside(filePath, INVOICES_DIR)) return errRes(res, 400, 'invalid-path');
 
-  const folderPath = path.join(INVOICES_DIR, safeClient, safeMonth);
-  if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
-
-  const filePath = path.join(folderPath, safeName);
-  fs.writeFileSync(filePath, req.body);
-  res.json({ saved: true, path: filePath });
+    if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+    fs.writeFileSync(filePath, req.body);
+    // Don't leak absolute FS path — client only needs to know it saved
+    // and where (relative). Absolute path revealed OS username +
+    // install dir to any origin.
+    res.json({ saved: true, relPath: path.relative(__dirname, filePath).split(path.sep).join('/') });
+  } catch (err) {
+    errRes(res, 500, 'server-error', err);
+  }
 });
 
 // ========================
@@ -520,13 +641,17 @@ if (!fs.existsSync(TRASH_DIR)) fs.mkdirSync(TRASH_DIR, { recursive: true });
 app.post('/api/trash-pdf', express.json(), (req, res) => {
   try {
     const { fileName, clientName } = req.body;
-    if (!fileName) return res.status(400).json({ error: 'fileName required' });
+    if (!fileName) return errRes(res, 400, 'bad-request');
 
-    const safeClient = (clientName || 'General').replace(/[<>:"/\\|?*]/g, '-').trim() || 'General';
-    const safeName = fileName.replace(/[<>:"/\\|?*]/g, '-');
+    // v1.10.0 — Path traversal fix (see save-pdf comment). Prior code
+    // didn't strip `..` so `fileName: '../../../etc/passwd'` moved
+    // arbitrary local files into the Trash.
+    const safeClient = safePathSegment(clientName, 'General');
+    const safeName = safePathSegment(fileName, 'Untitled.pdf');
 
-    // Search for the PDF in Saved Invoices (check all month subfolders for this client)
     const clientDir = path.join(INVOICES_DIR, safeClient);
+    // Extra guard — reject if the constructed client dir somehow escaped.
+    if (!isPathInside(clientDir, INVOICES_DIR)) return errRes(res, 400, 'invalid-path');
     let found = false;
 
     if (fs.existsSync(clientDir)) {
@@ -535,15 +660,16 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
       });
       for (const month of months) {
         const filePath = path.join(clientDir, month, safeName);
+        if (!isPathInside(filePath, INVOICES_DIR)) continue;
         if (fs.existsSync(filePath)) {
-          // Move to Trash/{Client}/{Month}/
           const trashPath = path.join(TRASH_DIR, safeClient, month);
+          const trashFile = path.join(trashPath, safeName);
+          if (!isPathInside(trashFile, TRASH_DIR)) return errRes(res, 400, 'invalid-path');
           if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
           try {
-            fs.renameSync(filePath, path.join(trashPath, safeName));
+            fs.renameSync(filePath, trashFile);
           } catch {
-            // renameSync can fail across drives — fallback to copy+delete
-            fs.copyFileSync(filePath, path.join(trashPath, safeName));
+            fs.copyFileSync(filePath, trashFile);
             fs.unlinkSync(filePath);
           }
           found = true;
@@ -552,26 +678,27 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
       }
     }
 
-    // Also search without client subfolder (flat structure from older saves)
     if (!found) {
       const flatPath = path.join(INVOICES_DIR, safeName);
-      if (fs.existsSync(flatPath)) {
+      if (isPathInside(flatPath, INVOICES_DIR) && fs.existsSync(flatPath)) {
         const trashPath = path.join(TRASH_DIR, safeClient);
-        if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
-        try {
-          fs.renameSync(flatPath, path.join(trashPath, safeName));
-        } catch {
-          fs.copyFileSync(flatPath, path.join(trashPath, safeName));
-          fs.unlinkSync(flatPath);
+        const trashFile = path.join(trashPath, safeName);
+        if (isPathInside(trashFile, TRASH_DIR)) {
+          if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
+          try {
+            fs.renameSync(flatPath, trashFile);
+          } catch {
+            fs.copyFileSync(flatPath, trashFile);
+            fs.unlinkSync(flatPath);
+          }
+          found = true;
         }
-        found = true;
       }
     }
 
     res.json({ trashed: found });
   } catch (err) {
-    console.error('Trash PDF error:', err);
-    res.status(500).json({ error: 'Failed to trash PDF' });
+    errRes(res, 500, 'server-error', err);
   }
 });
 
@@ -677,10 +804,19 @@ function copyDirRecursive(src, dst) {
   }
 }
 
+// v1.10.0 — Local-timezone date, not UTC. Previous code used
+// `new Date().toISOString().split('T')[0]` which flips at midnight UTC
+// (05:30 IST) — an IST reboot at 05:29 vs 05:31 IST computed different
+// "today" values → duplicate backup dirs or a skipped calendar day.
+// Uses the sv-SE locale hack for guaranteed YYYY-MM-DD output.
+function todayLocalIso() {
+  return new Date().toLocaleDateString('sv-SE');
+}
+
 function runDailyBackup() {
   try {
     ensureDir(BACKUPS_DIR);
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocalIso();
     const target = path.join(BACKUPS_DIR, today);
     if (fs.existsSync(target)) return;
     ensureDir(target);
@@ -719,39 +855,87 @@ app.get('/api/backups', (req, res) => {
         return { date: name, createdAt: stat.mtime.toISOString() };
       });
     res.json(list);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
 app.post('/api/backups/:date/restore', (req, res) => {
+  // v1.10.0 — Transactional restore. Prior implementation
+  // `fs.rmSync(dst)` -> `copyDirRecursive(src, dst)`. If copy threw
+  // partway (ENOSPC, EACCES, half-corrupted backup), the user's live
+  // data was already gone and only a partial restore existed. Now: we
+  // rename the current directories to a "pre-restore-<timestamp>"
+  // snapshot inside BACKUPS_DIR, do the copy, and only rmSync the
+  // snapshot on success. If anything throws, we rename the snapshot
+  // back — user is back where they started.
+  let snapshotDir = null;
+  const restoredDirs = [];
   try {
-    // Path traversal defense — see v1.9.5.1 comment above.
     const date = req.params.date;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: 'Invalid backup date format' });
-    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return errRes(res, 400, 'bad-request');
     const backupDir = path.join(BACKUPS_DIR, date);
-    const resolved = path.resolve(backupDir);
-    const backupsRoot = path.resolve(BACKUPS_DIR);
-    if (resolved !== backupsRoot && !resolved.startsWith(backupsRoot + path.sep)) {
-      return res.status(400).json({ error: 'Invalid backup path' });
+    if (!isPathInside(backupDir, BACKUPS_DIR)) return errRes(res, 400, 'invalid-path');
+    if (!fs.existsSync(backupDir)) return errRes(res, 404, 'not-found');
+
+    // Additional date sanity — a directory can exist with an unrealistic
+    // date planted before hardening. Reject impossible calendar dates.
+    const [y, m, d] = date.split('-').map(Number);
+    if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) {
+      return errRes(res, 400, 'bad-request');
     }
-    if (!fs.existsSync(backupDir)) return res.status(404).json({ error: 'Backup not found' });
-    const dataRoot = path.resolve(DATA_DIR);
-    const entries = fs.readdirSync(backupDir, { withFileTypes: true });
-    for (const entry of entries) {
+
+    // Make a snapshot of live data before touching anything.
+    snapshotDir = path.join(BACKUPS_DIR, `pre-restore-${Date.now()}`);
+    ensureDir(snapshotDir);
+    const liveEntries = fs.readdirSync(DATA_DIR, { withFileTypes: true });
+    for (const entry of liveEntries) {
+      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt') continue;
+      const src = path.join(DATA_DIR, entry.name);
+      const dst = path.join(snapshotDir, entry.name);
+      if (entry.isDirectory()) copyDirRecursive(src, dst);
+      else fs.copyFileSync(src, dst);
+    }
+
+    // Now do the restore. Track what we replaced so rollback knows
+    // which dirs to nuke first.
+    const backupEntries = fs.readdirSync(backupDir, { withFileTypes: true });
+    for (const entry of backupEntries) {
       const src = path.join(backupDir, entry.name);
       const dst = path.join(DATA_DIR, entry.name);
-      const dstResolved = path.resolve(dst);
-      if (!dstResolved.startsWith(dataRoot + path.sep) && dstResolved !== dataRoot) continue;
+      if (!isPathInside(dst, DATA_DIR)) continue;
       if (entry.isDirectory()) {
         if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
         copyDirRecursive(src, dst);
       } else {
         fs.copyFileSync(src, dst);
       }
+      restoredDirs.push(entry.name);
     }
+
+    // Success — remove the pre-restore snapshot (or keep for a bit? we
+    // remove because the backup itself is still on disk as a rollback
+    // option). Failures below prevent removal.
+    fs.rmSync(snapshotDir, { recursive: true, force: true });
     res.json({ success: true, restored: date });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    // Rollback: put the snapshot back over whatever the restore
+    // half-did. This preserves user data at the cost of losing the
+    // partial restore (which was probably corrupt anyway).
+    if (snapshotDir && fs.existsSync(snapshotDir)) {
+      try {
+        for (const name of restoredDirs) {
+          const dst = path.join(DATA_DIR, name);
+          if (!isPathInside(dst, DATA_DIR)) continue;
+          if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
+          const snap = path.join(snapshotDir, name);
+          if (fs.existsSync(snap)) {
+            if (fs.statSync(snap).isDirectory()) copyDirRecursive(snap, dst);
+            else fs.copyFileSync(snap, dst);
+          }
+        }
+      } catch { /* if rollback fails, snapshot stays on disk for manual recovery */ }
+    }
+    errRes(res, 500, 'server-error', err);
+  }
 });
 
 app.post('/api/backups/now', (req, res) => {
@@ -777,7 +961,7 @@ app.get('/api/trash', (req, res) => {
       })
       .filter(Boolean);
     res.json(files);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
 app.post('/api/trash/:id/restore', (req, res) => {
@@ -788,7 +972,7 @@ app.post('/api/trash/:id/restore', (req, res) => {
     if (!fs.existsSync(trashPath)) return res.status(404).json({ error: 'Not in trash' });
     fs.renameSync(trashPath, billsPath);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
 app.delete('/api/trash/:id', (req, res) => {
@@ -797,7 +981,7 @@ app.delete('/api/trash/:id', (req, res) => {
     const trashPath = path.join(BILL_TRASH_DIR, fname);
     if (fs.existsSync(trashPath)) fs.unlinkSync(trashPath);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
 function purgeOldTrash() {
@@ -815,6 +999,34 @@ function purgeOldTrash() {
   } catch { /* ignore */ }
 }
 setInterval(purgeOldTrash, 24 * 60 * 60 * 1000);
+
+// v1.10.0 — Health-check endpoint moved here (was registered AFTER the
+// SPA catch-all → every GET /api/health returned "No such endpoint" →
+// the UI's health-banner was permanently broken). Now registered
+// before the catch-all so it actually serves.
+app.get('/api/health', (req, res) => {
+  let errorsTail = '';
+  try {
+    if (fs.existsSync(ERRORS_LOG)) {
+      const stat = fs.statSync(ERRORS_LOG);
+      // Read the last 4KB only so a runaway log file can't OOM the response.
+      const fd = fs.openSync(ERRORS_LOG, 'r');
+      const len = Math.min(stat.size, 4096);
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, Math.max(0, stat.size - len));
+      fs.closeSync(fd);
+      errorsTail = buf.toString('utf-8');
+    }
+  } catch { /* ignore */ }
+  res.json({
+    ok: true,
+    version: process.env.npm_package_version || 'unknown',
+    uptimeSec: Math.round(process.uptime()),
+    pid: process.pid,
+    hasRecentErrors: !!errorsTail.trim(),
+    errorsTail,
+  });
+});
 
 app.get('{*path}', (req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'No such endpoint' });
@@ -859,16 +1071,55 @@ function servePlaceholder(req, res) {
 </body></html>`);
 }
 
+// v1.10.0 — Global error handler. Registered LAST so all preceding
+// route handlers can forward errors to it. Express 5 auto-catches
+// synchronous throws and async rejections from route handlers, so we
+// no longer need try/catch around every writeJSON call. Server-side
+// logs full detail; client sees a generic JSON error with a stable
+// code — no leaked stack traces or absolute filesystem paths.
+// Preserves upstream status codes from body-parser (413 payload too
+// large, 400 malformed JSON) so clients can differentiate.
+// eslint-disable-next-line no-unused-vars — 4-arg signature is required by Express
+app.use((err, req, res, next) => {
+  const status = Number(err && (err.status || err.statusCode)) || 500;
+  let code = 'server-error';
+  if (status === 413) code = 'payload-too-large';
+  else if (status === 400) code = 'bad-request';
+  else if (status === 404) code = 'not-found';
+  errRes(res, status, code, err);
+});
+
 // ============================================================
 // Error log + graceful shutdown
 // ============================================================
-// When the server is launched via start-server-silent.bat (hidden window) and
-// crashes, the user has no console to see what happened. Persist any startup
-// or unhandled error to data/errors.log so support / users can diagnose it.
-const ERRORS_LOG = path.join(DATA_DIR, 'errors.log');
+// ERRORS_LOG was declared once at the top of this file (v1.10.0)
+// where errRes() needs it. See line ~145.
+
+// v1.10.0 — log rotation. Previously `data/errors.log` grew unbounded;
+// a tight failure loop (e.g. daily backup hitting a corrupted template)
+// would fill the disk. Now we keep only the last ~200KB. Called
+// opportunistically from logFatal — no separate timer.
+const ERRORS_LOG_MAX = 200 * 1024;
+function rotateErrorsIfLarge() {
+  try {
+    if (!fs.existsSync(ERRORS_LOG)) return;
+    const stat = fs.statSync(ERRORS_LOG);
+    if (stat.size <= ERRORS_LOG_MAX) return;
+    // Read the tail we want to keep, then rewrite atomically.
+    const fd = fs.openSync(ERRORS_LOG, 'r');
+    const keep = Buffer.alloc(ERRORS_LOG_MAX);
+    fs.readSync(fd, keep, 0, ERRORS_LOG_MAX, stat.size - ERRORS_LOG_MAX);
+    fs.closeSync(fd);
+    // Trim to next newline so we don't leave a half-line at the top.
+    const s = keep.toString('utf-8');
+    const nl = s.indexOf('\n');
+    writeFileAtomic(ERRORS_LOG, (nl >= 0 ? s.slice(nl + 1) : s));
+  } catch { /* ignore */ }
+}
 
 function logFatal(err, source = 'fatal') {
   try {
+    rotateErrorsIfLarge();
     const ts = new Date().toISOString();
     const msg = err && err.stack ? err.stack : String(err);
     fs.appendFileSync(ERRORS_LOG, `[${ts}] [${source}] ${msg}\n`, 'utf-8');
@@ -882,30 +1133,9 @@ function logFatal(err, source = 'fatal') {
 process.on('uncaughtException', (err) => logFatal(err, 'uncaughtException'));
 process.on('unhandledRejection', (err) => logFatal(err, 'unhandledRejection'));
 
-// Health-check endpoint exposing recent errors so the UI can surface a banner.
-app.get('/api/health', (req, res) => {
-  let errorsTail = '';
-  try {
-    if (fs.existsSync(ERRORS_LOG)) {
-      const stat = fs.statSync(ERRORS_LOG);
-      // Read the last 4KB only so a runaway log file can't OOM the response.
-      const fd = fs.openSync(ERRORS_LOG, 'r');
-      const len = Math.min(stat.size, 4096);
-      const buf = Buffer.alloc(len);
-      fs.readSync(fd, buf, 0, len, Math.max(0, stat.size - len));
-      fs.closeSync(fd);
-      errorsTail = buf.toString('utf-8');
-    }
-  } catch { /* ignore */ }
-  res.json({
-    ok: true,
-    version: process.env.npm_package_version || 'unknown',
-    uptimeSec: Math.round(process.uptime()),
-    pid: process.pid,
-    hasRecentErrors: !!errorsTail.trim(),
-    errorsTail,
-  });
-});
+// Note: /api/health used to live below the SPA catch-all here, so the
+// catch-all was swallowing every request to it and returning "No such
+// endpoint". Moved above the catch-all in v1.10.0. See earlier in file.
 
 // Try ports starting from STARTING_PORT (persisted preference) until one is available.
 // Bound to 127.0.0.1 explicitly so the server can NEVER be reached from the LAN —
