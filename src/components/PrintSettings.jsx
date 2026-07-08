@@ -5,6 +5,92 @@ import InvoicePreview from './InvoicePreview';
 import { getProfile } from '../store';
 import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampleInvoice, BUSINESS_PRESETS, applyBusinessPreset, LABEL_PRESETS } from '../utils/printSettings';
 
+// v1.9.9 — Visual design presets. Each is a starting point that flips
+// the pdfTemplate + color palette + a couple of layout tweaks in one
+// click. Users can still edit every individual setting below afterwards
+// (the preset just seeds sensible defaults for the vibe they picked).
+const DESIGN_PRESETS = [
+  {
+    id: 'modern',
+    name: 'Modern',
+    icon: '💎',
+    description: 'Blue accents, filled table header, subtle divider lines.',
+    settings: {
+      pdfTemplate: 'modern',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#0f172a', pdfMutedText: '#334155',
+      pdfAccent: '#1e40af', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#eef2ff', pdfDividerColor: '#cbd5e1',
+    },
+  },
+  {
+    id: 'classic',
+    name: 'Classic',
+    icon: '📜',
+    description: 'Traditional black-on-white. Best for formal invoices.',
+    settings: {
+      pdfTemplate: 'classic',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#000000', pdfMutedText: '#333333',
+      pdfAccent: '#000000', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#ffffff', pdfDividerColor: '#000000',
+    },
+  },
+  {
+    id: 'corporate',
+    name: 'Corporate',
+    icon: '🏢',
+    description: 'Deep navy + gold accents. Serious, premium feel.',
+    settings: {
+      pdfTemplate: 'corporate',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#0b1e3f', pdfMutedText: '#334155',
+      pdfAccent: '#0b1e3f', pdfAccentText: '#f5c542',
+      pdfHeaderBg: '#f1f5f9', pdfDividerColor: '#0b1e3f',
+    },
+  },
+  {
+    id: 'minimalist',
+    name: 'Minimalist',
+    icon: '⚪',
+    description: 'Ultra clean. No filled headers, just hairlines.',
+    settings: {
+      pdfTemplate: 'minimalist',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#111111', pdfMutedText: '#666666',
+      pdfAccent: '#111111', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#ffffff', pdfDividerColor: '#dddddd',
+    },
+  },
+  {
+    id: 'colorful',
+    name: 'Colorful',
+    icon: '🎨',
+    description: 'Warm orange + teal. Retail / cafe / boutique feel.',
+    settings: {
+      pdfTemplate: 'modern',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#1a1a1a', pdfMutedText: '#4a4a4a',
+      pdfAccent: '#ea580c', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#fff7ed', pdfDividerColor: '#fdba74',
+    },
+  },
+  {
+    id: 'minimal',
+    name: 'Compact',
+    icon: '📄',
+    description: 'Small font, tight rows. Fits more lines per page.',
+    settings: {
+      pdfTemplate: 'minimal',
+      userColorsEnabled: true,
+      pdfPrimaryText: '#0f172a', pdfMutedText: '#475569',
+      pdfAccent: '#0f172a', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#f8fafc', pdfDividerColor: '#94a3b8',
+      pdfFontScale: 0.9,
+    },
+  },
+];
+
 // ============================================================================
 // Print Settings — app-wide defaults for the thermal printer render.
 // Persisted to localStorage key `gst_printSettings`. InvoicePreview merges
@@ -150,14 +236,69 @@ export default function PrintSettings() {
       {/* v1.9.8 — Split layout: settings scroll on the left, preview stays sticky on the right */}
       <div className="print-settings-layout" style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) minmax(320px, 500px)',
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(340px, 460px)',
         gap: '1.25rem',
         marginTop: '1.25rem',
         alignItems: 'flex-start',
       }}>
         <div className="print-settings-body" style={{ minWidth: 0 }}>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+      {/* v1.9.9 — Design preset picker. One-click starting point; every
+           setting below still fully editable. Shows a filled swatch strip
+           so the user can eyeball the vibe before committing. */}
+      <div style={{
+        padding: '0.85rem 1rem',
+        background: 'linear-gradient(135deg, var(--bg-secondary), var(--card))',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        marginBottom: '1rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '0.9rem' }}>🎨 Choose a design</strong>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Click a design to start. Edit anything below.</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
+          {DESIGN_PRESETS.map(preset => {
+            const active = settings.pdfTemplate === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  const next = { ...settings, ...preset.settings };
+                  setSettings(next); savePrintSettings(next);
+                  toast(`Applied "${preset.name}" design — every setting still editable below`, 'success');
+                }}
+                style={{
+                  padding: '0.6rem 0.5rem',
+                  border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: active ? 'var(--primary-light, rgba(30,64,175,0.08))' : 'var(--card)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex', flexDirection: 'column', gap: '0.35rem',
+                  transition: 'all 0.15s',
+                }}
+                title={preset.description}
+              >
+                {/* Mini color-swatch preview strip */}
+                <div style={{ display: 'flex', gap: 3, height: 22, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <div style={{ flex: 2, background: preset.settings.pdfHeaderBg || '#f8fafc' }} />
+                  <div style={{ flex: 1.5, background: preset.settings.pdfAccent || '#1e40af' }} />
+                  <div style={{ flex: 1, background: preset.settings.pdfPrimaryText || '#0f172a' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>{preset.icon} {preset.name}</span>
+                  {active && <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 700 }}>ACTIVE</span>}
+                </div>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{preset.description}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         {/* TYPOGRAPHY */}
         <SettingGroup title="Typography">
           <SelectRow label="Font family" value={settings.fontFamily} onChange={v => set({ fontFamily: v })}
@@ -803,11 +944,14 @@ export default function PrintSettings() {
             ))}
           </div>
 
-          {/* Preview canvas — scrolls internally so left settings scroll independently */}
+          {/* Preview canvas — scrolls internally so left settings scroll independently.
+              CSS transform: scale doesn't shrink the layout box, so we wrap the
+              scaled invoice in a container sized to the post-scale dimensions.
+              Otherwise the 210mm A4 pushes out of the pane and content clips. */}
           <div style={{ overflow: 'auto', flex: 1, background: '#fff', padding: '0.75rem', borderRadius: 6, minHeight: 200 }}>
             {previewMode === 'both' ? (
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div style={{ transform: 'scale(0.45)', transformOrigin: 'top left', width: '148mm' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div style={{ zoom: 0.42, minWidth: 0 }}>
                   <InvoicePreview
                     profile={sample.profile}
                     client={sample.client}
@@ -819,7 +963,7 @@ export default function PrintSettings() {
                     customTerms="" customNotes="" extraSections={[]}
                   />
                 </div>
-                <div style={{ transform: 'scale(0.85)', transformOrigin: 'top left' }}>
+                <div style={{ zoom: 0.85, minWidth: 0 }}>
                   <InvoicePreview
                     profile={sample.profile}
                     client={sample.client}
@@ -833,7 +977,7 @@ export default function PrintSettings() {
                 </div>
               </div>
             ) : previewMode === 'pdf' ? (
-              <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: '210mm', height: 'fit-content' }}>
+              <div style={{ zoom: 0.5, minWidth: 0 }}>
                 <InvoicePreview
                   ref={previewRef}
                   profile={sample.profile}
@@ -847,7 +991,7 @@ export default function PrintSettings() {
                 />
               </div>
             ) : (
-              <div>
+              <div style={{ margin: '0 auto', width: 'fit-content' }}>
                 <InvoicePreview
                   ref={previewRef}
                   profile={sample.profile}

@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.9] — 2026-07-08
+
+Follows immediately on v1.9.8. Fixes two layout bugs reported from a
+screenshot and adds a one-click design preset picker at the top of Print
+& PDF Settings so users get a working starting point without hunting
+through 70+ toggles.
+
+### Added — Design preset row at the top
+
+Six visual presets displayed as clickable cards with a live color
+swatch strip:
+
+- **💎 Modern** — indigo accents, filled table header, subtle dividers.
+- **📜 Classic** — traditional black-on-white for formal invoices.
+- **🏢 Corporate** — navy + gold accents, premium feel.
+- **⚪ Minimalist** — hairlines only, no filled headers.
+- **🎨 Colorful** — warm orange + cream for retail/cafe/boutique.
+- **📄 Compact** — small font, tight rows, fits more per page.
+
+Clicking a preset applies the template + color palette + font scale in
+one go. Every individual setting below is still fully editable — the
+preset just seeds sensible defaults, it doesn't lock anything.
+
+### Fixed — Setting card text no longer clips at right edge
+
+`.print-settings-body` now enforces `overflow-wrap: anywhere` and
+`max-width: 100%; box-sizing: border-box` on labels/selects/inputs so
+long hint paragraphs and select options can't push past the card's
+right edge on narrow layouts.
+
+Cards inside the left column now respect a 260px minimum (was 220px)
+so descriptions have breathing room before wrap.
+
+### Fixed — Preview pane no longer cuts the invoice at the right edge
+
+The A4 preview was rendered with `transform: scale(0.55)` on a 210mm
+child. CSS transforms don't shrink the layout box, so the un-scaled
+210mm width overflowed the 460px preview pane and the right edge of the
+invoice got clipped.
+
+Switched to CSS `zoom` (0.5 for PDF, 0.42 + 0.85 for the split view)
+which *does* shrink the layout box, so the invoice fits inside the pane
+cleanly with room to scroll vertically through the full page.
+
+### Notes
+
+- Preview pane min-width raised to 340px; max lowered to 460px so it
+  gives more room to the settings side without shrinking too small on
+  1280px viewports.
+
+---
+
 ## [1.9.8] — 2026-07-08
 
 Print & PDF Settings gets a split-view redesign. Users can now see every

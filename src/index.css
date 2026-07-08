@@ -1268,12 +1268,18 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   .print-settings-preview-pane {
     position: relative !important;
     top: auto !important;
-    max-height: 500px !important;
+    max-height: 600px !important;
   }
 }
-/* Make sure preview inside doesn't overflow layout on any width */
+/* v1.9.9 — prevent horizontal text overflow inside setting cards. Long
+   hint paragraphs and label lines were clipping at the right edge when
+   the grid squeezed cards narrow. */
+.print-settings-body { min-width: 0; }
+.print-settings-body * { overflow-wrap: anywhere; word-break: normal; }
+.print-settings-body label,
+.print-settings-body select,
+.print-settings-body input { max-width: 100%; box-sizing: border-box; }
 .print-settings-preview-pane { overflow: hidden; }
-.print-settings-preview-pane > div:last-child > * { max-width: 100%; }
 
 /* v1.9.4 — Accessibility improvements */
 button:focus-visible,
