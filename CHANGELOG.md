@@ -7,6 +7,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.1] — 2026-07-08
+
+**Bundle 2 of 6 from the deep architectural audit.** GST / TDS / TCS /
+ITR math and precision. 15 findings closed. **31 unit tests pass** —
+run `node scripts/tax-test.mjs` to reproduce.
+
+### GST compliance — invoices go out with the correct tax bucket
+
+- **UTGST (audit C6).** Intra-UT supplies for Chandigarh, Ladakh,
+  Andaman & Nicobar, Lakshadweep, and Dadra & Nagar Haveli / Daman &
+  Diu now file as CGST + UTGST, not CGST + SGST. Prior code had zero
+  hits for `utgst` — every intra-UT invoice filed under the wrong
+  ledger and was silently rejected on GSTR-1 upload. Delhi + Puducherry
+  + J&K keep SGST (they have their own legislatures).
+- **Interstate detection guard (C5).** If `profile.state` is blank the
+  totals computation now surfaces a warning + `needsProfileFix` flag
+  instead of short-circuiting to intra-state. Fresh-install users
+  cannot ship interstate invoices with the wrong CGST+SGST split any
+  more.
+- **RCM + tax-inclusive (M5).** Under Section 9(3)/9(4) with an MRP
+  rate, seller total was MRP-inclusive AND the buyer paid tax
+  separately under RCM → tax was collected twice. Now backs out the
+  embedded tax so seller total = taxable value only.
+- **E-Way Bill tax-inclusive (C7).** `taxableAmount` on line items and
+  `totalValue` at the header now back-calculate correctly on
+  tax-inclusive invoices. Prior code sent MRP as taxable → portal's
+  `taxableValue + tax ≈ totInvValue` consistency check failed →
+  rejected.
+
+### TDS / TCS — right base, right threshold
+
+- **TCS 206C(1H) base (H6).** CBDT Circular 17/2020 requires TCS on
+  the *receipt including GST*. Prior code used pre-GST subtotal.
+  Verified: ₹100k + ₹18k IGST at 0.1% TCS → ₹118 (was ₹100).
+- **₹50 lakh threshold (H7).** Neither section applies until the
+  running annual cumulative per counterparty exceeds ₹50L. Prior code
+  charged flat rate from rupee one. Caller passes
+  `tcsCumulativeThisYear` / `tdsCumulativeThisYear`; helper computes
+  the marginal-taxable portion.
+
+### Precision — invoice PDF and GSTR-1 agree to the paisa
+
+- **Per-line rounding (H11).** Prior code summed raw floats for the
+  invoice PDF and rounded per line for GSTR-1 → GSTN reported
+  `amount_mismatch` on multi-line invoices. Now: a single
+  `computeInvoiceTotals()` helper produces both. Sum-of-rounded-halves
+  matches everywhere.
+- **`totalTaxCollected` includes cess AND UTGST (M8).** Prior formula
+  `cgst + sgst + igst` counted cess as revenue for tobacco/auto/coal
+  sellers and dropped UTGST entirely. Now `cgst + sgst + utgst + igst
+  + cess`, stored on the saved bill.
+- **NaN-safe totals (M10).** `qty * rate` now goes through
+  `finiteNonNeg()` — a non-numeric CSV rate that used to propagate
+  `NaN` into `total` is coerced to 0 with the rest of the invoice
+  still computing.
+
+### ITR — 234B / 234C / surcharge / 80D fixes
+
+- **234C for presumptive users (H8).** 44AD/44ADA/44AE assessees have
+  ONE installment (15-Mar, 100%). Prior code destructured
+  `[i1, i2, i3, i4]` from a 1-element array and treated the Q4 entry
+  as Q1 → 3-month × 1% rate with a 12% waiver test. Wrong section,
+  wrong months. A 44ADA freelancer with ₹1L liability paying 20-Mar
+  now correctly computes ₹1000 (was ₹450 or 0 depending on branch).
+- **234B calendar months (M6).** Rule 119A counts calendar-month
+  parts, not 30-day chunks. Prior `Math.ceil(days / 30)` computed
+  Apr-1 → May-31 as 3 months (correct is 2). Now: uses
+  `getMonth()`/`getDate()` diff with the "any part of a month = full
+  month" rule.
+- **Surcharge 15% cap on 111A/112A/115AD (H9).** Finance Act 2022 caps
+  surcharge on tax attributable to listed-equity STCG (111A), LTCG
+  (112A), and FII gains (115AD) at 15%. Prior code multiplied the tier
+  rate (up to 37%) across the whole tax. New signature:
+  `computeSurcharge(tax, income, regime, { specialRateTax })` blends
+  the two rates.
+- **80D deduction cap by senior status (H10).** The static ₹1L cap is
+  only the max — allowed when BOTH self+family AND parents are senior.
+  Prior code let a young taxpayer with young parents claim ₹1L
+  (statutory max is ₹50k). New helper `effectiveDeductionCap('80D',
+  { selfSenior, parentsSenior })` returns the correct 50k / 75k /
+  100k tier. Same fix for 80DDB (40k non-senior / 100k senior).
+
+### Reports — currency filter now covers expenses (M7)
+
+`filteredExpenses` was applying the date filter but not the currency
+filter, so a user viewing USD invoices got INR expenses subtracted →
+nonsense P&L. Now expenses are also filtered by `currencyFilter`,
+with `exp.currency || 'INR'` for legacy records without a currency
+field.
+
+### Architecture — pure computeInvoiceTotals()
+
+Totals math moved out of the 120-line `useEffect` in
+`InvoiceGenerator.jsx` into a pure function in `src/utils.js`. All 15
+findings above are consequences of that extraction being testable.
+Test harness: `scripts/tax-test.mjs`.
+
+### Notes
+
+- No stored bill's numbers change on read — the fix is on **new**
+  invoices. Existing bills keep their historic totals.
+- The TDS 194Q / TCS 206C(1H) cumulative-per-counterparty tracking is
+  fed by `invoiceOptions.tcsCumulativeThisYear` /
+  `tdsCumulativeThisYear` — a follow-up will wire the Clients module
+  to maintain the running total automatically. Today the fields exist
+  in the totals contract but the UI hasn't been retooled to fill
+  them, so users with heavy TDS/TCS workflows should watch for a
+  v1.10.1.x point release.
+
+---
+
 ## [1.10.0] — 2026-07-08
 
 **Bundle 1 of 6 from the deep architectural audit.** Backend security

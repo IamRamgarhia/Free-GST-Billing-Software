@@ -61,7 +61,7 @@ export const NEW_REGIME_SLABS = [
 export const DEDUCTION_CAPS = {
   '80C':     150_000,   // PPF, ELSS, LIC, EPF, tuition, home-loan principal, ULIP, NSC
   '80CCD1B': 50_000,    // Additional NPS (employee contribution beyond ₹1.5L 80C)
-  '80D':     100_000,   // Health insurance: ₹25k self+family + ₹25-50k parents (senior)
+  '80D':     100_000,   // MAXIMUM only when BOTH self+family AND parents are seniors
   '80TTA':   10_000,    // Savings-account interest (individuals below 60)
   '80TTB':   50_000,    // Bank/PO deposit interest (senior citizens 60+)
   '80E':     Infinity,  // Education loan interest — no cap, 8-year max claim
@@ -71,6 +71,29 @@ export const DEDUCTION_CAPS = {
   '80U':     125_000,   // Self-disability (₹75k / ₹1.25L for severe)
   '24b':     200_000,   // Home-loan interest on self-occupied property
 };
+
+/**
+ * v1.10.1 — 80D and 80DDB caps are context-sensitive on senior status.
+ * The static DEDUCTION_CAPS entry is only the maximum. This helper
+ * returns the actual cap given the taxpayer's family setup, so the UI
+ * doesn't silently allow ₹1L of 80D for a 30-year-old with 40-year-old
+ * parents (statutory max is ₹50k for that case).
+ *
+ * @param {string} section — '80D', '80DDB', etc.
+ * @param {{selfSenior?: boolean, parentsSenior?: boolean}} ctx
+ */
+export function effectiveDeductionCap(section, ctx = {}) {
+  const s = String(section || '').toUpperCase();
+  if (s === '80D') {
+    const selfCap = ctx.selfSenior ? 50_000 : 25_000;      // 25k (<60) / 50k (60+)
+    const parentsCap = ctx.parentsSenior ? 50_000 : 25_000; // 25k / 50k
+    return selfCap + parentsCap;
+  }
+  if (s === '80DDB') {
+    return ctx.selfSenior ? 100_000 : 40_000;
+  }
+  return DEDUCTION_CAPS[section] ?? Infinity;
+}
 
 // -------------------------- Tax calculation ---------------------------------
 
@@ -100,14 +123,32 @@ export function computeSlabTax(taxableIncome, slabs) {
 /**
  * Surcharge on tax based on total income (both regimes use similar tiers).
  * New regime caps surcharge at 25% (instead of 37% for the top old-regime bracket).
+ *
+ * v1.10.1 — Finance Act 2022 caps surcharge on tax attributable to
+ * sections 111A (STCG on equity), 112A (LTCG on equity) and 115AD
+ * (FII gains) at 15%. Callers who have the special-rate portion of tax
+ * can pass `opts.specialRateTax` and get the correct blended result.
+ *
+ * @param {number} tax — total tax before surcharge
+ * @param {number} totalIncome
+ * @param {'new'|'old'} regime
+ * @param {{specialRateTax?: number}} opts — tax attributable to 111A/112A/115AD
  */
-export function computeSurcharge(tax, totalIncome, regime = 'new') {
+export function computeSurcharge(tax, totalIncome, regime = 'new', opts = {}) {
   if (!Number.isFinite(totalIncome)) return 0;
-  if (totalIncome <= 5_000_000) return 0;                 // ≤ ₹50L
-  if (totalIncome <= 10_000_000) return round2(tax * 0.10); // > ₹50L to ₹1Cr
-  if (totalIncome <= 20_000_000) return round2(tax * 0.15); // > ₹1Cr to ₹2Cr
-  if (totalIncome <= 50_000_000) return round2(tax * 0.25); // > ₹2Cr to ₹5Cr
-  return round2(tax * (regime === 'new' ? 0.25 : 0.37));   // > ₹5Cr
+  if (totalIncome <= 5_000_000) return 0;
+
+  const tier = (income) => {
+    if (income <= 10_000_000) return 0.10;
+    if (income <= 20_000_000) return 0.15;
+    if (income <= 50_000_000) return 0.25;
+    return regime === 'new' ? 0.25 : 0.37;
+  };
+  const tierRate = tier(totalIncome);
+  const specialTax = Math.max(0, Number(opts.specialRateTax) || 0);
+  const cappedSpecialRate = Math.min(tierRate, 0.15);
+  const regularTax = Math.max(0, tax - specialTax);
+  return round2(regularTax * tierRate + specialTax * cappedSpecialRate);
 }
 
 /**
@@ -741,28 +782,36 @@ export function computeAdvanceTaxSchedule(totalTax, tdsAlreadyDeducted = 0, paid
  * Section 234C interest — for shortfall in any installment.
  * 1% per month for 3 months for installments 1-3; 1% for 1 month for installment 4.
  * Waived if you paid ≥ 12% by 15 Jun / 36% by 15 Sept (i.e. slight under-payment ok).
+ *
+ * v1.10.1 — Presumptive-mode fix. A 44AD/44ADA/44AE assessee has ONE
+ * installment (15-Mar, 100%). Prior code destructured
+ * `[i1, i2, i3, i4]` from a 1-element array — i1 was the Q4 entry but
+ * was treated as Q1 (3-month rate + 12% waiver test). Wrong section,
+ * wrong month count. Now: presumptive mode gets a single-Q4 calc.
  */
 export function compute234CInterest(schedule) {
   if (!schedule.applies || !schedule.schedule.length) return 0;
-  let interest = 0;
   const netLiab = schedule.netLiability;
+  // Presumptive: single installment at 15-Mar, 1 month × 1% on shortfall.
+  if (schedule.mode === 'presumptive' || schedule.schedule.length === 1) {
+    const only = schedule.schedule[0];
+    const shortfall = round2(netLiab - (only?.totalPaidByDue || 0));
+    return round2(Math.max(0, shortfall) * 0.01);
+  }
+  let interest = 0;
   const [i1, i2, i3, i4] = schedule.schedule;
-  // Q1: 12% waiver, 3 months at 1%
   if (i1 && i1.totalPaidByDue < 0.12 * netLiab) {
     const shortfall = round2(netLiab * 0.15 - i1.totalPaidByDue);
     interest += Math.max(0, shortfall) * 0.03;
   }
-  // Q2: 36% waiver, 3 months at 1%
   if (i2 && i2.totalPaidByDue < 0.36 * netLiab) {
     const shortfall = round2(netLiab * 0.45 - i2.totalPaidByDue);
     interest += Math.max(0, shortfall) * 0.03;
   }
-  // Q3: 3 months at 1%
   if (i3) {
     const shortfall = round2(netLiab * 0.75 - i3.totalPaidByDue);
     interest += Math.max(0, shortfall) * 0.03;
   }
-  // Q4: 1 month at 1%
   if (i4) {
     const shortfall = round2(netLiab - i4.totalPaidByDue);
     interest += Math.max(0, shortfall) * 0.01;
@@ -785,8 +834,20 @@ export function compute234BInterest(schedule, assessmentPaymentDate) {
   // From April 1 of AY. For FY 2024-25, that's 2025-04-01.
   const fyEnd = new Date('2025-04-01');
   const payDate = assessmentPaymentDate ? new Date(assessmentPaymentDate) : new Date();
-  const monthsElapsed = Math.max(1, Math.ceil((payDate - fyEnd) / (1000 * 60 * 60 * 24 * 30)));
-  return round2(shortfall * 0.01 * monthsElapsed);
+  // v1.10.1 — Rule 119A: count calendar-month parts, not 30-day chunks.
+  // Prior code: `Math.ceil((payDate - fyEnd) / (30 days))` over-counted
+  // on the boundary (1-Apr → 31-May came out as 3 months instead of 2).
+  // Same-day payment (payDate = fyEnd) charged for 1 month with no time
+  // elapsed via `Math.max(1, ...)` — now handled via ms>0 check.
+  if (payDate <= fyEnd) return 0;
+  const yearDiff = payDate.getFullYear() - fyEnd.getFullYear();
+  const monthDiff = payDate.getMonth() - fyEnd.getMonth();
+  let months = yearDiff * 12 + monthDiff;
+  // If payment date is later in its month than fyEnd (2025-04-01), the
+  // partial month counts as one full month per Rule 119A.
+  if (payDate.getDate() > fyEnd.getDate()) months += 1;
+  months = Math.max(1, months);
+  return round2(shortfall * 0.01 * months);
 }
 
 // ============================================================================

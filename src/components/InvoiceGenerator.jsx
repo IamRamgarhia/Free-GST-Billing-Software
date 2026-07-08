@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize } from '../utils';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
@@ -523,120 +523,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setInvoiceOptions(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Recalculate totals
+  // v1.10.1 — Totals math extracted into the pure `computeInvoiceTotals`
+  // helper in utils.js so it can be unit-tested (see scripts/tax-test.mjs).
+  // The prior ~120-line inline effect had 8 known bugs closed by that
+  // extraction: UTGST, interstate on blank state, RCM+inclusive, TCS
+  // base, ₹50L threshold, cess in totalTaxAmount, per-line rounding,
+  // NaN-safe coercion.
   useEffect(() => {
-    let subtotal = 0;
-    let totalDiscount = 0;
-    let taxTotal = 0;
-    let cessTotal = 0; // GST Compensation Cess — separate from CGST/SGST/IGST,
-                        // applies to specific HSN ranges (tobacco, auto, coal, etc.)
-
-    items.forEach(item => {
-      const amount = item.quantity * item.rate;
-      const discount = item.discount || 0;
-      const afterDiscount = amount - discount;
-      const cessPercent = Number(item.cessPercent) || 0;
-      // Cess always applies to the post-discount taxable value, never tax-inclusive.
-      // Cess is added on top — never back-calculated like GST in MRP mode.
-      if (showGST && cessPercent > 0) {
-        // If tax-inclusive, the taxable value for cess is the back-calculated one
-        // (cess is computed off the taxable value, not the gross). Match that.
-        const taxableForCess = (taxInclusive && (item.taxPercent || 0) > 0)
-          ? afterDiscount / (1 + (item.taxPercent || 0) / 100)
-          : afterDiscount;
-        cessTotal += (taxableForCess * cessPercent) / 100;
-      }
-
-      if (taxInclusive && showGST) {
-        // Rate is tax-inclusive (MRP). Back-calculate taxable value.
-        const taxPercent = item.taxPercent || 0;
-        const taxableValue = afterDiscount / (1 + taxPercent / 100);
-        const taxAmount = afterDiscount - taxableValue;
-        subtotal += amount;
-        totalDiscount += discount;
-        taxTotal += taxAmount;
-      } else {
-        subtotal += amount;
-        totalDiscount += discount;
-        if (showGST) {
-          taxTotal += (afterDiscount * (item.taxPercent || 0)) / 100;
-        }
-      }
-    });
-
-    const businessState = profile?.state?.trim().toLowerCase();
-    const clientState = client?.state?.trim().toLowerCase();
-    // GST law follows the *place of supply* — when set explicitly (e.g. goods consumed in
-    // a third state), it overrides the client's registered address.
-    const placeOfSupply = details?.placeOfSupply?.trim().toLowerCase() || clientState;
-    const isIndia = (profile?.country || 'India') === 'India';
-    // SEZ supplies are zero-rated under IGST regardless of state (Section 16, IGST Act).
-    const isSEZ = !!client?.isSEZ;
-    // Inter/intra-state CGST/SGST/IGST split is India-specific. Outside India, all tax goes
-    // into one bucket (we use IGST as the single-tax slot to keep the data shape stable).
-    const isInterstate = isIndia && (isSEZ || (businessState && placeOfSupply && businessState !== placeOfSupply));
-    const cgst = isIndia ? (isInterstate ? 0 : taxTotal / 2) : 0;
-    const sgst = isIndia ? (isInterstate ? 0 : taxTotal / 2) : 0;
-    const igst = isIndia ? (isInterstate ? taxTotal : 0) : taxTotal;
-
-    const taxableForTDS = subtotal - totalDiscount; // TDS/TCS apply to taxable value, not GST-inclusive total
-
-    // P1 #17: under Section 9(3)/9(4) Reverse Charge, the SUPPLIER doesn't
-    // collect GST — the buyer pays it directly to the government under RCM.
-    // Pre-v1.6.8 the code printed the "RCM declaration" but still added tax
-    // to the invoice total → suppliers over-billed then had to issue
-    // credit notes. Now, when reverseCharge is on, exclude tax from the
-    // payable total. Line-level tax still shows on the PDF so the buyer
-    // knows what they owe under RCM — but the "amount payable to us" is
-    // taxable value only.
-    const isReverseCharge = !!invoiceOptions.reverseCharge && !!showGST;
-    const baseTotal = isReverseCharge
-      ? (subtotal - totalDiscount)
-      : (taxInclusive && showGST ? subtotal - totalDiscount : subtotal - totalDiscount + taxTotal);
-
-    // TCS is collected from the buyer and ADDED to the invoice total.
-    // TDS is deducted by the buyer from their payment to us — informational only,
-    // does NOT change the invoice total.
-    const round2 = (n) => Math.round(n * 100) / 100;
-    const tcsAmount = invoiceOptions.showTCS && Number(invoiceOptions.tcsRate) > 0
-      ? round2(taxableForTDS * Number(invoiceOptions.tcsRate) / 100) : 0;
-    const tdsAmount = invoiceOptions.showTDS && Number(invoiceOptions.tdsRate) > 0
-      ? round2(taxableForTDS * Number(invoiceOptions.tdsRate) / 100) : 0;
-
-    // Cess is added on top — same treatment as TCS but a GST-side number, not Income-Tax.
-    const cessRounded = round2(cessTotal);
-    const totalBeforeRound = baseTotal + tcsAmount + cessRounded;
-    const roundOff = invoiceOptions.showRoundOff ? calculateRoundOff(totalBeforeRound) : 0;
-    const finalTotal = totalBeforeRound + roundOff;
-
-    // Under RCM, tax lines still show on the PDF (buyer needs to know the
-    // amount they owe to govt) but the "cgst/sgst/igst" fields set to 0 on
-    // the totals block means the payable Total excludes them. Preserve
-    // the tax breakdown in rcmTax* so GSTR-3B RCM outward reporting has it.
-    const zeroTaxOnTotals = isReverseCharge;
-    const t = {
-      subtotal,
-      totalDiscount,
-      taxableAmount: (taxInclusive && showGST) ? ((subtotal - totalDiscount) - taxTotal) : (subtotal - totalDiscount),
-      cgst: zeroTaxOnTotals ? 0 : cgst,
-      sgst: zeroTaxOnTotals ? 0 : sgst,
-      igst: zeroTaxOnTotals ? 0 : igst,
-      cess: cessRounded,
-      roundOff,
-      tcsAmount,
-      tdsAmount,
-      total: finalTotal,
-      netReceivable: finalTotal - tdsAmount,
-      taxInclusive: !!(taxInclusive && showGST),
-    };
-    if (isReverseCharge) {
-      t.rcmTaxCgst = cgst;
-      t.rcmTaxSgst = sgst;
-      t.rcmTaxIgst = igst;
-      t.rcmTaxTotal = cgst + sgst + igst;
-    }
-    setTotals(t);
-  }, [items, client.state, client?.isSEZ, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.reverseCharge, details?.placeOfSupply]);
+    setTotals(computeInvoiceTotals({
+      items, profile, client, details, showGST, taxInclusive,
+      invoiceOptions,
+    }));
+  }, [items, client.state, client?.isSEZ, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, details?.placeOfSupply]);
 
   // Warn when the seller's state is missing for Indian GST invoices — without it, the
   // interstate detection silently defaults to intrastate (CGST+SGST) which is a real money bug.
@@ -862,7 +760,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       invoiceType,
       currency: invoiceOptions.currency || 'INR',
       totalAmount: totals.total,
-      totalTaxAmount: totals.cgst + totals.sgst + totals.igst,
+      // v1.10.1 — was `cgst + sgst + igst` which omitted UTGST and cess.
+      // Reports treated cess as revenue for tobacco/auto/coal sellers.
+      totalTaxAmount: totals.totalTaxAmount ?? (totals.cgst + totals.sgst + (totals.utgst || 0) + totals.igst + (totals.cess || 0)),
       status: editingBill?.status || 'unpaid',
       paidAmount: editingBill?.paidAmount || 0,
       payments: editingBill?.payments || [],
@@ -1408,7 +1308,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const exportEWayBill = () => {
     if (!profile?.gstin) { toast('Set your GSTIN in Settings first', 'warning'); return; }
-    const ewb = generateEWayBillJSON(profile, client, details, items, totals, invoiceType);
+    // v1.10.1 — Pass taxInclusive so back-calc taxable value on line items.
+    // Otherwise E-Way Bill portal rejects with `amount_mismatch` on MRP-inclusive invoices.
+    const ewb = generateEWayBillJSON(profile, client, details, items, totals, invoiceType, { taxInclusive });
     const blob = new Blob([JSON.stringify(ewb, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

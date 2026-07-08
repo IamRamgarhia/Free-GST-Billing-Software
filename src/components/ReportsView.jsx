@@ -69,7 +69,12 @@ export default function ReportsView() {
   };
 
   const allFilteredBills = bills.filter(bill => bill.data && filterByPeriod(bill.invoiceDate));
-  const filteredExpenses = expenses.filter(exp => filterByPeriod(exp.date));
+  // v1.10.1 — Filter expenses by the same currency as the P&L view.
+  // Prior code left this unfiltered, so USD-invoice revenue got INR
+  // expenses subtracted → nonsense net profit. Expenses without a
+  // `currency` field are assumed INR (legacy records).
+  const filteredExpenses = expenses.filter(exp =>
+    filterByPeriod(exp.date) && ((exp.currency || 'INR') === currencyFilter));
 
   // All distinct currencies in the filtered period
   const allCurrencies = [...new Set(allFilteredBills.map(getBillCurrency))].sort();

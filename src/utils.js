@@ -79,6 +79,241 @@ export const calculateLineItemTax = (item = {}, taxInclusive = false) => {
   return { amount, discount, afterDiscount, taxAmount, total: afterDiscount + taxAmount };
 };
 
+// ============================================================================
+// v1.10.1 — Pure invoice totals computation.
+//
+// Prior to this release, the totals math lived inside a giant `useEffect`
+// in InvoiceGenerator.jsx (~120 lines). That made it impossible to
+// unit-test and let several bugs go unnoticed for months:
+//
+//   • UTGST bucket never existed (audit C6). Intra-Chandigarh supplies
+//     went into SGST instead of UTGST, breaking GSTR-1 filings.
+//   • Interstate detection short-circuited to intra-state when the
+//     business profile had no state saved (C5). Users on a fresh install
+//     shipped invoices with wrong tax splits.
+//   • RCM + tax-inclusive charged the buyer twice — once for the
+//     embedded tax in the MRP, once for the RCM remittance (M5).
+//   • TCS 206C(1H) computed on the pre-GST base, not the receipt
+//     including GST as CBDT Circular 17/2020 requires (H6).
+//   • ₹50 lakh annual per-counterparty threshold for TDS/TCS never
+//     enforced — flat-rate applied from rupee one (H7).
+//   • `totalTaxAmount` in saved bills omitted cess (M8).
+//   • Non-numeric `rate` from CSV import produced `NaN` totals (M10).
+//
+// Extracting to a pure function fixes each of those. The React effect
+// now just calls this and stores the result in state.
+//
+// @param opts {{
+//   items: Array,            // line items with quantity, rate, discount, taxPercent, cessPercent
+//   profile: object,         // { country, state, gstin, ... }
+//   client: object,          // { state, isSEZ, gstin, ... }
+//   details: object,         // { placeOfSupply, ... }
+//   showGST: boolean,
+//   taxInclusive?: boolean,
+//   invoiceOptions?: {
+//     reverseCharge?: boolean,
+//     showRoundOff?: boolean,
+//     showTDS?: boolean, tdsRate?: number, tdsCumulativeThisYear?: number,
+//     showTCS?: boolean, tcsRate?: number, tcsCumulativeThisYear?: number,
+//   },
+// }}
+// @returns totals object with { subtotal, totalDiscount, taxableAmount,
+//   cgst, sgst, utgst, igst, cess, tcsAmount, tdsAmount, roundOff,
+//   total, netReceivable, totalTaxAmount, warnings, needsProfileFix,
+//   isInterstate, isUnionTerritory, taxInclusive }
+// ============================================================================
+
+// Section 194Q / 206C(1H) counterparty annual threshold — currently ₹50L.
+// Both sections apply only to receipts above this cumulative amount per
+// buyer / seller in a financial year.
+export const TDS_TCS_THRESHOLD = 5_000_000;
+
+// Sum of an array of numbers, coercing safely.
+const sum = (arr) => arr.reduce((s, n) => s + (Number(n) || 0), 0);
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+export function computeInvoiceTotals(opts) {
+  const {
+    items = [],
+    profile = {},
+    client = {},
+    details = {},
+    showGST = true,
+    taxInclusive = false,
+    invoiceOptions = {},
+  } = opts || {};
+
+  const warnings = [];
+  const isIndia = (profile.country || 'India') === 'India';
+
+  // Per-line rounded values feed BOTH the invoice PDF and the GSTR-1
+  // export so their totals agree. Prior code summed raw floats for one
+  // and rounded per-line for the other → GSTN "amount_mismatch".
+  const lines = items.map((item) => {
+    const qty = finiteNonNeg(item.quantity);
+    const rate = finiteNonNeg(item.rate);
+    const disc = finiteNonNeg(item.discount);
+    const taxPct = finiteNonNeg(item.taxPercent);
+    const cessPct = finiteNonNeg(item.cessPercent);
+    const gross = qty * rate;
+    const afterDisc = Math.max(0, gross - disc);
+    const taxable = (taxInclusive && taxPct > 0) ? afterDisc / (1 + taxPct / 100) : afterDisc;
+    const tax = r2(taxable * taxPct / 100);
+    const cess = showGST ? r2(taxable * cessPct / 100) : 0;
+    return { qty, rate, disc, taxPct, cessPct, gross, afterDisc, taxable: r2(taxable), tax, cess };
+  });
+
+  const subtotal = r2(sum(lines.map(l => l.gross)));
+  const totalDiscount = r2(sum(lines.map(l => l.disc)));
+  const taxableAmount = r2(sum(lines.map(l => l.taxable)));
+  const taxTotal = r2(sum(lines.map(l => l.tax)));
+  const cessTotal = r2(sum(lines.map(l => l.cess)));
+
+  // Place of supply / interstate detection.
+  const businessState = (profile.state || '').trim();
+  const clientState = (client.state || '').trim();
+  const placeOfSupplyRaw = (details.placeOfSupply || clientState || '').trim();
+  const businessCode = getStateCode(businessState || profile.gstin);
+  const posCode = getStateCode(placeOfSupplyRaw || client.gstin);
+  const isSEZ = !!client.isSEZ;
+
+  // v1.10.1 — Explicit blank-business-state guard. Prior code let this
+  // silently fall through to intra-state (undefined !== 'X' is true but
+  // then compared against clientState.toLowerCase() which for blank
+  // gives false → isInterstate=false wrongly). Now surface a warning
+  // and set a needsProfileFix flag so the UI can block save.
+  let needsProfileFix = false;
+  if (isIndia && showGST && !businessState) {
+    warnings.push('Your business state is not set. Interstate/intra-state detection cannot be trusted. Set it in Settings → Company Details before issuing GST invoices.');
+    needsProfileFix = true;
+  }
+  if (isIndia && showGST && !placeOfSupplyRaw) {
+    warnings.push('Place of supply is not set. Falling back to client state.');
+  }
+
+  const isInterstate = isIndia && (isSEZ || (
+    !!businessCode && !!posCode && businessCode !== posCode
+  ));
+
+  // UTGST for intra-UT supplies. When supplier & recipient are BOTH in
+  // one of the 5 UTs without legislature, and it's intra-state (same
+  // code), CGST + UTGST applies. Otherwise → CGST + SGST or IGST.
+  const isIntraUT = isIndia && !isInterstate && !!businessCode &&
+    businessCode === posCode &&
+    isUnionTerritoryWithoutLegislature(businessCode);
+
+  const half = r2(taxTotal / 2);
+  const cgst = isIndia && !isInterstate ? half : 0;
+  const sgst = isIndia && !isInterstate && !isIntraUT ? half : 0;
+  const utgst = isIndia && isIntraUT ? half : 0;
+  const igst = isIndia ? (isInterstate ? taxTotal : 0) : taxTotal;
+
+  // RCM handling. Under Section 9(3)/9(4), the SUPPLIER doesn't collect
+  // tax — the buyer remits it directly. Invoice total should be
+  // taxable value only (or MRP-taxable for inclusive mode).
+  const isReverseCharge = !!invoiceOptions.reverseCharge && !!showGST;
+
+  // v1.10.1 — RCM + tax-inclusive fix. Prior code used
+  // `subtotal - totalDiscount` for baseTotal, which for tax-inclusive
+  // rates is the MRP (includes tax) → buyer paid MRP to seller AND paid
+  // tax to govt under RCM = double tax. Now: back out embedded tax so
+  // baseTotal = taxable value only.
+  const baseTotal = isReverseCharge
+    ? taxableAmount
+    : (taxInclusive && showGST ? subtotal - totalDiscount : taxableAmount + taxTotal);
+
+  // v1.10.1 — TDS 194Q / TCS 206C(1H): correct BASE and enforce the
+  // ₹50L threshold.
+  //
+  // Section 206C(1H) requires TCS on the *receipt including GST* per
+  // CBDT Circular 17/2020. Prior code used pre-GST subtotal.
+  // Section 194Q is the buyer-side mirror (deducted by buyer) — the
+  // seller shouldn't collect it, so we treat it as INFORMATION-ONLY on
+  // the invoice (doesn't change total).
+  //
+  // Threshold: neither section applies until the running annual
+  // cumulative for this counterparty exceeds ₹50L. Caller passes
+  // `tcsCumulativeThisYear` / `tdsCumulativeThisYear` (from a per-
+  // client running total maintained in the Clients module).
+  const tcsCumBefore = Number(invoiceOptions.tcsCumulativeThisYear) || 0;
+  const tdsCumBefore = Number(invoiceOptions.tdsCumulativeThisYear) || 0;
+
+  // The base at portal-facing gross (including GST).
+  const receiptIncludingGst = r2(taxableAmount + taxTotal + cessTotal);
+
+  // Portion of THIS invoice that sits above the ₹50L threshold. If the
+  // cumulative was already ≥ threshold, whole invoice is taxable. If
+  // it was below, only the excess portion attracts TCS.
+  const marginalTcsBase = tcsCumBefore >= TDS_TCS_THRESHOLD
+    ? receiptIncludingGst
+    : Math.max(0, (tcsCumBefore + receiptIncludingGst) - TDS_TCS_THRESHOLD);
+  const marginalTdsBase = tdsCumBefore >= TDS_TCS_THRESHOLD
+    ? receiptIncludingGst
+    : Math.max(0, (tdsCumBefore + receiptIncludingGst) - TDS_TCS_THRESHOLD);
+
+  const tcsRate = Number(invoiceOptions.tcsRate) || 0;
+  const tdsRate = Number(invoiceOptions.tdsRate) || 0;
+  const tcsAmount = invoiceOptions.showTCS && tcsRate > 0
+    ? r2(marginalTcsBase * tcsRate / 100) : 0;
+  const tdsAmount = invoiceOptions.showTDS && tdsRate > 0
+    ? r2(marginalTdsBase * tdsRate / 100) : 0;
+
+  const totalBeforeRound = baseTotal + tcsAmount + cessTotal;
+  const roundOff = invoiceOptions.showRoundOff
+    ? r2(Math.round(totalBeforeRound) - totalBeforeRound)
+    : 0;
+  const total = r2(totalBeforeRound + roundOff);
+
+  // Under RCM, portal-facing tax breakdown still shows on the PDF
+  // (buyer needs to know what to remit) but zeros are stored in the
+  // payable total's cgst/sgst/igst.
+  const zeroTaxOnTotals = isReverseCharge;
+
+  // v1.10.1 — totalTaxAmount now includes cess AND UTGST. Prior calc
+  // `cgst + sgst + igst` excluded both. Reports over-counted revenue
+  // for tobacco/auto/coal sellers.
+  const totalTaxAmount = r2(
+    (zeroTaxOnTotals ? 0 : cgst) +
+    (zeroTaxOnTotals ? 0 : sgst) +
+    (zeroTaxOnTotals ? 0 : utgst) +
+    (zeroTaxOnTotals ? 0 : igst) +
+    cessTotal
+  );
+
+  const result = {
+    // Base composition
+    subtotal, totalDiscount, taxableAmount,
+    // Tax breakdown
+    cgst: zeroTaxOnTotals ? 0 : cgst,
+    sgst: zeroTaxOnTotals ? 0 : sgst,
+    utgst: zeroTaxOnTotals ? 0 : utgst,
+    igst: zeroTaxOnTotals ? 0 : igst,
+    cess: cessTotal,
+    // Additions on top
+    tcsAmount, tdsAmount, roundOff,
+    // Grand
+    total,
+    netReceivable: r2(total - tdsAmount),
+    totalTaxAmount,
+    // Meta flags for the UI
+    isInterstate, isIntraUT, isUnionTerritory: isIntraUT,
+    taxInclusive: !!(taxInclusive && showGST),
+    warnings, needsProfileFix,
+    // Per-line rounded values (for GSTR-1 / E-Way Bill agreement)
+    lines,
+  };
+
+  if (isReverseCharge) {
+    result.rcmTaxCgst = cgst;
+    result.rcmTaxSgst = sgst;
+    result.rcmTaxUtgst = utgst;
+    result.rcmTaxIgst = igst;
+    result.rcmTaxTotal = r2(cgst + sgst + utgst + igst);
+  }
+
+  return result;
+}
+
 // Invoice type configuration
 export const INVOICE_TYPES = {
   'tax-invoice': {
@@ -247,6 +482,27 @@ export const getStateCode = (stateOrGstin) => {
   return GST_STATE_CODES[s.toLowerCase()] || '';
 };
 
+// v1.10.1 — Union Territories WITHOUT their own legislature use CGST +
+// UTGST instead of CGST + SGST for intra-UT supplies. This is required
+// by Chapter II of the GST Act and enforced by the GSTN portal.
+//
+// UTs WITH legislature (Delhi 07, Puducherry 34, J&K 01 post-2019) are
+// treated as states — CGST + SGST as normal.
+//
+// The 5 UTs below are the ones that need UTGST. Codes are the 2-digit
+// GST state code (matches getStateCode() output).
+const UTS_WITHOUT_LEGISLATURE = new Set(['04', '26', '31', '35', '38']);
+//                                        │      │      │      │      │
+//    Chandigarh ─────────────────────────┘      │      │      │      │
+//    Dadra & Nagar Haveli / Daman & Diu ────────┘      │      │      │
+//    Lakshadweep ──────────────────────────────────────┘      │      │
+//    Andaman & Nicobar Islands ───────────────────────────────┘      │
+//    Ladakh ─────────────────────────────────────────────────────────┘
+export const isUnionTerritoryWithoutLegislature = (stateCode) => {
+  if (!stateCode) return false;
+  return UTS_WITHOUT_LEGISLATURE.has(String(stateCode).padStart(2, '0'));
+};
+
 // Format date as DD-MM-YYYY (GST portal format).
 // Guard against malformed input — `new Date("2026-13-45")` is an Invalid Date
 // whose getDate() returns NaN, producing "NaN-NaN-NaN" in GSTR-1 export rows.
@@ -268,10 +524,17 @@ export const formatDateGST = (dateStr) => {
 // Per the NIC schema, supplyType is the *direction* of the supply (O=Outward, I=Inward),
 // NOT inter/intra-state. Seller-issued bills are always 'O'. The intra/inter-state
 // distinction is captured by comparing fromStateCode and toStateCode.
-export const generateEWayBillJSON = (profile, client, details, items, totals, invoiceType) => {
+//
+// v1.10.1 — added `opts.taxInclusive` so the per-line taxable and header
+// totalValue back-calculate correctly when the invoice is MRP-inclusive.
+// Prior code hard-coded `taxable = qty*rate - discount` which reported
+// the MRP (post-tax) value as taxable → the portal's own tax-consistency
+// check (`taxableValue + tax ≈ totInvValue`) failed → E-Way Bill rejected.
+export const generateEWayBillJSON = (profile, client, details, items, totals, invoiceType, opts = {}) => {
   if (profile?.country && profile.country !== 'India') {
     throw new Error('E-Way Bill is an Indian GST portal feature. Set business country to "India" in Settings to enable it.');
   }
+  const taxInclusive = !!opts.taxInclusive;
   const fromStateCode = getStateCode(profile.state || profile.gstin);
   const toStateCode = getStateCode(client.state || client.gstin);
   const isInterstate = fromStateCode && toStateCode && fromStateCode !== toStateCode;
@@ -291,8 +554,14 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
   if (!toPincode) throw new Error("Client PIN code is required for the E-Way Bill. Add it in the client's address.");
 
   const itemList = items.map((item, idx) => {
-    const taxable = (item.quantity * item.rate) - (item.discount || 0);
-    const taxRate = item.taxPercent || 0;
+    // v1.10.1 — back-calculate taxable when the invoice is MRP-inclusive.
+    // Previously used gross MRP; portal rejected the file because
+    // taxableValue + tax > totInvValue.
+    const gross = (Number(item.quantity) || 0) * (Number(item.rate) || 0) - (Number(item.discount) || 0);
+    const taxRate = Number(item.taxPercent) || 0;
+    const taxable = taxInclusive && taxRate > 0
+      ? gross / (1 + taxRate / 100)
+      : gross;
     return {
       itemNo: idx + 1,
       productName: item.name || '',
@@ -327,7 +596,11 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
       toPlace: client.city || client.state || '',
       toPincode: toPincode,
       toStateCode: Number(toStateCode) || 0,
-      totalValue: Math.round((totals.subtotal - totals.totalDiscount) * 100) / 100,
+      // v1.10.1 — When tax-inclusive, subtotal is MRP-inclusive; the
+      // pre-tax totalValue must back out the embedded tax. Prefer
+      // totals.taxableAmount which computeInvoiceTotals fills correctly
+      // for both modes; fall back to the old calc for legacy callers.
+      totalValue: Math.round(((totals.taxableAmount != null ? totals.taxableAmount : (totals.subtotal - totals.totalDiscount))) * 100) / 100,
       cgstValue: Math.round(totals.cgst * 100) / 100,
       sgstValue: Math.round(totals.sgst * 100) / 100,
       igstValue: Math.round(totals.igst * 100) / 100,
