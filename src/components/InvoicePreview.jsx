@@ -671,6 +671,10 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       className={`invoice-preview-container ${paperCfg.cssClass} template-${pdfStyleVariant}`}
       data-user-colors={_ps_final.userColorsEnabled ? '1' : '0'}
       data-row-density={_ps_final.rowDensity || 'normal'}
+      data-pdf-font={!isThermal ? (_ps_final.fontFamily || 'sans') : undefined}
+      data-pdf-font-size={!isThermal ? (_ps_final.fontSize || 'medium') : undefined}
+      data-pdf-font-weight={!isThermal ? (_ps_final.fontWeight || 'normal') : undefined}
+      data-pdf-caps={!isThermal && _ps_final.allCaps ? '1' : undefined}
       ref={ref} id="invoice-preview" style={finalContainerStyle}>
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}

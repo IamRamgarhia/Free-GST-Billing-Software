@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.13] — 2026-07-08
+
+Bug bash from user screenshots: three concrete issues confirmed and
+fixed.
+
+### Fixed — Typography changes now affect the PDF preview
+
+**Reported.** User changed Font family (Sans → Mono) and Font size
+(Medium → Small) on the Typography section, and the PDF preview looked
+identical before and after. Called out as "live preview is not working
+correctly in pdf mode."
+
+**Root cause.** `fontFamily`, `fontSize`, `fontWeight`, and `allCaps`
+were being read only by the thermal renderer (`thermalFontFamily =
+settings.fontFamily`, etc.). The PDF render path (classic / modern /
+minimal + template CSS) didn't consume any of them. Result: changes
+from the Typography section were silently discarded when previewing
+the PDF.
+
+**Fix.** InvoicePreview now stamps four data attributes on the
+`.invoice-preview-container` when not rendering thermal:
+
+- `data-pdf-font="mono|sans"` → forces font-family across the tree
+- `data-pdf-font-size="small|medium|large|xlarge"` → 87% / 100% / 112% / 122%
+- `data-pdf-font-weight="normal|bold|ultra"` → 400 / 600 / 800 (title / business name / th / amount go to 900 on ultra)
+- `data-pdf-caps="1"` → text-transform: uppercase across the invoice (numeric cells, HSN, and QR excluded so digits still line up)
+
+Matching CSS rules apply the styling. Now every Typography knob visibly
+changes the PDF preview in real time.
+
+### Fixed — Preset "ACTIVE" indicator lit up multiple cards at once
+
+**Reported.** User clicked "Colorful" and it wasn't marked active —
+Modern still showed ACTIVE.
+
+**Root cause.** Multiple presets share the same `pdfTemplate` value
+(Modern, Colorful, and Enterprise all use `pdfTemplate: 'modern'`;
+IT Services + Corporate both use `'corporate'`). The active check was
+`settings.pdfTemplate === preset.id`, which matched only the id equal
+to the template name — so clicking Colorful didn't move the marker.
+
+**Fix.** Added `activePresetId` field to settings. The preset row
+writes it on click and reads it back for the active check. Now exactly
+one preset is highlighted at a time regardless of pdfTemplate overlap.
+
+### Fixed — Dropdown option text was truncating mid-word
+
+**Reported.** "Monospace (Courier) — thermal-optimized" was rendering
+as "Monospace (Courier) — thermal-optimiz" — the last two characters
+clipped by the select's fixed width.
+
+**Fix.** Selects inside `.print-settings-body` now get right padding
++ ellipsis + full-width so long option labels either fit or truncate
+with a proper "…" cue rather than a hard cut.
+
+### Notes
+
+- No preset color values changed. Existing invoices unaffected.
+- Behavior on the thermal render path is unchanged — thermal already
+  consumed these Typography fields.
+
+---
+
 ## [1.9.12] — 2026-07-08
 
 Two-part fix reported from screenshots: title text on the Corporate /

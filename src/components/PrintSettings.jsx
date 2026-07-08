@@ -357,13 +357,17 @@ export default function PrintSettings() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
           {DESIGN_PRESETS.map(preset => {
-            const active = settings.pdfTemplate === preset.id;
+            // v1.9.13 — Multiple presets share the same pdfTemplate value
+            // (e.g. Modern, Colorful, and Enterprise all use pdfTemplate:
+            // 'modern'). Comparing on pdfTemplate lit up all of them at
+            // once. Track a distinct activePresetId instead.
+            const active = settings.activePresetId === preset.id;
             return (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => {
-                  const next = { ...settings, ...preset.settings };
+                  const next = { ...settings, ...preset.settings, activePresetId: preset.id };
                   setSettings(next); savePrintSettings(next);
                   toast(`Applied "${preset.name}" design — every setting still editable below`, 'success');
                 }}

@@ -1296,6 +1296,48 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .print-settings-body input { max-width: 100%; box-sizing: border-box; }
 .print-settings-preview-pane { overflow: hidden; }
 
+/* v1.9.13 — PDF preview now consumes Typography settings the same way
+   the thermal render does. Font family / size / weight / all-caps used
+   to be thermal-only, so changes from the Typography section didn't
+   visibly do anything in the PDF preview and users reported the preview
+   as broken. Data attributes on the invoice container drive these. */
+.invoice-preview-container[data-pdf-font="mono"],
+.invoice-preview-container[data-pdf-font="mono"] * {
+  font-family: 'Courier New', 'Consolas', monospace !important;
+}
+.invoice-preview-container[data-pdf-font="sans"],
+.invoice-preview-container[data-pdf-font="sans"] * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important;
+}
+.invoice-preview-container[data-pdf-font-size="small"]  { font-size: 87%; }
+.invoice-preview-container[data-pdf-font-size="medium"] { font-size: 100%; }
+.invoice-preview-container[data-pdf-font-size="large"]  { font-size: 112%; }
+.invoice-preview-container[data-pdf-font-size="xlarge"] { font-size: 122%; }
+.invoice-preview-container[data-pdf-font-weight="normal"] { font-weight: 400; }
+.invoice-preview-container[data-pdf-font-weight="bold"]   { font-weight: 600; }
+.invoice-preview-container[data-pdf-font-weight="ultra"]  { font-weight: 800; }
+.invoice-preview-container[data-pdf-font-weight="ultra"] .inv-title,
+.invoice-preview-container[data-pdf-font-weight="ultra"] .inv-business-name,
+.invoice-preview-container[data-pdf-font-weight="ultra"] .inv-table thead th,
+.invoice-preview-container[data-pdf-font-weight="ultra"] .inv-td-amount { font-weight: 900 !important; }
+/* ALL CAPS across the whole invoice — respects white-space on numeric cells */
+.invoice-preview-container[data-pdf-caps="1"] { text-transform: uppercase; }
+.invoice-preview-container[data-pdf-caps="1"] .inv-td-amount,
+.invoice-preview-container[data-pdf-caps="1"] .inv-td-hsn,
+.invoice-preview-container[data-pdf-caps="1"] input,
+.invoice-preview-container[data-pdf-caps="1"] .qr-code-container { text-transform: none; }
+
+/* v1.9.13 — dropdown text was clipping ("Monospace (Courier) — thermal-optimiz"
+   with the 'ed' cut off). Give selects room to breathe and let long option
+   labels wrap in the closed state via ellipsis rather than hard clip. */
+.print-settings-body select {
+  padding-right: 2rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 100%;
+}
+
 /* v1.9.12 — Dark-mode fixes for the Print Settings preview pane and the
    invoice-preview inside it. The invoice preview always renders on a
    white canvas (invoices are printed on white paper), so its inner text

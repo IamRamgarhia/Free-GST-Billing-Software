@@ -205,6 +205,11 @@ export const DEFAULT_PRINT_SETTINGS = {
   // -- Setup / onboarding --
   onboardingComplete: false,     // set to true after user finishes the setup wizard
 
+  // v1.9.13 — Tracks which design preset the user last clicked, so the
+  // preset picker can highlight it correctly. Multiple presets share the
+  // same pdfTemplate value, so pdfTemplate alone is ambiguous.
+  activePresetId: '',            // '' | 'modern' | 'classic' | 'corporate' | 'minimalist' | 'colorful' | 'minimal' | 'enterprise' | 'itservices' | 'retail'
+
   // ============================================================
   // v1.9.4 — Payment reminder auto-scheduling + accessibility opts
   // ============================================================
