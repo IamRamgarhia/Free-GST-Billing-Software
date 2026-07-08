@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download } from 'lucide-react';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings } from '../store';
-import { formatCurrency, INVOICE_TYPES } from '../utils';
+import { formatCurrency, INVOICE_TYPES, getFYOptions } from '../utils';
 import { toast } from './Toast';
 
 const STATUS_CONFIG = {
@@ -11,16 +11,8 @@ const STATUS_CONFIG = {
   overdue: { label: 'Overdue', icon: AlertTriangle, color: '#dc2626', bg: '#fef2f2' },
 };
 
-function getFYOptions() {
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const options = [];
-  for (let i = 0; i < 5; i++) {
-    const y = currentYear - i;
-    options.push({ value: `${y}-${y + 1}`, label: `FY ${y}-${String(y + 1).slice(-2)}`, from: `${y}-04-01`, to: `${y + 1}-03-31` });
-  }
-  return options;
-}
+// v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
+// from ../utils so a bugfix touches one file, not five.
 
 export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const [bills, setBills] = useState([]);

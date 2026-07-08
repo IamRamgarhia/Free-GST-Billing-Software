@@ -212,24 +212,7 @@ export async function uploadJSON(fileName, jsonString, folderId) {
   return await res.json();
 }
 
-// List the most recent backup files in a folder. Used by Restore from Drive.
-export async function listBackupsInFolder(folderId, limit = 20) {
-  if (!accessToken) throw new Error('Not connected to Google Drive');
-  const q = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime%20desc&pageSize=${limit}&fields=files(id,name,modifiedTime,size)`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) throw new Error('Failed to list Drive files');
-  const data = await res.json();
-  return data.files || [];
-}
-
-// Download a Drive file by id and return its text content.
-export async function downloadFileText(fileId) {
-  if (!accessToken) throw new Error('Not connected to Google Drive');
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!res.ok) throw new Error('Failed to download Drive file');
-  return await res.text();
-}
+// v1.10.6 — audit L6: `listBackupsInFolder()` and `downloadFileText()`
+// had no importers. The "Restore from Drive" UI they were built for
+// never landed; the current Drive integration is upload-only. Reintroduce
+// when the restore-from-Drive feature does.

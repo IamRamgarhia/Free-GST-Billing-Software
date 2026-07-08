@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC } from '../utils';
+import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions } from '../utils';
 import { toast } from './Toast';
 
 const GST_TYPES = ['tax-invoice', 'credit-note'];
@@ -13,16 +13,7 @@ const QUARTERS = [
   { id: 'Q4', label: 'Q4 (Jan–Mar)', months: [0, 1, 2] },
 ];
 
-function getFYOptions() {
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const options = [];
-  for (let i = 0; i < 5; i++) {
-    const y = currentYear - i;
-    options.push({ value: `${y}-${y + 1}`, label: `FY ${y}-${String(y + 1).slice(-2)}`, from: `${y}-04-01`, to: `${y + 1}-03-31` });
-  }
-  return options;
-}
+// v1.10.6 — audit L4: local copy removed, imported from utils above.
 
 function downloadCSV(filename, headers, rows) {
   const escape = (val) => { const s = String(val ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -1171,8 +1162,10 @@ export default function GSTReturns() {
                     <th style={{ textAlign: 'right' }}>Total</th>
                   </tr></thead>
                   <tbody>
+                    {/* v1.10.6 — audit L13: was key={i}; use invoiceNo which is
+                        stable across sorts. */}
                     {b2bRows.map((r, i) => (
-                      <tr key={i}>
+                      <tr key={r.invoiceNo || `b2b-${i}`}>
                         <td><span className="invoice-badge">{r.gstin}</span></td>
                         <td className="font-medium">{r.clientName}</td>
                         <td>{r.invoiceNo}</td>
@@ -1211,10 +1204,11 @@ export default function GSTReturns() {
                 <table className="data-table">
                   <thead><tr><th>GSTIN</th><th>Client</th><th>Note No</th><th>Date</th><th style={{ textAlign: 'right' }}>Taxable</th><th style={{ textAlign: 'right' }}>Tax</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
                   <tbody>
+                    {/* v1.10.6 — audit L13: was key={i}; use bill.id which is stable. */}
                     {creditNotes.map((bill, i) => {
                       const { client, totals } = bill.data;
                       return (
-                        <tr key={i}>
+                        <tr key={bill.id || `cn-${i}`}>
                           <td><span className="invoice-badge">{client?.gstin || 'Unregistered'}</span></td>
                           <td className="font-medium">{client?.name || bill.clientName}</td>
                           <td>{bill.invoiceNumber}</td>
@@ -1287,8 +1281,9 @@ export default function GSTReturns() {
                 <table className="data-table">
                   <thead><tr><th>HSN</th><th>Description</th><th style={{ textAlign: 'right' }}>Qty</th><th style={{ textAlign: 'right' }}>Taxable</th><th style={{ textAlign: 'right' }}>CGST</th><th style={{ textAlign: 'right' }}>SGST</th><th style={{ textAlign: 'right' }}>IGST</th><th style={{ textAlign: 'right' }}>Total Tax</th></tr></thead>
                   <tbody>
+                    {/* v1.10.6 — audit L13: HSN code is unique per row. */}
                     {hsnRows.map((r, i) => (
-                      <tr key={i}>
+                      <tr key={r.hsn || `hsn-${i}`}>
                         <td><span className="invoice-badge">{r.hsn}</span></td>
                         <td className="font-medium">{r.description}</td>
                         <td style={{ textAlign: 'right' }}>{r.quantity}</td>
@@ -1600,7 +1595,8 @@ export default function GSTReturns() {
                         const badge = STATUS_BADGES[r.status];
                         const diff = r.twoBVal - r.bookVal;
                         return (
-                          <tr key={i}>
+                          // v1.10.6 — audit L13: use invoice + GSTIN combo (stable across filters).
+                          <tr key={`${r.gstin || 'x'}-${r.invoice || i}`}>
                             <td><span className="status-pill" style={{ '--pill-color': badge.color }}>{badge.label}</span></td>
                             <td>
                               <div style={{ fontWeight: 500 }}>{r.supplier || '—'}</div>

@@ -104,7 +104,10 @@ export const DEFAULT_PRINT_SETTINGS = {
   dualCurrencyRate: 83,      // 1 INR = 1/rate secondary — user maintains manually (or per-invoice)
   dualCurrencyPosition: 'below', // 'below' (line under primary) | 'inline' (same line, in parens)
 
-  // -- PDF template style (extends the existing modern/classic/minimal) --
+  // -- PDF template style. Accepts 5 values but only 3 physical render
+  // paths exist: `corporate` → classic + CSS class variant,
+  // `minimalist` → minimal + CSS class variant. See InvoicePreview.jsx
+  // `pdfStyleRaw` mapping (audit L8 comment fix). --
   pdfTemplate: 'modern',     // 'modern' | 'classic' | 'minimal' | 'corporate' | 'minimalist'
 
   // -- Company letterhead --

@@ -1150,14 +1150,10 @@ export const FEATURE_GROUPS = [
   },
 ];
 
-// Flat list of all modules with their default-on state.
-export const ALL_MODULES = FEATURE_GROUPS.flatMap(g => g.modules.map(m => ({ ...m, group: g.id })));
-
-export const getModuleDefaults = () => {
-  const out = {};
-  ALL_MODULES.forEach(m => { out[m.id] = m.core ? true : (m.defaultOn !== false); });
-  return out;
-};
+// v1.10.6 — audit L3: removed unused exports `ALL_MODULES` and
+// `getModuleDefaults` (no importers anywhere in src/). Reintroduce
+// if a future consumer needs the flat list.
+const ALL_MODULES = FEATURE_GROUPS.flatMap(g => g.modules.map(m => ({ ...m, group: g.id })));
 
 // Returns true if a module is currently enabled. Core modules can never be off.
 // User overrides in localStorage (via Settings → Modules) take precedence over defaults.
@@ -1381,10 +1377,8 @@ export const TERMS_PRESETS = [
   },
 ];
 
-export const getTermsPresets = (region) => {
-  if (!region || region === '*') return TERMS_PRESETS;
-  return TERMS_PRESETS.filter(p => p.region === region || p.region === '*');
-};
+// v1.10.6 — audit L3: `getTermsPresets(region)` had no importers.
+// Components read TERMS_PRESETS directly; that stays exported.
 
 // ========== TDS / TCS (Income Tax Act) ==========
 // Common TDS sections that appear on invoices. The buyer deducts this from the
@@ -1414,8 +1408,8 @@ export const TCS_SECTIONS = [
   { code: 'custom',   label: 'Custom rate', rate: 0 },
 ];
 
-export const getTDSSection = (code) => TDS_SECTIONS.find(s => s.code === code) || TDS_SECTIONS[0];
-export const getTCSSection = (code) => TCS_SECTIONS.find(s => s.code === code) || TCS_SECTIONS[0];
+// v1.10.6 — audit L3: getTDSSection / getTCSSection had no importers.
+// Components filter TDS_SECTIONS / TCS_SECTIONS directly.
 
 // ========== Round-off helper ==========
 // Returns the delta needed to round the total to the nearest whole unit.

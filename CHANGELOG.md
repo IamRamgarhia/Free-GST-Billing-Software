@@ -7,6 +7,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.6] — 2026-07-08
+
+**Bonus bundle 7/7 — all 21 LOW-severity audit findings closed.** Six
+of them (L1, L2, L14, L17, L18, L21) were already fixed by prior
+bundles; the remaining 15 are addressed here. Every non-LOW finding
+was covered in v1.10.0-v1.10.5.
+
+Verified: build clean, 0 boot errors in Chromium, tax harness still
+31/31, backup rate-limit fires correctly (200 → 429).
+
+### Dead code (L3, L6)
+
+Removed 7 unused exports:
+- **`utils.js`**: `ALL_MODULES` (kept internal), `getModuleDefaults()`,
+  `getTermsPresets()`, `getTDSSection()`, `getTCSSection()` — no
+  importers anywhere in `src/`. Comments left explaining why they went
+  and how to reintroduce.
+- **`services/googleDrive.js`**: `listBackupsInFolder()`,
+  `downloadFileText()` — built for a "Restore from Drive" UI that never
+  landed. Current Drive integration is upload-only.
+
+### Dedupe (L4)
+
+`getFYOptions()` was copy-pasted into 5 view components (Dashboard,
+GSTReturns, ExpenseTracker, PurchaseBills, ReportsView) — a fiscal-year
+computation bug would need touching all 5 files. The canonical export
+already lived in `utils.js`; all 5 local copies deleted and switched to
+the shared import.
+
+### Stale docs (L7, L8)
+
+- `App.jsx:503` — comment mentioned `.esc-closable` class the ESC handler
+  supposedly added; the class doesn't exist in any file. Rewritten to
+  match what the code actually does.
+- `printSettings.js:108` — `pdfTemplate` doc listed 5 values but only 3
+  physical render paths exist (`corporate`/`minimalist` map to
+  `classic`/`minimal` + a CSS class variant). Clarified in comment.
+
+### Wizard UX (L9)
+
+`SetupWizard.finish()` and `skip()` were indistinguishable if the user
+made no selections — both wrote `onboardingComplete: true`. Now:
+`finish` is disabled until at least one choice is made (business type,
+paper size, or non-default language). `skip` toasts "Setup skipped —
+configure any time from Settings → Print & PDF" so the user knows
+what they've done.
+
+### Dead state update (L10)
+
+`dismissUpdate()` called `setUpdateInfo(prev => prev ? { ...prev } :
+prev)` "to trigger re-render" — but the `setShowUpdateModal(false)`
+right after already re-renders, and `updateBannerVisible` reads
+`localStorage` every render so the new dismissal is picked up. Removed
+the no-op state update.
+
+### Server — rate-limit + cache TTL + async recurring (L11, L12, L19)
+
+- **`POST /api/backups/now`** was unauthenticated + unrate-limited.
+  Now: max 1 call per 5 seconds; excess returns 429 with the shared
+  `errRes` helper. Verified with `curl` — call 1 = 200, call 2 = 429.
+- **`dirCache`** was invalidated only on write/delete → users who
+  hand-edit files in `data/bills/` (documented as supported) saw stale
+  reads until a POST happened. Now: 5-second TTL. Cheap for the common
+  path (still cached), correct for the edge case.
+- **`processDueRecurring`** was a fully-synchronous loop over every
+  recurring template with sync FS writes → HTTP handlers blocked until
+  it finished. Now: async, `await setImmediate()` between templates so
+  the event loop breathes. Callers wrapped in `.catch(logFatal)` since
+  it's fire-and-forget.
+
+### React polish (L13, L15)
+
+- **`key={index}` in filterable/sortable rows** — GSTReturns had 4
+  offending sites. Switched to stable keys: `bill.id`, `r.invoiceNo`,
+  `r.hsn`, `${gstin}-${invoice}`. Row identity now survives sort/filter.
+- **`filteredClients`** memoized via `useMemo([client.name,
+  savedClients])`. Small filter but keeps identity stable so the
+  downstream suggestion dropdown doesn't re-render on unrelated
+  parent updates.
+
+### PWA polish (L16)
+
+Manifest shortcut icons declared `sizes: '96x96'` on an SVG source —
+confused the Windows jumplist renderer. Changed to `sizes: 'any'`
+with an explicit `type: 'image/svg+xml'` so the OS can rasterize at
+whatever size it wants.
+
+### Dev DX (L20)
+
+Vite proxy `target: 'http://localhost:47371'` was hardcoded. If
+Express started on 47372 (EADDRINUSE bumped default), every `/api` call
+in dev failed. Now: `vite.config.js` reads `data/port.txt` at Vite
+startup and uses whatever port Express landed on. Restart Vite if the
+server reboots onto a different port.
+
+### Audit fully closed
+
+```
+v1.10.0  Bundle 1   Backend security               14/14 closed
+v1.10.1  Bundle 2   GST/tax compliance             15/15 closed
+v1.10.2  Bundle 3   Offline PWA                     5/5  closed
+v1.10.3  Bundle 4   PDF generation                 11/11 closed
+v1.10.4  Bundle 5   React perf                     10/12 closed (2 deferred, rationale in notes)
+v1.10.5  Bundle 6   Unwired features + hygiene     10/10 closed
+v1.10.6  Bundle 7   LOW-severity cleanup           21/21 closed
+                                                   ─────
+                                                   86 findings addressed
+```
+
+The 2 deferred items from Bundle 5 (LineItem row memo, App.jsx fetch
+orchestration + store.js state layer redesign) remain the honest open
+follow-ups — both are structural refactors sized for their own PRs.
+
+---
+
 ## [1.10.5] — 2026-07-08
 
 **Bundle 6 of 6 (final) from the deep architectural audit.** Unwired

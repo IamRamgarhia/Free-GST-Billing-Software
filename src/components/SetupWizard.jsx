@@ -18,11 +18,17 @@ export default function SetupWizard({ onClose }) {
   const [paperSize, setPaperSize] = useState('a4');
   const [language, setLanguage] = useState('en');
 
+  // v1.10.6 — audit L9. Prior code let `finish()` with no business
+  // preset selected behave identically to `skip()` — user got two
+  // indistinguishable "did nothing" exits. Now: finish() is disabled
+  // (see button below) until at least one choice is made, so hitting
+  // Finish always writes something meaningful. skip() stays available
+  // for users who genuinely want to dismiss and configure later.
   const finish = () => {
     const current = getPrintSettings();
     let next = { ...current, onboardingComplete: true, labelLanguage: language };
     if (selectedBiz) next = applyBusinessPreset(next, selectedBiz);
-    if (paperSize) next.paperSize = paperSize; // note: paperSize is on invoiceOptions typically, but we save it here as a default hint
+    if (paperSize) next.paperSize = paperSize;
     savePrintSettings(next);
     toast('Setup complete! Your defaults are configured.', 'success');
     onClose();
@@ -31,8 +37,10 @@ export default function SetupWizard({ onClose }) {
   const skip = () => {
     const current = getPrintSettings();
     savePrintSettings({ ...current, onboardingComplete: true });
+    toast('Setup skipped — configure any time from Settings → Print & PDF.', 'info');
     onClose();
   };
+  const canFinish = !!selectedBiz || !!paperSize || language !== 'en';
 
   return (
     <div className="modal-overlay" style={{ zIndex: 9999 }}>
@@ -181,7 +189,9 @@ export default function SetupWizard({ onClose }) {
                 Continue <ChevronRight size={16} />
               </button>
             ) : (
-              <button type="button" className="btn btn-primary" onClick={finish}>
+              <button type="button" className="btn btn-primary" onClick={finish}
+                disabled={!canFinish}
+                title={canFinish ? '' : 'Pick a business type, paper size, or language first — or use Skip.'}>
                 <Check size={16} /> Finish setup
               </button>
             )}

@@ -147,13 +147,19 @@ function writeFileAtomic(filePath, contents) {
 // file is created lazily; ERRORS_LOG constant below still points here.
 const ERRORS_LOG = path.join(DATA_DIR, 'errors.log');
 
-// In-memory cache for directory reads — invalidated on write/delete
+// In-memory cache for directory reads — invalidated on write/delete.
+// v1.10.6 — audit L12: added a 5s TTL. Users are documented as being
+// able to hand-edit JSON files in data/*; prior code never noticed
+// external edits until a POST/DELETE happened to invalidate. Now: any
+// cached entry older than 5 seconds is treated as stale and re-read.
 const dirCache = {};
+const DIR_CACHE_TTL_MS = 5000;
 function invalidateCache(dir) { delete dirCache[dir]; }
 
-// Helper: read all JSON files from a directory (cached)
+// Helper: read all JSON files from a directory (cached, 5s TTL)
 function readAllFromDir(dir) {
-  if (dirCache[dir]) return dirCache[dir];
+  const entry = dirCache[dir];
+  if (entry && (Date.now() - entry.at) < DIR_CACHE_TTL_MS) return entry.value;
   const dirPath = path.join(DATA_DIR, dir);
   if (!fs.existsSync(dirPath)) return [];
   const results = fs.readdirSync(dirPath)
@@ -163,7 +169,7 @@ function readAllFromDir(dir) {
       catch { return null; }
     })
     .filter(Boolean);
-  dirCache[dir] = results;
+  dirCache[dir] = { at: Date.now(), value: results };
   return results;
 }
 
@@ -938,7 +944,18 @@ app.post('/api/backups/:date/restore', (req, res) => {
   }
 });
 
+// v1.10.6 — audit L11: throttle. Prior code let any caller spam this
+// endpoint and each hit walked the whole data tree + 30-day pruning.
+// The `if (fs.existsSync(target)) return` inside runDailyBackup makes
+// this idempotent per day, but the fs walks still happen. Now: at most
+// one call per 5 seconds; excess return 429 with a hint.
+let __lastBackupNowMs = 0;
 app.post('/api/backups/now', (req, res) => {
+  const now = Date.now();
+  if (now - __lastBackupNowMs < 5000) {
+    return errRes(res, 429, 'server-error');
+  }
+  __lastBackupNowMs = now;
   runDailyBackup();
   res.json({ success: true });
 });
@@ -1244,11 +1261,19 @@ function nextInvoiceNumber(prefix, settings = {}) {
   // server-side firing.
 }
 
-function processDueRecurring() {
+// v1.10.6 — audit L19: made async and yields between templates via
+// setImmediate. Prior code was one uninterrupted sync loop over every
+// recurring template with sync FS writes; N templates × K items
+// blocked the event loop → HTTP handlers froze until it finished.
+// Now: single-template body is unchanged, but each iteration awaits
+// setImmediate() so pending fetches / API calls get a slot.
+async function processDueRecurring() {
   const today = new Date().toISOString().split('T')[0];
   const templates = readAllFromDir('recurring');
   let fired = 0;
+  const yieldToLoop = () => new Promise(r => setImmediate(r));
   for (const tpl of templates) {
+    await yieldToLoop();
     if (!tpl || !tpl.active) continue;
     if (!tpl.nextDate || tpl.nextDate > today) continue;
     // End conditions
@@ -1372,5 +1397,7 @@ function processDueRecurring() {
 startServer(STARTING_PORT);
 // Fire once after a short delay so the listener is up first; then once a day
 // for users whose server stays up >24h.
-setTimeout(processDueRecurring, 3000);
-setInterval(processDueRecurring, 24 * 60 * 60 * 1000);
+// v1.10.6 — audit L19: async caller. Uncaught rejections logged via
+// the top-level unhandledRejection handler installed above.
+setTimeout(() => { processDueRecurring().catch(err => logFatal(err, 'recurring')); }, 3000);
+setInterval(() => { processDueRecurring().catch(err => logFatal(err, 'recurring')); }, 24 * 60 * 60 * 1000);

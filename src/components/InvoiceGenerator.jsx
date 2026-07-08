@@ -746,10 +746,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setShowClientModal(false);
   };
 
-  // Filter saved clients based on typed name
-  const filteredClients = client.name.trim()
-    ? savedClients.filter(cli => cli.name.toLowerCase().includes(client.name.trim().toLowerCase()))
-    : savedClients;
+  // v1.10.6 — audit L15. Small filter but cheap to memoize; keeps the
+  // suggestion list identity stable across renders where neither
+  // input matters (saves a downstream re-render of the suggestion
+  // dropdown).
+  const filteredClients = useMemo(() => {
+    const q = client.name.trim().toLowerCase();
+    if (!q) return savedClients;
+    return savedClients.filter(cli => cli.name.toLowerCase().includes(q));
+  }, [client.name, savedClients]);
 
   // Close suggestions on click outside
   useEffect(() => {

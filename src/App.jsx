@@ -213,7 +213,10 @@ function App() {
   const dismissUpdate = () => {
     if (updateInfo?.latest) {
       localStorage.setItem('freegstbill_dismissedUpdate', updateInfo.latest);
-      setUpdateInfo(prev => prev ? { ...prev } : prev); // trigger re-render
+      // v1.10.6 — audit L10: was `setUpdateInfo(prev => prev ? { ...prev }
+      // : prev)` "to trigger re-render". No-op — `setShowUpdateModal(false)`
+      // below already re-renders, and `updateBannerVisible` reads
+      // localStorage every render so the new dismissal is picked up.
     }
     setShowUpdateModal(false);
   };
@@ -496,12 +499,14 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // v1.9.4 — Accessibility hooks:
+  // v1.9.4 — Accessibility hooks (v1.10.4/1.10.6 updated):
   //   1. Mirror `title` → `aria-label` on every icon button that lacks one.
-  //      Runs once after each view mounts + on interval as a safety net for
-  //      dynamically-added buttons (bulk toolbars, modals, etc.).
-  //   2. Global ESC handler for any open modal (adds `.esc-closable` class
-  //      to overlays; ESC clicks their close button or backdrop).
+  //      Runs on mount + via a MutationObserver when the DOM adds new
+  //      icon buttons (bulk toolbars, modals, etc.). See M15.
+  //   2. Global ESC handler for any open `.modal-overlay` — clicks the
+  //      backdrop (which triggers the overlay's own close). No CSS
+  //      class is added; the earlier `.esc-closable` idea was never
+  //      implemented, comment cleaned up (audit L7).
   useEffect(() => {
     // v1.10.4 — audit M15. Prior code polled the DOM every 3 seconds
     // to mirror title→aria-label on new .icon-btn elements. Constant

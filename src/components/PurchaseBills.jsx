@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download } from 'lucide-react';
 import { getAllPurchases, savePurchase, deletePurchase } from '../store';
-import { formatCurrency, calculateRoundOff } from '../utils';
+import { formatCurrency, calculateRoundOff, getFYOptions } from '../utils';
 import { toast } from './Toast';
 
 const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Partial'];
@@ -47,16 +47,7 @@ function calcPurchaseTotal(items, applyRoundOff = false) {
   return { ...raw, roundOff, finalTotal: raw.total + roundOff };
 }
 
-function getFYOptions() {
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const options = [];
-  for (let i = 0; i < 5; i++) {
-    const y = currentYear - i;
-    options.push({ value: `${y}-${y + 1}`, label: `FY ${y}-${String(y + 1).slice(-2)}`, from: `${y}-04-01`, to: `${y + 1}-03-31` });
-  }
-  return options;
-}
+// v1.10.6 — audit L4: local copy removed, imported from utils above.
 
 export default function PurchaseBills() {
   const [purchases, setPurchases] = useState([]);

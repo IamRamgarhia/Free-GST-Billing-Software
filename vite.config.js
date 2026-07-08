@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -8,6 +9,20 @@ import { VitePWA } from 'vite-plugin-pwa'
 // for Vite's root / publicDir / outDir so the build is stable regardless
 // of where npm is invoked from.
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// v1.10.6 — audit L20: read `data/port.txt` when it exists so the dev
+// proxy tracks whatever port Express landed on (Express drifts off the
+// default when EADDRINUSE bumps it to 47372, 47373, …). Falls back to
+// the historical 47371 default if the file's missing.
+const readActivePort = () => {
+  try {
+    const p = path.join(__dirname, 'data', 'port.txt');
+    if (!fs.existsSync(p)) return 47371;
+    const n = parseInt(fs.readFileSync(p, 'utf-8').trim(), 10);
+    return (isFinite(n) && n >= 1024 && n <= 65535) ? n : 47371;
+  } catch { return 47371; }
+};
+const activeExpressPort = readActivePort();
 
 export default defineConfig({
   // Vite source root lives in src/ rather than the project root. Reason:
@@ -58,28 +73,40 @@ export default defineConfig({
             short_name: 'New Invoice',
             description: 'Create a new tax invoice',
             url: '/?view=new',
-            icons: [{ src: '/favicon.svg', sizes: '96x96' }],
+            // v1.10.6 — audit L16: SVG at fixed `sizes:96x96` confused
+            // Windows jumplist. `any` lets the OS render at whatever
+            // size it wants (SVG is scalable).
+            icons: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }],
           },
           {
             name: 'Dashboard',
             short_name: 'Dashboard',
             description: 'See invoices and stats',
             url: '/?view=dashboard',
-            icons: [{ src: '/favicon.svg', sizes: '96x96' }],
+            // v1.10.6 — audit L16: SVG at fixed `sizes:96x96` confused
+            // Windows jumplist. `any` lets the OS render at whatever
+            // size it wants (SVG is scalable).
+            icons: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }],
           },
           {
             name: 'GST Returns',
             short_name: 'GST Returns',
             description: 'GSTR-1 / 3B / 2B reconciliation',
             url: '/?view=filing',
-            icons: [{ src: '/favicon.svg', sizes: '96x96' }],
+            // v1.10.6 — audit L16: SVG at fixed `sizes:96x96` confused
+            // Windows jumplist. `any` lets the OS render at whatever
+            // size it wants (SVG is scalable).
+            icons: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }],
           },
           {
             name: 'Settings',
             short_name: 'Settings',
             description: 'Business profile, accounts, modules',
             url: '/?view=settings',
-            icons: [{ src: '/favicon.svg', sizes: '96x96' }],
+            // v1.10.6 — audit L16: SVG at fixed `sizes:96x96` confused
+            // Windows jumplist. `any` lets the OS render at whatever
+            // size it wants (SVG is scalable).
+            icons: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }],
           },
         ],
         // v1.10.2 — Icon set matches Android + iOS "Add to Home Screen"
@@ -209,11 +236,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Express default port is 47371 (v1.5.2+); was 3001 in earlier versions.
-      // Reading data/port.txt would be more robust but requires a file read
-      // at Vite config time — this default catches 99% of dev sessions.
+      // v1.10.6 — audit L20: was hardcoded 47371. Now reads
+      // `data/port.txt` at Vite start (see `activeExpressPort` at top
+      // of file). Restart Vite if the server rebooted onto a new port.
       '/api': {
-        target: 'http://localhost:47371',
+        target: `http://localhost:${activeExpressPort}`,
         changeOrigin: true,
       }
     }

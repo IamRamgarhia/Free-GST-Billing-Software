@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Wallet, Plus, Edit3, Trash2, Search, X, Save, Download, Calendar } from 'lucide-react';
 import { getAllExpenses, saveExpense, deleteExpense } from '../store';
-import { formatCurrency } from '../utils';
+import { formatCurrency, getFYOptions } from '../utils';
 import { toast } from './Toast';
 
 // Each category is tagged with its ITR (Income Tax Return) head so the
@@ -58,16 +58,7 @@ const emptyForm = {
   note: '',
 };
 
-function getFYOptions() {
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const options = [];
-  for (let i = 0; i < 5; i++) {
-    const y = currentYear - i;
-    options.push({ value: `${y}-${y + 1}`, label: `FY ${y}-${String(y + 1).slice(-2)}`, from: `${y}-04-01`, to: `${y + 1}-03-31` });
-  }
-  return options;
-}
+// v1.10.6 — audit L4: local copy removed, imported from utils above.
 
 export default function ExpenseTracker() {
   const [expenses, setExpenses] = useState([]);

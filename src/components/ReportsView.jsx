@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package } from 'lucide-react';
 import { getAllBills, getAllExpenses } from '../store';
-import { formatCurrency } from '../utils';
+import { formatCurrency, getFYOptions } from '../utils';
 import { toast } from './Toast';
 
 const MONTHS = [
@@ -9,16 +9,7 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-function getFYOptions() {
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const options = [];
-  for (let i = 0; i < 5; i++) {
-    const y = currentYear - i;
-    options.push({ value: `${y}-${y + 1}`, label: `FY ${y}-${String(y + 1).slice(-2)}`, from: `${y}-04-01`, to: `${y + 1}-03-31` });
-  }
-  return options;
-}
+// v1.10.6 — audit L4: local copy removed, imported from utils above.
 
 const getBillCurrency = (b) => b.currency || b.data?.invoiceOptions?.currency || 'INR';
 
