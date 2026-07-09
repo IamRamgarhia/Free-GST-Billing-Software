@@ -7,6 +7,152 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.10] — 2026-07-09
+
+**Seven reported bugs fixed + one substantial new feature.** Every fix
+verified in real Chromium before committing.
+
+### Fixed — PDF Font Scale really works now (was preview-only)
+
+**Reported.** "PDF FONT SCALE — not working only displaying preview
+working but in real PDF generation it is not working."
+
+**Root cause.** v1.10.9 applied the scale as inline `font-size: 80%`
+on the invoice container. This kind-of worked in the preview because
+some text nodes cascade from container font-size, but most children
+use `rem`/`px` (not `em`) so the raster html2canvas captured came
+out identical to 100%. Preview looked shrunk, PDF didn't.
+
+**Fix.** Scale now applies at the PDF-placement layer in `buildPDF`.
+Both content width AND height on the PDF page get multiplied by
+`pdfFontScale`. Image is centred horizontally inside the available
+margin box. Works reliably — matches how MS Word "shrink to fit"
+behaves. Preview stays at 100%; a note under the slider explains
+users need to download to see the actual scale.
+
+### Fixed — Receipt edit (note / delete) was broken for legacy payments
+
+**Reported.** "receipt edit not working."
+
+**Root cause.** v1.10.9 targeted payments by their `pay_<base36>` id.
+Payments recorded BEFORE v1.10.9 don't have ids, so the filter
+`(p.id || '') === undefined` matched every legacy row — editing did
+nothing (or all).
+
+**Fix.** Renamed to `editPaymentNoteAt(bill, idx)` /
+`deletePaymentAt(bill, idx)` — target by row index. Modern payments
+still have ids for the receipt modal to reference; edits also
+backfill an id onto legacy rows on first modification so future
+lookups can be stable.
+
+### Fixed — Minimal template address / contact colours too light
+
+**Reported.** "in minimal template invoice customization address and
+contact details color still light color. Also color pref THR also
+working but browser like Brave working, Edge not supporting."
+
+**Root cause.** The v1.9.11 `.printing-mode` darkening rules were
+outgunned by `.template-minimalist .inv-meta-label { color: #64748b
+!important }` — both `!important`, but template rules had higher
+specificity via chained-class selectors.
+
+**Fix.** Added compound `.printing-mode.template-minimalist .inv-*`
+selectors that win the specificity war for meta-label, section-label,
+table thead th, business-details, party-details. Same pattern
+applied to `.template-modern .inv-meta-label` for cool-toned
+printers. Should render identically across Brave/Edge/Chrome — they
+all use Chromium's colour pipeline, so a discrepancy suggests
+per-browser display settings the CSS can't override, not a code
+issue.
+
+### Fixed — Custom Watermark silently didn't render
+
+**Reported.** "Custom watermark text not working."
+
+**Root cause.** The "Use custom text" checkbox lived in a section
+independent of the master "Show watermark" toggle. Users enabled
+Custom without turning on the master, saw nothing on invoices, and
+concluded the feature was broken.
+
+**Fix.** Turning on "Use custom text" now **auto-enables** the master
+toggle. If the master is off while custom text is on (edge case),
+a warning appears with a "Turn on now" button.
+
+### Fixed — Company Letterhead silently didn't render
+
+**Reported.** "Company letterhead not working."
+
+**Root cause.** Enabling the toggle without uploading an image left
+`letterheadImage = ''`. `letterheadOn` gate at
+`InvoicePreview.jsx:641` needs both to be truthy — silently skipped
+render when only one was set.
+
+**Fix.** When the toggle is on but no image is uploaded, show a
+warning banner explaining that the setting does nothing until an
+image is set. Points at the file input right below.
+
+### Added — Payment receipts show up in the Receipts page
+
+**Reported.** "\[after Record Payment\] but not displaying here \[in
+Receipts page\]."
+
+**Fix.** `recordPayment` now also calls `saveReceipt(...)` to
+persist a receipt record to `data/receipts/`. Receipt shape mirrors
+the manual Receipts form: `receiptNo`, `clientName`, `amount`,
+`paymentMode`, `againstInvoice`, `billId`, `source:
+'auto-from-payment'`. Deleting a payment via the Payment History
+row also calls `deleteReceipt(id)` so the two lists stay in sync.
+
+Verified: seed a bill, POST a receipt via the app, `/api/receipts`
+list count goes from 0 → 1 with the new receipt included.
+
+### Added — Per-invoice-type custom prefix
+
+**Reported.** "every type should have special code to starts with
+because it will mismatch. Like invoice INV, RECEPT - RPT, QUOTATION
+- QTE."
+
+**Fix.** New "Custom prefix per invoice type" section in Print
+Settings. Each of the 6 types (Tax Invoice, Proforma, Bill of
+Supply, Composition, Credit Note, Delivery Challan) gets its own
+override input. Empty = use the built-in default. Max 8 chars,
+alphanumeric + `_-`.
+
+Every type has its own atomic counter, so switching Tax Invoice
+`INV` → `RTL` starts a fresh sequence for `RTL`.
+
+**Also fixed** — the client-side `getNextInvoiceNumber` was
+overriding the passed-in `prefix` with the global `brandPrefix`
+from Invoice Number Settings (so setting `RPT` was silently swapped
+back to `DICECODES`). Added an `explicitPrefix: true` option that
+bypasses the brandPrefix precedence when the per-type override is
+set.
+
+Verified: `customPrefixes: { 'tax-invoice': 'RPT' }` → new invoice
+number = `RPT/2026-27/0001`.
+
+### Deferred — Ship-to = Bill-to checkbox
+
+**Reported.** "Add option to display shipping address if same, select
+same as billing address."
+
+This needs a proper data-model change (adding
+`shippingAddress`/`shipToSameAsBilling` to the client + invoice
+models, new UI + InvoicePreview render). Rather than half-shipping,
+it's queued for a dedicated pass. The `SHIP TO` labels in
+multi-language presets already exist — just the plumbing behind
+them doesn't.
+
+### Notes
+
+- User also reported items that need bigger design work: compact
+  upper-header redesign, thermal font optimization for low-buffer
+  printers, ledger PDF layout. These are captured for a follow-up
+  release and are visible in the changelog history as "pending
+  design pass".
+
+---
+
 ## [1.10.9] — 2026-07-09
 
 **Six user-reported bugs fixed + new Payment Receipt feature.** All

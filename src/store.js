@@ -113,15 +113,11 @@ export const setEnabledModules = (map) => {
 // Used by InvoiceGenerator to show the next number on form mount — the atomic
 // reservation happens only when the user actually saves. Cancelled forms no
 // longer burn counter values, so CA-audited businesses keep gapless sequences.
-export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false } = {}) => {
+export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false, explicitPrefix = false } = {}) => {
   const settings = await getInvoiceNumberSettings();
   const key = `counter_${prefix}`;
   let next;
   if (peek) {
-    // Read the current counter and add 1 — that's what the next atomic
-    // increment would return. Concurrent writes might make the peek stale
-    // by save time; the save path always uses the atomic increment, so
-    // any drift is invisibly corrected there.
     const { value: current } = await apiFetch(`${API}/meta/${key}`);
     const currentNum = Number(current) || (settings.startNumber || 1) - 1;
     next = currentNum + 1;
@@ -130,14 +126,19 @@ export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false } = {}
     next = inc.value;
   }
 
+  // v1.10.10 — When `explicitPrefix` is true, the caller (per-type
+  // prefix override from Print Settings) wants THEIR prefix used as-is
+  // instead of the global brandPrefix from Invoice Number Settings.
+  // Prior code always let brandPrefix win, so setting "Tax Invoice
+  // prefix = RPT" was silently ignored because brandPrefix = 'DICECODES'.
+  const pfx = explicitPrefix ? prefix : (settings.brandPrefix || prefix);
+
   if (settings.format === 'random') {
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const pfx = settings.brandPrefix || prefix;
     return `${pfx}${settings.separator}${rand}`;
   }
 
   const sep = settings.separator || '/';
-  const pfx = settings.brandPrefix || prefix;
   const padded = String(next).padStart(settings.padDigits || 4, '0');
 
   if (settings.showFinYear) {

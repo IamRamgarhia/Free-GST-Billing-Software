@@ -614,9 +614,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           const config = INVOICE_TYPES[convertType];
           if (config) setInvoiceOptions(prev => ({ ...prev, showGST: config.showGST, showPlaceOfSupply: config.showGST }));
         }
-        const prefix = INVOICE_TYPES[type]?.prefix || 'INV';
-        // peek: don't burn a counter value — actual reservation happens on save.
-        getNextInvoiceNumber(prefix, { peek: true }).then(num => {
+        // v1.10.10 — read per-type prefix override from print settings.
+        const _psForPrefix = getPrintSettings();
+        const rawOverride = _psForPrefix.customPrefixes?.[type];
+        const overridePrefix = rawOverride && rawOverride.trim();
+        const prefix = overridePrefix || INVOICE_TYPES[type]?.prefix || 'INV';
+        getNextInvoiceNumber(prefix, { peek: true, explicitPrefix: !!overridePrefix }).then(num => {
           setDetails({ ...d.details, invoiceNumber: num, invoiceDate: new Date().toISOString().split('T')[0] });
           numberReserved.current = false;
         });
@@ -624,7 +627,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         setDetails(d.details);
       }
     } else if (!details.invoiceNumber) {
-      getNextInvoiceNumber('INV', { peek: true }).then(num => {
+      // v1.10.10 — honour the per-type prefix override for fresh invoices.
+      const _psForPrefix = getPrintSettings();
+      const rawOverride = _psForPrefix.customPrefixes?.[invoiceType];
+      const overridePrefix = rawOverride && rawOverride.trim();
+      const prefix = overridePrefix || INVOICE_TYPES[invoiceType]?.prefix || 'INV';
+      getNextInvoiceNumber(prefix, { peek: true, explicitPrefix: !!overridePrefix }).then(num => {
         setDetails(prev => ({ ...prev, invoiceNumber: num }));
         numberReserved.current = false;
       });
@@ -930,8 +938,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     let finalInvoiceNumber = details.invoiceNumber;
     if (!editingBill && !numberReserved.current) {
       try {
-        const prefix = INVOICE_TYPES[invoiceType]?.prefix || 'INV';
-        finalInvoiceNumber = await getNextInvoiceNumber(prefix);
+        // v1.10.10 — honour user's per-type prefix override.
+        const _psForPrefix = getPrintSettings();
+        const rawOverride = _psForPrefix.customPrefixes?.[invoiceType];
+        const overridePrefix = rawOverride && rawOverride.trim();
+        const prefix = overridePrefix || INVOICE_TYPES[invoiceType]?.prefix || 'INV';
+        finalInvoiceNumber = await getNextInvoiceNumber(prefix, { explicitPrefix: !!overridePrefix });
         setDetails(prev => ({ ...prev, invoiceNumber: finalInvoiceNumber }));
         numberReserved.current = true;
       } catch { /* fall back to the peeked value; server will 409 if it collides */ }
@@ -1246,8 +1258,30 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const mBottom = Math.max(0, Number(printSettings.marginBottom) || 0);
     const mLeft = Math.max(0, Number(printSettings.marginLeft) || 0);
     const mRight = Math.max(0, Number(printSettings.marginRight) || 0);
-    const contentWidth = Math.max(20, pdfWidth - mLeft - mRight);
-    const contentHeight = Math.max(20, pdfPageHeight - mTop - mBottom);
+
+    // v1.10.10 — PDF Font Scale now applies at the PDF-placement layer,
+    // not just via CSS on the preview. Prior fix (v1.10.9) set an inline
+    // `font-size: 80%` on the container, which correctly changed the
+    // preview because parent-relative sizing cascaded to a few text
+    // nodes — but html2canvas captures the DOM at its natural size, and
+    // most children use `rem`/`px` (not `em`), so the raster came out
+    // at 100% and the "80% compact" setting silently did nothing in the
+    // real PDF. Now: multiply BOTH placement width AND height by the
+    // scale. The invoice image lands smaller on the page → text is
+    // proportionally smaller → more content fits per PDF page. This
+    // matches how MS Word / LibreOffice "shrink to fit" works.
+    const rawScale = Number(printSettings.pdfFontScale);
+    const pdfScale = isFinite(rawScale) && rawScale > 0
+      ? Math.max(0.5, Math.min(1.4, rawScale))
+      : 1.0;
+    const availWidth = Math.max(20, pdfWidth - mLeft - mRight);
+    const availHeight = Math.max(20, pdfPageHeight - mTop - mBottom);
+    const contentWidth = availWidth * pdfScale;
+    const contentHeight = availHeight * pdfScale;
+    // Centre the scaled invoice inside the available margin box so
+    // shrunk PDFs don't hug the left edge.
+    const contentXOffset = mLeft + (availWidth - contentWidth) / 2;
+    const contentYOffset = mTop; // top-aligned; bottom margin absorbs slack
     // Recompute the image's rendered height using the reduced content width
     // so aspect ratio stays correct after margins are applied.
     const scaledImgHeight = (mainCanvas.height * contentWidth) / mainCanvas.width;
@@ -1255,8 +1289,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (scaledImgHeight <= contentHeight + 2) {
       // Single-page fits — no cropping needed.
       const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
-      pdf.addImage(mainImg, imgFormat, mLeft, mTop, contentWidth, Math.min(scaledImgHeight, contentHeight), undefined, 'MEDIUM');
-      pageRecipes.push({ img: mainImg, y: mTop, h: Math.min(scaledImgHeight, contentHeight), x: mLeft, w: contentWidth });
+      const finalH = Math.min(scaledImgHeight, contentHeight);
+      pdf.addImage(mainImg, imgFormat, contentXOffset, contentYOffset, contentWidth, finalH, undefined, 'MEDIUM');
+      pageRecipes.push({ img: mainImg, y: contentYOffset, h: finalH, x: contentXOffset, w: contentWidth });
     } else {
       // v1.10.8 multi-page path — snap page breaks to safe DOM row boundaries.
       //
@@ -1305,7 +1340,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       }
 
       // 4. For each page, crop mainCanvas → temp canvas → data URL → PDF.
-      // v1.10.9 — Applies margins to each cropped page image.
+      // v1.10.9 — margins; v1.10.10 — pdfFontScale via centred placement.
       for (let i = 0; i < pageSplits.length; i++) {
         const { start, end } = pageSplits[i];
         const cropHeight = end - start;
@@ -1320,8 +1355,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         const pageImg = tmp.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
         const pageMmHeight = (cropHeight * contentWidth) / mainCanvas.width;
         if (i > 0) pdf.addPage();
-        pdf.addImage(pageImg, imgFormat, mLeft, mTop, contentWidth, pageMmHeight, undefined, 'MEDIUM');
-        pageRecipes.push({ img: pageImg, y: mTop, h: pageMmHeight, x: mLeft, w: contentWidth });
+        pdf.addImage(pageImg, imgFormat, contentXOffset, contentYOffset, contentWidth, pageMmHeight, undefined, 'MEDIUM');
+        pageRecipes.push({ img: pageImg, y: contentYOffset, h: pageMmHeight, x: contentXOffset, w: contentWidth });
       }
     }
 

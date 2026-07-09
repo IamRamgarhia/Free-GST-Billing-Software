@@ -1300,6 +1300,34 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   color: #334155 !important;
 }
 
+/* v1.10.10 — Higher-specificity print-mode overrides for the Minimalist
+   and Modern templates. Prior code's `.printing-mode .inv-*` rules were
+   OUTGUNNED by `.template-minimalist .inv-meta-label { color: #64748b
+   !important }` (both !important, but template-* has higher specificity
+   because it's specified via chained-class selectors on the container).
+   Now the compound `.printing-mode.template-minimalist .inv-*` selector
+   wins, forcing muted text darker on paper output regardless of template.
+   User reported: "in minimal template invoice customization address and
+   contact details color still light color". */
+.printing-mode.template-minimalist .inv-meta-label,
+.printing-mode.template-minimalist .inv-section-label,
+.printing-mode.template-minimalist .inv-table thead th,
+.printing-mode.template-minimalist .inv-business-details,
+.printing-mode.template-minimalist .inv-business-details p,
+.printing-mode.template-minimalist .inv-party-details,
+.printing-mode.template-minimalist .inv-party-details p {
+  color: #1e293b !important;
+}
+.printing-mode.template-minimalist .inv-business-details strong,
+.printing-mode.template-minimalist .inv-party-details strong {
+  color: #0f172a !important;
+}
+/* Also cover the Modern template's meta-label which suffers the same
+   fate (a rare but reported issue on cool-toned printers). */
+.printing-mode.template-modern .inv-meta-label {
+  color: #1e293b !important;
+}
+
 /* v1.9.8 — Print Settings split layout. Sticky preview on the right;
    collapses to stacked on narrow screens so mobile users don't get a
    tiny preview crushed to 100px wide. */

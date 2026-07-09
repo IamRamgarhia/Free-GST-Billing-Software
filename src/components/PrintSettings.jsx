@@ -650,6 +650,30 @@ export default function PrintSettings() {
               hint="Applies to the letterhead, table, and totals. Affects sheet formats (A4/A5/Letter/Legal); thermal has its own font setting above." />
           </SettingGroup>
 
+          {/* PER-TYPE INVOICE PREFIX OVERRIDES (v1.10.10) */}
+          <SettingGroup title="Custom prefix per invoice type">
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>
+              Leave blank to use the built-in default. Each type has its own atomic counter — changing a prefix starts a fresh count for the new one.
+            </p>
+            {[
+              { key: 'tax-invoice',     label: 'Tax Invoice',       def: 'INV'  },
+              { key: 'proforma',        label: 'Proforma / Estimate', def: 'EST' },
+              { key: 'bill-of-supply',  label: 'Bill of Supply',    def: 'BOS'  },
+              { key: 'composition',     label: 'Composition',       def: 'COMP' },
+              { key: 'credit-note',     label: 'Credit Note',       def: 'CN'   },
+              { key: 'delivery-challan',label: 'Delivery Challan',  def: 'DC'   },
+            ].map(({ key, label, def }) => (
+              <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: '0.5rem', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: '0.82rem' }}>{label}</span>
+                <input type="text" className="form-input"
+                  value={settings.customPrefixes?.[key] || ''}
+                  onChange={e => set({ customPrefixes: { ...(settings.customPrefixes || {}), [key]: e.target.value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 8) } })}
+                  placeholder={def} maxLength={8}
+                  style={{ fontSize: '0.8rem', padding: '0.3rem 0.5rem' }} />
+              </div>
+            ))}
+          </SettingGroup>
+
           {/* REPRINT INDICATOR */}
           <SettingGroup title="Reprint tracking">
             <ToggleRow label="Show REPRINT badge on reprints" value={settings.reprintLabelEnabled} onChange={v => set({ reprintLabelEnabled: v })}
@@ -707,6 +731,14 @@ export default function PrintSettings() {
                   </>
                 ) : (
                   <>
+                    {/* v1.10.10 — reported: "letterhead not working". Root
+                         cause: enabling the toggle without uploading an
+                         image left `letterheadImage = ''` which silently
+                         does nothing at render time. Warn the user
+                         instead of letting them think it's on. */}
+                    <div style={{ padding: '0.5rem 0.75rem', background: 'var(--warn-bg)', border: '1px solid var(--warn-border)', color: 'var(--warn-text)', borderRadius: 6, fontSize: '0.78rem', marginBottom: '0.6rem' }}>
+                      ⚠ Letterhead is enabled but no image is uploaded yet. Upload a PNG or JPG below (A4 recommended, max 3 MB) — the toggle does nothing until an image is set.
+                    </div>
                     <label style={{ fontSize: '0.78rem', display: 'block', marginBottom: 3 }}>Upload letterhead (PNG / JPG, A4 recommended)</label>
                     <input type="file" accept="image/png,image/jpeg,image/webp"
                       onChange={e => {
@@ -756,6 +788,9 @@ export default function PrintSettings() {
               style={{ width: '100%', accentColor: 'var(--primary)' }} />
             <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
               80% = compact (fits more per page) · 100% = default · 140% = large. Scales the entire PDF proportionally.
+            </p>
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '3px 0 0', fontStyle: 'italic' }}>
+              v1.10.10 note: applied at PDF export time. The on-screen preview always renders at 100% — download a PDF to see the actual scale.
             </p>
           </SettingGroup>
 
@@ -917,12 +952,28 @@ export default function PrintSettings() {
         <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
           💧 Custom watermark text
         </h4>
-        <ToggleRow label="Use custom text (overrides preset)" value={settings.watermarkUseCustomText} onChange={v => set({ watermarkUseCustomText: v })}
-          hint="When enabled, the text below replaces the PAID/DUPLICATE/etc. preset picker." />
+        {/* v1.10.10 — reported "custom watermark text not working". Root
+             cause: this section only writes `watermarkUseCustomText` +
+             `watermarkCustomText`, but the master `watermarkEnabled`
+             toggle lives in a DIFFERENT section above. Users toggled
+             the custom text here without turning the master on and got
+             silence. Now: turning on Custom text auto-enables the
+             master, and if the master is off we show a warning here
+             instead of silently accepting the choice. */}
+        {!settings.watermarkEnabled && settings.watermarkUseCustomText && (
+          <div style={{ padding: '0.5rem 0.75rem', background: 'var(--warn-bg)', border: '1px solid var(--warn-border)', color: 'var(--warn-text)', borderRadius: 6, fontSize: '0.78rem', marginBottom: '0.6rem' }}>
+            ⚠ The master "Show watermark" toggle is OFF. Turning it on now so your custom text actually renders on invoices.
+            <button type="button" className="btn btn-primary" style={{ marginLeft: '0.5rem', fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+              onClick={() => set({ watermarkEnabled: true })}>Turn on now</button>
+          </div>
+        )}
+        <ToggleRow label="Use custom text (overrides preset)" value={settings.watermarkUseCustomText}
+          onChange={v => set(v ? { watermarkUseCustomText: v, watermarkEnabled: true } : { watermarkUseCustomText: v })}
+          hint="When enabled, the text below replaces the PAID/DUPLICATE/etc. preset picker. Automatically turns on the master 'Show watermark' toggle too." />
         {settings.watermarkUseCustomText && (
           <TextRow label="Watermark text" value={settings.watermarkCustomText} onChange={v => set({ watermarkCustomText: v })}
             placeholder="e.g. CONFIDENTIAL · SAMPLE · PROOF ONLY · YOUR-COMPANY-NAME"
-            hint="Any text you want. Automatically uppercased. Only applies when Watermark is enabled." />
+            hint="Any text you want. Automatically uppercased." />
         )}
       </div>
 

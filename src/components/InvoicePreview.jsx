@@ -676,16 +676,17 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     ? (PDF_FAMILY_MAP[_ps_final.pdfFontFamily] || PDF_FAMILY_MAP.helvetica)
     : undefined;
 
-  // v1.10.9 — Font Scale slider (80%–140%) now MULTIPLIES with the
-  // font-size preset instead of being overridden by it. Prior code
-  // had `... && !pdfFontSizeCss` — since pdfFontSizeCss always
-  // resolved to a value ("medium" default = "100%"), font scale never
-  // took effect. Bug reproducible: slider to 80% → no visible change.
+  // v1.10.10 — pdfFontScale REMOVED from the preview CSS layer.
+  // Previously we multiplied `basePct × pdfFontScale` here, but most
+  // child elements use `rem`/`px` (not `em`), so a container
+  // `font-size: 80%` only cascaded to a handful of nodes and neither
+  // the preview nor the real PDF actually shrank. The scale now applies
+  // at the PDF-placement layer in buildPDF — shrinking the whole image
+  // area on the page — which is both reliable and matches how MS Word
+  // "shrink to fit" works. Preview font-size stays base-preset only.
   const PDF_FONT_SIZE_PCT = { small: 87, medium: 100, large: 112, xlarge: 122 };
   const basePct = !isThermal ? (PDF_FONT_SIZE_PCT[_ps_final.fontSize] || 100) : 100;
-  const scale = Number(_ps_final.pdfFontScale);
-  const clampedScale = isFinite(scale) && scale > 0 ? Math.max(0.8, Math.min(1.4, scale)) : 1.0;
-  const pdfFontSizeCss = !isThermal ? `${Math.round(basePct * clampedScale)}%` : undefined;
+  const pdfFontSizeCss = !isThermal ? `${basePct}%` : undefined;
 
   const PDF_FONT_WEIGHT = { normal: 400, bold: 600, ultra: 800 };
   const pdfFontWeightCss = !isThermal ? (PDF_FONT_WEIGHT[_ps_final.fontWeight] || 400) : undefined;

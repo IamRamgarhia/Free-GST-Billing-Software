@@ -209,6 +209,24 @@ export const DEFAULT_PRINT_SETTINGS = {
   // same pdfTemplate value, so pdfTemplate alone is ambiguous.
   activePresetId: '',            // '' | 'modern' | 'classic' | 'corporate' | 'minimalist' | 'colorful' | 'minimal' | 'enterprise' | 'itservices' | 'retail'
 
+  // v1.10.10 — Per-invoice-type prefix overrides. Empty string = fall
+  // back to the built-in default from `INVOICE_TYPES[type].prefix`.
+  // Users can now brand each series independently: `RTL` for retail
+  // tax invoices, `RPT` for repeat customers, `QTE` for quotes,
+  // whatever fits their internal numbering. Report request:
+  // "every type should have special code to starts with because it
+  // will mismatch". Each type gets its own atomic counter (already
+  // the case — the server-side counter is per-prefix), so switching
+  // Tax Invoice → 'INV' to 'RTL' resets the counter for RTL.
+  customPrefixes: {
+    'tax-invoice': '',      // default 'INV'
+    'proforma': '',         // default 'EST'
+    'bill-of-supply': '',   // default 'BOS'
+    'composition': '',      // default 'COMP'
+    'credit-note': '',      // default 'CN'
+    'delivery-challan': '', // default 'DC'
+  },
+
   // ============================================================
   // v1.9.4 — Payment reminder auto-scheduling + accessibility opts
   // ============================================================

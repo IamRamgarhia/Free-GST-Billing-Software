@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer } from 'lucide-react';
-import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings } from '../store';
+import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { toast } from './Toast';
 
@@ -321,10 +321,6 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       if (!proceed) return;
     }
     const paymentEntry = {
-      // v1.10.9 — persistent id so this specific payment can be
-      // targeted later (reprint receipt, edit note, delete). Prior code
-      // relied on array index which shifted when earlier payments were
-      // edited.
       id: 'pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       amount, date: paymentInput.date, mode: paymentInput.mode,
       note: paymentInput.note, recordedAt: new Date().toISOString(),
@@ -336,10 +332,29 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       status: totalPaid >= billTotal ? 'paid' : 'partial',
     };
     await saveBill(updatedBill, { overwrite: true });
+    // v1.10.10 — Also persist a Receipt record so this payment shows up
+    // in the Receipts view. Prior code only appended to bill.payments —
+    // the standalone Receipts page saw "No receipts generated yet"
+    // even after multiple payments were recorded, which was the user's
+    // exact complaint. `saveReceipt` writes to data/receipts/*.json.
+    try {
+      await saveReceipt({
+        id: paymentEntry.id,
+        date: paymentEntry.date,
+        receiptNo: `RCPT-${paymentEntry.id.replace('pay_', '').toUpperCase().slice(0, 10)}`,
+        clientName: bill.data?.client?.name || bill.clientName || '',
+        clientAddress: bill.data?.client?.address || '',
+        amount: paymentEntry.amount,
+        paymentMode: paymentEntry.mode,
+        referenceNo: paymentEntry.note || '',
+        againstInvoice: bill.invoiceNumber || bill.id || '',
+        note: paymentEntry.note || '',
+        currency: bill.currency || bill.data?.invoiceOptions?.currency || 'INR',
+        source: 'auto-from-payment',
+        billId: bill.id,
+      });
+    } catch { /* non-fatal — receipt is still viewable from the invoice's Payment History */ }
     toast(`Payment of ${formatCurrency(amount, bill.currency)} recorded`, 'success');
-    // v1.10.9 — auto-open Receipt for the payment just recorded so the
-    // user sees the printable output immediately. Prior code only saved
-    // the JSON row; users had no receipt to hand the customer.
     setPaymentModal(null);
     setReceiptTarget({ bill: updatedBill, payment: paymentEntry, remaining: Math.max(0, billTotal - totalPaid) });
     loadBills();
@@ -351,26 +366,41 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     setReceiptTarget({ bill, payment, remaining: Math.max(0, Number(bill.totalAmount || 0) - totalPaid) });
   };
 
-  // v1.10.9 — Delete a specific payment. Recomputes totals + status.
-  const deletePayment = async (bill, paymentId) => {
+  // v1.10.10 — Delete/Edit a specific payment BY INDEX.
+  // Prior code used `p.id === paymentId`, but legacy payments (recorded
+  // before v1.10.9 which added `pay_<base36>` ids) don't have ids —
+  // `(p.id || '') === undefined` matched EVERY legacy row, so editing
+  // one silently edited none (or all). Now the caller passes the row
+  // index directly. Modern rows still have ids for the receipt modal
+  // to reference, but mutation is index-based.
+  const deletePaymentAt = async (bill, idx) => {
     if (!confirm('Delete this payment? The invoice will revert to unpaid/partial if the sum drops below the total.')) return;
-    const payments = (bill.payments || []).filter(p => (p.id || '') !== paymentId);
+    const target = (bill.payments || [])[idx];
+    const payments = (bill.payments || []).filter((_, i) => i !== idx);
     const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     const total = Number(bill.totalAmount) || 0;
     const updated = { ...bill, payments, paidAmount: totalPaid, status: totalPaid >= total && total > 0 ? 'paid' : (totalPaid > 0 ? 'partial' : 'unpaid') };
     await saveBill(updated, { overwrite: true });
+    // v1.10.10 — Also remove the linked Receipt record so the Receipts
+    // page stays in sync. Silently skips if this was a legacy payment
+    // that never had a receipt written (pre-v1.10.10 recordings).
+    if (target?.id) {
+      try { await deleteReceipt(target.id); } catch { /* ignore */ }
+    }
     toast('Payment deleted', 'success');
     setPaymentModal(updated);
     loadBills();
   };
 
-  // v1.10.9 — Update the note on an existing payment.
-  const editPaymentNote = async (bill, paymentId) => {
-    const target = (bill.payments || []).find(p => (p.id || '') === paymentId);
+  const editPaymentNoteAt = async (bill, idx) => {
+    const target = (bill.payments || [])[idx];
     if (!target) return;
     const newNote = window.prompt('Payment note / reference:', target.note || '');
     if (newNote === null) return;
-    const payments = (bill.payments || []).map(p => (p.id || '') === paymentId ? { ...p, note: newNote } : p);
+    // Also backfill an id onto legacy rows on first edit so future
+    // receipts can reference this row stably.
+    const withId = target.id || ('pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+    const payments = (bill.payments || []).map((p, i) => i === idx ? { ...p, note: newNote, id: withId } : p);
     const updated = { ...bill, payments };
     await saveBill(updated, { overwrite: true });
     toast('Payment updated', 'success');
@@ -1068,10 +1098,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
                           onClick={() => openReceiptFor(paymentModal, p)}
                           title="View / Print receipt for this payment"><Receipt size={12} /> Receipt</button>
                         <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
-                          onClick={() => editPaymentNote(paymentModal, p.id)}
+                          onClick={() => editPaymentNoteAt(paymentModal, i)}
                           title="Edit the note / reference"><Edit3 size={12} /></button>
                         <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                          onClick={() => deletePayment(paymentModal, p.id)}
+                          onClick={() => deletePaymentAt(paymentModal, i)}
                           title="Delete this payment"><Trash2 size={12} /></button>
                       </div>
                     </div>
