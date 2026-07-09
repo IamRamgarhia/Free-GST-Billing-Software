@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.14] — 2026-07-09
+
+**3 re-reported bugs closed.** Each was traced to a specific missing
+code path — not a caching artefact — and re-verified against source.
+
+### Fixed — Per-type prefix ignored when switching invoice type mid-form (#1)
+
+**Reported.** User set `customPrefixes['credit-note'] = 'NVCN'` in
+Print Settings, opened a fresh Credit Note, but got invoice number
+`CN/2026-27/0003` — the default `CN` prefix, not their `NVCN`
+override. "NOT WORKING PROPERLY PLEASE CHECK."
+
+**Root cause.** The v1.10.10 fix wired `customPrefixes` into two
+mount-time paths (`_isDuplicate` branch and the fresh-form fallback
+at line 636) but **not** into `handleTypeChange`, which fires every
+time the user clicks a different invoice-type chip. That handler
+computed `prefix = config?.prefix || 'INV'` from `INVOICE_TYPES`
+alone — the per-type override was never consulted. So the moment you
+switched from Tax Invoice → Credit Note the number reverted to
+`CN/…` and the save call at line 954 (which _does_ read
+`customPrefixes`) never re-fired because the number was already
+"reserved" from the type switch. Silent regression.
+
+**Fix.** `handleTypeChange` now reads
+`getPrintSettings().customPrefixes[type]`, uses it as the peek
+prefix, and passes `explicitPrefix: !!overridePrefix` to
+`getNextInvoiceNumber` so the store's `brandPrefix` fallback stays
+out of the way. Same three-line pattern as the other two paths.
+
+### Fixed — Ledger PDF "CLOSING BALANCE" still overlapped its value (#2)
+
+**Reported.** After v1.10.11 moved the label from `col.creditEnd`
+(168mm) to `col.debitEnd` (140mm), user's screenshot still showed
+"CLOSING BALAN·CE Rs. 35.00 Dr" — the label and value glued
+together.
+
+**Root cause.** "CLOSING BALANCE" at 11pt bold Helvetica is ~33mm
+wide, so its right edge lands at ~173mm. The value string
+`Rs. X,XXX.XX Dr` at 12pt right-aligned at `col.balanceEnd`
+(~193mm) has its left edge as far left as ~165mm for 4-digit
+amounts. Net overlap: ~8mm. The v1.10.11 gap of 53mm was math on the
+value width alone — I forgot to add the label width to the label
+anchor. Classic off-by-a-label-width.
+
+**Fix.** Parked the label at `marginL` (~17mm) — 3× the previous
+breathing room, and it reads better as a bottom-of-page summary line
+anyway. Value stays right-aligned at `col.balanceEnd`.
+
+### Verified — Thermal watermark gate still holds (#3)
+
+**Reported.** User's screenshot shows watermark on two thermal
+receipts, "STILL THERMAL WATERMARK COMING." Re-audited the source
+after v1.10.12.
+
+**Finding.** The jsPDF post-processing watermark loop
+(`InvoiceGenerator.jsx:1473`) already gates on
+`!isThermalPdf && ps.watermarkEnabled`, so no watermark is stamped
+for thermal from that path. The only HTML-rendered watermark is the
+"ESTIMATE" proforma badge in `InvoicePreview.jsx:1133`, which fires
+only when `invoiceType === 'proforma'` — a Tax Invoice on thermal
+cannot pick it up. No source-side bug found.
+
+**What this means for the user.** The reported watermark is almost
+certainly the PWA service worker serving a pre-v1.10.12 bundle. In
+the app: **Ctrl + F5** (or clear site data and reload) will fetch
+the current build. This release ships fresh assets, so a hard
+refresh after installing this version resolves the visible symptom.
+
+---
+
 ## [1.10.13] — 2026-07-09
 
 **6 items from the latest report.** 3 real bug fixes + 2 UX improvements

@@ -264,18 +264,17 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       }
 
       // ============== CLOSING BALANCE ==============
-      // v1.10.11 — reported layout bug: label and value overlapped as
-      // "CLOSING BALAN·CE 0.00 Cr / Nil". Root cause: label was
-      // right-aligned at col.creditEnd (168mm) and value at col.balanceEnd
-      // (~193mm) — the ~25mm gap wasn't enough for "Rs. X,XXX.XX Cr / Nil"
-      // (~40mm at 12pt) so the value's left edge crashed into the label's
-      // right edge. Fix: left-align label at col.debitEnd (140mm), leaving
-      // 53mm for the value to breathe.
+      // v1.10.14 — the v1.10.11 fix (label at col.debitEnd=140mm) still overlapped
+      // for medium/large balances: "CLOSING BALANCE" at 11pt bold is ~33mm wide so
+      // its right edge lands at ~173mm, but "Rs. X,XXX.XX Dr" at 12pt right-aligned
+      // at balanceEnd (~193mm) has its left edge as far left as ~165mm for 4-digit
+      // amounts. Real fix: park the label at marginL (~17mm) — 3x more breathing
+      // room and it reads better as a bottom-of-page summary line anyway.
       y += 3;
       doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.6);
       doc.line(marginL, y, marginR, y); y += 8;
       doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42);
-      doc.text('CLOSING BALANCE', col.debitEnd, y);
+      doc.text('CLOSING BALANCE', marginL, y);
       doc.setFontSize(12);
       if (runningBalance > 0.01) doc.setTextColor(220, 38, 38); else doc.setTextColor(5, 150, 105);
       const balanceLabel = fmt(Math.abs(runningBalance)) + (runningBalance > 0.01 ? ' Dr' : (runningBalance < -0.01 ? ' Cr' : ' Nil'));

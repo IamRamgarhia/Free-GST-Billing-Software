@@ -692,9 +692,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const handleTypeChange = async (type) => {
     setInvoiceType(type);
     const config = INVOICE_TYPES[type];
-    const prefix = config?.prefix || 'INV';
+    // v1.10.14 — honour the per-type prefix override when switching invoice type.
+    const _psForPrefix = getPrintSettings();
+    const rawOverride = _psForPrefix.customPrefixes?.[type];
+    const overridePrefix = rawOverride && rawOverride.trim();
+    const prefix = overridePrefix || config?.prefix || 'INV';
     // Peek — actual reservation happens on save.
-    const num = await getNextInvoiceNumber(prefix, { peek: true });
+    const num = await getNextInvoiceNumber(prefix, { peek: true, explicitPrefix: !!overridePrefix });
     numberReserved.current = false;
     setDetails(prev => ({ ...prev, invoiceNumber: num }));
 
