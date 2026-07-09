@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.15] — 2026-07-09
+
+**Header polish, Amazon-style.** User's reference screenshot showed an
+Amazon Tax Invoice where the whole header — business address, invoice
+meta, party details — fits in the top ~35% of the page with tight
+gaps and dark, readable text. Two things kept our output from
+matching that: (1) light-grey text that faded on paper, (2) invoice
+meta (No / Date / Due) stacked as a vertical column.
+
+### Fixed — Header text color still light on PDF output
+
+**Reported.** "JUST FIX THE HEADER TEXT COLOR TO DARK THAT STILL NOT
+UPDATED." User's screenshot showed business address, GSTIN, phone,
+customer address all rendered in `#64748b` (light slate) on the
+final PDF — the printing-mode class was on the container, but each
+`p` tag had its own `color: #64748b` that beat the container-level
+override.
+
+**Root cause.** CSS specificity: `.inv-business-details p` at line
+1788 with `color: #64748b` (no `!important`) beat
+`.printing-mode .inv-business-details` at line 1254 with `color:
+#1e293b !important` because a directly-applied color on the child
+wins over an inherited color even when the parent's color is
+`!important`. Same story for `.inv-party-details p` and the
+`strong` tags inside. So light-grey text survived print.
+
+**Fix.** Two-layer fix so both preview and PDF look right:
+1. **Base colors bumped** — `.inv-business-details`,
+   `.inv-business-details p`, `.inv-party-details`,
+   `.inv-party-details p` all moved from `#64748b` → `#334155`
+   (slate-700). Meta and section labels moved from `#94a3b8` →
+   `#475569`. Reads clearly on any paper printer without going
+   fully black.
+2. **Printing-mode reaches every level now** — added explicit
+   overrides for `.printing-mode .inv-business-details p`,
+   `.printing-mode .inv-business-details strong`,
+   `.printing-mode .inv-party-name`, `.inv-party-details strong`,
+   `.inv-meta-value`, `.inv-business-name`, `.inv-title` — all
+   forced to `#0f172a` in printing-mode. Belt-and-braces.
+
+### Improved — Compact header lays out invoice meta on ONE row
+
+**Reported.** "DECREASE THE GAPS OF THE THINGS IN HEADER LIKE
+COMPANY DETAILS INVOICE DETAILS THESE MAKE." With reference
+screenshot showing Invoice # / Invoice Date / Due Date on a single
+row, matching Amazon's Tax Invoice format.
+
+**Fix.** In compact mode (`headerCompact: true` in Print Settings),
+`.inv-meta` now uses `flex-direction: row + flex-wrap: wrap` with a
+0.75rem gap between the three (label, value) pairs. Was
+`flex-direction: column` — 3 stacked rows becomes 1 row inline.
+`.inv-meta-label` also loses its `min-width: 75px` in compact mode
+so labels hug their values instead of leaving a 75px gap. Saves
+~15mm of vertical space on top of the padding cuts from v1.10.13,
+which is usually enough to pull one more line-item onto page 1.
+
+---
+
 ## [1.10.14] — 2026-07-09
 
 **3 re-reported bugs closed.** Each was traced to a specific missing

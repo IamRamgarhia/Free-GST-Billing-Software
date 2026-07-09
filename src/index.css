@@ -1251,9 +1251,23 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   color: #0f172a !important;
   border-color: #334155 !important;
 }
-.printing-mode .inv-business-details {
-  color: #1e293b !important;
+.printing-mode .inv-business-details,
+.printing-mode .inv-business-details p,
+.printing-mode .inv-business-details strong,
+.printing-mode .inv-party-name,
+.printing-mode .inv-party-details,
+.printing-mode .inv-party-details p,
+.printing-mode .inv-party-details strong,
+.printing-mode .inv-meta-value,
+.printing-mode .inv-business-name,
+.printing-mode .inv-title {
+  color: #0f172a !important;
 }
+/* v1.10.14 — the base .inv-business-details p rule at #64748b (light grey)
+   used to beat the container-level printing-mode override because CSS's
+   directly-applied color wins over an inherited color even when the
+   parent has !important. Now every p / strong inside the header parties
+   block is targeted individually so no light-grey text survives print. */
 /* Anything currently at very-light grey gets a floor value of #334155 */
 .printing-mode [style*="color: #94a3b8"],
 .printing-mode [style*="color:#94a3b8"],
@@ -1331,11 +1345,21 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .invoice-preview-container[data-header-compact="1"] .inv-business-name {
   margin-bottom: 2px !important;
 }
+/* v1.10.14 — Amazon-style compact meta: put Invoice # / Date / Due Date
+   on ONE row instead of a column, three (label, value) pairs inline.
+   Saves ~30mm vertical space in the header block. */
 .invoice-preview-container[data-header-compact="1"] .inv-meta {
-  gap: 2px !important;
+  gap: 0.75rem !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
 }
 .invoice-preview-container[data-header-compact="1"] .inv-meta-row {
   padding: 1px 0 !important;
+  gap: 0.35rem !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-meta-label {
+  min-width: 0 !important;
 }
 .invoice-preview-container[data-header-compact="1"] .inv-parties + .inv-table,
 .invoice-preview-container[data-header-compact="1"] .inv-parties + table.inv-table {
@@ -1760,7 +1784,7 @@ a:focus-visible {
 }
 
 .inv-meta-label {
-  color: #94a3b8;
+  color: #475569;
   min-width: 75px;
   font-weight: 500;
 }
@@ -1781,12 +1805,16 @@ a:focus-visible {
 
 .inv-business-details {
   font-size: 0.8rem;
-  color: #64748b;
+  color: #334155;
   line-height: 1.65;
 }
 
-.inv-business-details p { margin: 0; color: #64748b; }
-.inv-business-details strong { color: #334155; font-weight: 600; }
+/* v1.10.14 — bumped from #64748b (light grey) to #334155 (slate 700).
+   Base body / address / phone lines were too faded on paper output even
+   with the printing-mode class applied because the p-level color was
+   more specific than the container-level printing-mode override. */
+.inv-business-details p { margin: 0; color: #334155; }
+.inv-business-details strong { color: #0f172a; font-weight: 600; }
 
 /* Parties */
 .inv-parties {
@@ -1802,7 +1830,7 @@ a:focus-visible {
 .inv-section-label {
   font-size: 0.65rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: #475569;
   text-transform: uppercase;
   margin-bottom: 0.5rem;
 }
@@ -1814,9 +1842,10 @@ a:focus-visible {
   margin-bottom: 0.3rem;
 }
 
-.inv-party-details { font-size: 0.8rem; color: #64748b; line-height: 1.65; }
-.inv-party-details p { margin: 0; color: #64748b; }
-.inv-party-details strong { color: #334155; }
+/* v1.10.14 — same #64748b → #334155 bump as .inv-business-details above. */
+.inv-party-details { font-size: 0.8rem; color: #334155; line-height: 1.65; }
+.inv-party-details p { margin: 0; color: #334155; }
+.inv-party-details strong { color: #0f172a; }
 
 .inv-party-right { text-align: right; display: flex; flex-direction: column; justify-content: center; }
 
