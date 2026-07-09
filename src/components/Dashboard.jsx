@@ -615,7 +615,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
     const encoded = encodeURIComponent(msg);
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.location.href = waUrl;
+    // v1.10.12 — open in a new tab (see ClientsView note above).
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const shareEmail = (bill) => {
@@ -639,11 +640,22 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const clientName = bill.clientName || 'Sir/Madam';
     const dueDate = bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN') : 'N/A';
     const businessName = profile?.businessName || 'Our Company';
-    const amount = formatCurrency(bill.totalAmount - (bill.paidAmount || 0), bill.currency);
-    const msg = `Hi ${clientName}, this is a gentle reminder that Invoice ${bill.invoiceNumber} for ${amount} was due on ${dueDate}. Kindly arrange the payment at your earliest convenience. Thank you! - ${businessName}`;
+    const outstanding = (bill.totalAmount || 0) - (bill.paidAmount || 0);
+    const outstandingStr = formatCurrency(outstanding, bill.currency);
+    const totalStr = formatCurrency(bill.totalAmount || 0, bill.currency);
+    // v1.10.12 — Status-aware message. Prior code said "due on X" even
+    // for partial invoices, which read oddly ("paid Rs. 5000 was due
+    // on...") to clients. Now the wording matches the actual state.
+    const isPartial = (bill.paidAmount || 0) > 0.01 && outstanding > 0.01;
+    const isOverdueDate = bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
+    const msg = isPartial
+      ? `Hi ${clientName}, this is a gentle reminder that a balance of ${outstandingStr} is pending on Invoice ${bill.invoiceNumber} (total ${totalStr}). Kindly clear the remaining amount at your earliest convenience. Thank you! - ${businessName}`
+      : isOverdueDate
+        ? `Hi ${clientName}, this is a gentle reminder that Invoice ${bill.invoiceNumber} for ${outstandingStr} was due on ${dueDate}. Kindly arrange the payment at your earliest convenience. Thank you! - ${businessName}`
+        : `Hi ${clientName}, this is a gentle reminder about the pending payment of ${outstandingStr} on Invoice ${bill.invoiceNumber}. Kindly arrange the payment at your earliest convenience. Thank you! - ${businessName}`;
     const encoded = encodeURIComponent(msg);
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.location.href = waUrl;
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const getClientPhone = (bill) => {
@@ -1023,8 +1035,19 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
                           )}
                           <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)} title="Payment"><IndianRupee size={15} /></button>
                           <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)} title="WhatsApp"><MessageCircle size={15} /></button>
-                          {(isOverdue || status === 'overdue') && (
-                            <button className="icon-btn icon-btn-green" onClick={() => sendReminder({ ...bill, clientPhone: getClientPhone(bill) })} title="Send Reminder" style={{ color: '#d97706' }}><Send size={15} /></button>
+                          {/* v1.10.12 — Payment-reminder button now shows for
+                               UNPAID, PARTIAL, and OVERDUE bills (not just
+                               overdue). Reported: "amount pending towards
+                               customer should give option to send via
+                               whatsapp or email as reminder predefined side
+                               of every invoice. also for partial pending too". */}
+                          {(isOverdue || status === 'overdue' || status === 'unpaid' || status === 'partial') && (bill.totalAmount || 0) - (bill.paidAmount || 0) > 0.01 && (
+                            <button className="icon-btn icon-btn-green"
+                              onClick={() => sendReminder({ ...bill, clientPhone: getClientPhone(bill) })}
+                              title={status === 'partial' ? 'Send reminder — partial pending' : (status === 'overdue' || isOverdue ? 'Send reminder — overdue' : 'Send reminder — unpaid')}
+                              style={{ color: status === 'partial' ? '#0284c7' : '#d97706' }}>
+                              <Send size={15} />
+                            </button>
                           )}
                           <button className="icon-btn icon-btn-blue" onClick={() => shareEmail(bill)} title="Email"><Mail size={15} /></button>
                           <button className="icon-btn icon-btn-red" onClick={() => handleDelete(bill)} title="Delete"><Trash2 size={15} /></button>

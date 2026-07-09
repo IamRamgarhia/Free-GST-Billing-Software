@@ -1664,10 +1664,15 @@ a:focus-visible {
   padding-top: 4px !important;
   background: transparent !important;
 }
-/* Hide the fancy QR panel on 58mm — not enough width. On 80mm keep it small. */
+/* v1.10.12 — UPI QR now renders on 58mm thermal too. Reported: "QR
+   for payment should also add on 2 inch thermal too because this
+   feature is working in market". Previously hidden due to width
+   concerns; a 32×32mm QR fits comfortably on 48mm-printable 58mm rolls
+   as long as we cap its size. */
 .paper-thermal-58 canvas,
 .paper-thermal-58 .upi-qr,
-.paper-thermal-58 .qr-block { display: none !important; }
+.paper-thermal-58 .qr-block img { max-width: 40px; max-height: 40px; margin: 0 auto; }
+.paper-thermal-58 .qr-block { text-align: center; }
 .paper-thermal-80 canvas,
 .paper-thermal-80 .upi-qr,
 .paper-thermal-80 .qr-block img { max-width: 60px; max-height: 60px; }

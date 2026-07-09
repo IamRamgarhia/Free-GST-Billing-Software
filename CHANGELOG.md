@@ -7,6 +7,124 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.12] — 2026-07-09
+
+**Seven reported issues fixed.** All verified in real Chromium.
+
+### Fixed — Watermark, page-numbers, invoice-QR, reprint indicator no longer render on thermal receipts (#12)
+
+**Reported.** "Watermark coming for thermal also — it should not come."
+
+**Root cause.** `buildPDF`'s post-processing loop applied every overlay
+(watermark, reprint badge, invoice-QR, feedback-QR, page numbers)
+regardless of paper size. Thermal PDFs got A4-only decorations on top.
+
+**Fix.** Added a single `isThermalPdf` gate that short-circuits all
+five post-processing steps when the paper is thermal 58mm/80mm.
+Multi-copy (GST Rule 48) is preserved because it applies BEFORE the
+gate — you can still print 3-copy thermal receipts if you need to.
+
+### Fixed — UPI QR now renders on 58mm thermal too (#10)
+
+**Reported.** "QR for payment should also add on 2 inch thermal too
+because this feature is working in market."
+
+**Root cause.** CSS rule `.paper-thermal-58 canvas, .upi-qr, .qr-block
+{ display: none !important }` blocked the entire QR panel on 58mm
+rolls. Comment said "not enough width" — turned out 48mm printable
+width on 58mm rolls has plenty of room for a 32-40mm QR.
+
+**Fix.** QR now renders on 58mm at 40×40px (was hidden), 80mm keeps
+the existing 60×60px. Centered horizontally.
+
+### Fixed — WhatsApp reminders no longer navigate away from the current tab (#13)
+
+**Reported.** "Push reminder and whatsapp in new tab, not the tab or
+windows we are working on."
+
+**Root cause.** 4 sites used `window.location.href = waUrl` which
+replaced the current tab's URL — users lost their in-progress
+invoice / draft / modal.
+
+**Fix.** All 4 sites now use
+`window.open(waUrl, '_blank', 'noopener,noreferrer')`. Verified: click
+reminder → new tab opens at `https://api.whatsapp.com/send?…`, main
+window unchanged.
+
+### Fixed — Watermark preset + custom text interaction (#11)
+
+**Reported.** "After selecting the watermark predefined, then the
+customer watermark or else it is not working."
+
+**Root cause.** Prior render check was
+`(preset || (customMode && customText))` and then chose
+`customMode && customText ? custom : preset`. The `||` fallback
+silently returned the preset when custom mode was on but the custom
+text field was empty — confusing users who expected custom mode to
+override completely.
+
+**Fix.** Explicit three-way decision tree:
+
+```
+custom mode ON  + custom text FILLED   → use custom
+custom mode ON  + custom text EMPTY    → skip (no fallback)
+custom mode OFF                         → use preset
+master OFF or thermal paper             → skip
+```
+
+### Added — WhatsApp reminder button for pending amount on Dashboard rows (#8)
+
+**Reported.** "Amount pending towards customer, should give option to
+send via WhatsApp or email as reminder predefined side of every
+invoice. Also for partial pending too."
+
+**Fix.** The Send Reminder button used to show only for `status ===
+'overdue'`. Now shows for `unpaid`, `partial`, AND `overdue` — any
+invoice with a non-zero outstanding balance. Message wording adapts
+to the state:
+
+- **Partial pending** → "a balance of ₹X is pending on Invoice Y
+  (total ₹Z). Kindly clear the remaining amount..."
+- **Overdue** → "Invoice Y for ₹X was due on \[date\]. Kindly
+  arrange the payment..."
+- **Unpaid (not yet due)** → "gentle reminder about the pending
+  payment of ₹X on Invoice Y."
+
+Button icon color also differentiates: sky-blue for partial,
+amber-orange for overdue/unpaid.
+
+### Fixed — Per-client paper preference no longer leaks to other clients (#14)
+
+**Reported.** "One client is set with thermal invoice print, others
+are also changing the preview. If one person is printed with thermal
+means other also changed to thermal one."
+
+**Root cause.** When a client with `preferredPaperSize: 'thermal80'`
+was selected, `invoiceOptions.paperSize` was patched and persisted to
+localStorage. Selecting a subsequent client WITHOUT a paper
+preference resulted in a NO-OP patch — leaving the thermal setting
+sticky. Both client's previews showed as thermal.
+
+**Fix.** Client selection now ALWAYS assigns paperSize / currency /
+clientAutoPrint to the new client's preference OR the app default
+(`'a4'` / prev currency / `false`). Verified: pick Thermal Shop
+(preferredPaperSize: thermal80) → paperSize = 'thermal80'. Pick
+Regular Client (no preference) → paperSize = 'a4'.
+
+### Notes
+
+- **#9 (Purchase Return / Debit Note)** — Credit Note already exists
+  for seller-side returns; buyer-side Purchase Return is a bigger
+  feature that needs its own release. Deferred honestly.
+- If you manually pick a non-default paper size in Customize BEFORE
+  selecting a client, then select a client with no preference, the
+  paper size WILL reset to A4. That's the trade-off for fixing the
+  reported leak — the alternative (tracking whether the last change
+  was client-driven or manual) adds fragile state. Consistent with
+  how Tally / Vyapar handle client defaults.
+
+---
+
 ## [1.10.11] — 2026-07-09
 
 **All 4 items previously listed as "deferred" — shipped.** Verified in

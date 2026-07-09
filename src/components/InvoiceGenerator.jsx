@@ -848,18 +848,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // v1.9.1 — auto-apply per-client print preferences (if set on the client
     // record). Overrides invoice-level defaults for this session. Only fires
     // for NEW bills (not when editing) since editing bills keep saved options.
+    //
+    // v1.10.12 — reported: "one client is set with thermal invoice print,
+    // others are also changing the preview". Root cause: prior code only
+    // set a patch WHEN the client had a preference — so switching from
+    // Client A (thermal) → Client B (no preference) left the thermal
+    // setting sticky. Now we ALWAYS assign paperSize / currency /
+    // clientAutoPrint to the new client's value OR the app default, so
+    // client B resets to A4/INR cleanly.
     if (!editingBill) {
-      const patch = {};
-      if (cli.preferredPaperSize) patch.paperSize = cli.preferredPaperSize;
-      if (cli.preferredCurrency) patch.currency = cli.preferredCurrency;
-      // v1.10.5 — audit M25. `autoPrint` was saved on the client record
-      // but never applied. Now: when a client has autoPrint=true, this
-      // invoice inherits ps.autoPrintOnSave for the session so the PDF
-      // fires straight to the default printer on Save.
-      if (cli.autoPrint) patch.clientAutoPrint = true;
-      if (Object.keys(patch).length > 0) {
-        setInvoiceOptions(prev => ({ ...prev, ...patch }));
-      }
+      setInvoiceOptions(prev => ({
+        ...prev,
+        paperSize: cli.preferredPaperSize || 'a4',
+        currency: cli.preferredCurrency || prev.currency || 'INR',
+        // v1.10.5 — client-level auto-print override (see original comment).
+        clientAutoPrint: !!cli.autoPrint,
+      }));
     }
     toast(`Loaded client: ${cli.name}`, 'info');
   };
@@ -1444,12 +1448,32 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // watermark/QR/page-number loop, doubling peak memory.
     pageRecipes.length = 0;
 
+    // v1.10.12 — Gate the A4/A5-only post-processing on thermal paper.
+    // Reports: (a) "watermark coming for thermal also — it should not
+    // come", (b) page numbers "Page 2 of 3" don't make sense on a
+    // continuous receipt roll, (c) invoice QR / feedback QR crowd out
+    // the actual print on 58mm rolls. All post-processing steps below
+    // are skipped when the paper is thermal.
+    const isThermalPdf = (invoiceOptions.paperSize || 'a4').startsWith('thermal');
+
     // ----- Watermark overlay -----
-    if (ps.watermarkEnabled && (ps.watermarkText || (ps.watermarkUseCustomText && ps.watermarkCustomText))) {
-      // v1.9.3 — custom text option overrides the preset picker
-      const rawText = ps.watermarkUseCustomText && ps.watermarkCustomText
-        ? ps.watermarkCustomText
-        : ps.watermarkText;
+    // v1.10.12 — Cleaned up the preset ↔ custom decision:
+    //   • Custom mode ON  + custom text FILLED   → use custom text.
+    //   • Custom mode ON  + custom text EMPTY    → skip (no silent
+    //     fallback to preset — that was the confusing behavior
+    //     reported as "after selecting predefined then customer
+    //     watermark or else it is not working").
+    //   • Custom mode OFF → use preset.
+    //   • Master toggle OFF or thermal paper       → skip entirely.
+    let rawText = null;
+    if (!isThermalPdf && ps.watermarkEnabled) {
+      if (ps.watermarkUseCustomText) {
+        rawText = ps.watermarkCustomText ? ps.watermarkCustomText : null;
+      } else {
+        rawText = ps.watermarkText || null;
+      }
+    }
+    if (rawText) {
       const text = String(rawText).toUpperCase();
       const opacity = Math.max(0, Math.min(1, (Number(ps.watermarkOpacity) || 15) / 100));
       const angle = Number(ps.watermarkAngle) || -35;
@@ -1478,7 +1502,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     // ----- Reprint indicator (automatic when this bill has been printed before) -----
-    if (ps.reprintLabelEnabled && Number(editingBill?.printedCount) > 0) {
+    if (!isThermalPdf && ps.reprintLabelEnabled && Number(editingBill?.printedCount) > 0) {
       const label = `REPRINT · Copy #${(Number(editingBill.printedCount) || 0) + 1}`;
       const finalPages = pdf.getNumberOfPages();
       for (let p = 1; p <= finalPages; p++) {
@@ -1495,7 +1519,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     // ----- Barcode / QR of invoice number -----
-    if (ps.invoiceQrEnabled || ps.invoiceBarcodeEnabled) {
+    if (!isThermalPdf && (ps.invoiceQrEnabled || ps.invoiceBarcodeEnabled)) {
       // Use the qrcode library that's already a dep for UPI QR
       const QRCode = (await import('qrcode')).default;
       const qrPayload = ps.invoiceQrUrl
@@ -1525,7 +1549,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     // ----- Feedback / Review QR -----
-    if (ps.feedbackQrEnabled && ps.feedbackQrUrl) {
+    if (!isThermalPdf && ps.feedbackQrEnabled && ps.feedbackQrUrl) {
       const QRCode = (await import('qrcode')).default;
       try {
         const dataUrl = await QRCode.toDataURL(ps.feedbackQrUrl, { errorCorrectionLevel: 'M', margin: 0, width: 200 });
@@ -1539,7 +1563,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     // ----- Page numbers + business header on subsequent pages -----
-    if ((ps.pageNumbersEnabled || ps.pageHeaderEnabled) && pdf.getNumberOfPages() > 1) {
+    if (!isThermalPdf && (ps.pageNumbersEnabled || ps.pageHeaderEnabled) && pdf.getNumberOfPages() > 1) {
       const finalPages = pdf.getNumberOfPages();
       for (let p = 2; p <= finalPages; p++) {
         pdf.setPage(p);
@@ -1735,7 +1759,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const msg = `*Invoice: ${details.invoiceNumber}*\nClient: ${client?.name || ''}\nAmount: ${amount}\nDate: ${details.invoiceDate}`;
     const encoded = encodeURIComponent(msg);
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.location.href = waUrl;
+    // v1.10.12 — open in a new tab so the invoice form isn't lost.
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const exportEWayBill = () => {

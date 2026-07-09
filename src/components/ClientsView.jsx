@@ -447,7 +447,10 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
     const encoded = encodeURIComponent(msg);
 
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.location.href = waUrl;
+    // v1.10.12 — open in a new tab so the user doesn't lose their
+    // current invoice / modal / draft. Reported: "push reminder and
+    // whatsapp in new tab not the tab or windows we are working on".
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const shareEmail = (bill) => {
