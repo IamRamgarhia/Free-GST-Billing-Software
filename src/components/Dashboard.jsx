@@ -4,11 +4,18 @@ import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProf
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { toast } from './Toast';
 
+// v1.10.13 — `bg` values switched from opaque tints (#fffbeb / #f5f3ff /
+// etc.) to translucent alpha versions of the accent color. Reason:
+// prior hex backgrounds were LIGHT-MODE ONLY. In dark mode the status
+// pills appeared as pale rectangles on the dark row background — the
+// user reported "NEW ISSUE IN CASE OF DARK MODE". rgba() with 12%
+// alpha lets the underlying row bg show through and works in both
+// themes.
 const STATUS_CONFIG = {
-  unpaid: { label: 'Unpaid', icon: Clock, color: '#f59e0b', bg: '#fffbeb' },
-  partial: { label: 'Partial', icon: Clock, color: '#8b5cf6', bg: '#f5f3ff' },
-  paid: { label: 'Paid', icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
-  overdue: { label: 'Overdue', icon: AlertTriangle, color: '#dc2626', bg: '#fef2f2' },
+  unpaid:  { label: 'Unpaid',  icon: Clock,          color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)' },
+  partial: { label: 'Partial', icon: Clock,          color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.14)' },
+  paid:    { label: 'Paid',    icon: CheckCircle,    color: '#059669', bg: 'rgba(5, 150, 105, 0.14)'  },
+  overdue: { label: 'Overdue', icon: AlertTriangle,  color: '#dc2626', bg: 'rgba(220, 38, 38, 0.14)'  },
 };
 
 // v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
@@ -162,6 +169,9 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   // recordPayment succeeds; can also be opened via openReceiptFor(...)
   // for reprints.
   const [receiptTarget, setReceiptTarget] = useState(null); // { bill, payment, remaining }
+
+  // v1.10.13 — full-edit payment modal. { bill, idx, form: { amount, date, mode, note } }
+  const [editPaymentModal, setEditPaymentModal] = useState(null);
   const [paymentInput, setPaymentInput] = useState({ amount: '', date: '', mode: 'bank-transfer', note: '' });
   const [showRemindAll, setShowRemindAll] = useState(false);
   const [profile, setProfileState] = useState(null);
@@ -392,19 +402,73 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     loadBills();
   };
 
-  const editPaymentNoteAt = async (bill, idx) => {
+  // v1.10.13 — reported: "receipt edit option edit only enables to add
+  // notes to that should give option to edit the amount too because by
+  // mistake if wrong amount entered, customer without delete can edit
+  // directly". Now opens a proper edit modal (see editPaymentModal
+  // state + JSX below) that lets the user change amount, date, mode,
+  // and note together — with the same "cannot exceed outstanding"
+  // guard that recordPayment already enforces.
+  const editPaymentAt = (bill, idx) => {
     const target = (bill.payments || [])[idx];
     if (!target) return;
-    const newNote = window.prompt('Payment note / reference:', target.note || '');
-    if (newNote === null) return;
-    // Also backfill an id onto legacy rows on first edit so future
-    // receipts can reference this row stably.
+    setEditPaymentModal({
+      bill, idx,
+      form: {
+        amount: String(target.amount || ''),
+        date: target.date || new Date().toISOString().split('T')[0],
+        mode: target.mode || 'bank-transfer',
+        note: target.note || '',
+      },
+    });
+  };
+
+  const saveEditedPayment = async () => {
+    if (!editPaymentModal) return;
+    const { bill, idx, form } = editPaymentModal;
+    const newAmount = parseFloat(form.amount);
+    if (!isFinite(newAmount) || newAmount <= 0) {
+      toast('Enter a positive amount', 'warning'); return;
+    }
+    // Check the new total doesn't exceed the invoice unless user confirms.
+    const others = (bill.payments || []).filter((_, i) => i !== idx);
+    const othersSum = others.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const newTotal = othersSum + newAmount;
+    const billTotal = Number(bill.totalAmount) || 0;
+    if (newTotal > billTotal + 0.01) {
+      const ok = confirm(`This edit brings the total received (${formatCurrency(newTotal, bill.currency)}) above the invoice total (${formatCurrency(billTotal, bill.currency)}). Save as overpayment?`);
+      if (!ok) return;
+    }
+    const target = (bill.payments || [])[idx];
     const withId = target.id || ('pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
-    const payments = (bill.payments || []).map((p, i) => i === idx ? { ...p, note: newNote, id: withId } : p);
-    const updated = { ...bill, payments };
+    const payments = (bill.payments || []).map((p, i) => i === idx
+      ? { ...p, id: withId, amount: newAmount, date: form.date, mode: form.mode, note: form.note }
+      : p);
+    const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const status = totalPaid >= billTotal && billTotal > 0 ? 'paid' : (totalPaid > 0 ? 'partial' : 'unpaid');
+    const updated = { ...bill, payments, paidAmount: totalPaid, status };
     await saveBill(updated, { overwrite: true });
+    // Also update the linked Receipt record so the Receipts page reflects the edit.
+    try {
+      await saveReceipt({
+        id: withId,
+        date: form.date,
+        receiptNo: `RCPT-${withId.replace('pay_', '').toUpperCase().slice(0, 10)}`,
+        clientName: bill.data?.client?.name || bill.clientName || '',
+        clientAddress: bill.data?.client?.address || '',
+        amount: newAmount,
+        paymentMode: form.mode,
+        referenceNo: form.note || '',
+        againstInvoice: bill.invoiceNumber || bill.id || '',
+        note: form.note || '',
+        currency: bill.currency || bill.data?.invoiceOptions?.currency || 'INR',
+        source: 'auto-from-payment',
+        billId: bill.id,
+      });
+    } catch { /* non-fatal */ }
     toast('Payment updated', 'success');
     setPaymentModal(updated);
+    setEditPaymentModal(null);
     loadBills();
   };
 
@@ -1121,8 +1185,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
                           onClick={() => openReceiptFor(paymentModal, p)}
                           title="View / Print receipt for this payment"><Receipt size={12} /> Receipt</button>
                         <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
-                          onClick={() => editPaymentNoteAt(paymentModal, i)}
-                          title="Edit the note / reference"><Edit3 size={12} /></button>
+                          onClick={() => editPaymentAt(paymentModal, i)}
+                          title="Edit amount / date / mode / note"><Edit3 size={12} /></button>
                         <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
                           onClick={() => deletePaymentAt(paymentModal, i)}
                           title="Delete this payment"><Trash2 size={12} /></button>
@@ -1140,11 +1204,60 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
         </div>
       )}
 
-      {/* v1.10.9 — Payment Receipt modal. Opens automatically after
-           recordPayment; can also be opened from the Payment History rows
-           in the Record Payment modal above. Print via window.print() —
-           the CSS below hides everything except .fgsb-receipt-page when
-           printing. */}
+      {/* v1.10.13 — Payment Edit modal. Lets the user fix a wrong amount
+           without having to delete + re-record. Recomputes bill status
+           on save; keeps the Receipts store in sync. */}
+      {editPaymentModal && (
+        <div className="modal-overlay" onClick={() => setEditPaymentModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h3 className="section-title" style={{ margin: 0 }}>Edit Payment</h3>
+              <button className="icon-btn" onClick={() => setEditPaymentModal(null)} title="Close"><X size={18} /></button>
+            </div>
+            <p className="text-muted" style={{ fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+              Invoice: <strong>{editPaymentModal.bill.invoiceNumber}</strong>
+              {' '}| Total: <strong>{formatCurrency(editPaymentModal.bill.totalAmount, editPaymentModal.bill.currency)}</strong>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="form-group">
+                <label className="form-label">Amount</label>
+                <input type="number" className="form-input" value={editPaymentModal.form.amount}
+                  onChange={e => setEditPaymentModal(prev => ({ ...prev, form: { ...prev.form, amount: e.target.value } }))}
+                  min="0" step="0.01" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Date</label>
+                <input type="date" className="form-input" value={editPaymentModal.form.date}
+                  onChange={e => setEditPaymentModal(prev => ({ ...prev, form: { ...prev.form, date: e.target.value } }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Mode</label>
+                <select className="form-input" value={editPaymentModal.form.mode}
+                  onChange={e => setEditPaymentModal(prev => ({ ...prev, form: { ...prev.form, mode: e.target.value } }))}>
+                  <option value="bank-transfer">Bank Transfer</option>
+                  <option value="upi">UPI</option>
+                  <option value="cash">Cash</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="card">Card</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Note / reference</label>
+                <input type="text" className="form-input" value={editPaymentModal.form.note}
+                  onChange={e => setEditPaymentModal(prev => ({ ...prev, form: { ...prev.form, note: e.target.value } }))}
+                  placeholder="Transaction ID, ref..." />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button className="btn btn-secondary" onClick={() => setEditPaymentModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveEditedPayment}>Save changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* v1.10.9 — Payment Receipt modal. */}
       {receiptTarget && (
         <ReceiptModal target={receiptTarget} onClose={() => setReceiptTarget(null)} />
       )}

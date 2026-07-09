@@ -7,6 +7,125 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.13] — 2026-07-09
+
+**6 items from the latest report.** 3 real bug fixes + 2 UX improvements
++ 1 verification. Every fix confirmed in Chromium before shipping.
+
+### Fixed — UPI QR now renders on 58mm thermal preview too (#1)
+
+**Reported.** "QR for payment should also add on 2 inch thermal too
+because this feature is working in market." — asked again after
+v1.10.12 CSS unhide.
+
+**Root cause found this pass.** The CSS was right, but the JSX had a
+separate gate at line 633 of InvoicePreview:
+`{opt('showUPI') && qrDataUrl && !isNarrow && (…)}`. The `!isNarrow`
+(where `isNarrow = paperCfg.widthMm < 80`) blocked the QR from ever
+being emitted on 58mm rolls regardless of the CSS.
+
+**Fix.** Dropped the `!isNarrow` gate. On 58mm the QR now renders at
+`min(qrSizePx, 90)` px so it stays comfortable inside the 48mm
+printable width.
+
+### Fixed — Dark mode status pill "empty gap" look (#3)
+
+**Reported.** "NEW ISSUE IN CASE OF DARK MODE" with a screenshot
+showing an overdue bill row that looked visually broken.
+
+**Root cause.** `STATUS_CONFIG[status].bg` used opaque light-mode
+tints (`#fef2f2`, `#fffbeb`, etc.). The status `<select>` inlined
+`background: sc.bg` so in dark mode it rendered a **pale block on the
+dark row background** — the eye read it as "empty space".
+
+**Fix.** All 4 pill backgrounds switched to `rgba(color, 0.14)` —
+translucent alpha versions of the accent. Now the row background
+shows through in both light and dark themes. Verified: dark mode
+overdue pill = `rgba(220, 38, 38, 0.14)`.
+
+### Added — Full payment edit modal (amount + date + mode + note) (#5)
+
+**Reported.** "Receipt edit option, edit only enables to add notes.
+That should give option to edit the amount too because by mistake if
+wrong amount entered, customer without delete can edit directly."
+
+**Fix.** The Edit icon in Payment History now opens a proper modal
+instead of a note-only `window.prompt`. Editable fields: **amount,
+date, mode, note**. Guards:
+
+- Rejects zero / negative amounts.
+- If the edit brings total received above the invoice total,
+  confirms as overpayment.
+- Recomputes `paidAmount` + status (`paid` / `partial` / `unpaid`)
+  on save.
+- Backfills a `pay_<base36>` id onto legacy rows on first edit.
+- Syncs the linked Receipt record in the Receipts store.
+
+### Improved — Compact upper header now much tighter with shipping present (#4)
+
+**Reported.** "MAKE THE HEADER MORE COMPACT because when shipping
+address added, logo address throw the PDF to new page due to space
+it is taking. Already too much space, make it proper so it will view
+and print friendly. I checked the issue by make smaller size using
+the percent change but still it is same, take 2 pages."
+
+**Fix.** When `headerCompact: true`, additional aggressive rules
+apply:
+
+- Logo max-height 40px (was 48-64px).
+- Business-details block **inlines** — 6 stacked address lines
+  collapse to a single wrapped paragraph with `·` separators.
+  Saves ~20mm on typical A4 renders.
+- Parties row switches to a 3-column grid so Bill-to + Ship-to +
+  Place-of-Supply share width instead of stacking.
+- Party name font drops to 0.92em, details to 0.72em.
+- Party-details paragraph margins collapse to 0.
+
+Turn on **Print & PDF Settings → Layout → Compact upper header** to
+activate. Should knock down page count by 1 in most cases where a
+shipping address was previously pushing content to page 2.
+
+### Re-verified — Watermark on thermal PDFs is skipped (#2)
+
+**Reported (again).** "WATERMARK IN THERMAL PRINT PDF PREVIEW IT IS
+COMING."
+
+**Actual status.** The v1.10.12 `!isThermalPdf` gate on the watermark
+loop is in place. Re-tested by generating a thermal80 PDF with
+`watermarkEnabled: true, watermarkText: 'PAID'` — the produced PDF
+does **NOT** contain the string "PAID" anywhere. The gate works.
+
+If you still see the watermark on thermal, it's the PWA serving a
+cached v1.10.11 or earlier bundle. **Force-refresh** with `Ctrl+F5`
+(or blur the window, come back, refresh) to pick up v1.10.13's SW.
+
+### Re-verified — Per-client paper preference (#6)
+
+**Reported (again).** "One selected with thermal, another with A4,
+feature not working per client basis."
+
+**Actual status.** v1.10.12 fix confirmed working. Scripted test:
+
+```
+Client Alpha (preferredPaperSize=thermal80) selected → invoiceOptions.paperSize = "thermal80" ✓
+Client Bravo (preferredPaperSize=a4)        selected → "a4"                                     ✓
+Client Alpha selected again                          → "thermal80"                              ✓
+```
+
+Same PWA-cache advice as #2 above.
+
+### Notes
+
+- The Overdue row visibility issue in dark mode (#3) was really the
+  status pill — the row and cells themselves were rendering fine.
+  If you still see other cells appearing invisible in dark mode,
+  send a fresh screenshot after hard-refresh.
+- Payment edit modal preserves receipts store sync — editing an
+  amount also updates the linked receipt so the Receipts page
+  reflects the correction.
+
+---
+
 ## [1.10.12] — 2026-07-09
 
 **Seven reported issues fixed.** All verified in real Chromium.

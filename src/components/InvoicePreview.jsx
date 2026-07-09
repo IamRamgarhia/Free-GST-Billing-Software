@@ -630,11 +630,17 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           </div>
         )}
 
-        {opt('showUPI') && qrDataUrl && !isNarrow && (
+        {/* v1.10.13 — reported: "QR for payment should also add on 2 inch
+             thermal too because this feature is working in market". Prior
+             code gated the UPI QR on `!isNarrow` (widthMm < 80) so 58mm
+             rolls silently dropped it. Now: always render when enabled;
+             on 58mm the QR is smaller (auto via qrSizePx below) to fit
+             the 48mm printable width. */}
+        {opt('showUPI') && qrDataUrl && (
           <div style={{ padding: secPad, textAlign: 'center', ...dashLine }}>
             <img src={qrDataUrl} alt="UPI QR"
-              style={{ width: qrSizePx, height: qrSizePx, filter: contrastFilter }} />
-            <div style={{ fontSize: '0.9em', fontWeight: strongWeight }}>{cap('Scan to pay via UPI')}</div>
+              style={{ width: isNarrow ? Math.min(qrSizePx, 90) : qrSizePx, height: isNarrow ? Math.min(qrSizePx, 90) : qrSizePx, filter: contrastFilter }} />
+            <div style={{ fontSize: '0.85em', fontWeight: strongWeight }}>{cap('Scan to pay via UPI')}</div>
           </div>
         )}
 

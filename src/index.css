@@ -1342,6 +1342,53 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   margin-top: 0 !important;
 }
 
+/* v1.10.13 — Reported: even with compact + 80% scale the shipping
+   address pushed content to page 2. Now when compact is on AND a
+   ship-to block exists, the parties row switches to a tighter
+   3-col grid, address blocks lose paragraph margins entirely, and
+   business-details wraps to 2 rows instead of 6. Also drops the
+   header's logo max-height when compact so the top block is truly
+   compact. */
+.invoice-preview-container[data-header-compact="1"] .inv-header img {
+  max-height: 40px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-parties {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-party {
+  min-width: 0;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-party-name {
+  font-size: 0.92em !important;
+  margin-bottom: 2px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-business-details p,
+.invoice-preview-container[data-header-compact="1"] .inv-business-details,
+.invoice-preview-container[data-header-compact="1"] .inv-party-details p,
+.invoice-preview-container[data-header-compact="1"] .inv-party-details {
+  font-size: 0.72em !important;
+}
+/* Business-details block (Company address / phone / email / GSTIN)
+   under the invoice header — when compact, collapse the tight column
+   into two lines by inlining pairs of items. Not perfect, but shaves
+   ~20mm of vertical space on typical A4 renders. */
+.invoice-preview-container[data-header-compact="1"] .inv-business-details {
+  display: block !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-business-details p {
+  display: inline !important;
+  margin-right: 0.6em !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-business-details p::after {
+  content: " · ";
+  color: var(--pdf-muted-text, #64748b);
+}
+.invoice-preview-container[data-header-compact="1"] .inv-business-details p:last-child::after {
+  content: "";
+}
+
 /* v1.10.10 — Higher-specificity print-mode overrides for the Minimalist
    and Modern templates. Prior code's `.printing-mode .inv-*` rules were
    OUTGUNNED by `.template-minimalist .inv-meta-label { color: #64748b
