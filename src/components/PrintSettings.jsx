@@ -239,15 +239,38 @@ export default function PrintSettings() {
         if (document.fonts && document.fonts.ready) {
           try { await document.fonts.ready; } catch { /* non-fatal */ }
         }
-        const capScale = Math.min(6, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.5)));
+        // v1.10.11 — buffer-safe mode lowers the scale + JPEG quality
+        // and grayscales the capture so old thermal printers with
+        // small buffers can accept it.
+        const bufSafe = !!settings.thermalBufferSafe;
+        const capScale = bufSafe
+          ? 2
+          : Math.min(6, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.5)));
         const canvas = await html2canvas(previewRef.current, {
           scale: capScale,
           backgroundColor: '#ffffff', useCORS: false, logging: false,
         });
+        // Grayscale the canvas in-place when buffer-safe is on. This
+        // simplifies the raster the printer driver needs to process.
+        if (bufSafe) {
+          try {
+            const ctx = canvas.getContext('2d');
+            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = img.data;
+            for (let i = 0; i < d.length; i += 4) {
+              // Luminosity method; also boost contrast so grays snap to B/W.
+              const gray = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+              const v = gray < 180 ? 0 : 255;   // hard threshold for dot-matrix feel
+              d[i] = d[i + 1] = d[i + 2] = v;
+            }
+            ctx.putImageData(img, 0, 0);
+          } catch { /* CORS-tainted canvas can't be read; fall back to raw */ }
+        }
         const width = 80;
         const height = (canvas.height * width) / canvas.width;
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [width, Math.max(150, height)] });
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, width, height, undefined, 'FAST');
+        const jpegQ = bufSafe ? 0.72 : 0.95;
+        pdf.addImage(canvas.toDataURL('image/jpeg', jpegQ), 'JPEG', 0, 0, width, height, undefined, 'FAST');
 
         // v1.10.3 — blob URL revoked in `finally`-equivalent (timer +
         // load handler both trigger cleanup once). Prior code only
@@ -648,6 +671,16 @@ export default function PrintSettings() {
                 ['courier', 'Courier (monospace / retro / receipt style)'],
               ]}
               hint="Applies to the letterhead, table, and totals. Affects sheet formats (A4/A5/Letter/Legal); thermal has its own font setting above." />
+          </SettingGroup>
+
+          {/* v1.10.11 — COMPACT HEADER + THERMAL BUFFER-SAFE MODE */}
+          <SettingGroup title="Layout &amp; printer compatibility">
+            <ToggleRow label="Compact upper header (fit more items on page 1)"
+              value={settings.headerCompact} onChange={v => set({ headerCompact: v })}
+              hint="Shrinks the header, billing block, and Place-of-Supply spacing so the items table starts higher up. Best when your invoices routinely spill to page 2 because of large headers." />
+            <ToggleRow label="Thermal buffer-safe mode (for old / low-memory receipt printers)"
+              value={settings.thermalBufferSafe} onChange={v => set({ thermalBufferSafe: v })}
+              hint="Uses grayscale, drops render scale for thermal captures, and lowers JPEG quality. Helps ₹800–₹2000 thermal printers with small internal buffers avoid stuck B/W print jobs." />
           </SettingGroup>
 
           {/* PER-TYPE INVOICE PREFIX OVERRIDES (v1.10.10) */}

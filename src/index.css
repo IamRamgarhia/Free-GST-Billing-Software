@@ -1300,6 +1300,48 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   color: #334155 !important;
 }
 
+/* v1.10.11 — Compact upper-header mode. When users flip
+   `headerCompact: true` in Print Settings, the invoice header + parties
+   + place-of-supply blocks shrink so more line items fit on page 1
+   before pagination kicks in. Padding is reduced ~40%, section labels
+   drop to smaller text, address blocks tighten line-height. Preserves
+   the visual hierarchy of every template — just removes wasted space. */
+.invoice-preview-container[data-header-compact="1"] .inv-header {
+  padding-top: 12px !important;
+  padding-bottom: 8px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-parties {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-party-details p,
+.invoice-preview-container[data-header-compact="1"] .inv-business-details p {
+  margin: 0 !important;
+  line-height: 1.32 !important;
+  font-size: 0.78em !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-section-label {
+  margin-bottom: 2px !important;
+  font-size: 0.7em !important;
+  padding-bottom: 1px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-title {
+  margin-bottom: 4px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-business-name {
+  margin-bottom: 2px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-meta {
+  gap: 2px !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-meta-row {
+  padding: 1px 0 !important;
+}
+.invoice-preview-container[data-header-compact="1"] .inv-parties + .inv-table,
+.invoice-preview-container[data-header-compact="1"] .inv-parties + table.inv-table {
+  margin-top: 0 !important;
+}
+
 /* v1.10.10 — Higher-specificity print-mode overrides for the Minimalist
    and Modern templates. Prior code's `.printing-mode .inv-*` rules were
    OUTGUNNED by `.template-minimalist .inv-meta-label { color: #64748b

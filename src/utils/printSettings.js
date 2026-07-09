@@ -227,6 +227,23 @@ export const DEFAULT_PRINT_SETTINGS = {
     'delivery-challan': '', // default 'DC'
   },
 
+  // v1.10.11 — Compact upper-header mode. Reduces the padding + spacing
+  // in the header / parties / place-of-supply blocks so users can fit
+  // more product rows on page 1 before the invoice spills to page 2.
+  // Reported: "upper header portion till before product rows make it
+  // more compact so other details can feed thr". Off by default so
+  // existing users don't see their invoices unexpectedly restyled.
+  headerCompact: false,
+
+  // v1.10.11 — Thermal buffer-safe mode. Old thermal printers with
+  // small internal buffers (< 128 KB is common on ₹800-₹2000 units)
+  // get stuck when the browser sends a colour or high-DPI receipt.
+  // Enabling this switches the thermal render to grayscale + smaller
+  // font baseline so the transmitted image data drops sharply.
+  // Reported: "some old printers will not stuck in b/w print. Because
+  // in market low beffer size printer available".
+  thermalBufferSafe: false,
+
   // ============================================================
   // v1.9.4 — Payment reminder auto-scheduling + accessibility opts
   // ============================================================

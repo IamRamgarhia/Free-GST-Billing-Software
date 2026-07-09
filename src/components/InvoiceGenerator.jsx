@@ -310,6 +310,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     dueDate: '',
     placeOfSupply: '',
     originalInvoiceRef: '',
+    // v1.10.11 — Ship To fields. Default: same as billing (no extra
+    // fields shown). Untick to type a separate delivery address.
+    shipToSameAsBilling: true,
+    shippingAddress: '',
+    shippingCity: '',
+    shippingPin: '',
+    shippingState: '',
   });
 
   const [items, setItems] = useState(draft?.items || [
@@ -1625,11 +1632,43 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setSaving(true);
     try {
       if (isThermalPaper()) {
-        // Fast path — just open the print dialog on the current page.
-        // The rendered InvoicePreview is already thermal-styled, and
-        // the browser handles paper size via the roll-configured driver.
-        // Skips html2canvas entirely.
-        window.print();
+        // v1.10.11 — Thermal buffer-safe mode. When enabled, we inject
+        // a temporary print stylesheet that forces grayscale + reduces
+        // font weight so the raster the printer driver builds is
+        // simpler. Old thermal printers with tiny buffers (< 128 KB)
+        // stall out on colour + high-detail rasters. Rule set is
+        // removed after print().
+        const ps = getPrintSettings();
+        let bufSafeEl = null;
+        if (ps.thermalBufferSafe) {
+          bufSafeEl = document.createElement('style');
+          bufSafeEl.id = 'fgsb-thermal-buffer-safe';
+          bufSafeEl.textContent = `
+            @media print {
+              #invoice-preview, #invoice-preview * {
+                filter: grayscale(100%) contrast(1.15) !important;
+                background-image: none !important;
+                background-color: #ffffff !important;
+                color: #000000 !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+              }
+              #invoice-preview img {
+                filter: grayscale(100%) contrast(1.2) !important;
+                image-rendering: -webkit-optimize-contrast !important;
+              }
+              #invoice-preview .qr-code, #invoice-preview canvas {
+                filter: grayscale(100%) contrast(1.4) !important;
+              }
+            }
+          `;
+          document.head.appendChild(bufSafeEl);
+        }
+        try {
+          window.print();
+        } finally {
+          if (bufSafeEl) setTimeout(() => bufSafeEl.remove(), 2000);
+        }
         return;
       }
       const pdf = await buildPDF();
@@ -2405,6 +2444,56 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     onChange={(e) => setDetails({ ...details, originalInvoiceRef: e.target.value })} placeholder="e.g. INV/2025-26/0001" />
                 </div>
               )}
+
+              {/* v1.10.11 — Ship-to = Bill-to checkbox. When unchecked,
+                   4 shipping fields appear. Rendered next to the billing
+                   block in the PDF preview. */}
+              <div className="form-group full-width" style={{ marginTop: '0.5rem', padding: '0.6rem 0.85rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none', fontSize: '0.88rem' }}>
+                  <input type="checkbox" checked={details.shipToSameAsBilling !== false}
+                    onChange={e => setDetails({ ...details, shipToSameAsBilling: e.target.checked })}
+                    style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
+                  <span><strong>Ship to</strong> same as bill-to address</span>
+                </label>
+                {details.shipToSameAsBilling === false && (
+                  <div className="grid grid-cols-2 gap-3" style={{ marginTop: '0.6rem' }}>
+                    <div className="form-group full-width">
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>Shipping Address</label>
+                      <textarea className="form-input" rows={2} value={details.shippingAddress || ''}
+                        onChange={e => setDetails({ ...details, shippingAddress: e.target.value })}
+                        placeholder="Delivery address / warehouse / consignee location" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>Shipping City</label>
+                      <input type="text" className="form-input" value={details.shippingCity || ''}
+                        onChange={e => setDetails({ ...details, shippingCity: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>Shipping PIN</label>
+                      <input type="text" className="form-input" value={details.shippingPin || ''}
+                        onChange={e => setDetails({ ...details, shippingPin: e.target.value })}
+                        placeholder="6-digit PIN" maxLength={6} />
+                    </div>
+                    <div className="form-group full-width">
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>Shipping State</label>
+                      {(() => {
+                        const posOpts = getStatesForCountry(profile?.country);
+                        return posOpts.length > 0 ? (
+                          <select className="form-input" value={details.shippingState || ''}
+                            onChange={e => setDetails({ ...details, shippingState: e.target.value })}>
+                            <option value="">Same as billing state</option>
+                            {posOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        ) : (
+                          <input type="text" className="form-input" value={details.shippingState || ''}
+                            onChange={e => setDetails({ ...details, shippingState: e.target.value })}
+                            placeholder="Delivery state / region" />
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

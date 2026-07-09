@@ -271,6 +271,13 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // Billing parties section (shared but styled per variant)
   const renderParties = () => {
     const padStyle = pdfStyle === 'modern' ? { padding: '1rem 2rem' } : pdfStyle === 'minimal' ? { padding: '0 2rem 1rem', border: 'none' } : {};
+    // v1.10.11 — Ship To block. When the user unchecked "Ship to same as
+    // bill-to" in the invoice form, `details.shipToSameAsBilling === false`
+    // and shipping fields are populated. Renders as a third column in
+    // the parties row. When same-as-billing, we don't render it (bill-to
+    // covers both).
+    const shipDifferent = details?.shipToSameAsBilling === false &&
+      (details?.shippingAddress || details?.shippingCity || details?.shippingState);
     return (
       <div className="inv-parties" style={padStyle}>
         <div className="inv-party">
@@ -285,6 +292,17 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             {showClientPhone && client?.phone && <p>Ph: {client.phone}</p>}
           </div>
         </div>
+        {shipDifferent && (
+          <div className="inv-party">
+            <h4 className="inv-section-label">{getLabel(_ps_labels, 'shipTo')}</h4>
+            <p className="inv-party-name">{client?.name || 'Client Name'}</p>
+            <div className="inv-party-details">
+              {details.shippingAddress && <p>{details.shippingAddress}</p>}
+              {(details.shippingCity || details.shippingPin) && <p>{[details.shippingCity, details.shippingPin].filter(Boolean).join(' - ')}</p>}
+              {details.shippingState && <p>{details.shippingState}</p>}
+            </div>
+          </div>
+        )}
         {showPlaceOfSupply && (
           <div className="inv-party inv-party-right">
             <h4 className="inv-section-label">{getLabel(_ps_labels, 'placeOfSupply')}</h4>
@@ -724,6 +742,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       className={`invoice-preview-container ${paperCfg.cssClass} template-${pdfStyleVariant}`}
       data-user-colors={_ps_final.userColorsEnabled ? '1' : '0'}
       data-row-density={_ps_final.rowDensity || 'normal'}
+      data-header-compact={_ps_final.headerCompact ? '1' : '0'}
       ref={ref} id="invoice-preview" style={finalContainerStyle}>
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}

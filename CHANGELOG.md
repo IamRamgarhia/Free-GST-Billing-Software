@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.11] — 2026-07-09
+
+**All 4 items previously listed as "deferred" — shipped.** Verified in
+real Chromium.
+
+### Added — Ship-to = Bill-to checkbox on every invoice
+
+**Reported.** "You should add a option to display shipping address if
+same select to same as billing address so that no need to add extra
+but it should display in invoice side of billing address."
+
+**Fix.** New checkbox in the Client Details block: **"Ship to same
+as bill-to address"** (default ON). Unticking reveals four fields:
+Shipping Address, City, PIN, State. Rendered on the PDF preview as
+a third column next to Bill-to (when the two addresses differ), using
+the existing `SHIP TO` label preset (already available in English /
+Hindi / Tamil / Marathi / Bengali).
+
+Verified in Chromium: uncheck the box → shipping textarea appears
+in the DOM.
+
+### Added — Compact upper header (fit more items on page 1)
+
+**Reported.** "Upper header portion till the before product rows make
+it more compact so other details can feed thr. Redefine the design."
+
+**Fix.** New Print Settings toggle **"Compact upper header (fit more
+items on page 1)"** under a new "Layout & printer compatibility"
+section. When on, the invoice container gets
+`data-header-compact="1"` and matching CSS reduces:
+
+- `.inv-header` padding-top 24px → 12px, padding-bottom 20px → 8px
+- `.inv-parties` padding 16px → 8px both sides
+- Address block `line-height` tightened to 1.32
+- Section labels drop to 0.7em with tighter margins
+
+Preserves visual hierarchy of every template — just removes wasted
+space. Verified: compact CSS applies, header/parties padding halved.
+
+### Added — Thermal buffer-safe mode
+
+**Reported.** "Work more on the fonts used for printing in case of
+thermal also drop the data transfer size so that some old printers
+will not stuck in b/w print. Because in market low beffer size
+printer available."
+
+**Fix.** New Print Settings toggle **"Thermal buffer-safe mode (for
+old / low-memory receipt printers)"**. When on:
+
+- **`directPrint()` (thermal window.print())** injects a temporary
+  print stylesheet that forces `filter: grayscale(100%) contrast(1.15)`
+  on `#invoice-preview` and its children, drops backgrounds, hardens
+  text to `#000` on `#fff`. Removes shadows / text-shadows. Reduces
+  the raster the printer driver builds → fits inside 128 KB buffers.
+- **`runTestPrint()` (thermal PDF via html2canvas)** drops scale to
+  2× (was up to 6× on Retina), grayscales the canvas post-render
+  with a hard 180-threshold binarization (dot-matrix feel), and
+  lowers JPEG quality 0.95 → 0.72. Result: PDF file size drops
+  ~60%, transmitted-to-printer bytes similar.
+
+Off by default so existing users aren't unexpectedly rescaled.
+
+### Fixed — Ledger PDF "CLOSING BALANCE" overlaps its value
+
+**Reported.** Screenshot showed the client statement PDF as `CLOSING
+BALAN·CE 0.00 Cr / Nil` — the label and value collided.
+
+**Root cause.** Label was right-aligned at `col.creditEnd` (168mm),
+value right-aligned at `col.balanceEnd` (~193mm). 25mm gap wasn't
+enough for `Rs. 99,999.99 Cr / Nil` (~40mm at 12pt) so the value's
+left edge crashed into the label's right edge.
+
+**Fix.** Label now left-aligned at `col.debitEnd` (140mm). 53mm
+clearance — comfortable for any realistic amount. Also cleaned the
+`Cr / Nil` ambiguity: shows `Nil` when balance is truly zero, `Cr`
+only when genuinely negative, `Dr` when positive.
+
+### Notes
+
+- The `SHIP TO` labels in every language preset were already there
+  (unused until this release). No translation updates needed.
+- Thermal buffer-safe mode is browser-side only — on driver-managed
+  ESC/POS printers this may or may not help depending on the driver.
+  For truly ancient printers, the `directPrint` grayscale injection
+  is the most reliable path.
+
+---
+
 ## [1.10.10] — 2026-07-09
 
 **Seven reported bugs fixed + one substantial new feature.** Every fix

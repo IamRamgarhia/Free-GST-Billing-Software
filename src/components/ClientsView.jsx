@@ -264,18 +264,26 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       }
 
       // ============== CLOSING BALANCE ==============
+      // v1.10.11 — reported layout bug: label and value overlapped as
+      // "CLOSING BALAN·CE 0.00 Cr / Nil". Root cause: label was
+      // right-aligned at col.creditEnd (168mm) and value at col.balanceEnd
+      // (~193mm) — the ~25mm gap wasn't enough for "Rs. X,XXX.XX Cr / Nil"
+      // (~40mm at 12pt) so the value's left edge crashed into the label's
+      // right edge. Fix: left-align label at col.debitEnd (140mm), leaving
+      // 53mm for the value to breathe.
       y += 3;
       doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.6);
       doc.line(marginL, y, marginR, y); y += 8;
       doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42);
-      doc.text('CLOSING BALANCE', col.creditEnd, y, { align: 'right' });
+      doc.text('CLOSING BALANCE', col.debitEnd, y);
       doc.setFontSize(12);
       if (runningBalance > 0.01) doc.setTextColor(220, 38, 38); else doc.setTextColor(5, 150, 105);
-      doc.text(fmt(Math.abs(runningBalance)) + (runningBalance > 0.01 ? ' Dr' : ' Cr / Nil'), col.balanceEnd, y, { align: 'right' });
+      const balanceLabel = fmt(Math.abs(runningBalance)) + (runningBalance > 0.01 ? ' Dr' : (runningBalance < -0.01 ? ' Cr' : ' Nil'));
+      doc.text(balanceLabel, col.balanceEnd, y, { align: 'right' });
       doc.setTextColor(0);
       y += 10;
       doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(100);
-      doc.text('Dr = amount receivable from client  ·  Cr = amount owed to client / paid', marginL, y);
+      doc.text('Dr = amount receivable from client  ·  Cr = amount owed to client', marginL, y);
 
       // ============== SIGNATURE + FOOTER ==============
       // Signature block (right-aligned)
