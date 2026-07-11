@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.17] — 2026-07-11
+
+**Follow-up to v1.10.16.** The third item from GitHub #13
+("also set default is not working") was missed in the last release
+— catching it here.
+
+### Fixed — ⭐ Set-as-default payment account not persisting (#13)
+
+**Reported.** "also set default is not working... check this issue."
+Users clicked the ⭐ inline button, saw the star move onto the
+selected account, but the change reverted after a page reload.
+
+**Root cause.** `SettingsView.updateAccounts` — the single handler
+behind mark-default, add, delete, reorder, and toggle-active —
+only updated React state via `setProfile`. It never called
+`saveProfile()`. The design assumed users would click the main "Save
+Profile" button after every inline change to persist. Nobody does.
+The ⭐ star moving was pure UI feedback with no server write.
+
+**Fix.** `updateAccounts` now fires `saveProfile(next)` after every
+change (fire-and-forget with a catch so a transient network hiccup
+doesn't wedge the UI). Clicking ⭐ persists immediately. Same for
+delete, reorder, toggle-active, and the account-form save path
+(which already ran through `updateAccounts` under the hood).
+
+---
+
 ## [1.10.16] — 2026-07-11
 
 **Three issues from GitHub #13 and #15.** Company logo not appearing

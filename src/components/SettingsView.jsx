@@ -86,17 +86,30 @@ export default function SettingsView({ onSaved }) {
     // current default account's details, and the existing flat-field code
     // paths (e.g. legacy fallback in InvoicePreview) continue to work.
     const def = nextAccounts.find(a => a.isDefault) || nextAccounts[0];
-    setProfile(prev => ({
-      ...prev,
-      paymentAccounts: nextAccounts,
-      ...(def ? {
-        bankName: def.bankName || '',
-        accountNumber: def.accountNumber || '',
-        ifsc: def.ifsc || '',
-        swift: def.swift || '',
-        upiId: def.upiId || '',
-      } : {}),
-    }));
+    setProfile(prev => {
+      const next = {
+        ...prev,
+        paymentAccounts: nextAccounts,
+        ...(def ? {
+          bankName: def.bankName || '',
+          accountNumber: def.accountNumber || '',
+          ifsc: def.ifsc || '',
+          swift: def.swift || '',
+          upiId: def.upiId || '',
+        } : {}),
+      };
+      // v1.10.16 — reported: "also set default is not working". Root cause:
+      // this function only updated React state via setProfile — the caller
+      // was expected to click the main "Save Profile" button afterwards to
+      // persist. Users clicked the ⭐ inline button, saw the star move, and
+      // assumed it was saved. Reloading the page reverted it. Now every
+      // account-level change (mark-default, add, delete, reorder, toggle
+      // active) auto-persists to the server without needing the main Save
+      // button. Fire-and-forget — the same handler that awaits saveProfile
+      // in handleSave already exists for the "save everything" path.
+      saveProfile(next).catch(() => { /* non-fatal — user can retry via Save */ });
+      return next;
+    });
   };
 
   const openAddAccount = () => {
