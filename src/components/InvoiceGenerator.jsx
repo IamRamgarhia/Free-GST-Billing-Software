@@ -351,6 +351,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     try {
       const saved = localStorage.getItem('freegstbill_invoiceOptions');
       const persisted = saved ? JSON.parse(saved) : {};
+      // v1.10.20 — paymentAccountSnapshot is per-bill data (frozen bank
+      // details at time of save). It must NEVER be inherited via the
+      // user-preference stores (localStorage / server). Strip on read so
+      // opening Invoice B doesn't pick up Invoice A's snapshot.
+      delete persisted.paymentAccountSnapshot;
       // Persisted options are the user's defaults, draft can override for in-progress work
       return { ...DEFAULT_OPTIONS, ...persisted, ...(draft?.invoiceOptions || {}) };
     } catch { return draft?.invoiceOptions || { ...DEFAULT_OPTIONS }; }
@@ -419,11 +424,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // request.
   const optionsPersistTimer = useRef(null);
   useEffect(() => {
-    localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(invoiceOptions));
+    // v1.10.20 — Strip paymentAccountSnapshot before persisting. It's per-
+    // bill data (bank details frozen at save time), not a user preference.
+    // Prior code auto-persisted the entire invoiceOptions to localStorage
+    // AND to the server, so opening Invoice A (Bank X snapshot) polluted
+    // both stores, and opening Invoice B inherited Bank X — defeating the
+    // v1.10.19 backfill entirely.
+    const { paymentAccountSnapshot: _snap, ...persistable } = invoiceOptions;
+    localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(persistable));
     if (hasInitialized.current) {
       clearTimeout(optionsPersistTimer.current);
       optionsPersistTimer.current = setTimeout(() => {
-        saveInvoiceDisplayOptions(invoiceOptions).catch(() => {});
+        saveInvoiceDisplayOptions(persistable).catch(() => {});
       }, 800);
     }
     return () => clearTimeout(optionsPersistTimer.current);
@@ -433,13 +445,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   useEffect(() => {
     getInvoiceDisplayOptions().then(serverOpts => {
       if (serverOpts) {
+        // v1.10.20 — Strip cross-invoice bleed-through of paymentAccountSnapshot
+        // from any stale server-persisted options (pre-v1.10.20 clients would
+        // have posted it). Preserves the current bill's snapshot in `prev`.
+        delete serverOpts.paymentAccountSnapshot;
         const merged = { ...DEFAULT_OPTIONS, ...serverOpts };
         setInvoiceOptions(prev => {
           // Only update if different to avoid unnecessary re-renders
           const changed = Object.keys(merged).some(k => merged[k] !== prev[k]);
           if (changed) {
-            localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(merged));
-            return merged;
+            // Preserve the per-bill snapshot from prev when applying server defaults.
+            const nextOpts = { ...merged, paymentAccountSnapshot: prev.paymentAccountSnapshot };
+            const { paymentAccountSnapshot: _skip, ...toPersist } = nextOpts;
+            localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(toPersist));
+            return nextOpts;
           }
           return prev;
         });
@@ -634,15 +653,23 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         // bills DID persist a full profile snapshot in d.profile since
         // v1.4.x, so we can recover the original account by looking it up
         // in d.profile.paymentAccounts (or the flat legacy fields).
-        // Backfilling only happens if the snapshot is missing so we don't
-        // overwrite a fresh v1.10.18 snapshot.
+        // v1.10.20 — Strip paymentAccountSnapshot from `persisted` before
+        // merging. Otherwise Invoice A's snapshot (auto-saved to
+        // localStorage) contaminates Invoice B's merge, and the
+        // `!mergedOpts.paymentAccountSnapshot` check below sees a snapshot
+        // that isn't actually the current bill's. That single bug defeated
+        // the entire v1.10.19 backfill in practice.
         let mergedOpts = null;
         try {
           const saved = localStorage.getItem('freegstbill_invoiceOptions');
           const persisted = saved ? JSON.parse(saved) : {};
+          delete persisted.paymentAccountSnapshot;
           mergedOpts = { ...DEFAULT_OPTIONS, ...persisted, ...d.invoiceOptions };
         } catch { mergedOpts = { ...DEFAULT_OPTIONS, ...d.invoiceOptions }; }
-        if (!mergedOpts.paymentAccountSnapshot && d.profile) {
+        // Backfilling only happens if the bill genuinely has no snapshot.
+        // Check d.invoiceOptions directly (not mergedOpts) to sidestep any
+        // remaining cross-store bleed-through.
+        if (!d.invoiceOptions.paymentAccountSnapshot && d.profile) {
           const snap = getAccountById(d.profile, mergedOpts.selectedAccountId);
           if (snap) mergedOpts.paymentAccountSnapshot = snap;
         }

@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.20] — 2026-07-11
+
+**v1.10.19 root-cause fix.** User re-tested with fresh install and
+the backfill still didn't work — traced to a cross-invoice
+contamination bug that defeated the whole feature.
+
+### Fixed — paymentAccountSnapshot bleeding between invoices
+
+**Reported.** "CAN U FIX THIS BANK ISSUE I DONT NOW IT IS NOT
+WORKING I TRIED UPDATING ALSO."
+
+**Root cause.** `paymentAccountSnapshot` is per-bill data — the bank
+details frozen at that bill's save time. But the invoiceOptions
+persist path (line 422) was auto-writing the ENTIRE options object,
+including the snapshot, to both localStorage AND the server on
+every change. So:
+
+1. Open Invoice A (Bank X snapshot) → localStorage now has Bank X.
+2. Open old Invoice B (no snapshot in bill.data) → merge picks up
+   Bank X from localStorage → `mergedOpts.paymentAccountSnapshot`
+   is truthy → the v1.10.19 `!mergedOpts.paymentAccountSnapshot`
+   check skipped backfill → Invoice B renders with Bank X.
+
+Every invoice got the last-opened invoice's bank. Completely wrong.
+The v1.10.19 fix looked correct in isolation but was defeated the
+moment any user opened two invoices in one session.
+
+**Fix.** Three sites, one principle — treat snapshot as bill-scoped,
+never as user-preference:
+
+1. **Persist path** ([line 421](src/components/InvoiceGenerator.jsx#L421)):
+   strip `paymentAccountSnapshot` before writing to localStorage AND
+   before the debounced server POST. localStorage never carries a
+   snapshot again.
+2. **useState initializer** ([line 350](src/components/InvoiceGenerator.jsx#L350)):
+   strip on read too, so any stale snapshot left over from a
+   pre-v1.10.20 client doesn't seed the initial state.
+3. **Backfill check** ([line 627](src/components/InvoiceGenerator.jsx#L627)):
+   test `!d.invoiceOptions.paymentAccountSnapshot` directly instead
+   of `!mergedOpts.paymentAccountSnapshot` — bypasses any residual
+   bleed-through and asks the real question: does this bill
+   genuinely lack a snapshot?
+4. **Server-load path** ([line 445](src/components/InvoiceGenerator.jsx#L445)):
+   strip snapshot from `serverOpts`, preserve the current bill's
+   snapshot when applying server defaults.
+
+Net effect: every bill resolves its own bank, backfill runs when it
+should, and after this deploy the localStorage / server-side stale
+snapshots naturally clear on next save.
+
+---
+
 ## [1.10.19] — 2026-07-11
 
 **v1.10.18 follow-up.** User re-tested the bank snapshot fix on
