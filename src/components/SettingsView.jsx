@@ -224,6 +224,24 @@ export default function SettingsView({ onSaved }) {
     try {
       setSaving(true);
       await saveProfile(profile);
+      // v1.10.16 — reported: "uploaded logo and saved but it's not showing on
+      // invoice". Root cause was a stale `freegstbill_invoiceOptions.showLogo`
+      // in localStorage from before the upload — DEFAULT_OPTIONS has it true,
+      // but a false persisted from an earlier state kept it hidden even after
+      // the upload. Now: whenever the user saves a profile that has a logo,
+      // we force `showLogo: true` in the persisted invoice options. Same for
+      // signature. Users who consciously want to hide the logo can still
+      // uncheck it in the Customize panel — this fix only rescues the
+      // silent-fail case.
+      if (profile.logo || profile.signature) {
+        try {
+          const raw = localStorage.getItem('freegstbill_invoiceOptions');
+          const opts = raw ? JSON.parse(raw) : {};
+          if (profile.logo) opts.showLogo = true;
+          if (profile.signature) opts.showSignature = true;
+          localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(opts));
+        } catch { /* localStorage full or blocked — skip */ }
+      }
       if (onSaved) onSaved(profile);
       toast('Profile saved!', 'success');
     } catch { toast('Failed to save profile', 'error'); }

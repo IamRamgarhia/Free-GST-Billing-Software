@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.16] — 2026-07-11
+
+**Three issues from GitHub #13 and #15.** Company logo not appearing
+after upload, no edit option for saved payment receipts, and the
+multi-profile chip row failing to appear until profiles were toggled
+in Settings first.
+
+### Fixed — Logo missing on invoice after Settings upload (#15)
+
+**Reported.** "I uploaded the logo and saved the settings, but the
+company logo is not displayed on the invoice." nvwork-design's
+workaround (open Customize → toggle Logo on) was correct, but a
+silent-fail like that is a UX trap.
+
+**Root cause.** `InvoicePreview.jsx:238` renders the logo only when
+`showLogo === true` AND `profile.logo` exists. `showLogo` defaults
+to `true` in `DEFAULT_OPTIONS`, but users with stale
+`freegstbill_invoiceOptions` in localStorage (persisted from a
+pre-upload state or a template that turned it off) had `showLogo:
+false` — so the upload succeeded, but the render gate silently
+blocked it.
+
+**Fix.** In `SettingsView.handleSave`, whenever the saved profile
+has a `logo` (or `signature`), we now force `showLogo: true` (and
+`showSignature: true`) into the persisted invoice options. Uploading
+a logo now automatically enables it. Users who consciously want to
+hide the logo can still uncheck it in the Customize panel — this
+fix only rescues the silent-fail case.
+
+### Added — Edit button in Payment Receipts list (#13)
+
+**Reported.** "HERE ALSO ADD EDIT OPTION." The Payment Receipts
+table only had Print + Delete; a wrong amount or date meant deleting
+and re-creating (which cost the original receipt number and its
+paid-against linkage).
+
+**Fix.** New Edit (pencil) button opens the same receipt form
+pre-filled with the existing fields. Save re-POSTs with the original
+id so the server upserts in place — receipt number preserved. The
+propagation into the linked invoice's `payments[]` array is also
+smart on edit: finds the prior entry by `receiptNo`, updates it in
+place (preventing double-counting), and if the user changed which
+invoice the receipt is linked to, strips the old propagation from
+the previous invoice before adding to the new one. Status recomputed
+from the fresh totals.
+
+### Fixed — Multi-profile chip row missing on first render (#13)
+
+**Reported.** "if added two accounts in setting page it is not
+displaying the invoice customization page for change in particular
+invoice. i checked it is adding if i interchange the selection then
+it is displaying and not displaying directly."
+
+**Root cause.** `getAllProfiles()` fired once in
+`InvoiceGenerator`'s mount effect. If the SPA kept the invoice
+generator mounted while the user was in Settings adding a profile,
+the new profile never made it into `allProfiles` — and the "Billing
+From (Business Profile)" chip row only renders when `allProfiles
+.length > 1`. The conditional-render path in App.jsx does unmount
++ remount InvoiceGenerator, so this shouldn't have been an issue,
+but a stale server response caching mid-navigation reproduced it.
+
+**Fix.** Added a `visibilitychange` + `focus` listener that refetches
+`getAllProfiles()` whenever the window/tab regains focus. Belt-and-
+braces: on every navigation back to the invoice generator, the
+profile list is fresh. The chip row appears immediately.
+
+---
+
 ## [1.10.15] — 2026-07-09
 
 **Header polish, Amazon-style.** User's reference screenshot showed an

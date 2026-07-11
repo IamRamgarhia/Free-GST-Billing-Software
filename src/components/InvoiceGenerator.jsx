@@ -567,6 +567,26 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     sessionStorage.removeItem('gst_invoiceDraft');
   };
 
+  // v1.10.16 — reported: user adds a 2nd business profile in Settings, comes
+  // back to the invoice generator, but the "Billing From (Business Profile)"
+  // chip row (which only renders when allProfiles.length > 1) doesn't
+  // appear until they switch profiles once. Root cause: getAllProfiles()
+  // fired once on mount; if the SPA kept InvoiceGenerator mounted while the
+  // user was in Settings, the new profile never showed. Fix: also refetch
+  // when the window regains visibility. Belt-and-braces since the
+  // conditional-render path in App.jsx already unmounts+remounts, but this
+  // covers the case where a stale server response is cached mid-navigation.
+  useEffect(() => {
+    const refetchProfiles = () => getAllProfiles().then(setAllProfiles).catch(() => {});
+    const onVisible = () => { if (document.visibilityState === 'visible') refetchProfiles(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refetchProfiles);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refetchProfiles);
+    };
+  }, []);
+
   // Load terms templates and saved clients
   useEffect(() => {
     getAllProfiles().then(p => { setAllProfiles(p); if (!activeProfile && p.length > 0) setActiveProfile(profileProp); }).catch(() => {});

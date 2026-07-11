@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Receipt, Plus, Trash2, Search, Printer } from 'lucide-react';
+import { Receipt, Plus, Trash2, Search, Printer, Pencil } from 'lucide-react';
 import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
 import { formatCurrency, numberToWords } from '../utils';
 import { toast } from './Toast';
@@ -26,6 +26,7 @@ export default function ReceiptVoucher() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [previewReceipt, setPreviewReceipt] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const receiptRef = useRef(null);
 
   const loadData = async () => {
@@ -67,10 +68,32 @@ export default function ReceiptVoucher() {
   const openAdd = async () => {
     const receiptNo = await getNextReceiptNo();
     setForm({ ...emptyForm, receiptNo });
+    setEditingId(null);
     setShowForm(true);
   };
 
-  const closeForm = () => { setShowForm(false); setForm({ ...emptyForm }); };
+  // v1.10.16 — reported: "here also add edit option" — the Payment Receipts
+  // list only had Print + Delete. Delete + re-create lost the original
+  // receipt number and the paid-against linkage. Now Edit opens the same
+  // form pre-filled with the receipt fields; save re-POSTs with the same
+  // id so the server upserts in place.
+  const openEdit = (rcp) => {
+    setForm({
+      date: rcp.date || new Date().toISOString().split('T')[0],
+      receiptNo: rcp.receiptNo || '',
+      clientName: rcp.clientName || '',
+      clientAddress: rcp.clientAddress || '',
+      amount: String(rcp.amount ?? ''),
+      paymentMode: rcp.paymentMode || 'Bank Transfer',
+      referenceNo: rcp.referenceNo || '',
+      againstInvoice: rcp.againstInvoice || '',
+      note: rcp.note || '',
+    });
+    setEditingId(rcp.id);
+    setShowForm(true);
+  };
+
+  const closeForm = () => { setShowForm(false); setForm({ ...emptyForm }); setEditingId(null); };
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -88,18 +111,22 @@ export default function ReceiptVoucher() {
     if (!form.clientName.trim()) { toast('Client name required', 'warning'); return; }
     if (!form.amount || parseFloat(form.amount) <= 0) { toast('Enter valid amount', 'warning'); return; }
     try {
-      // Reserve the receipt number atomically at save time (matches invoice
-      // pattern). If the peek is still valid, this returns the same number.
+      // v1.10.16 — Edit mode preserves the original receipt number and id so
+      // the server upserts in place. Only new receipts reserve a fresh
+      // atomic number from the RCP counter.
       let receiptNo = form.receiptNo;
-      try {
-        receiptNo = await getNextInvoiceNumber('RCP');
-      } catch { /* fall back to peeked number */ }
+      if (!editingId) {
+        try {
+          receiptNo = await getNextInvoiceNumber('RCP');
+        } catch { /* fall back to peeked number */ }
+      }
 
       const receipt = {
         ...form,
         receiptNo,
         amount: parseFloat(form.amount),
       };
+      if (editingId) receipt.id = editingId;
       await saveReceipt(receipt);
 
       // P1 #19: propagate the payment to the linked invoice so the Dashboard
@@ -107,33 +134,55 @@ export default function ReceiptVoucher() {
       // double-record via the payment modal. If no invoice link, skip
       // silently — receipts against ad-hoc payments (advances, deposits)
       // aren't tied to any bill.
+      // v1.10.16 — Edit mode: find the previously-propagated payment record
+      // in the linked bill (matched by receiptNo) and update it in place
+      // instead of appending. Prevents double-counting when a receipt is
+      // edited. If the linked invoice was changed, we remove the old
+      // propagation and add a fresh one to the new invoice.
+      const modeMap = { 'Bank Transfer': 'bank-transfer', 'UPI': 'upi', 'Cash': 'cash', 'Cheque': 'cheque', 'Card': 'card', 'Other': 'other' };
+      const paidAmount = parseFloat(form.amount);
+      const stripReceiptFromBill = async (bill) => {
+        if (!bill) return;
+        const priorPayments = bill.payments || [];
+        const kept = priorPayments.filter(p => p.receiptNo !== receiptNo);
+        if (kept.length === priorPayments.length) return;
+        const newTotal = kept.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const nextStatus = newTotal >= (Number(bill.totalAmount) || 0) ? 'paid' : (newTotal > 0 ? 'partial' : 'unpaid');
+        await saveBill({ ...bill, paidAmount: newTotal, status: nextStatus, payments: kept }, { overwrite: true });
+      };
+      // If editing and the linked invoice changed (or was removed), scrub
+      // the old link first.
+      if (editingId) {
+        try {
+          const original = receipts.find(r => r.id === editingId);
+          const oldRef = original?.againstInvoice?.trim();
+          const newRef = form.againstInvoice?.trim();
+          if (oldRef && oldRef !== newRef) {
+            const oldBill = bills.find(b => b.invoiceNumber === oldRef || b.id === oldRef);
+            await stripReceiptFromBill(oldBill);
+          }
+        } catch { /* non-fatal */ }
+      }
       if (form.againstInvoice && form.againstInvoice.trim()) {
         try {
           const bill = bills.find(b => b.invoiceNumber === form.againstInvoice.trim() || b.id === form.againstInvoice.trim());
           if (bill) {
-            const paidAmount = parseFloat(form.amount);
             const priorPayments = bill.payments || [];
-            const already = priorPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-            const newTotal = already + paidAmount;
-            const nextStatus = newTotal >= (Number(bill.totalAmount) || 0) ? 'paid' : 'partial';
-            const modeMap = { 'Bank Transfer': 'bank-transfer', 'UPI': 'upi', 'Cash': 'cash', 'Cheque': 'cheque', 'Card': 'card', 'Other': 'other' };
-            const updated = {
-              ...bill,
-              paidAmount: newTotal,
-              status: nextStatus,
-              payments: [
-                ...priorPayments,
-                {
-                  amount: paidAmount,
-                  date: form.date,
-                  mode: modeMap[form.paymentMode] || 'other',
-                  note: `Receipt ${receiptNo}${form.referenceNo ? ' · ref ' + form.referenceNo : ''}`,
-                  recordedAt: new Date().toISOString(),
-                  receiptNo,
-                },
-              ],
+            const priorIdx = priorPayments.findIndex(p => p.receiptNo === receiptNo);
+            const nextEntry = {
+              amount: paidAmount,
+              date: form.date,
+              mode: modeMap[form.paymentMode] || 'other',
+              note: `Receipt ${receiptNo}${form.referenceNo ? ' · ref ' + form.referenceNo : ''}`,
+              recordedAt: priorIdx >= 0 ? priorPayments[priorIdx].recordedAt : new Date().toISOString(),
+              receiptNo,
             };
-            await saveBill(updated, { overwrite: true });
+            const nextPayments = priorIdx >= 0
+              ? priorPayments.map((p, i) => i === priorIdx ? nextEntry : p)
+              : [...priorPayments, nextEntry];
+            const newTotal = nextPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            const nextStatus = newTotal >= (Number(bill.totalAmount) || 0) ? 'paid' : (newTotal > 0 ? 'partial' : 'unpaid');
+            await saveBill({ ...bill, paidAmount: newTotal, status: nextStatus, payments: nextPayments }, { overwrite: true });
           }
         } catch { /* non-fatal: receipt is saved; user can manually update the bill */ }
       }
@@ -205,7 +254,7 @@ export default function ReceiptVoucher() {
       {showForm && (
         <div className="modal-overlay" onClick={closeForm}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-            <h3 className="section-title">New Payment Receipt</h3>
+            <h3 className="section-title">{editingId ? 'Edit Payment Receipt' : 'New Payment Receipt'}</h3>
 
             {/* Quick select from unpaid invoices */}
             {unpaidBills.length > 0 && !form.againstInvoice && (
@@ -340,6 +389,7 @@ export default function ReceiptVoucher() {
                     <td>
                       <div className="table-actions">
                         <button className="icon-btn icon-btn-blue" onClick={() => printReceipt(rcp)} title="Print"><Printer size={15} /></button>
+                        <button className="icon-btn" onClick={() => openEdit(rcp)} title="Edit"><Pencil size={15} /></button>
                         <button className="icon-btn icon-btn-red" onClick={() => handleDelete(rcp.id)} title="Delete"><Trash2 size={15} /></button>
                       </div>
                     </td>
