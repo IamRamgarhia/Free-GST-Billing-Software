@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.19] — 2026-07-11
+
+**v1.10.18 follow-up.** User re-tested the bank snapshot fix on
+older invoices and reported "i cant see it is working" — because
+v1.10.18 only froze snapshots at save time; bills saved before that
+release still resolved the bank via the live profile. Now covered.
+
+### Fixed — Snapshot backfill for pre-v1.10.18 bills
+
+**Reported.** "swaping bank account issue solve work on old bills
+or not please mention... or it will work on new because i cant see
+it is working."
+
+**How the original bank is recoverable.** Since v1.4.x, every bill
+persisted a full profile snapshot in `data.profile`. That snapshot
+still holds the account details as they were at time of save,
+including the `paymentAccounts` array with the original bank name,
+account number, IFSC, and UPI id. What v1.10.18 lacked was the code
+that reads them.
+
+**Fix.**
+1. **On load** (invoice generator's edit-mount effect): if
+   `d.invoiceOptions.paymentAccountSnapshot` is missing, look up the
+   original account via
+   `getAccountById(d.profile, d.invoiceOptions.selectedAccountId)`
+   and populate it. Historical bills now render with their
+   original bank details immediately, no re-save required.
+2. **On save**: preserve the existing snapshot when its id still
+   matches the current selection. Prevents the re-save of a
+   backfilled bill from overwriting the recovered original bank
+   with the current (edited) profile bank. Only re-snapshots when
+   the user intentionally picks a different account.
+
+Net effect: works on **all** bills that were ever saved with
+`data.profile` (v1.4.x and later — which is every bill in every
+existing install). If the profile snapshot itself was somehow
+deleted (backup/restore glitch), we fall through to the live lookup
+— same as the old behaviour.
+
+---
+
 ## [1.10.18] — 2026-07-11
 
 **Two items from GitHub #13 follow-up comment.** A silent data-

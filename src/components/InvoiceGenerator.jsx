@@ -626,11 +626,27 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       if (d.taxInclusive !== undefined) setTaxInclusive(d.taxInclusive);
       if (d.invoiceOptions) {
         // User's persisted defaults as base, bill options overlay
+        // v1.10.19 — Backfill paymentAccountSnapshot for pre-v1.10.18 bills.
+        // Reported after v1.10.18: "swaping bank account issue solve work on
+        // old bills or not... i cant see it is working". Right — v1.10.18
+        // only froze the snapshot at save time, so bills saved before that
+        // release still resolved the bank via the live profile. But those
+        // bills DID persist a full profile snapshot in d.profile since
+        // v1.4.x, so we can recover the original account by looking it up
+        // in d.profile.paymentAccounts (or the flat legacy fields).
+        // Backfilling only happens if the snapshot is missing so we don't
+        // overwrite a fresh v1.10.18 snapshot.
+        let mergedOpts = null;
         try {
           const saved = localStorage.getItem('freegstbill_invoiceOptions');
           const persisted = saved ? JSON.parse(saved) : {};
-          setInvoiceOptions({ ...DEFAULT_OPTIONS, ...persisted, ...d.invoiceOptions });
-        } catch { setInvoiceOptions({ ...DEFAULT_OPTIONS, ...d.invoiceOptions }); }
+          mergedOpts = { ...DEFAULT_OPTIONS, ...persisted, ...d.invoiceOptions };
+        } catch { mergedOpts = { ...DEFAULT_OPTIONS, ...d.invoiceOptions }; }
+        if (!mergedOpts.paymentAccountSnapshot && d.profile) {
+          const snap = getAccountById(d.profile, mergedOpts.selectedAccountId);
+          if (snap) mergedOpts.paymentAccountSnapshot = snap;
+        }
+        setInvoiceOptions(mergedOpts);
       }
 
       if (editingBill._isDuplicate) {
@@ -992,12 +1008,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // (bankName, accountNumber, IFSC, UPI) come from the CURRENT profile at
     // render time. So editing "Bank A" in Settings retroactively rewrote
     // every historical invoice that had used Bank A. Fix: freeze the resolved
-    // account into invoiceOptions.paymentAccountSnapshot at save time so the
-    // render can prefer the snapshot over the live lookup. Editing an
-    // invoice and picking a different account re-snapshots on the next save.
-    // Live profile edits to bank details no longer bleed into historical
-    // invoices.
-    const snapAccount = getAccountById(profile, invoiceOptions.selectedAccountId);
+    // account into invoiceOptions.paymentAccountSnapshot at save time.
+    // v1.10.19 — When the invoiceOptions already carry a snapshot AND its id
+    // matches the current selection, KEEP it. This preserves the backfilled
+    // snapshot for pre-v1.10.18 bills that get re-saved without a bank
+    // change. Only re-snapshot from the live profile when the user
+    // intentionally switched to a different account (id changed) or when
+    // no prior snapshot exists.
+    const priorSnapshot = invoiceOptions.paymentAccountSnapshot;
+    const priorMatchesSelection = priorSnapshot && priorSnapshot.id === invoiceOptions.selectedAccountId;
+    const snapAccount = priorMatchesSelection
+      ? priorSnapshot
+      : getAccountById(profile, invoiceOptions.selectedAccountId);
     const invoiceOptionsWithSnapshot = { ...invoiceOptions, paymentAccountSnapshot: snapAccount || null };
 
     const bill = {
