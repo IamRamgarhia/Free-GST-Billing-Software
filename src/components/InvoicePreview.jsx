@@ -30,7 +30,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // Resolve the payment account once per render. Falls back to the synthesised
   // legacy account (built from flat profile bank fields) when no array exists,
   // so v1.4.3 invoices render byte-identical with no `selectedAccountId`.
-  const account = getAccountById(profile, options.selectedAccountId);
+  // v1.10.18 — Prefer options.paymentAccountSnapshot when present. That's the
+  // frozen-at-save-time copy of the account details, so editing a bank in
+  // Settings after the invoice was made no longer rewrites the invoice's
+  // displayed bank. Old invoices without the snapshot (pre-v1.10.18) fall
+  // through to the live profile lookup — legacy behaviour preserved.
+  const account = options.paymentAccountSnapshot || getAccountById(profile, options.selectedAccountId);
   const showAccountLabel = options.showAccountLabel === true;
 
   // Options with defaults. Each toggle defaults to ON so old invoices keep rendering as

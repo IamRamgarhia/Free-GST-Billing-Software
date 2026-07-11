@@ -725,6 +725,27 @@ export default function GSTReturns() {
   const periodKey = getPeriodKey();
   const periodFiling = filingStatus[periodKey] || {};
 
+  // v1.10.18 — reported: "in every option give option to change or edit
+  // because by mistake if click happens user can change that". Now the R1
+  // and 3B status pills at the top toggle on click (Pending → Filed → Pending)
+  // so a mistaken Mark Filed can be reverted without hunting through
+  // settings. `markFiled` remains a set-only helper for the explicit
+  // Mark-Filed button; toggling uses `toggleFiled` below.
+  const toggleFiled = (returnType) => {
+    const next = !periodFiling[returnType];
+    const updated = {
+      ...filingStatus,
+      [periodKey]: {
+        ...periodFiling,
+        [returnType]: next,
+        [`${returnType}Date`]: next ? new Date().toISOString() : null,
+      },
+    };
+    setFilingStatus(updated);
+    try { localStorage.setItem('gst_filing_status', JSON.stringify(updated)); } catch { /* localStorage full */ }
+    toast(`${returnType.toUpperCase()} marked as ${next ? 'filed' : 'pending'} for this period`, 'success');
+  };
+
   const markFiled = (returnType) => {
     const updated = { ...filingStatus, [periodKey]: { ...periodFiling, [returnType]: true, [`${returnType}Date`]: new Date().toISOString() } };
     setFilingStatus(updated);
@@ -1069,13 +1090,19 @@ export default function GSTReturns() {
               </select>
             </>
           )}
-          {/* Filing status */}
-          <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', background: periodFiling.gstr1 ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr1 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+          {/* Filing status — v1.10.18: clickable to toggle. Reported: "in
+              every option give option to change or edit because by mistake
+              if click happens user can change that". */}
+          <button type="button" onClick={() => toggleFiled('gstr1')}
+            title={periodFiling.gstr1 ? 'Click to mark as pending' : 'Click to mark as filed'}
+            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: periodFiling.gstr1 ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr1 ? '#059669' : '#dc2626', fontWeight: 600 }}>
             R1 {periodFiling.gstr1 ? 'Filed' : 'Pending'}
-          </span>
-          <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', background: periodFiling.gstr3b ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr3b ? '#059669' : '#dc2626', fontWeight: 600 }}>
+          </button>
+          <button type="button" onClick={() => toggleFiled('gstr3b')}
+            title={periodFiling.gstr3b ? 'Click to mark as pending' : 'Click to mark as filed'}
+            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: periodFiling.gstr3b ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr3b ? '#059669' : '#dc2626', fontWeight: 600 }}>
             3B {periodFiling.gstr3b ? 'Filed' : 'Pending'}
-          </span>
+          </button>
         </div>
         <a href="https://gst.gov.in" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
           <ExternalLink size={14} /> GST Portal

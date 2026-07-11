@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.18] — 2026-07-11
+
+**Two items from GitHub #13 follow-up comment.** A silent data-
+integrity bug where editing a bank account rewrote every historical
+invoice that used it, and R1/3B filing pills that had no undo.
+
+### Fixed — Bank changes retroactively rewriting historical invoices
+
+**Reported.** "if i change bank account for the customer to one bank
+then other also changed to that — it should show the bank was
+selected at the time of making but it wont."
+
+**Root cause.** Bills only stored `invoiceOptions.selectedAccountId`
+— just the id, no snapshot of the bank/account/IFSC/UPI. At render
+time (both preview and PDF export), `InvoicePreview` called
+`getAccountById(profile, id)` on the CURRENT profile to resolve the
+details. So if a user renamed "HDFC" to "HDFC Bank Ltd", changed
+the account number, or overwrote the UPI in Settings, every
+historical invoice that had used that account started showing the
+new values on next open. Silent — no error, just retroactive data
+mutation.
+
+**Fix.** At save time, `InvoiceGenerator` now freezes the resolved
+account into `invoiceOptions.paymentAccountSnapshot`. Render prefers
+the snapshot; falls back to the live lookup only for pre-v1.10.18
+bills that don't have one (legacy behaviour preserved). Editing a
+bill and choosing a different account re-snapshots on the next save
+— so intentional per-invoice changes still work. Live profile
+edits to bank details never bleed into historical invoices again.
+
+### Improved — R1 / 3B filing pills toggle on click (#13)
+
+**Reported.** "in every option give option to change or edit
+because by mistake if click happens user can change that."
+
+The R1 Filed / 3B Pending pills at the top of GST Returns were
+purely display; if a user hit the "Mark Filed" button by mistake,
+there was no way to un-file without hunting through the state.
+
+**Fix.** Both pills are now real `<button>`s with cursor + hover.
+Click toggles the state (Pending → Filed → Pending). Toast confirms
+the switch. `markFiled` (from the explicit Mark-Filed button) stays
+set-only so the primary flow doesn't change semantics.
+
+---
+
 ## [1.10.17] — 2026-07-11
 
 **Follow-up to v1.10.16.** The third item from GitHub #13

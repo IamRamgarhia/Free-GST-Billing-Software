@@ -984,6 +984,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       } catch { /* fall back to the peeked value; server will 409 if it collides */ }
     }
 
+    // v1.10.18 — reported: "if i change bank account for the customer to one
+    // bank then other also changed to that — it should show the bank was
+    // selected at the time of making but it wont." Root cause: InvoicePreview
+    // resolves the account via getAccountById(profile, selectedAccountId) at
+    // render time. Only the id is stored on the bill; account details
+    // (bankName, accountNumber, IFSC, UPI) come from the CURRENT profile at
+    // render time. So editing "Bank A" in Settings retroactively rewrote
+    // every historical invoice that had used Bank A. Fix: freeze the resolved
+    // account into invoiceOptions.paymentAccountSnapshot at save time so the
+    // render can prefer the snapshot over the live lookup. Editing an
+    // invoice and picking a different account re-snapshots on the next save.
+    // Live profile edits to bank details no longer bleed into historical
+    // invoices.
+    const snapAccount = getAccountById(profile, invoiceOptions.selectedAccountId);
+    const invoiceOptionsWithSnapshot = { ...invoiceOptions, paymentAccountSnapshot: snapAccount || null };
+
     const bill = {
       id: finalInvoiceNumber,
       clientName: client.name,
@@ -1001,7 +1017,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // Preserve any pre-existing print history + carry through the patch
       printedCount: extraPatch.printedCount ?? editingBill?.printedCount ?? 0,
       lastPrintedAt: extraPatch.lastPrintedAt ?? editingBill?.lastPrintedAt ?? null,
-      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions, taxInclusive }
+      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive }
     };
     // Editing an existing bill → always overwrite. NEW bill on second-and-
     // later save this session → also overwrite (same invoice number, would
