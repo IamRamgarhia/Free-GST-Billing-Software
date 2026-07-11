@@ -669,8 +669,21 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         // Backfilling only happens if the bill genuinely has no snapshot.
         // Check d.invoiceOptions directly (not mergedOpts) to sidestep any
         // remaining cross-store bleed-through.
-        if (!d.invoiceOptions.paymentAccountSnapshot && d.profile) {
-          const snap = getAccountById(d.profile, mergedOpts.selectedAccountId);
+        // v1.10.21 — Also heal contaminated snapshots from the v1.10.18–19
+        // window. Reported: "after i full reloaded again all vanished and
+        // asigned to same account which is default." Cause: bills saved
+        // between v1.10.18 and v1.10.19 had snapshots polluted by
+        // cross-invoice localStorage bleed — the snapshot's own `id` didn't
+        // match the bill's selectedAccountId. v1.10.20 stopped the leak but
+        // didn't touch the already-saved bad snapshots. Now: if the stored
+        // snapshot's id doesn't match the stored selection, treat it as
+        // stale and re-derive from d.profile (the frozen-at-save profile
+        // snapshot, which still has the original account).
+        const billSnap = d.invoiceOptions.paymentAccountSnapshot;
+        const billSelId = d.invoiceOptions.selectedAccountId;
+        const snapshotIsStale = billSnap && billSelId && billSnap.id && billSnap.id !== billSelId;
+        if ((!billSnap || snapshotIsStale) && d.profile) {
+          const snap = getAccountById(d.profile, billSelId);
           if (snap) mergedOpts.paymentAccountSnapshot = snap;
         }
         setInvoiceOptions(mergedOpts);
@@ -2175,7 +2188,21 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                       <label className="form-label">Payment account on this invoice</label>
                       <select className="form-input" value={resolved?.id || ''}
-                        onChange={(e) => setInvoiceOptions(prev => ({ ...prev, selectedAccountId: e.target.value || null }))}>
+                        onChange={(e) => {
+                          // v1.10.21 — reported: "working but on select it is not
+                          // changing have to save and reopen it". Cause: the
+                          // preview reads options.paymentAccountSnapshot first
+                          // (bank frozen at the last save). Picking a new
+                          // account from the dropdown only updated
+                          // selectedAccountId, so the preview kept showing the
+                          // old snapshot until save+reopen re-snapshotted. Fix:
+                          // resnap immediately from the LIVE profile when the
+                          // user picks a different account so the preview
+                          // reflects the new bank without a round trip.
+                          const newId = e.target.value || null;
+                          const newSnap = newId ? getAccountById(profile, newId) : null;
+                          setInvoiceOptions(prev => ({ ...prev, selectedAccountId: newId, paymentAccountSnapshot: newSnap }));
+                        }}>
                         {accounts.map(a => (
                           <option key={a.id} value={a.id}>
                             {a.isDefault ? '⭐ ' : ''}{a.label || a.bankName || 'Untitled account'}

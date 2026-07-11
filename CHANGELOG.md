@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.21] — 2026-07-11
+
+**Two live-preview + auto-heal fixes for the bank snapshot.**
+
+### Fixed — Picking a new account didn't update preview until save+reopen
+
+**Reported.** "working but on select it is not changing have to save
+and reopen it... or else to wait for few sec after save automatically
+have to re open to see it."
+
+**Cause.** `InvoicePreview` reads
+`options.paymentAccountSnapshot` before falling back to
+`getAccountById(profile, selectedAccountId)`. The dropdown's onChange
+only updated `selectedAccountId`, leaving the stale snapshot in
+place — so the preview kept showing whatever bank was frozen at the
+last save until save+reopen re-snapshotted.
+
+**Fix.** Dropdown onChange now also re-snaps from the live profile
+for the new account, in the same setInvoiceOptions call. Preview
+updates instantly. On save, the priorMatchesSelection guard sees
+the id already matches and preserves the fresh snapshot rather than
+re-freezing from the live profile a second time.
+
+### Fixed — Contaminated snapshots from v1.10.18/19 saves auto-heal
+
+**Reported.** "now after i full reloaded again all vanished and
+asigned to same account which is default."
+
+**Cause.** Bills saved between v1.10.18 and v1.10.19 had their
+`paymentAccountSnapshot` polluted by cross-invoice localStorage
+bleed — a stored snapshot whose own `id` didn't match the bill's
+`selectedAccountId`. v1.10.20 stopped the leak but couldn't rewrite
+already-saved bad data.
+
+**Fix.** In the editing-bill mount effect, if the stored snapshot's
+id doesn't match the stored selection, treat it as stale and
+re-derive from `d.profile` (the profile snapshot the bill has
+always carried since v1.4.x — still holds the original account).
+Legacy behaviour for bills that intentionally have no snapshot is
+untouched — we only heal mismatched ones.
+
+Combined: bank selection updates immediately in the preview, and
+any historical bill with a bad snapshot auto-repairs on next open.
+
+---
+
 ## [1.10.20] — 2026-07-11
 
 **v1.10.19 root-cause fix.** User re-tested with fresh install and
