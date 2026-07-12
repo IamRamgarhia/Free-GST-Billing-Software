@@ -172,6 +172,8 @@ export const deleteBill = async (id) => {
 export const getBackupsList = async () => apiFetch(`${API}/backups`);
 export const restoreBackup = async (date) => apiFetch(`${API}/backups/${encodeURIComponent(date)}/restore`, { method: 'POST', body: JSON.stringify({}) });
 export const triggerBackup = async () => apiFetch(`${API}/backups/now`, { method: 'POST', body: JSON.stringify({}) });
+// v1.10.22 — manual delete for a specific backup date.
+export const deleteBackup = async (date) => apiFetch(`${API}/backups/${encodeURIComponent(date)}`, { method: 'DELETE' });
 
 export const getTrashedBills = async () => apiFetch(`${API}/trash`);
 export const restoreTrashedBill = async (id) => apiFetch(`${API}/trash/${encodeURIComponent(id)}/restore`, { method: 'POST', body: JSON.stringify({}) });

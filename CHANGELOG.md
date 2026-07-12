@@ -7,6 +7,146 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.22] — 2026-07-12
+
+**4 bugs + 5 features in one push.** Every item from the latest
+WhatsApp screenshots, plus purchase-bill OCR (Vyapar / MargERP parity)
+and per-item percent/fixed discount + invoice-level discount (Zoho
+parity). 31 tax-math unit tests still pass — the discount rework was
+guarded through the same code path.
+
+### Bugs
+
+**Back button asked to save even with no changes.** Reported: "if
+user click back without even changing anything it always ask to save
+and close so we are saving auto so this is also a bug." `handleBack`
+checked `autoSaveStatus !== 'saved'`, and `autoSaveStatus` started
+at `'idle'` on mount — never flipping to `'saved'` for a freshly-
+loaded bill. Now tracked via a separate `isDirty` ref, flipped only
+on real post-init state changes and cleared on every successful
+save. Same guard applied to `beforeunload`.
+
+**⭐ default account was ignored on new invoice.** Reported: "if user
+added two account and star the one account while creating new
+invoice it shows old star account not new". Auto-select priority was
+last-used → default → first-active; changing the ⭐ in Settings
+didn't invalidate the last-used pointer. Reversed to default →
+last-used → first-active. Star now always wins.
+
+**Balance = 0 hid ₹1 overpayment.** Reported: "Balance should be 1
+but calculating zero." A ₹649 invoice paid ₹650 rendered as Balance:
+₹0 because `Math.max(0, billTotal - totalPaid)` clamped the negative.
+Now the receipt shows "Overpaid: ₹1" in green when the customer
+paid more than the invoice.
+
+**No manual delete for individual daily backups.** Reported: "add
+here delete option i know u added 30 days auto delete but manual
+delete also u add." Trash-bin items already had "Delete forever";
+daily backups did not. Added a `DELETE /api/backups/:date` endpoint
+(guarded by the same path-inside + calendar-date checks the restore
+endpoint uses) and a Delete button next to each backup row.
+
+### Roadmap features (Vyapar / Zoho parity)
+
+**WhatsApp share with PDF attached.** Row-level MessageCircle button
+in Dashboard now tries the Web Share API first — on mobile Chrome /
+Safari the OS share sheet opens with the actual invoice PDF
+attached; user picks WhatsApp (or any target). On desktop /
+browsers without file-share support, falls through to the existing
+text-only `wa.me` URL. Split out a `generateSingleBillPdfBlob`
+helper (mirrors the bulk-export path) so the same render pipeline
+serves both bulk PDF and native share.
+
+**HSN → GST rate auto-suggest.** New curated `data/hsnRates.js` map
+covering ~200 goods HSN codes + 30 SAC service codes that account
+for >95% of small-business invoicing. Typing an HSN in a line item
+suggests the correct GST rate (e.g. `4820` → 18% for stationery,
+`4901` → 0% for printed books) and shows the category label as a
+green hint chip below the field. Rate only auto-fills when the
+user hasn't set a custom rate — always overridable. Lookup order:
+6-digit exact → 6-digit prefix → 4-digit prefix.
+
+**Client aging report + inline aging strip.** In Clients view,
+expanding a client now shows:
+- Inline **aging strip** — outstanding balance bucketed into
+  Current (0-30d) / 31-60d / 61-90d / 90+ days, colour-coded from
+  green to red.
+- **Aging PDF** button — single-page report with per-invoice list
+  (invoice #, date, due, age, total, outstanding) and bucket
+  summary. Distinct from the existing full-ledger Statement PDF —
+  this is the "how overdue are they?" view accountants use during
+  collection calls.
+
+**Help buttons on every major view.** New reusable `HelpButton`
+component. Icon sits next to each page title (Dashboard, Clients,
+Purchase Bills, GST Returns, Settings) plus the invoice generator
+toolbar. Click opens a modal with a bullet-point cheat sheet of
+what each feature does — including keyboard shortcuts, discount
+modes, focus mode, OCR, aging PDF, and every other v1.10.22
+addition so users discover them without hunting.
+
+### Features
+
+**Per-item discount: fixed OR percent.** Reported: "ALL APPS ITS IS
+LIKE THR ARE TWO OPTION THAT U WANT CALCULATE... ALSO THR TOGGLE
+OPTION TO CALCULATE VIA PERCENT AND PRICE." Every line item now
+carries a `discountType` field (`'fixed'` or `'percent'`) with a
+dropdown next to the discount input. Percent mode is capped at 100
+and the resolved amount can never exceed the line value. Backward-
+compat: items without `discountType` render byte-identically to
+v1.10.21.
+
+**Invoice-level (whole-bill) discount.** The other half of the same
+ask — "calculate on total amount". A new row below "Add Item"
+takes a value + a `₹/%` toggle. Applied *after* tax, so it behaves
+as a cash discount / trade allowance and doesn't affect the GSTR-1
+taxable value. (For GST-compliant pre-supply discount, users use
+per-line discount instead — noted in the field's hint text.)
+
+**Keyboard shortcuts.** Reported: "u can introduce keyboard
+shortcuts." Added:
+- `Ctrl/Cmd+Enter` — add new line item
+- `Ctrl/Cmd+Shift+D` — duplicate last line item
+- `Esc` — close the unsaved-changes leave modal
+
+Existing shortcuts (`Ctrl+S` save, `Ctrl+P` PDF) untouched.
+
+**Inline product description per line.** Reported: "add option so
+user can directly enter product description into invoice directly."
+Each line item now has an "+ Add description" button that expands
+into a 2-row textarea. The description renders under the item name
+in the PDF preview in a smaller muted font. Blank descriptions
+render nothing — old invoices look identical.
+
+**Focus-mode toggle (hide preview).** Reported: "sidebar menu toggle
+option so customer will get a close view for entries because
+quantity entry u see space is like that we have to see in invoice
+preview what we are entering." New button at the top of the editor
+hides the live preview and lets the editor pane take the full
+width. Persists across page reloads. InvoicePreview stays mounted
+(hidden via CSS) so `printRef` remains live for PDF generation.
+
+**Purchase-bill OCR.** Reported: "purchase bill ocr for faster and
+accurate entry." New "Import from image (OCR)" button in Purchase
+Bills opens a modal that:
+- Takes a photo/scan of the supplier's tax invoice.
+- Runs `tesseract.js` client-side (WebAssembly, ~2MB lazy-loaded on
+  first open, cached in the browser after that). No paid OCR
+  provider — offline-first + free positioning preserved.
+- Extracts supplier GSTIN (15-char strict regex), invoice number,
+  date (DD-MM-YYYY and DD Mon YYYY variants), and grand total from
+  labelled Indian bill patterns.
+- Shows the extracted fields alongside the image for the user to
+  correct before applying to a new purchase-bill form.
+
+Line items are NOT auto-parsed — table-column extraction from OCR
+text is unreliable across bill layouts and misrouted ITC is worse
+than a slow manual entry. When a grand total is extracted, a
+placeholder single line is seeded at that value so the totals are
+sane while the user breaks it into real items.
+
+---
+
 ## [1.10.21] — 2026-07-11
 
 **Two live-preview + auto-heal fixes for the bank snapshot.**

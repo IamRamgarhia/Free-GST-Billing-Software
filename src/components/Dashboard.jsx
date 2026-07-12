@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer } from 'lucide-react';
+import HelpButton from './HelpButton';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { toast } from './Toast';
@@ -113,7 +114,14 @@ function ReceiptModal({ target, onClose }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#334155', marginBottom: '1rem' }}>
             <span>Invoice Total: <strong>{formatCurrency(Number(bill.totalAmount) || 0, currency)}</strong></span>
             <span>Total Paid: <strong>{formatCurrency(Number(bill.paidAmount) || 0, currency)}</strong></span>
-            <span>Balance: <strong style={{ color: remaining > 0 ? '#dc2626' : '#059669' }}>{formatCurrency(remaining, currency)}</strong></span>
+            {/* v1.10.22 — surface overpayments explicitly. Was previously
+                clamped to zero via Math.max, silently swallowing the
+                "customer paid extra by ₹X" case. */}
+            <span>
+              {remaining < -0.005
+                ? <>Overpaid: <strong style={{ color: '#059669' }}>{formatCurrency(Math.abs(remaining), currency)}</strong></>
+                : <>Balance: <strong style={{ color: remaining > 0.005 ? '#dc2626' : '#059669' }}>{formatCurrency(Math.max(0, remaining), currency)}</strong></>}
+            </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2rem', fontSize: '0.75rem', color: '#475569' }}>
             <div><div style={{ borderTop: '1px solid #94a3b8', paddingTop: 4, minWidth: 140, textAlign: 'center' }}>Customer Signature</div></div>
@@ -366,14 +374,19 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     } catch { /* non-fatal — receipt is still viewable from the invoice's Payment History */ }
     toast(`Payment of ${formatCurrency(amount, bill.currency)} recorded`, 'success');
     setPaymentModal(null);
-    setReceiptTarget({ bill: updatedBill, payment: paymentEntry, remaining: Math.max(0, billTotal - totalPaid) });
+    // v1.10.22 — reported: "Balance should be 1 but calculating zero" —
+    // ₹649 invoice + ₹650 paid was hiding the ₹1 overpayment because the
+    // remaining calc used Math.max(0, …). Now: send the signed value so
+    // the receipt can show "Overpaid ₹1" instead of silently rounding away.
+    setReceiptTarget({ bill: updatedBill, payment: paymentEntry, remaining: billTotal - totalPaid });
     loadBills();
   };
 
   // v1.10.9 — Reprint / view an existing payment's receipt.
   const openReceiptFor = (bill, payment) => {
     const totalPaid = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    setReceiptTarget({ bill, payment, remaining: Math.max(0, Number(bill.totalAmount || 0) - totalPaid) });
+    // v1.10.22 — signed remaining; see setReceiptTarget above for context.
+    setReceiptTarget({ bill, payment, remaining: Number(bill.totalAmount || 0) - totalPaid });
   };
 
   // v1.10.10 — Delete/Edit a specific payment BY INDEX.
@@ -674,12 +687,75 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     }, 20);
   };
 
-  const shareWhatsApp = (bill) => {
+  // v1.10.22 — Generate a single-bill PDF as a Blob. Split out of the
+  // bulk-export path so the WhatsApp / native share flows can attach the
+  // actual PDF via navigator.share (with a text-only URL fallback on
+  // desktop / browsers that don't support file sharing yet).
+  const generateSingleBillPdfBlob = async (bill) => {
+    const data = bill.data || {};
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+    const InvoicePreviewMod = await import('./InvoicePreview');
+    const { createRoot } = await import('react-dom/client');
+    const { createElement } = await import('react');
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;';
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      await new Promise((resolve) => {
+        root.render(createElement(InvoicePreviewMod.default, {
+          profile: data.profile, client: data.client, details: data.details, items: data.items,
+          totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
+          customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
+        }));
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
+      });
+      const capScale = Math.min(4, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.2)));
+      const canvas = await html2canvas(container.firstElementChild || container, {
+        scale: capScale, backgroundColor: '#ffffff', useCORS: false, logging: false,
+      });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const img = canvas.toDataURL('image/jpeg', 0.92);
+      const h = (canvas.height * 210) / canvas.width;
+      doc.addImage(img, 'JPEG', 0, 0, 210, Math.min(h, 297), undefined, 'FAST');
+      return doc.output('blob');
+    } finally {
+      root.unmount();
+      document.body.removeChild(container);
+    }
+  };
+
+  const shareWhatsApp = async (bill) => {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
+    // v1.10.22 — try the native Web Share API first, with the actual PDF
+    // attached. On mobile Chrome / Safari the share sheet lets the user
+    // pick WhatsApp (or any other target). Falls through to the text-only
+    // wa.me URL on desktop and older browsers.
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        toast('Preparing PDF for share…', 'info', 1500);
+        const blob = await generateSingleBillPdfBlob(bill);
+        const file = new File([blob], `${bill.invoiceNumber}.pdf`, { type: 'application/pdf' });
+        const canShareFile = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+        if (canShareFile) {
+          await navigator.share({
+            title: `Invoice ${bill.invoiceNumber}`,
+            text: msg,
+            files: [file],
+          });
+          return;
+        }
+      } catch (e) {
+        // AbortError = user dismissed the share sheet; not an error.
+        if (e?.name !== 'AbortError') console.warn('Web Share failed, falling back to WhatsApp URL:', e);
+        else return;
+      }
+    }
+    // Fallback: text-only WhatsApp URL (existing behaviour).
     const encoded = encodeURIComponent(msg);
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    // v1.10.12 — open in a new tab (see ClientsView note above).
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -745,9 +821,21 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your invoices</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Overview of your invoices</p>
+          </div>
+          <HelpButton title="Dashboard — how to use">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li><strong>New Invoice</strong> — start a fresh tax invoice / proforma / credit note / bill of supply / delivery challan.</li>
+              <li><strong>Filter row</strong> — search by client name, invoice #, or GSTIN; filter by type / status / financial year / date range.</li>
+              <li><strong>Row actions</strong> — Edit opens the invoice; MessageCircle sends via WhatsApp (with PDF attached on mobile); Mail opens your email client; Record Payment logs a receipt; Trash soft-deletes for 30 days.</li>
+              <li><strong>Bulk actions</strong> — select rows to export as one PDF or delete in a batch.</li>
+              <li><strong>Overdue banner</strong> — click it to jump to overdue invoices with one tap.</li>
+              <li><strong>Low-stock alert</strong> — appears when any product is at or below your threshold (Settings → Stock alert).</li>
+            </ul>
+          </HelpButton>
         </div>
         <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> New Invoice</button>
       </div>

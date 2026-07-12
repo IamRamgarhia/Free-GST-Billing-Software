@@ -864,6 +864,26 @@ app.get('/api/backups', (req, res) => {
   } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
+// v1.10.22 — Manual delete of a specific dated backup. Reported: "add
+// here delete option i know u added 30 days auto delete but manual delete
+// also u add". Guarded by the same path-inside + calendar-date checks the
+// restore endpoint uses so a crafted `:date` cannot escape BACKUPS_DIR.
+app.delete('/api/backups/:date', (req, res) => {
+  try {
+    const date = req.params.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return errRes(res, 400, 'bad-request');
+    const [y, m, d] = date.split('-').map(Number);
+    if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) {
+      return errRes(res, 400, 'bad-request');
+    }
+    const backupDir = path.join(BACKUPS_DIR, date);
+    if (!isPathInside(backupDir, BACKUPS_DIR)) return errRes(res, 400, 'invalid-path');
+    if (!fs.existsSync(backupDir)) return errRes(res, 404, 'not-found');
+    fs.rmSync(backupDir, { recursive: true, force: true });
+    res.json({ success: true, date });
+  } catch (err) { errRes(res, 500, 'server-error', err); }
+});
+
 app.post('/api/backups/:date/restore', (req, res) => {
   // v1.10.0 — Transactional restore. Prior implementation
   // `fs.rmSync(dst)` -> `copyDirRecursive(src, dst)`. If copy threw

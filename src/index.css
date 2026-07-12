@@ -882,6 +882,13 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   min-height: 0;
   gap: 2rem;
 }
+/* v1.10.22 — focus mode: preview pane is display:none, editor takes the
+   full width and its max-width relaxes so line-item rows have room to
+   breathe (Description + HSN + Qty + Unit + Rate + Discount + Tax + Cess). */
+.split-view-focus .editor-pane {
+  max-width: none;
+  padding-right: 0;
+}
 
 .editor-pane {
   flex: 1;

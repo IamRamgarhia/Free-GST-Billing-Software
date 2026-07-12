@@ -847,7 +847,18 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             return (
               <tr key={item.id} className={index % 2 === 0 ? 'inv-tr-even' : ''}>
                 <td className="inv-td inv-td-muted">{index + 1}</td>
-                <td className="inv-td inv-td-name">{item.name || '-'}</td>
+                <td className="inv-td inv-td-name">
+                  {item.name || '-'}
+                  {/* v1.10.22 — optional per-line description shown under the
+                      name in a smaller, muted font. Renders only when set so
+                      pre-existing invoices without a description look
+                      identical. */}
+                  {item.description && (
+                    <div style={{ fontSize: '0.78em', color: '#475569', marginTop: 2, whiteSpace: 'pre-wrap' }}>
+                      {item.description}
+                    </div>
+                  )}
+                </td>
                 {showHSN && <td className="inv-td inv-td-center inv-td-muted">{item.hsn || '-'}</td>}
                 {showItemQty && <td className="inv-td inv-td-center">{item.quantity}{showItemUnit && item.unit ? ` ${item.unit}` : ''}</td>}
                 {showRateColumn && <td className="inv-td inv-td-right">{fmt(item.rate)}</td>}
@@ -957,6 +968,18 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             <div className="inv-total-row">
               <span>TCS{options.tcsSection ? ` (${options.tcsSection} @ ${options.tcsRate}%)` : ''}</span>
               <span>{fmt(totals.tcsAmount)}</span>
+            </div>
+          )}
+          {/* v1.10.22 — invoice-level (post-tax) discount, if any. */}
+          {totals.invoiceDiscountAmount > 0 && (
+            <div className="inv-total-row" style={{ color: '#dc2626' }}>
+              <span>
+                Discount on total
+                {totals.invoiceDiscountType === 'percent' && totals.invoiceDiscountValue > 0
+                  ? ` (${totals.invoiceDiscountValue}%)`
+                  : ''}
+              </span>
+              <span>−{fmt(totals.invoiceDiscountAmount)}</span>
             </div>
           )}
           {totals.roundOff !== undefined && totals.roundOff !== 0 && (

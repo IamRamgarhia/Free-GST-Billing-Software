@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
+import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';
@@ -322,6 +323,139 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
     return { total, paid, unpaid, count: cBills.length };
   };
 
+  // v1.10.22 — Aging analysis: bucket unpaid amounts by how long they've
+  // been outstanding. Age = today − dueDate (falls back to invoiceDate
+  // when a bill has no explicit due date, since most CA-billed invoices
+  // don't set one but are treated as due-on-issue).
+  //
+  // Buckets: current (0-30 days), 31-60, 61-90, 90+. Reported: "client
+  // aging / Statement of Account". Matches Vyapar / Zoho / Tally output.
+  const bucketAge = (days) => {
+    if (days <= 30) return 'current';
+    if (days <= 60) return 'd31_60';
+    if (days <= 90) return 'd61_90';
+    return 'd90plus';
+  };
+  const getClientAging = (clientName) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const buckets = { current: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 0 };
+    const unpaidBills = [];
+    for (const b of getClientBills(clientName)) {
+      const outstanding = (b.totalAmount || 0) - (b.paidAmount || 0);
+      if (outstanding <= 0.01) continue;
+      const ref = b.data?.details?.dueDate || b.invoiceDate;
+      const dueDate = ref ? new Date(ref) : today;
+      const ageDays = Math.max(0, Math.floor((today - dueDate) / 86400000));
+      const bucket = bucketAge(ageDays);
+      buckets[bucket] += outstanding;
+      buckets.total += outstanding;
+      unpaidBills.push({ bill: b, ageDays, outstanding });
+    }
+    return { buckets, unpaidBills };
+  };
+
+  // v1.10.22 — Aging Report PDF: single-page overdue-bucket breakdown
+  // (0-30, 31-60, 61-90, 90+ days) plus a per-invoice list showing
+  // outstanding + age. Distinct from generateClientStatement above,
+  // which is a full ledger with running balance — this is the "how
+  // overdue are they?" view accountants ask for during collection calls.
+  const generateAgingReport = async (clientName) => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const { unpaidBills, buckets } = getClientAging(clientName);
+      if (unpaidBills.length === 0) {
+        toast(`${clientName} has no outstanding balance.`, 'info');
+        return;
+      }
+      const profile = profileForStatement || {};
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const marginL = 15, marginR = 195;
+      let y = 20;
+
+      // Header
+      doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+      doc.text('AGING REPORT', marginL, y); y += 8;
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
+      doc.text(profile?.businessName || 'Your Business', marginL, y); y += 5;
+      if (profile?.address) { doc.text(profile.address, marginL, y); y += 5; }
+      if (profile?.gstin)   { doc.text(`GSTIN: ${profile.gstin}`, marginL, y); y += 5; }
+      doc.setTextColor(0);
+      doc.text(`As of: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, marginR, 20, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Client: ${clientName}`, marginR, 26, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+
+      y += 4;
+      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.5);
+      doc.line(marginL, y, marginR, y); y += 8;
+
+      // Column headers
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      doc.text('Invoice #',   marginL,         y);
+      doc.text('Date',        marginL + 40,    y);
+      doc.text('Due',         marginL + 65,    y);
+      doc.text('Age',         marginL + 90,    y);
+      doc.text('Total',       marginL + 115,   y, { align: 'right' });
+      doc.text('Outstanding', marginR,         y, { align: 'right' });
+      y += 6;
+      doc.setLineWidth(0.2);
+      doc.line(marginL, y - 2, marginR, y - 2);
+
+      // Rows
+      doc.setFont('helvetica', 'normal');
+      const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      for (const { bill, ageDays, outstanding } of unpaidBills) {
+        if (y > 265) { doc.addPage(); y = 20; }
+        const due = bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+        const dt = bill.invoiceDate ? new Date(bill.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+        doc.text(String(bill.invoiceNumber || '—').slice(0, 24), marginL, y);
+        doc.text(dt, marginL + 40, y);
+        doc.text(due, marginL + 65, y);
+        doc.text(`${ageDays}d`, marginL + 90, y);
+        doc.text(fmt(bill.totalAmount), marginL + 115, y, { align: 'right' });
+        doc.setTextColor(ageDays > 60 ? 220 : 0, ageDays > 60 ? 38 : 0, ageDays > 60 ? 38 : 0);
+        doc.text(fmt(outstanding), marginR, y, { align: 'right' });
+        doc.setTextColor(0);
+        y += 6;
+      }
+
+      // Aging summary
+      y += 6;
+      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.5);
+      doc.line(marginL, y, marginR, y); y += 8;
+      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+      doc.text('AGEING SUMMARY', marginL, y); y += 8;
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+      const bucketRows = [
+        ['Current (0–30 days)', buckets.current],
+        ['31–60 days',          buckets.d31_60],
+        ['61–90 days',          buckets.d61_90],
+        ['90+ days (overdue)',  buckets.d90plus],
+      ];
+      for (const [label, val] of bucketRows) {
+        doc.text(label, marginL, y);
+        doc.text(fmt(val), marginR, y, { align: 'right' });
+        y += 6;
+      }
+      y += 2;
+      doc.setDrawColor(0); doc.setLineWidth(0.3);
+      doc.line(marginL, y, marginR, y); y += 6;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('TOTAL OUTSTANDING', marginL, y);
+      doc.setTextColor(220, 38, 38);
+      doc.text(fmt(buckets.total), marginR, y, { align: 'right' });
+      doc.setTextColor(0);
+
+      const filename = `Statement-${clientName.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40)}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      toast(`Statement for ${clientName} downloaded`, 'success');
+    } catch (err) {
+      console.error('sendStatement failed:', err);
+      toast('Failed to generate statement — see console', 'error');
+    }
+  };
+
   // Get all unique client names from bills (includes unsaved clients)
   const allClientNames = [...new Set([
     ...clients.map(c => c.name),
@@ -461,9 +595,21 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Clients</h1>
-          <p className="page-subtitle">Client-wise invoice ledger and outstanding</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Clients</h1>
+            <p className="page-subtitle">Client-wise invoice ledger and outstanding</p>
+          </div>
+          <HelpButton title="Clients — how to use">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li><strong>Click a client name</strong> to see every invoice, payment, and credit note in one place.</li>
+              <li><strong>Statement PDF</strong> — a full account ledger with running balance. Send it when a client disputes a bill.</li>
+              <li><strong>Aging PDF</strong> — outstanding invoices bucketed by 0-30 / 31-60 / 61-90 / 90+ days. Use it for collection calls.</li>
+              <li><strong>Aging strip</strong> — the same buckets inline so you can see who's slow to pay at a glance.</li>
+              <li><strong>Import / Export CSV</strong> — bulk-load or back up your client list.</li>
+              <li><strong>WhatsApp / Email</strong> — quick outreach without leaving the app.</li>
+            </ul>
+          </HelpButton>
         </div>
         <div className="flex gap-2">
           <input type="file" accept=".csv" ref={csvInputRef} style={{ display: 'none' }} onChange={handleCSVImport} />
@@ -552,14 +698,46 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                 {/* Expanded: invoice list */}
                 {isExpanded && (
                   <div className="client-invoices">
-                    {/* Action bar (right-aligned) — Statement PDF for CAs / clients */}
-                    <div style={{ padding: '0.5rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                    {/* Action bar (right-aligned) — Statement + Aging PDFs. */}
+                    <div style={{ padding: '0.5rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
                         onClick={() => generateClientStatement(clientName)}
                         title="Account statement: every invoice, credit note, payment, and running balance in one PDF">
                         <Download size={14} /> Statement PDF
                       </button>
+                      {/* v1.10.22 — Aging breakdown (0-30 / 31-60 / 61-90 / 90+). */}
+                      <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                        onClick={() => generateAgingReport(clientName)}
+                        title="Aging report: outstanding invoices bucketed by how overdue they are">
+                        <Download size={14} /> Aging PDF
+                      </button>
                     </div>
+
+                    {/* v1.10.22 — Aging summary strip: shows the four
+                        buckets inline so users get the answer without
+                        having to open the PDF. */}
+                    {(() => {
+                      const { buckets } = getClientAging(clientName);
+                      if (buckets.total <= 0.01) return null;
+                      const fmt = (n) => formatCurrency(n, 'INR');
+                      const cells = [
+                        { label: 'Current', val: buckets.current, color: '#059669' },
+                        { label: '31-60d',  val: buckets.d31_60,   color: '#d97706' },
+                        { label: '61-90d',  val: buckets.d61_90,   color: '#ea580c' },
+                        { label: '90+ d',   val: buckets.d90plus,  color: '#dc2626' },
+                      ];
+                      return (
+                        <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.8rem' }}>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Aging:</span>
+                          {cells.map(c => (
+                            <span key={c.label} style={{ display: 'inline-flex', gap: 4, alignItems: 'baseline' }}>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{c.label}</span>
+                              <strong style={{ color: c.val > 0 ? c.color : 'var(--text-muted)' }}>{fmt(c.val)}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
 
                     {/* Client details */}
                     {savedClient && (savedClient.address || savedClient.city || savedClient.email || savedClient.phone) && (

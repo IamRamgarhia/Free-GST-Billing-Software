@@ -6,7 +6,8 @@ import { Save, Upload, Download, Plus, Trash2, Edit3, Image, PenTool, Cloud, Clo
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
 import PrintSettings from './PrintSettings';
-import { getBackupsList, restoreBackup, triggerBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill } from '../store';
+import HelpButton from './HelpButton';
+import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill } from '../store';
 
 export default function SettingsView({ onSaved }) {
   const [profile, setProfile] = useState({
@@ -492,9 +493,23 @@ export default function SettingsView({ onSaved }) {
   return (
     <div className="settings-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Settings</h1>
-          <p className="page-subtitle">Business profile, branding, integrations & data</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Settings</h1>
+            <p className="page-subtitle">Business profile, branding, integrations & data</p>
+          </div>
+          <HelpButton title="Settings — how to use">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li><strong>Company Details</strong> — this is the header block on every invoice. GSTIN drives place-of-supply detection.</li>
+              <li><strong>Multi-business profiles</strong> — Save as Profile keeps the current form as a switchable profile; switch between them from the invoice generator.</li>
+              <li><strong>Payment Accounts</strong> — add multiple bank / UPI accounts; ⭐ marks the default. Every inline change (add / edit / ⭐ / reorder / delete) auto-saves.</li>
+              <li><strong>Invoice Number Settings</strong> — brand prefix, financial-year suffix, padding. Live preview at the bottom.</li>
+              <li><strong>Print Settings</strong> — templates, colors, watermark, thermal font size, per-type prefix overrides.</li>
+              <li><strong>Backup Management</strong> — daily auto-backups kept 30 days. Restore any date, or Delete to reclaim disk. Trash bin keeps deleted invoices for 30 days.</li>
+              <li><strong>Google Drive sync</strong> — connect once to auto-upload every backup to your own Drive.</li>
+              <li><strong>Import / Export</strong> — CSV import for products/clients; JSON export for full backup portability.</li>
+            </ul>
+          </HelpButton>
         </div>
       </div>
 
@@ -1427,6 +1442,19 @@ function BackupAndTrashPanel() {
     }
   };
 
+  // v1.10.22 — reported: "add here delete option i know u added 30 days
+  // auto delete but manual delete also u add". Individual backup delete.
+  const handleDeleteBackup = async (date) => {
+    if (!confirm(`Delete backup ${date}? This cannot be undone. Auto-backups still run daily.`)) return;
+    try {
+      await deleteBackup(date);
+      toast(`Backup ${date} deleted`, 'info');
+      loadAll();
+    } catch (err) {
+      toast('Delete failed: ' + err.message, 'error');
+    }
+  };
+
   return (
     <div className="glass-panel p-6 mb-6">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
@@ -1467,10 +1495,16 @@ function BackupAndTrashPanel() {
                     {b.createdAt ? new Date(b.createdAt).toLocaleTimeString('en-IN') : ''}
                   </div>
                 </div>
-                <button className="btn btn-secondary" style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
-                  onClick={() => handleRestoreBackup(b.date)}>
-                  Restore
-                </button>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                    onClick={() => handleRestoreBackup(b.date)}>
+                    Restore
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', color: '#dc2626', borderColor: '#fca5a5' }}
+                    onClick={() => handleDeleteBackup(b.date)} title="Delete this backup">
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>

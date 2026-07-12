@@ -62,10 +62,25 @@ const finiteNonNeg = (n) => {
   return isFinite(x) && x > 0 ? x : 0;
 };
 
+// v1.10.22 — Resolve a line's effective discount amount from the two-mode
+// input (fixed rupees OR percent of line value). Reported: "ANOTHER THING
+// I WAS FACING PROBLEM THAT DISCOUNT AGAINST THE ITEM U ARE CALCULATING
+// ON TOTAL... ALL APPS ITS IS LIKE THR ARE TWO OPTION". Backward-compatible:
+// items without `discountType` are treated as 'fixed', so v1.10.21 bills
+// render byte-identically.
+export const resolveLineDiscount = (item = {}) => {
+  const amount = finiteNonNeg(item.quantity) * finiteNonNeg(item.rate);
+  const raw = finiteNonNeg(item.discount);
+  if (item.discountType === 'percent') {
+    return Math.min(amount, (amount * Math.min(raw, 100)) / 100);
+  }
+  return Math.min(amount, raw);
+};
+
 export const calculateLineItemTax = (item = {}, taxInclusive = false) => {
   const qty = finiteNonNeg(item.quantity);
   const rate = finiteNonNeg(item.rate);
-  const discount = finiteNonNeg(item.discount);
+  const discount = resolveLineDiscount(item);
   const taxRate = finiteNonNeg(item.taxPercent);
   const amount = qty * rate;
   const grossAfterDiscount = Math.max(0, amount - discount); // discount can't exceed line value
@@ -152,7 +167,9 @@ export function computeInvoiceTotals(opts) {
   const lines = items.map((item) => {
     const qty = finiteNonNeg(item.quantity);
     const rate = finiteNonNeg(item.rate);
-    const disc = finiteNonNeg(item.discount);
+    // v1.10.22 — read discount through resolveLineDiscount so percent-mode
+    // items are computed correctly. Fixed-mode items behave identically.
+    const disc = resolveLineDiscount(item);
     const taxPct = finiteNonNeg(item.taxPercent);
     const cessPct = finiteNonNeg(item.cessPercent);
     const gross = qty * rate;
@@ -258,7 +275,18 @@ export function computeInvoiceTotals(opts) {
   const tdsAmount = invoiceOptions.showTDS && tdsRate > 0
     ? r2(marginalTdsBase * tdsRate / 100) : 0;
 
-  const totalBeforeRound = baseTotal + tcsAmount + cessTotal;
+  // v1.10.22 — invoice-level (whole-bill) discount. Treated as a cash
+  // discount / trade allowance: subtracted from the post-tax total.
+  // Doesn't affect taxable value or the GSTR-1 payload. Users who need
+  // pre-tax GST-compliant discount should use per-line discount instead.
+  const invDiscValue = finiteNonNeg(invoiceOptions.invoiceDiscountValue);
+  const invDiscType = invoiceOptions.invoiceDiscountType === 'percent' ? 'percent' : 'fixed';
+  const preInvDiscTotal = baseTotal + tcsAmount + cessTotal;
+  const invoiceDiscountAmount = invDiscType === 'percent'
+    ? Math.min(preInvDiscTotal, r2(preInvDiscTotal * Math.min(invDiscValue, 100) / 100))
+    : Math.min(preInvDiscTotal, r2(invDiscValue));
+
+  const totalBeforeRound = preInvDiscTotal - invoiceDiscountAmount;
   const roundOff = invoiceOptions.showRoundOff
     ? r2(Math.round(totalBeforeRound) - totalBeforeRound)
     : 0;
@@ -291,6 +319,9 @@ export function computeInvoiceTotals(opts) {
     cess: cessTotal,
     // Additions on top
     tcsAmount, tdsAmount, roundOff,
+    // v1.10.22 — invoice-level (post-tax) discount amount + type + raw
+    // value carried through so the preview / PDF can show its own line.
+    invoiceDiscountAmount, invoiceDiscountType: invDiscType, invoiceDiscountValue: invDiscValue,
     // Grand
     total,
     netReceivable: r2(total - tdsAmount),
@@ -557,7 +588,9 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
     // v1.10.1 — back-calculate taxable when the invoice is MRP-inclusive.
     // Previously used gross MRP; portal rejected the file because
     // taxableValue + tax > totInvValue.
-    const gross = (Number(item.quantity) || 0) * (Number(item.rate) || 0) - (Number(item.discount) || 0);
+    // v1.10.22 — honour discountType (percent | fixed) so the e-way-bill
+    // payload's totals agree with the invoice's on-screen totals.
+    const gross = (Number(item.quantity) || 0) * (Number(item.rate) || 0) - resolveLineDiscount(item);
     const taxRate = Number(item.taxPercent) || 0;
     const taxable = taxInclusive && taxRate > 0
       ? gross / (1 + taxRate / 100)

@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download } from 'lucide-react';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2 } from 'lucide-react';
+import HelpButton from './HelpButton';
 import { getAllPurchases, savePurchase, deletePurchase } from '../store';
 import { formatCurrency, calculateRoundOff, getFYOptions } from '../utils';
 import { toast } from './Toast';
+
+// v1.10.22 — Purchase-bill OCR modal. Lazy-loaded because tesseract.js is
+// ~2MB gzipped; we only pay the download cost when the user actually
+// opens the OCR flow.
+const BillOCR = lazy(() => import('./BillOCR'));
 
 const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Partial'];
 
@@ -56,6 +62,29 @@ export default function PurchaseBills() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm, items: [{ ...emptyItem }] });
+  // v1.10.22 — OCR modal state.
+  const [showOCR, setShowOCR] = useState(false);
+  const applyOCR = (extracted) => {
+    // Open the purchase form (add mode) pre-filled with what OCR gave us.
+    // Line items stay empty — user fills them manually since bill layouts
+    // are too variable to auto-parse reliably.
+    setEditingId(null);
+    setForm({
+      ...emptyForm,
+      date: extracted.date || emptyForm.date,
+      supplierName: extracted.supplierName || '',
+      supplierGstin: extracted.supplierGstin || '',
+      invoiceNumber: extracted.invoiceNumber || '',
+      // If the OCR-extracted grand total is non-zero, seed a single line at
+      // that amount so the totals row shows a reasonable number until the
+      // user breaks it out into real items.
+      items: extracted.grandTotal > 0
+        ? [{ name: 'From OCR — split into real items', hsn: '', quantity: 1, rate: extracted.grandTotal, taxPercent: 0, cessPercent: 0 }]
+        : [{ ...emptyItem }],
+    });
+    setShowForm(true);
+    toast('OCR values loaded — please review, then break the total into line items with correct GST.', 'info');
+  };
 
   const fyOptions = getFYOptions();
 
@@ -225,15 +254,36 @@ export default function PurchaseBills() {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Purchase Bills</h1>
-          <p className="page-subtitle">Track supplier invoices for ITC claims in GSTR-3B</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Purchase Bills</h1>
+            <p className="page-subtitle">Track supplier invoices for ITC claims in GSTR-3B</p>
+          </div>
+          <HelpButton title="Purchase Bills — how to use">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li><strong>Add Purchase</strong> — record every supplier tax invoice you receive. The GST paid becomes your ITC (input tax credit) in GSTR-3B.</li>
+              <li><strong>Import from image (OCR)</strong> — snap the supplier's invoice with your phone. The app extracts supplier GSTIN, invoice number, date, and grand total. Line items still need manual entry (bill layouts vary too much for reliable auto-parsing).</li>
+              <li><strong>Interstate toggle</strong> — flip ON when the supplier is in a different state (they charged IGST) so ITC routes correctly.</li>
+              <li><strong>Payment status</strong> — Unpaid / Partial / Paid drives the "amount payable to suppliers" report.</li>
+              <li><strong>Export CSV</strong> — hand to your CA at return time.</li>
+            </ul>
+          </HelpButton>
         </div>
         <div className="flex gap-2">
           <button className="btn btn-secondary" onClick={exportCSV}><Download size={16} /> Export CSV</button>
+          <button className="btn btn-secondary" onClick={() => setShowOCR(true)} title="Extract fields from a bill photo/scan">
+            <Wand2 size={16} /> Import from image (OCR)
+          </button>
           <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase</button>
         </div>
       </div>
+
+      {/* v1.10.22 — Bill OCR modal (tesseract.js, lazy-loaded). */}
+      {showOCR && (
+        <Suspense fallback={<div className="modal-overlay"><div className="modal-content" style={{ maxWidth: 320, textAlign: 'center' }}>Loading OCR…</div></div>}>
+          <BillOCR onClose={() => setShowOCR(false)} onExtracted={applyOCR} />
+        </Suspense>
+      )}
 
       {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
