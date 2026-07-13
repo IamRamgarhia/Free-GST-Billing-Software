@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring } from '../store';
+import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
 import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
@@ -10,6 +10,7 @@ import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
 import { suggestGstRate } from '../utils/hsnRates';
 import HelpButton from './HelpButton';
+import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
 import ClientModal from './ClientModal';
 import { toast } from './Toast';
 
@@ -138,6 +139,12 @@ const DEFAULT_OPTIONS = {
   // its own line above the grand total when > 0.
   invoiceDiscountValue: 0,
   invoiceDiscountType: 'fixed', // 'fixed' | 'percent'
+  // v1.10.24 — Client-credit auto-apply. When true, opening a new invoice
+  // for a client with an existing overpayment auto-applies the credit up
+  // to the invoice total. When false (default), the user sees a banner
+  // and clicks Apply manually. Reported: "this extra payment can be
+  // added to the next bill of customer if u enabled — auto or manual".
+  autoApplyClientCredit: false,
 };
 
 const ACCENT_PRESETS = [
@@ -400,6 +407,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [items, setItems] = useState(draft?.items || [
     { id: Date.now().toString(), name: '', hsn: '', quantity: 1, unit: 'Nos', rate: 0, discount: 0, taxPercent: 18, cessPercent: 0 }
   ]);
+  // v1.10.24 — Client credit balance state. Loaded once on mount + refreshed
+  // when the client name changes. `creditToApply` is what the user chose to
+  // apply on THIS bill; it becomes a `credit-applied` payment at save time,
+  // paired with a `credit-transferred-out` entry on each source bill.
+  const [allBillsForCredit, setAllBillsForCredit] = useState([]);
+  const [creditToApply, setCreditToApply] = useState(0);
   const [units, setUnits] = useState(getAllUnits());
   const [taxInclusive, setTaxInclusive] = useState(draft?.taxInclusive || false);
 
@@ -720,6 +733,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       }
     });
     getAllProducts().then(setProducts);
+    // v1.10.24 — Load bills once for client-credit lookup. Refreshed after
+    // save (inside saveInvoiceToDB's success path) so the balance stays
+    // current when the same session creates multiple invoices for one client.
+    getAllBills().then(setAllBillsForCredit).catch(() => {});
   }, []);
 
   // Initialize from editing bill or generate new number (skip if restoring from draft)
@@ -904,6 +921,35 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     items, profile, client, details, showGST, taxInclusive,
     invoiceOptions,
   }), [items, client.state, client?.isSEZ, profile?.state, profile?.country, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, details?.placeOfSupply]);
+
+  // v1.10.24 — Compute available client credit from prior overpayments.
+  // Excludes the bill we're editing (that would double-count our own
+  // in-progress creditToApply state). `available` is the FIFO-orderable
+  // total; `sources` powers the auditable "from Bill A/2026-27/00X" trail.
+  const clientCredit = useMemo(() => {
+    if (!client?.name?.trim()) return { available: 0, sources: [] };
+    const otherBills = editingBill
+      ? allBillsForCredit.filter(b => b.id !== editingBill.id)
+      : allBillsForCredit;
+    return getClientCredit(client.name, otherBills);
+  }, [client?.name, allBillsForCredit, editingBill]);
+
+  // Auto-apply once per client change when the setting is on. Uses a
+  // ref-tracked "last seen client" so subsequent item edits (which move
+  // totals.total up and down) don't blow away a user's manual override.
+  const lastAutoAppliedClient = useRef(null);
+  useEffect(() => {
+    if (editingBill) return;
+    if (!invoiceOptions.autoApplyClientCredit) {
+      lastAutoAppliedClient.current = null;
+      return;
+    }
+    const name = client?.name?.trim() || '';
+    if (!name || lastAutoAppliedClient.current === name) return;
+    lastAutoAppliedClient.current = name;
+    const cap = Math.min(clientCredit.available, Number(totals.total) || 0);
+    setCreditToApply(cap > 0.005 ? cap : 0);
+  }, [client?.name, clientCredit.available, invoiceOptions.autoApplyClientCredit, editingBill]);
 
   // Warn when the seller's state is missing for Indian GST invoices — without it, the
   // interstate detection silently defaults to intrastate (CGST+SGST) which is a real money bug.
@@ -1168,6 +1214,23 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       : getAccountById(profile, invoiceOptions.selectedAccountId);
     const invoiceOptionsWithSnapshot = { ...invoiceOptions, paymentAccountSnapshot: snapAccount || null };
 
+    // v1.10.24 — Plan client-credit application. If the user chose to
+    // apply any credit on this invoice (via the banner in the Billed To
+    // section), compute the dual-entry patches now: a `credit-applied`
+    // payment on this bill + `credit-transferred-out` entries on the
+    // source overpaid bills. Both are applied inside the try/catch
+    // below so a save failure doesn't leave the source bills half-updated.
+    const creditPlan = (!editingBill && creditToApply > 0.005)
+      ? planCreditApplication(client.name, allBillsForCredit, creditToApply, finalInvoiceNumber)
+      : null;
+
+    const seedPayments = editingBill?.payments ? [...editingBill.payments] : [];
+    if (creditPlan?.targetEntry) seedPayments.push(creditPlan.targetEntry);
+    const seedPaidAmount = seedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const seedStatus = editingBill?.status
+      || (seedPaidAmount >= (Number(totals.total) || 0) - 0.005 ? 'paid'
+          : (seedPaidAmount > 0.005 ? 'partial' : 'unpaid'));
+
     const bill = {
       id: finalInvoiceNumber,
       clientName: client.name,
@@ -1179,9 +1242,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // v1.10.1 — was `cgst + sgst + igst` which omitted UTGST and cess.
       // Reports treated cess as revenue for tobacco/auto/coal sellers.
       totalTaxAmount: totals.totalTaxAmount ?? (totals.cgst + totals.sgst + (totals.utgst || 0) + totals.igst + (totals.cess || 0)),
-      status: editingBill?.status || 'unpaid',
-      paidAmount: editingBill?.paidAmount || 0,
-      payments: editingBill?.payments || [],
+      status: seedStatus,
+      paidAmount: seedPaidAmount,
+      payments: seedPayments,
       // Preserve any pre-existing print history + carry through the patch
       printedCount: extraPatch.printedCount ?? editingBill?.printedCount ?? 0,
       lastPrintedAt: extraPatch.lastPrintedAt ?? editingBill?.lastPrintedAt ?? null,
@@ -1194,6 +1257,29 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const shouldOverwrite = !!editingBill || hasBeenSaved.current;
     try {
       await saveBill(bill, { overwrite: shouldOverwrite });
+      // v1.10.24 — Follow-up: write the `credit-transferred-out` entries
+      // to each source overpaid bill. Sequential so a failure on any one
+      // stops the chain (rare — same origin, same server, right after we
+      // just succeeded on the primary save). If any patch does fail, the
+      // primary bill still has the credit-applied entry; the source
+      // bill's overpayment display just remains stale until it's edited.
+      // Toast lets the user know.
+      if (creditPlan?.sourcePatches?.length) {
+        try {
+          for (const { updatedBill } of creditPlan.sourcePatches) {
+            await saveBill(updatedBill, { overwrite: true });
+          }
+          const applied = creditPlan.amountApplied;
+          const from = creditPlan.consumedFrom.map(c => c.invoiceNumber).join(', ');
+          toast(`${formatCurrency(applied, invoiceOptions.currency || 'INR')} credit applied from ${from}`, 'success');
+          // Refresh local bills list so the credit banner drops for next time.
+          getAllBills().then(setAllBillsForCredit).catch(() => {});
+          setCreditToApply(0);
+        } catch (creditErr) {
+          console.error('Source-bill credit patch failed:', creditErr);
+          toast('Credit applied on this bill, but source bill update failed. Please review Client ledger.', 'warning');
+        }
+      }
       // Mark that the invoice has been persisted at least once — subsequent
       // saves (auto-save, Save & Leave, Save & Download) can safely overwrite.
       hasBeenSaved.current = true;
@@ -2631,6 +2717,62 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             <div className="flex justify-between items-center mb-4">
               <h3 className="section-title" style={{ margin: 0 }}>Billed To</h3>
             </div>
+
+            {/* v1.10.24 — Client credit banner. Shows when the picked
+                client has overpayment sitting unused on prior bills;
+                lets the user apply it as advance on this invoice. */}
+            {!editingBill && clientCredit.available > 0.005 && (
+              <div style={{
+                marginBottom: '1rem', padding: '0.75rem 1rem',
+                background: 'rgba(3, 105, 161, 0.08)',
+                border: '1px solid rgba(3, 105, 161, 0.3)',
+                borderRadius: 8, fontSize: '0.85rem',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <strong style={{ color: '#0369a1' }}>💳 Client has {formatCurrency(clientCredit.available, invoiceOptions.currency || 'INR')} credit</strong>
+                    <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
+                      from {clientCredit.sources.length} prior overpayment{clientCredit.sources.length > 1 ? 's' : ''}
+                      {' '}({clientCredit.sources.map(s => s.invoiceNumber).slice(0, 3).join(', ')}
+                      {clientCredit.sources.length > 3 ? '…' : ''})
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <input type="number" min="0" step="any" className="form-input"
+                      value={creditToApply || ''} placeholder="0"
+                      onChange={e => {
+                        const v = Math.max(0, Number(e.target.value) || 0);
+                        const cap = Math.min(clientCredit.available, Number(totals.total) || Infinity);
+                        setCreditToApply(Math.min(v, cap));
+                      }}
+                      style={{ width: 100, fontSize: '0.82rem', padding: '0.3rem 0.5rem' }} />
+                    <button type="button" className="btn btn-secondary"
+                      style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
+                      onClick={() => setCreditToApply(Math.min(clientCredit.available, Number(totals.total) || 0))}>
+                      Apply full
+                    </button>
+                    {creditToApply > 0 && (
+                      <button type="button" className="btn btn-secondary"
+                        style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem', color: '#dc2626', borderColor: '#fca5a5' }}
+                        onClick={() => setCreditToApply(0)}>
+                        Skip
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {creditToApply > 0.005 && (
+                  <div style={{ marginTop: 6, fontSize: '0.78rem', color: '#0369a1' }}>
+                    → Will apply {formatCurrency(creditToApply, invoiceOptions.currency || 'INR')} as advance from prior overpayment
+                    {creditToApply < clientCredit.available ? ` (${formatCurrency(clientCredit.available - creditToApply, invoiceOptions.currency || 'INR')} credit will remain)` : ''}.
+                  </div>
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  <input type="checkbox" checked={!!invoiceOptions.autoApplyClientCredit}
+                    onChange={e => setInvoiceOptions(prev => ({ ...prev, autoApplyClientCredit: e.target.checked }))} />
+                  Auto-apply available client credit on future invoices
+                </label>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group full-width" style={{ position: 'relative' }}>

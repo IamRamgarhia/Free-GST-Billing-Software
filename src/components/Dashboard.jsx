@@ -726,9 +726,50 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     }
   };
 
+  // v1.10.24 — Build a rich WhatsApp / Email caption that carries the full
+  // payment status. Reported: "please forward with text message too with
+  // status op payment." On mobile the message rides as WhatsApp caption
+  // alongside the PDF; on desktop (where PDF can't attach via Web Share)
+  // this text is ALL the client sees, so we want it to stand alone.
+  const buildShareMessage = (bill) => {
+    const currency = bill.currency || bill.data?.invoiceOptions?.currency || 'INR';
+    const fmt = (n) => formatCurrency(Number(n) || 0, currency);
+    const total = Number(bill.totalAmount) || 0;
+    const paidFromArr = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const paid = paidFromArr > 0 ? paidFromArr : (Number(bill.paidAmount) || 0);
+    const outstanding = total - paid;
+    const dueDate = bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const invDate = bill.invoiceDate ? new Date(bill.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const businessName = profile?.businessName || '';
+    const status = (bill.status || 'unpaid').toUpperCase();
+
+    // Payment line adapts to state: fully paid / overpaid / partial / unpaid.
+    let paymentLine;
+    if (outstanding < -0.005) {
+      paymentLine = `Paid: ${fmt(paid)}  (Overpaid by ${fmt(Math.abs(outstanding))})`;
+    } else if (outstanding <= 0.005) {
+      paymentLine = `Paid: ${fmt(paid)}  ✅ FULLY PAID`;
+    } else if (paid > 0.005) {
+      paymentLine = `Paid: ${fmt(paid)}  ·  *Outstanding: ${fmt(outstanding)}*`;
+    } else {
+      paymentLine = `*Amount Due: ${fmt(total)}*`;
+    }
+
+    const lines = [
+      `*Invoice: ${bill.invoiceNumber}*`,
+      `Date: ${invDate}${dueDate ? `   ·   Due: ${dueDate}` : ''}`,
+      `Client: ${bill.clientName}`,
+      `Total: ${fmt(total)}`,
+      paymentLine,
+      `Status: ${status}`,
+    ];
+    if (businessName) lines.push('', `— ${businessName}`);
+    return lines.join('\n');
+  };
+
   const shareWhatsApp = async (bill) => {
     const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
-    const msg = `*Invoice: ${bill.invoiceNumber}*\nClient: ${bill.clientName}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
+    const msg = buildShareMessage(bill);
     // v1.10.22 — try the native Web Share API first, with the actual PDF
     // attached. On mobile Chrome / Safari the share sheet lets the user
     // pick WhatsApp (or any other target). Falls through to the text-only
@@ -754,14 +795,27 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       }
     }
     // Fallback: text-only WhatsApp URL (existing behaviour).
+    // v1.10.24 — Explain WHY the PDF didn't attach the first time a
+    // desktop user hits this path. Once per session, then silent — no
+    // one wants a toast on every share. Framed as a browser limitation
+    // (which is what it is) so users don't blame the app.
+    try {
+      if (!sessionStorage.getItem('fgsb_whatsappDesktopExplained')) {
+        toast('Desktop browsers can\'t attach PDF to WhatsApp Web (a browser security rule). Sharing invoice details as text — download PDF and drop it into WhatsApp Web manually if you need the file. On phone the PDF attaches automatically.', 'info', 7000);
+        sessionStorage.setItem('fgsb_whatsappDesktopExplained', '1');
+      }
+    } catch { /* sessionStorage sandboxed — skip */ }
     const encoded = encodeURIComponent(msg);
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const shareEmail = (bill) => {
-    const subject = `Invoice ${bill.invoiceNumber} - ${formatCurrency(bill.totalAmount)}`;
-    const body = `Dear ${bill.clientName},\n\nInvoice No: ${bill.invoiceNumber}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${bill.status === 'paid' ? 'Paid' : 'Payment Pending'}\n\nRegards`;
+    // v1.10.24 — same rich payment status as the WhatsApp share (strip
+    // markdown asterisks since mailto: doesn't render them).
+    const subject = `Invoice ${bill.invoiceNumber} - ${formatCurrency(bill.totalAmount, bill.currency)}`;
+    const richBody = buildShareMessage(bill).replace(/\*/g, '');
+    const body = `Dear ${bill.clientName},\n\n${richBody}\n\nRegards`;
     window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
   };
 
@@ -837,7 +891,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>New Invoice</strong> — start a fresh tax invoice / proforma / credit note / bill of supply / delivery challan.</li>
               <li><strong>Filter row</strong> — search by client name, invoice #, or GSTIN; filter by type / status / financial year / date range.</li>
-              <li><strong>Row actions</strong> — Edit opens the invoice; MessageCircle sends via WhatsApp (with PDF attached on mobile); Mail opens your email client; Record Payment logs a receipt; Trash soft-deletes for 30 days.</li>
+              <li><strong>Row actions</strong> — Edit opens the invoice; MessageCircle sends via WhatsApp; Mail opens your email client; Record Payment logs a receipt; Trash soft-deletes for 30 days.</li>
+              <li><strong>WhatsApp share — mobile vs. desktop:</strong> on Android / iPhone the PDF attaches automatically via the OS share sheet (works with WhatsApp, Signal, Telegram, anywhere). On desktop, browsers block sending files to WhatsApp Web for security — we fall back to a text-only message with all invoice details. To send the PDF from desktop: click Download, then drag the file into WhatsApp Web.</li>
               <li><strong>Bulk actions</strong> — select rows to export as one PDF or delete in a batch.</li>
               <li><strong>Overdue banner</strong> — click it to jump to overdue invoices with one tap.</li>
               <li><strong>Low-stock alert</strong> — appears when any product is at or below your threshold (Settings → Stock alert).</li>
@@ -1205,7 +1260,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
                             <button className="icon-btn icon-btn-green" onClick={() => onConvert(bill)} title="Convert to Tax Invoice"><FileText size={15} /></button>
                           )}
                           <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)} title="Payment"><IndianRupee size={15} /></button>
-                          <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)} title="WhatsApp"><MessageCircle size={15} /></button>
+                          <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)}
+                            title="Share via WhatsApp — PDF attaches on mobile Chrome/Safari. On desktop it sends the invoice as text only (browser can't attach files to WhatsApp Web — security limitation, not our app).">
+                            <MessageCircle size={15} />
+                          </button>
                           {/* v1.10.12 — Payment-reminder button now shows for
                                UNPAID, PARTIAL, and OVERDUE bills (not just
                                overdue). Reported: "amount pending towards

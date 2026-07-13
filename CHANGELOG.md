@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.24] — 2026-07-13
+
+**Client credit balance — overpayments carry to next invoice.**
+
+### Added — Apply prior overpayment as credit on a new invoice
+
+**Reported.** "this extra payment can be added to the next bill of
+customer u enabled that — auto or manual."
+
+**How it works.** When a client overpays a bill (Bill A: total ₹100,
+paid ₹110 → ₹10 overpaid), that ₹10 is available as credit against
+future invoices. Opening a new invoice for the same client now
+shows a **💳 credit banner** in the Billed To card:
+
+> Client has ₹10 credit from 1 prior overpayment (INV/2026-27/0007)
+> [amount input] [Apply full] [Skip]
+
+Three ways to use it:
+1. **Manual apply** — user types an amount (capped at
+   `min(available, invoice total)`) or clicks **Apply full**.
+2. **Auto-apply** — checkbox in the banner: "Auto-apply available
+   client credit on future invoices". Once enabled, the credit is
+   applied automatically on client-select for every subsequent new
+   invoice. Fired once per client (not on every keystroke) so
+   manual overrides stick.
+3. **Skip** — leave it for later; credit stays on the client's
+   ledger.
+
+**Persistence — dual-entry, auditable.** On save, `saveInvoiceToDB`
+writes two paired records:
+1. A `credit-applied` payment entry on the new invoice (mode +
+   `creditSourceBillIds` for the audit trail), which reduces the
+   new invoice's outstanding.
+2. A `credit-transferred-out` payment entry on each source
+   overpaid bill (negative amount, `creditTargetBillId` for the
+   reverse link), which brings the source bill's outstanding back
+   to 0 so it no longer shows as overpaid.
+
+FIFO allocation across sources — oldest overpayment consumed
+first. Both entries net to zero at the client level (no phantom
+cash), and every existing per-bill / per-client status/aging/
+ledger view (which reads `paidAmount` and `payments[]`) picks up
+the change with no other code changes.
+
+### Data model
+
+- New payment `mode` values: `'credit-applied'`, `'credit-transferred-out'`.
+- New invoiceOption: `autoApplyClientCredit: boolean` (default
+  `false`).
+- New file: `src/utils/clientCredit.js` — pure helpers:
+  `getBillOverpayment(bill)`, `getClientCredit(name, bills)`,
+  `planCreditApplication(name, bills, amount, newBillId)`.
+
+### Added — WhatsApp desktop-limitation tooltip + one-time toast
+
+**Reported.** "user need to know why whatsapp pdf on web not work
+we need to write somewhere on tooltip etc."
+
+Users on desktop were assuming the PDF-not-attached behaviour was
+our bug. It's actually a Web Share API restriction — browsers
+block sending files to arbitrary desktop apps (WhatsApp Web
+included) for security. We can't change that. So now we
+communicate it honestly in three places:
+
+1. **Tooltip** on the WhatsApp row-action button explains it:
+   "PDF attaches on mobile Chrome/Safari. On desktop it sends the
+   invoice as text only (browser can't attach files to WhatsApp
+   Web — security limitation, not our app)."
+2. **One-time toast** the first time a desktop user hits the
+   fallback path in a session — full explanation + workaround
+   ("download PDF, drag into WhatsApp Web"). Silenced by
+   sessionStorage flag after first show.
+3. **Dashboard help modal** includes the same explanation in the
+   "Row actions" bullet.
+
+### Verified
+
+- `npx vite build` clean
+- `node scripts/tax-test.mjs` — 31/31 pass (no core-math paths
+  touched; credit is a payment-layer feature)
+
+---
+
 ## [1.10.23] — 2026-07-13
 
 **7 fixes on top of v1.10.22.** GH #16 invoice-number 409 + a
