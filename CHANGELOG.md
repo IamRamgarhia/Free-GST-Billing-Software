@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.26] — 2026-07-13
+
+**Print + Download PDF blank in Focus mode — fixed.**
+
+### Fixed — Print / PDF blank when Focus mode is ON
+
+**Reported.** "in this mode print not working" (focus mode ON,
+preview hidden). Normal split-view mode printed fine.
+
+**Root cause.** The v1.10.22 Focus mode used `display: none` to hide
+the preview pane. That removes the element from layout entirely —
+`html2canvas` renders a 0×0 canvas → blank PDF, `window.print()`
+prints nothing because there's no visible content in the viewport.
+
+**Fix — two layers.**
+
+1. **Preview pane** now uses off-screen positioning
+   (`position: absolute; left: -99999px; opacity: 0`) instead of
+   `display: none`. Element keeps real dimensions so
+   `html2canvas` can snapshot it, invisible to the user and out
+   of the flex flow (editor still takes full viewport width in
+   Focus mode).
+
+2. **`withPreviewOnScreen(fn)` guard** wraps `directPrint` and
+   `generatePDF`. When invoked from Focus mode, un-collapses the
+   preview, waits two rAFs + 50ms for layout, runs the print /
+   PDF operation, then restores the collapsed state on the
+   `afterprint` event (native dialog close) or a 30s safety
+   timeout. Belt-and-braces so window.print() also works
+   correctly for thermal paper.
+
+### Verified
+
+- `npx vite build` — clean
+- `node scripts/tax-test.mjs` — 31/31 pass
+- `node scripts/discount-modes-test.mjs` — 9/9 pass
+- Print + PDF paths audited: Dashboard receipt print (separate
+  window) and ReceiptVoucher print (new window) unaffected. Only
+  InvoiceGenerator's Print/Download used the Focus mode preview.
+
+---
+
 ## [1.10.25] — 2026-07-13
 
 **Complete 4-mode discount system (Vyapar / MargERP parity).**

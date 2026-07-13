@@ -2032,10 +2032,46 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // natively when the CSS `@page size` matches.
   const isThermalPaper = () => (invoiceOptions.paperSize || 'a4').startsWith('thermal');
 
+  // v1.10.26 — Focus mode moves the preview pane off-screen (position:
+  // absolute), which is fine for html2canvas (layout still computed) but
+  // breaks window.print() for thermal (prints visible viewport only). To
+  // keep both paths reliable, un-collapse for the duration of any print /
+  // download / share operation and restore after. `afterprint` event
+  // handles the async native-dialog close for thermal; A4 path restores
+  // synchronously in the finally block.
+  const withPreviewOnScreen = async (fn) => {
+    const wasCollapsed = previewCollapsed;
+    if (!wasCollapsed) return fn();
+    setPreviewCollapsed(false);
+    // Two rAFs + a settle timeout so React commits the DOM change AND
+    // the browser lays out the newly-visible preview before we snapshot.
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50))));
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      setPreviewCollapsed(true);
+    };
+    // For thermal window.print(): browser fires 'afterprint' when the
+    // native dialog closes (either printed or cancelled). We hook it
+    // once so the preview snaps back once printing is really done.
+    const onAfterPrint = () => { restore(); window.removeEventListener('afterprint', onAfterPrint); };
+    window.addEventListener('afterprint', onAfterPrint);
+    try {
+      return await fn();
+    } finally {
+      // Safety net: if afterprint never fires (Firefox quirks / user
+      // switched tabs mid-print), restore after 30s so the pane doesn't
+      // stay expanded forever.
+      setTimeout(restore, 30000);
+    }
+  };
+
   const directPrint = async () => {
     if (!printRef.current) return;
     setSaving(true);
     try {
+      await withPreviewOnScreen(async () => {
       if (isThermalPaper()) {
         // v1.10.11 — Thermal buffer-safe mode. When enabled, we inject
         // a temporary print stylesheet that forces grayscale + reduces
@@ -2079,6 +2115,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       const pdf = await buildPDF();
       const blob = pdf.output('blob');
       printViaIframe(blob);
+      }); // end withPreviewOnScreen
     } catch (e) {
       toast('Print failed — try Download PDF instead', 'error');
     } finally {
@@ -2090,7 +2127,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (!printRef.current) return;
     try {
       setSaving(true);
-      const pdf = await buildPDF();
+      // v1.10.26 — force preview on-screen so html2canvas can snapshot it.
+      // Wrapped around buildPDF only (the rest of the flow can happen with
+      // preview back to collapsed state).
+      const pdf = await withPreviewOnScreen(() => buildPDF());
       const fileName = `${typeConfig.prefix}_${details.invoiceNumber.replace(/\//g, '-')}.pdf`;
       pdf.save(fileName);
 
@@ -3164,8 +3204,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         </div>
 
         {/* Live Preview — visually hidden in focus mode (v1.10.22) but
-            kept in the DOM so printRef stays live for PDF generation. */}
-        <div className="preview-pane" style={previewCollapsed ? { display: 'none' } : undefined}>
+            kept in the DOM so printRef stays live for PDF generation.
+            v1.10.26 — reported: "in this mode print not working" for focus
+            mode. Root cause: `display: none` removes the element from
+            layout entirely, so html2canvas renders a 0×0 canvas → blank
+            PDF and blank print. Fix: move the pane off-screen (position:
+            absolute, left: -99999px) instead. The element keeps real
+            dimensions so html2canvas can snapshot it, but it's invisible
+            to the user and out of the flex flow (so the editor still
+            takes the full viewport width in focus mode). */}
+        <div className="preview-pane" style={previewCollapsed
+          ? { position: 'absolute', left: '-99999px', top: 0, width: '794px', pointerEvents: 'none', opacity: 0 }
+          : undefined}>
           <div className="preview-pane-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>PDF Preview — This is how your invoice will look</span>
             {/* v1.9.1 — preview zoom controls. Persist choice per-session so
