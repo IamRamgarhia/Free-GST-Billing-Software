@@ -7,6 +7,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.23] — 2026-07-13
+
+**7 fixes on top of v1.10.22.** GH #16 invoice-number 409 + a
+sweep for every place negative "outstanding" (from overpayment)
+was leaking into UIs that assumed positive values.
+
+**Discount math verified:** ran 5 targeted scenarios (per-line %,
+per-line ₹, invoice-level ₹, invoice-level %, > 100% cap) — all
+pass. 31 core tax tests continue to pass.
+
+### Fixed — "A bill with this invoice number already exists" on save
+
+**Reported (@mehulkoradiya, GH #16).** "when create/update invoice,
+status change, add payment i got this error — `A bill with this
+invoice number already exists`, `DC/2026-27/0001`". User was
+completely blocked — every action returned 409.
+
+**Root cause.** The server's atomic counter (`counter_DC` etc.) can
+drift out of sync with the actual bill files on disk. Cases:
+1. User restores a backup that had `DC/2026-27/0001` but the counter
+   file was reset to 0.
+2. A bill number was hand-typed matching a counter value still to
+   come.
+3. Two tabs / two devices bump the counter separately.
+
+The peek returned `0001`, save posted `bill.id = DC/2026-27/0001`,
+server saw the file on disk → 409. Prior UX: toast "Invoice number
+already exists. Change it before saving." and return — user had to
+manually bump the number themselves. On a fresh install with a
+corrupted counter, they'd have to do this every single time.
+
+**Fix.** On 409 for a NEW invoice (no `editingBill`, not yet saved
+this session), `saveInvoiceToDB` now automatically:
+1. Requests a fresh number via `getNextInvoiceNumber(prefix)` —
+   which atomically increments the server counter and returns the
+   next value.
+2. Retries `saveBill` with that number.
+3. If the retry also 409s (rare but possible if many past bills
+   were hand-numbered ahead of the counter), loops up to 20 times,
+   each round bumping the counter one more step.
+4. On success, updates the form's `details.invoiceNumber` so the
+   preview + subsequent save operations agree on the new id.
+5. Toasts `"Invoice number DC/2026-27/0001 was already used —
+   saved as DC/2026-27/0002 instead."` so the user knows what
+   happened.
+6. After 20 failures (pathological state), falls back to the old
+   manual-fix message.
+
+Editing existing bills and Dashboard operations (status change /
+record payment / soft-delete stock restore) already passed
+`overwrite: true` so they were never affected by this bug —
+`@mehulkoradiya`'s "status change / add payment" symptoms were
+side effects of the initial create failing. Once create succeeds,
+the follow-on flows work.
+
+### Fixed — Overpayment hidden in client ledger
+
+**Reported.** "OUTSTANDING SHOULD ABE DISPLAYED HERE IN CLIENT
+LDGER TOO" — a ₹650 payment on a ₹649 invoice showed Outstanding
+₹0 in the client card, quietly swallowing the ₹1 the customer paid
+extra.
+
+**Root cause.** `getClientStats` in ClientsView added
+`totalAmount` (not `paidAmount`) to `paid` when a bill's status was
+'paid'. Clamped every over-paid bill's contribution to its invoice
+value, so `unpaid` came back 0 for the overpayment case.
+
+**Fix.**
+1. `getClientStats` now sums the actual payments array (or falls
+   back to `paidAmount`, then legacy status='paid' → totalAmount).
+   `unpaid` can now be negative → an overpayment.
+2. The client card's stat row switches label + colour when
+   `unpaid < 0`: shows **"Overpaid"** in blue instead of
+   "Outstanding" in red / green.
+
+### Fixed — Overpayment leak in 3 other UI spots
+
+While auditing the overpayment display path, found three more places
+showing negative "outstanding" without any interpretation. Fixed:
+
+1. **Payment modal** now shows "Overpaid: ₹X" in blue instead of
+   "Balance: -₹X" in red when payment > invoice.
+2. **Reminder card** (Send Payment Reminders section) shows
+   "Overpaid ₹X" in blue instead of a negative red amount.
+3. **sendReminder** now short-circuits with a toast ("This invoice
+   has no outstanding balance — no reminder to send.") when
+   outstanding ≤ 0. Previously the WhatsApp message text read
+   "kindly arrange the payment of -₹1" which is obviously wrong.
+4. **ReceiptVoucher** — new-receipt amount input no longer pre-fills
+   with a negative number for overpaid bills; outstanding chip in
+   the invoice-picker list is hidden when the bill is overpaid.
+
+### Fixed — Line-item field areas too cramped for entry
+
+**Reported.** "INCREASE THE FIELD AREAS IT WILL PROPERLY VISIBLE
+FOR ENTRY." The v1.10.22 discount ₹/% toggle squeezed the discount
+input to ~40px on narrow viewports, and the Description / HSN / Qty
+/ Unit / Rate row was tight on non-focus-mode layouts.
+
+**Fix.**
+1. `.line-item-field` gets `min-width: 72px` and inputs bump to
+   `0.85rem` font + `0.4rem` padding so nothing gets crushed.
+2. `.line-item-row` now `flex-wrap: wrap` so on narrow screens the
+   row breaks to a second line instead of squishing.
+3. Discount field: `flex: 1.4` + `min-width: 130`. The ₹/%
+   selector widens to 60px so both option labels are readable.
+
+### Verified — GH #15 (logo not showing) still fixed
+
+Confirmed for @prk1988: v1.10.16's `SettingsView.handleSave`
+auto-enables `showLogo: true` in the persisted invoice options
+whenever a profile with a logo is saved. That fix is live and
+this release doesn't change it. **If you're still seeing no logo,
+Ctrl+F5 to force the PWA to fetch the current bundle** — v1.10.16
+shipped a month ago, so any stale service worker would still be
+running the old code.
+
+### Verified — Overpayment on receipt already showing
+
+Also for @mehulkoradiya's "Balance should be 1 but calculating
+zero" screenshot: the fix is live at
+[Dashboard.jsx:121](src/components/Dashboard.jsx#L121) since
+v1.10.22 — receipt shows "Overpaid: ₹1" in green when the payment
+exceeds the invoice total. Ctrl+F5 to refresh the PWA bundle. If
+after a hard refresh the receipt still shows Balance: ₹0, the
+underlying bill's `payments` array probably has a payment stored
+at ₹649 (not ₹650) — check via Edit Payment on that row.
+
+---
+
 ## [1.10.22] — 2026-07-12
 
 **4 bugs + 5 features in one push.** Every item from the latest

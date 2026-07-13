@@ -276,18 +276,19 @@ const LineItem = memo(function LineItem({
           onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
       </div>
       {invoiceOptions.showDiscount && (
-        <div className="line-item-field" style={{ flex: 1.1 }}>
+        <div className="line-item-field" style={{ flex: 1.4, minWidth: 130 }}>
           <label className="form-label">Discount</label>
           {/* v1.10.22 — two-mode discount: fixed rupees OR percent-of-line.
-              Toggle sits inside the field so no extra column is spent. */}
+              v1.10.23 — bumped input min-width so both value and mode
+              selector remain fully clickable / readable on narrow rows. */}
           <div style={{ display: 'flex', gap: 4 }}>
             <input type="number" min="0" step="any" className="form-input" value={item.discount}
               onChange={(e) => onFieldChange(item.id, 'discount', clampNonNeg(e.target.value))}
-              style={{ flex: 1 }} />
+              style={{ flex: 1, minWidth: 60 }} />
             <select className="form-input"
               value={item.discountType === 'percent' ? 'percent' : 'fixed'}
               onChange={(e) => onFieldChange(item.id, 'discountType', e.target.value)}
-              style={{ width: 52, padding: '0.3rem 0.15rem', fontSize: '0.78rem' }}
+              style={{ width: 60, padding: '0.4rem 0.35rem', fontSize: '0.82rem' }}
               title="Discount mode: fixed amount or percent of line">
               <option value="fixed">₹</option>
               <option value="percent">%</option>
@@ -1199,10 +1200,54 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       isDirty.current = false; // v1.10.22 — successful save clears dirty flag
     } catch (err) {
       if (err?.status === 409) {
-        toast(`Invoice number ${bill.id} already exists. Change it before saving.`, 'error');
-        return;
+        // v1.10.23 — reported (GH #16): "A bill with this invoice number
+        // already exists" on create/update/status-change/add-payment. Root
+        // cause: the atomic counter can lag behind the actual bills on
+        // disk (backup restore, cross-tab save, hand-crafted bill numbers)
+        // so `peek` returns an id that already exists → 409. Prior code
+        // forced the user to hand-fix the number. Now: for a NEW bill,
+        // retry with a fresh reservation, incrementing the counter until
+        // we land on a truly unused number (capped at 20 tries so a
+        // pathological data state can't spin forever).
+        if (!editingBill && !shouldOverwrite) {
+          const _psForPrefix = getPrintSettings();
+          const rawOverride = _psForPrefix.customPrefixes?.[invoiceType];
+          const overridePrefix = rawOverride && rawOverride.trim();
+          const prefix = overridePrefix || INVOICE_TYPES[invoiceType]?.prefix || 'INV';
+          let nextNum = bill.id;
+          let success = false;
+          for (let i = 0; i < 20; i++) {
+            try {
+              nextNum = await getNextInvoiceNumber(prefix, { explicitPrefix: !!overridePrefix });
+              const retryBill = { ...bill, id: nextNum, invoiceNumber: nextNum };
+              retryBill.data = { ...retryBill.data, details: { ...retryBill.data.details, invoiceNumber: nextNum } };
+              await saveBill(retryBill, { overwrite: false });
+              success = true;
+              // Push the new number back into the form so the preview + any
+              // subsequent save operate on the resolved id.
+              setDetails(prev => ({ ...prev, invoiceNumber: nextNum }));
+              hasBeenSaved.current = true;
+              isDirty.current = false;
+              if (nextNum !== bill.id) {
+                toast(`Invoice number ${bill.id} was already used — saved as ${nextNum} instead.`, 'info');
+              }
+              break;
+            } catch (retryErr) {
+              if (retryErr?.status !== 409) throw retryErr;
+              // else: number still taken, loop and try again with next counter.
+            }
+          }
+          if (!success) {
+            toast(`Could not find a free invoice number after 20 attempts. Please change the number manually.`, 'error');
+            return;
+          }
+        } else {
+          toast(`Invoice number ${bill.id} already exists. Change it before saving.`, 'error');
+          return;
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
 
     // If the user ticked "Make this recurring", create/update the recurring

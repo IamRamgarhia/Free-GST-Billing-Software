@@ -314,12 +314,22 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const getClientStats = (clientName) => {
     const cBills = getClientBills(clientName);
     const total = cBills.reduce((s, b) => s + (b.totalAmount || 0), 0);
+    // v1.10.23 — reported: "OUTSTANDING SHOULD ABE DISPLAYED HERE IN
+    // CLIENT LDGER TOO" — overpayments were hidden because `paid` used
+    // `totalAmount` when status='paid', clamping actual receipt to the
+    // invoice value. If a customer paid ₹650 on a ₹649 invoice, `paid`
+    // came back 649 and `unpaid` came back 0. Now we always read the
+    // ACTUAL paid amount from the payments array (falling back to
+    // paidAmount, then totalAmount for legacy status-only "paid" bills
+    // that were never given an explicit paidAmount).
     const paid = cBills.reduce((s, b) => {
+      const fromPayments = (b.payments || []).reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
+      if (fromPayments > 0) return s + fromPayments;
+      if (typeof b.paidAmount === 'number' && b.paidAmount > 0) return s + b.paidAmount;
       if (b.status === 'paid') return s + (b.totalAmount || 0);
-      if (b.status === 'partial') return s + (b.paidAmount || 0);
       return s;
     }, 0);
-    const unpaid = total - paid;
+    const unpaid = total - paid; // can be negative → overpayment
     return { total, paid, unpaid, count: cBills.length };
   };
 
@@ -684,9 +694,13 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                       <span className="client-stat-value" style={{ color: '#059669' }}>{formatCurrency(stats.paid)}</span>
                     </div>
                     <div className="client-stat">
-                      <span className="client-stat-label">Outstanding</span>
-                      <span className="client-stat-value" style={{ color: stats.unpaid > 0 ? '#dc2626' : '#059669' }}>
-                        {formatCurrency(stats.unpaid)}
+                      {/* v1.10.23 — surface overpayment explicitly (was
+                          hidden as "Outstanding: ₹0" when paid > total). */}
+                      <span className="client-stat-label">
+                        {stats.unpaid < -0.005 ? 'Overpaid' : 'Outstanding'}
+                      </span>
+                      <span className="client-stat-value" style={{ color: stats.unpaid > 0.005 ? '#dc2626' : (stats.unpaid < -0.005 ? '#0369a1' : '#059669') }}>
+                        {formatCurrency(Math.abs(stats.unpaid))}
                       </span>
                     </div>
                     <div style={{ marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>

@@ -781,6 +781,13 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const dueDate = bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN') : 'N/A';
     const businessName = profile?.businessName || 'Our Company';
     const outstanding = (bill.totalAmount || 0) - (bill.paidAmount || 0);
+    // v1.10.23 — don't send a payment reminder for overpaid or already-paid
+    // bills. The old message read "Hi X, kindly arrange the payment of -₹1"
+    // which is obviously wrong.
+    if (outstanding <= 0.005) {
+      toast('This invoice has no outstanding balance — no reminder to send.', 'info');
+      return;
+    }
     const outstandingStr = formatCurrency(outstanding, bill.currency);
     const totalStr = formatCurrency(bill.totalAmount || 0, bill.currency);
     // v1.10.12 — Status-aware message. Prior code said "due on X" even
@@ -879,9 +886,21 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
                       <div>
                         <span className="font-medium">{bill.clientName}</span>
                         <span className="text-muted" style={{ marginLeft: 8, fontSize: '0.8rem' }}>{bill.invoiceNumber}</span>
-                        <span style={{ marginLeft: 8, fontWeight: 600, color: '#dc2626', fontSize: '0.85rem' }}>
-                          {formatCurrency(bill.totalAmount - (bill.paidAmount || 0), bill.currency || bill.data?.invoiceOptions?.currency)}
-                        </span>
+                        {(() => {
+                          // v1.10.23 — signed outstanding label. Show
+                          // "Overpaid ₹1" in blue on the reminder card
+                          // instead of "-₹1" in red for overpayments.
+                          const outCur = bill.currency || bill.data?.invoiceOptions?.currency;
+                          const out = bill.totalAmount - (bill.paidAmount || 0);
+                          if (out < -0.005) {
+                            return <span style={{ marginLeft: 8, fontWeight: 600, color: '#0369a1', fontSize: '0.85rem' }}>
+                              Overpaid {formatCurrency(Math.abs(out), outCur)}
+                            </span>;
+                          }
+                          return <span style={{ marginLeft: 8, fontWeight: 600, color: '#dc2626', fontSize: '0.85rem' }}>
+                            {formatCurrency(Math.max(0, out), outCur)}
+                          </span>;
+                        })()}
                         {phone && <span className="text-muted" style={{ marginLeft: 8, fontSize: '0.75rem' }}>{phone}</span>}
                       </div>
                       <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}
@@ -1222,7 +1241,14 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
             <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
               Invoice: <strong>{paymentModal.invoiceNumber}</strong> | Total: <strong>{formatCurrency(paymentModal.totalAmount, paymentModal.currency)}</strong>
               {(paymentModal.paidAmount || 0) > 0 && <> | Paid: <strong>{formatCurrency(paymentModal.paidAmount, paymentModal.currency)}</strong></>}
-              {' '}| Balance: <strong style={{ color: '#dc2626' }}>{formatCurrency(paymentModal.totalAmount - (paymentModal.paidAmount || 0), paymentModal.currency)}</strong>
+              {' '}| {(() => {
+                // v1.10.23 — signed remaining so overpayments surface here too.
+                const rem = paymentModal.totalAmount - (paymentModal.paidAmount || 0);
+                if (rem < -0.005) {
+                  return <>Overpaid: <strong style={{ color: '#0369a1' }}>{formatCurrency(Math.abs(rem), paymentModal.currency)}</strong></>;
+                }
+                return <>Balance: <strong style={{ color: rem > 0.005 ? '#dc2626' : '#059669' }}>{formatCurrency(Math.max(0, rem), paymentModal.currency)}</strong></>;
+              })()}
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group">

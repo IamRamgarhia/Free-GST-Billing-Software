@@ -1099,16 +1099,29 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 
 .line-item-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.65rem;
   margin-bottom: 1rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
-.line-item-field { display: flex; flex-direction: column; }
+/* v1.10.23 — reported: "INCREASE THE FIELD AREAS IT WILL PROPERLY VISIBLE
+   FOR ENTRY". The discount %/₹ dropdown added in v1.10.22 squeezed the
+   discount input to ~40px on narrow viewports. Now every field has a
+   min-width so nothing gets crushed; the row wraps to two lines on
+   small screens instead. Focus mode (v1.10.22) still gives the row the
+   full width, so on wide screens everything stays inline. */
+.line-item-field { display: flex; flex-direction: column; min-width: 72px; }
+.line-item-field input.form-input,
+.line-item-field select.form-input {
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+}
 .line-item-field .form-label { margin-bottom: 0.3rem; font-size: 0.7rem; }
-.line-item-delete { justify-content: flex-end; padding-bottom: 0.35rem; }
+.line-item-delete { justify-content: flex-end; padding-bottom: 0.35rem; min-width: 0; }
 
 /* Product auto-search dropdown */
 .product-suggestions {

@@ -102,7 +102,9 @@ export default function ReceiptVoucher() {
       ...prev,
       clientName: bill.clientName || '',
       clientAddress: bill.data?.client?.address || '',
-      amount: String(bill.totalAmount - (bill.paidAmount || 0)),
+      // v1.10.23 — clamp negative (overpaid) to 0 so the new-receipt
+      // amount input doesn't start pre-filled with a negative number.
+      amount: String(Math.max(0, bill.totalAmount - (bill.paidAmount || 0))),
       againstInvoice: bill.invoiceNumber || '',
     }));
   };
@@ -267,7 +269,11 @@ export default function ReceiptVoucher() {
                         <strong>{bill.clientName}</strong>
                         <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{bill.invoiceNumber}</span>
                       </div>
-                      <span style={{ fontWeight: 600 }}>{formatCurrency(bill.totalAmount - (bill.paidAmount || 0))}</span>
+                      {/* v1.10.23 — hide the outstanding chip on overpaid
+                          bills (they don't need another receipt). */}
+                      {(bill.totalAmount - (bill.paidAmount || 0)) > 0.005 && (
+                        <span style={{ fontWeight: 600 }}>{formatCurrency(bill.totalAmount - (bill.paidAmount || 0))}</span>
+                      )}
                     </button>
                   ))}
                 </div>
