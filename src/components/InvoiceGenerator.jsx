@@ -283,23 +283,41 @@ const LineItem = memo(function LineItem({
           onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
       </div>
       {invoiceOptions.showDiscount && (
-        <div className="line-item-field" style={{ flex: 1.4, minWidth: 130 }}>
+        <div className="line-item-field" style={{ flex: 1.8, minWidth: 200 }}>
           <label className="form-label">Discount</label>
           {/* v1.10.22 — two-mode discount: fixed rupees OR percent-of-line.
-              v1.10.23 — bumped input min-width so both value and mode
-              selector remain fully clickable / readable on narrow rows. */}
-          <div style={{ display: 'flex', gap: 4 }}>
+              v1.10.23 — wider min-width so value + mode selector stay
+              readable on narrow rows.
+              v1.10.25 — added third selector for the discount BASE when in
+              fixed mode. Options: Net Amount (default), Unit Price (₹ off
+              each unit × qty), Price With Tax (₹ off the tax-inclusive
+              total — tax gets backed out so consumer sees clean round). */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             <input type="number" min="0" step="any" className="form-input" value={item.discount}
               onChange={(e) => onFieldChange(item.id, 'discount', clampNonNeg(e.target.value))}
-              style={{ flex: 1, minWidth: 60 }} />
+              style={{ flex: 1, minWidth: 55 }} />
             <select className="form-input"
               value={item.discountType === 'percent' ? 'percent' : 'fixed'}
               onChange={(e) => onFieldChange(item.id, 'discountType', e.target.value)}
-              style={{ width: 60, padding: '0.4rem 0.35rem', fontSize: '0.82rem' }}
+              style={{ width: 52, padding: '0.4rem 0.3rem', fontSize: '0.82rem' }}
               title="Discount mode: fixed amount or percent of line">
               <option value="fixed">₹</option>
               <option value="percent">%</option>
             </select>
+            {/* Base only meaningful for fixed-mode. Percent of any base is
+                mathematically identical (proportional), so hide the
+                selector when type='percent' to avoid dead UI. */}
+            {item.discountType !== 'percent' && (
+              <select className="form-input"
+                value={item.discountBase || 'net'}
+                onChange={(e) => onFieldChange(item.id, 'discountBase', e.target.value)}
+                style={{ width: 78, padding: '0.4rem 0.3rem', fontSize: '0.75rem' }}
+                title="What the ₹ discount applies to. Net = qty×rate (default). Unit = ₹X off each unit. WithTax = ₹X off tax-inclusive total.">
+                <option value="net">Net</option>
+                <option value="unit">Unit</option>
+                <option value="with-tax">W/Tax</option>
+              </select>
+            )}
           </div>
         </div>
       )}

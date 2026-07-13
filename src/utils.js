@@ -62,19 +62,54 @@ const finiteNonNeg = (n) => {
   return isFinite(x) && x > 0 ? x : 0;
 };
 
-// v1.10.22 — Resolve a line's effective discount amount from the two-mode
-// input (fixed rupees OR percent of line value). Reported: "ANOTHER THING
-// I WAS FACING PROBLEM THAT DISCOUNT AGAINST THE ITEM U ARE CALCULATING
-// ON TOTAL... ALL APPS ITS IS LIKE THR ARE TWO OPTION". Backward-compatible:
-// items without `discountType` are treated as 'fixed', so v1.10.21 bills
-// render byte-identically.
+// v1.10.22 → v1.10.25 — Resolve a line's effective discount amount from
+// the (discountType, discountBase) matrix.
+//
+//   discountType  ∈ { 'fixed' (default), 'percent' }
+//   discountBase  ∈ { 'net' (default), 'unit', 'with-tax' }
+//
+// The RETURN VALUE is always the discount deducted from the line's net
+// value (qty × rate) before tax, so the existing downstream tax /
+// GSTR-1 / e-Way Bill code paths need no changes.
+//
+// Percent mode is base-agnostic (percent of net = percent of tax-inclusive
+// pro-rated back to net = percent of unit-price × qty). Only fixed mode
+// actually branches on base:
+//
+//   fixed + net       → raw amount as entered
+//   fixed + unit      → raw × qty (₹X off each unit)
+//   fixed + with-tax  → raw / (1 + taxRate/100)  (back out tax so the
+//                       consumer's total-inclusive drops by exactly raw)
+//
+// Every branch is clamped to the line's net value so a discount can't
+// exceed the line (which would produce a negative taxable value the
+// GST portal rejects).
+//
+// Backward-compat: items without `discountBase` fall through to 'net',
+// so pre-v1.10.25 bills render byte-identically.
 export const resolveLineDiscount = (item = {}) => {
-  const amount = finiteNonNeg(item.quantity) * finiteNonNeg(item.rate);
+  const qty = finiteNonNeg(item.quantity);
+  const rate = finiteNonNeg(item.rate);
+  const net = qty * rate;
   const raw = finiteNonNeg(item.discount);
+  if (raw <= 0 || net <= 0) return 0;
+
   if (item.discountType === 'percent') {
-    return Math.min(amount, (amount * Math.min(raw, 100)) / 100);
+    return Math.min(net, (net * Math.min(raw, 100)) / 100);
   }
-  return Math.min(amount, raw);
+
+  // Fixed-mode routing based on discountBase.
+  const base = item.discountBase || 'net';
+  if (base === 'unit') {
+    return Math.min(net, qty * raw);
+  }
+  if (base === 'with-tax') {
+    const taxRate = finiteNonNeg(item.taxPercent);
+    const divisor = 1 + taxRate / 100;
+    return Math.min(net, divisor > 0 ? raw / divisor : raw);
+  }
+  // default: net-amount base
+  return Math.min(net, raw);
 };
 
 export const calculateLineItemTax = (item = {}, taxInclusive = false) => {

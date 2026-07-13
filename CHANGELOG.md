@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.25] — 2026-07-13
+
+**Complete 4-mode discount system (Vyapar / MargERP parity).**
+
+### Added — Per-line discount BASE selector
+
+**Reported.** "we need to have proper discount system" — with the
+same 4 modes real POS software offers: Price With Tax, Unit Price,
+Net Amount, Total Amount.
+
+**What v1.10.22 shipped.** Two of the four modes:
+- **Net Amount** (per-line, default) — ₹ or % off `qty × rate`
+- **Total Amount** (invoice-level) — ₹ or % off whole-bill total
+
+**What v1.10.25 adds.** The two missing per-line bases:
+- **Unit Price** — ₹ off EACH unit. Effective line discount = `qty
+  × discount`. Example: `4 qty × ₹100 rate` with `₹5 off unit` →
+  `₹20` total line discount, ₹380 taxable.
+- **Price With Tax** — ₹ off the tax-INCLUSIVE line total. Tax is
+  automatically backed out. Example: `₹100 @ 18%` with `₹11.80 off
+  with-tax` → the customer's total-inclusive drops by exactly
+  ₹11.80 (net discount = ₹10, taxable = ₹90, tax = ₹16.20, total
+  = ₹106.20).
+
+### UI
+
+Discount cell in each line item now has THREE controls when in
+fixed mode, TWO in percent mode (base is percent-agnostic —
+mathematically identical for all bases):
+
+```
+[value input]   [₹/%]   [Net/Unit/W.Tax]        ← fixed mode
+[value input]   [₹/%]                            ← percent mode
+```
+
+Tooltips explain what each base does. Cell widens to `flex: 1.8 /
+min-width: 200px` and wraps to a second row on tight screens.
+
+### Math
+
+New `resolveLineDiscount(item)` branches on `discountBase`:
+
+- `net` (default) → raw value or `raw × line% / 100`
+- `unit` (fixed only) → `raw × qty`, clamped to line value
+- `with-tax` (fixed only) → `raw / (1 + taxRate/100)`, clamped
+
+Return value is always the net-amount deduction, so every existing
+downstream tax / GSTR-1 / e-Way Bill path is unchanged. Backward-
+compatible: items without `discountBase` fall through to `'net'`.
+
+### Verified
+
+- New `scripts/discount-modes-test.mjs` — 9 scenarios pass:
+  - Fixed ₹ off Net, Unit × qty, Price-With-Tax
+  - Percent mode (base-agnostic)
+  - Clamps: `%` > 100, fixed > line, `qty × unit-disc` > line
+  - Zero-tax edge on with-tax base (no divide-by-zero)
+  - Legacy item without discountBase renders identically
+- `npx vite build` clean
+- `node scripts/tax-test.mjs` — 31/31 pass (unchanged; the
+  discount rework only changes how much reduces the net,
+  downstream GST buckets untouched)
+
+---
+
 ## [1.10.24] — 2026-07-13
 
 **Client credit balance — overpayments carry to next invoice.**
