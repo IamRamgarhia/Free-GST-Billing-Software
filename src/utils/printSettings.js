@@ -96,7 +96,13 @@ export const DEFAULT_PRINT_SETTINGS = {
   // ============================================================
 
   // -- Print quality (PDF file size / render sharpness trade-off) --
-  pdfQuality: 'standard',    // 'draft' (email-friendly) | 'standard' (default) | 'hd' (archival)
+  // v1.10.27 — default flipped from 'standard' to 'hd' after user report:
+  // "make sure print is full 100% hd quality in pdf". HD uses PNG @ scale
+  // capped at 6 (dpr × 2.5), which is 3-5× larger file than standard's
+  // JPEG @ scale ≤ 4 but crisp on high-res prints. Users who prefer
+  // email-friendly files can switch to 'standard' or 'draft' in Print
+  // Settings.
+  pdfQuality: 'hd',    // 'draft' (email-friendly) | 'standard' | 'hd' (default, crispest)
 
   // -- Dual currency display (for foreign clients) --
   dualCurrencyEnabled: false,

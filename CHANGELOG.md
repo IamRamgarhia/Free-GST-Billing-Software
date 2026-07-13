@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.27] — 2026-07-13
+
+**Two focused-mode print polish fixes.**
+
+### Fixed — Preview panel stays expanded after print / download
+
+**Reported.** "in this layout when print clicked it prints but the
+preview panel again comes and for hiding again have to click to
+hide."
+
+**Cause.** v1.10.26 registered an `afterprint` event listener +
+30-second safety timeout to auto-restore the collapsed state.
+`afterprint` never fired in two of the three paths so restore
+never ran (or ran only after 30s):
+
+1. **Download PDF** — no print dialog opens, `afterprint` never
+   fires.
+2. **A4 iframe print** — `afterprint` fires on
+   `iframe.contentWindow`, not the parent window we were
+   listening on.
+3. **Thermal window.print()** — only this path fired afterprint
+   on the parent window correctly.
+
+**Fix.** Dropped the listener entirely. Restore now runs
+unconditionally in the `finally` block:
+- `window.print()` blocks the JS thread until the native dialog
+  closes on all desktop browsers → finally fires after the user
+  is done with print → correct restore timing.
+- On mobile Safari where `print()` may not block, the DOM was
+  already captured at the moment `print()` was invoked, so
+  restoring immediately after is safe.
+- Download PDF and A4 iframe both flow through the same path
+  and restore immediately after `buildPDF` / `printViaIframe`
+  returns.
+
+### Changed — PDF quality default is now HD
+
+**Reported.** "we need to make sure print is full 100% hd quality
+in pdf."
+
+**Cause.** Default `pdfQuality` was `'standard'` — JPEG at scale
+3–4, quality 0.95. That's ~200 KB per invoice and slightly soft
+text edges when zoomed. Fine for email but not for print archive.
+
+**Fix.** Default flipped to `'hd'` — PNG at scale 4–5 (capped at
+6), quality 1.0. Text edges are crisp on high-DPI print,
+line-art (borders, tables, signatures) renders without JPEG
+smudging.
+
+**Trade-off.** File size grows to 1–3 MB per invoice. Users who
+prefer email-friendly files can switch to `'standard'` or
+`'draft'` in **Print Settings → Print quality**.
+
+Existing users with a saved `pdfQuality: 'standard'` in their
+localStorage/server settings are NOT force-migrated — the change
+only applies to fresh installs and users who reset print settings.
+
+Business-type presets that intentionally set `'standard'`
+(Freelancer for email-friendly retainer invoices, Wholesale for
+high-volume printing) are unchanged.
+
+### Verified
+
+- `npx vite build` — clean
+- `node scripts/tax-test.mjs` — 31/31 pass
+- `node scripts/discount-modes-test.mjs` — 9/9 pass
+
+---
+
 ## [1.10.26] — 2026-07-13
 
 **Print + Download PDF blank in Focus mode — fixed.**

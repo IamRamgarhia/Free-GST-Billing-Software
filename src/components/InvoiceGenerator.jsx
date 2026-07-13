@@ -2034,11 +2034,25 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   // v1.10.26 — Focus mode moves the preview pane off-screen (position:
   // absolute), which is fine for html2canvas (layout still computed) but
-  // breaks window.print() for thermal (prints visible viewport only). To
-  // keep both paths reliable, un-collapse for the duration of any print /
-  // download / share operation and restore after. `afterprint` event
-  // handles the async native-dialog close for thermal; A4 path restores
-  // synchronously in the finally block.
+  // breaks window.print() for thermal (prints visible viewport only).
+  // Un-collapse the preview for the duration of any print / download
+  // operation and restore after.
+  //
+  // v1.10.27 — Reported: "after print, preview panel comes back up and
+  // hiding again have to click." Prior code registered an `afterprint`
+  // listener + 30s safety timeout, which never fired in two of the three
+  // paths and left the preview expanded:
+  //   - Download PDF has NO print dialog → afterprint never fires
+  //   - A4 iframe print → afterprint fires on iframe.contentWindow, not
+  //     the parent window we were listening on
+  //   - Only thermal window.print() correctly fired afterprint on parent
+  //
+  // Fix: restore in the finally block, unconditionally. window.print()
+  // blocks the JS thread until the native dialog closes on all desktop
+  // browsers, so the restore happens after the user is done with print.
+  // On mobile Safari where print() may not block, the DOM was already
+  // captured at the moment print() was invoked, so restoring right after
+  // is safe.
   const withPreviewOnScreen = async (fn) => {
     const wasCollapsed = previewCollapsed;
     if (!wasCollapsed) return fn();
@@ -2046,24 +2060,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // Two rAFs + a settle timeout so React commits the DOM change AND
     // the browser lays out the newly-visible preview before we snapshot.
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50))));
-    let restored = false;
-    const restore = () => {
-      if (restored) return;
-      restored = true;
-      setPreviewCollapsed(true);
-    };
-    // For thermal window.print(): browser fires 'afterprint' when the
-    // native dialog closes (either printed or cancelled). We hook it
-    // once so the preview snaps back once printing is really done.
-    const onAfterPrint = () => { restore(); window.removeEventListener('afterprint', onAfterPrint); };
-    window.addEventListener('afterprint', onAfterPrint);
     try {
       return await fn();
     } finally {
-      // Safety net: if afterprint never fires (Firefox quirks / user
-      // switched tabs mid-print), restore after 30s so the pane doesn't
-      // stay expanded forever.
-      setTimeout(restore, 30000);
+      setPreviewCollapsed(true);
     }
   };
 
