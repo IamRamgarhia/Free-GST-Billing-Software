@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.28] — 2026-07-14
+
+**Compact invoice layout + slower-device print reliability.**
+
+### Improved — Base invoice layout is significantly more compact
+
+**Reported.** "your format was great but some tweaks can make it
+compact and clear" — with reference screenshot showing an
+nVertex-style invoice that packs more into less vertical space.
+
+**Cause.** Our base spacing was designed for on-screen readability
+(2rem / 32px paddings and margins). Translated to PDF, that's ~10mm
+of whitespace between every section — great for viewing, wasteful
+for printing.
+
+**Fix.** Tightened base CSS across the invoice sections:
+
+- **Header:** padding `2rem 2.5rem 0 → 1rem 1.5rem 0`; margin-bottom
+  `2rem → 0.75rem`. Title font `2rem → 1.5rem`. Business-name font
+  `1.1rem → 1rem`. Header-right max-width `45% → 48%`.
+- **Parties (Bill-to / Ship-to / Place-of-supply):** margin
+  `0 2.5rem 2rem → 0 1.5rem 0.75rem`, padding `1.5rem → 0.85rem 1rem`.
+  Radius `10px → 8px`.
+- **Items table:** width `calc(100% - 3rem) → calc(100% - 2.5rem)`,
+  margin `0 1.5rem 1.5rem → 0 1.25rem 0.75rem`.
+- **Totals section:** padding `0 2.5rem → 0 1.5rem`, margin-bottom
+  `2.5rem → 1rem`. Amount-in-words right-padding `3rem → 1.5rem`.
+- **Footer (bank / signature):** padding `1.75rem 2.5rem 2rem → 1rem
+  1.5rem 1.25rem`, margin `0 2.5rem → 0 1.5rem`. Block-margin
+  `1.25rem → 0.75rem`.
+
+Net effect: ~25-30mm of dead whitespace removed on a typical A4
+invoice, so more items fit on page 1 before pagination and the
+overall density matches Vyapar / MargERP / Zoho templates.
+
+### Fixed — Print/Download blank on slower devices
+
+**Cause.** v1.10.27 waited two rAFs + 50ms after un-collapsing the
+preview from focus mode before capturing. On low-end Android
+devices, React commit + browser reflow after removing
+`position: absolute` didn't finish in 50ms → `html2canvas`
+sometimes captured a mid-layout snapshot with content in the wrong
+place.
+
+**Fix.** Settle bumped from 50ms → 200ms. On fast devices this is
+imperceptible; on slow devices it's the difference between a
+correct PDF and a garbled one.
+
+### Verified
+
+- `npx vite build` — clean
+- `node scripts/tax-test.mjs` — 31/31 pass
+- `node scripts/discount-modes-test.mjs` — 9/9 pass
+
+### Also confirmed as fixed (no work this release)
+
+- **GH #16** (@mehulkoradiya, "A bill with this invoice number
+  already exists") — fixed in v1.10.23 via auto-retry. Ticket ready
+  to close.
+- **GH #15** (@prk1988, "company logo not displayed") — fixed in
+  v1.10.16 via SettingsView auto-enabling `showLogo: true` on save
+  when a logo is present. Ticket ready to close.
+
+---
+
 ## [1.10.27] — 2026-07-13
 
 **Two focused-mode print polish fixes.**

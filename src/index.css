@@ -1780,19 +1780,22 @@ a:focus-visible {
 }
 
 /* Header */
+/* v1.10.28 — compacted base spacing (was 2rem 2.5rem 0 / margin-bottom 2rem).
+   Reported: "your format was great but some tweaks can make it compact and
+   clear". Matches the density of Vyapar / MargERP / nVertex-style templates. */
 .inv-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 2rem 2.5rem 0;
-  margin-bottom: 2rem;
+  padding: 1rem 1.5rem 0;
+  margin-bottom: 0.75rem;
 }
 
 .inv-title {
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: #0f172a;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .inv-meta { display: flex; flex-direction: column; gap: 0.2rem; }
@@ -1814,13 +1817,15 @@ a:focus-visible {
   font-weight: 600;
 }
 
-.inv-header-right { text-align: right; max-width: 45%; }
+/* v1.10.28 — header-right widened (45% → 48%) since header padding
+   dropped; business name a touch smaller to match the reference density. */
+.inv-header-right { text-align: right; max-width: 48%; }
 
 .inv-business-name {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.3rem;
 }
 
 .inv-business-details {
@@ -1837,14 +1842,16 @@ a:focus-visible {
 .inv-business-details strong { color: #0f172a; font-weight: 600; }
 
 /* Parties */
+/* v1.10.28 — margin 0 2.5rem 2rem → 0 1.5rem 0.75rem, padding 1.5rem → 0.85rem.
+   Tightens the billing/shipping/place-of-supply band by ~50% vertical. */
 .inv-parties {
   display: flex;
   justify-content: space-between;
-  margin: 0 2.5rem 2rem;
+  margin: 0 1.5rem 0.75rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 1.5rem;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
 }
 
 .inv-section-label {
@@ -1886,9 +1893,11 @@ a:focus-visible {
 }
 
 /* Items Table */
+/* v1.10.28 — table now fills 100% - 2.5rem (was 3rem) and bottom margin cut
+   in half so more items fit per page and less whitespace before totals. */
 .inv-table {
-  width: calc(100% - 3rem);
-  margin: 0 1.5rem 1.5rem;
+  width: calc(100% - 2.5rem);
+  margin: 0 1.25rem 0.75rem;
   border-collapse: collapse;
 }
 
@@ -1936,15 +1945,18 @@ a:focus-visible {
 }
 
 /* Totals */
+/* v1.10.28 — totals band tightened: padding 0 2.5rem → 0 1.5rem, margin
+   bottom 2.5rem → 1rem. Amount-in-words padding-right 3rem → 1.5rem so
+   totals can grow left without dead space. */
 .inv-totals-section {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 0 2.5rem;
-  margin-bottom: 2.5rem;
+  padding: 0 1.5rem;
+  margin-bottom: 1rem;
 }
 
-.inv-words { flex: 1; padding-right: 3rem; }
+.inv-words { flex: 1; padding-right: 1.5rem; }
 
 .inv-words-text {
   font-size: 0.825rem;
@@ -1990,18 +2002,20 @@ a:focus-visible {
 .inv-total-modern span:last-child { color: #fff; }
 
 /* Footer */
+/* v1.10.28 — footer padding + block spacing tightened. Bank details +
+   signature block used to eat ~50mm of vertical; now ~30mm. */
 .inv-footer {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 1.75rem 2.5rem 2rem;
+  padding: 1rem 1.5rem 1.25rem;
   border-top: 1px solid #e2e8f0;
-  margin: 0 2.5rem;
+  margin: 0 1.5rem;
 }
 
 .inv-footer-left { flex: 1; }
 
-.inv-footer-block { margin-bottom: 1.25rem; }
+.inv-footer-block { margin-bottom: 0.75rem; }
 .inv-footer-block:last-child { margin-bottom: 0; }
 
 .inv-footer-details {

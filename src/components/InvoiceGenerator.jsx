@@ -2057,9 +2057,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const wasCollapsed = previewCollapsed;
     if (!wasCollapsed) return fn();
     setPreviewCollapsed(false);
+    // v1.10.28 — bumped settle from 50ms → 200ms. Reported: PDF sometimes
+    // came out with content shoved to top-left on slower devices. Root
+    // cause: after removing position: absolute, browser needs a real layout
+    // pass; 50ms wasn't enough for React commit + reflow on low-end Android.
     // Two rAFs + a settle timeout so React commits the DOM change AND
     // the browser lays out the newly-visible preview before we snapshot.
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50))));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))));
     try {
       return await fn();
     } finally {
