@@ -5,6 +5,7 @@ import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
 import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
+import { openWhatsAppShare } from '../utils/share';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
@@ -2191,7 +2192,6 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   };
 
   const shareWhatsApp = () => {
-    const phone = client?.phone ? client.phone.replace(/\D/g, '') : '';
     // v1.10.29 — reported: "when i use whatsapp button it is sending
     // subtotal amount". Cause: this used `items.reduce((s, i) => s +
     // (i.quantity * i.rate), 0)` — that's the pre-tax subtotal, not the
@@ -2211,11 +2211,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       `*Total: ${total}*`,
     ];
     if (businessName) lines.push('', `— ${businessName}`);
-    const msg = lines.join('\n');
-    const encoded = encodeURIComponent(msg);
-    const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    // v1.10.12 — open in a new tab so the invoice form isn't lost.
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    openWhatsAppShare(client?.phone, lines.join('\n'));
   };
 
   const exportEWayBill = () => {

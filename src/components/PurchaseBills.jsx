@@ -618,7 +618,7 @@ export default function PurchaseBills() {
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
           </select>
           {search && (
-            <button className="icon-btn icon-btn-red" onClick={() => setSearch('')}><X size={15} /></button>
+            <button className="icon-btn icon-btn-red" onClick={() => setSearch('')} title="Clear search" aria-label="Clear search"><X size={15} /></button>
           )}
         </div>
       </div>

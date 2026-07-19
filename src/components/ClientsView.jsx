@@ -4,6 +4,7 @@ import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
+import { openWhatsAppShare } from '../utils/share';
 import { toast } from './Toast';
 
 // v1.10.31 — UI-C3: Shared helper to resolve the user's accent color as an
@@ -608,15 +609,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   };
 
   const shareWhatsApp = (bill) => {
-    const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = `*Invoice ${bill.invoiceNumber}*\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
-    const encoded = encodeURIComponent(msg);
-
-    const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    // v1.10.12 — open in a new tab so the user doesn't lose their
-    // current invoice / modal / draft. Reported: "push reminder and
-    // whatsapp in new tab not the tab or windows we are working on".
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    openWhatsAppShare(bill.clientPhone, msg);
   };
 
   const shareEmail = (bill) => {

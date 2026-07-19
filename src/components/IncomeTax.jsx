@@ -2,6 +2,26 @@ import { useState, useEffect, useMemo } from 'react';
 import { Calculator, Landmark, FileText, TrendingUp, Upload, Info, Check, X, ChevronRight, Briefcase, Clock, Download } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
 import { formatCurrency } from '../utils';
+import { getPrintSettings } from '../utils/printSettings';
+
+// v1.10.31 — Parse the user's chosen PDF accent (hex like "#1e40af") into
+// a [r, g, b] tuple for jsPDF's setFillColor / setDrawColor. Falls back to
+// the historical Tailwind blue-900 (30,64,175) when the setting is empty or
+// the user has explicitly disabled custom colors. Kept local to IncomeTax
+// so the module has no runtime cost when the ITR PDF isn't generated.
+function getAccentRGB() {
+  try {
+    const s = getPrintSettings();
+    if (!s?.userColorsEnabled) return [30, 64, 175];
+    const hex = String(s.pdfAccent || '').replace('#', '');
+    if (hex.length !== 6) return [30, 64, 175];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    if ([r, g, b].some(v => !Number.isFinite(v))) return [30, 64, 175];
+    return [r, g, b];
+  } catch { return [30, 64, 175]; }
+}
 import {
   compareRegimes,
   computeTax,
@@ -808,7 +828,7 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, p
         if (r.section !== currentSection) {
           currentSection = r.section;
           y += 4;
-          doc.setFillColor(30, 64, 175); doc.setTextColor(255);
+          doc.setFillColor(...getAccentRGB()); doc.setTextColor(255);
           doc.rect(15, y, 180, 6, 'F');
           doc.setFontSize(9); doc.setFont('helvetica', 'bold');
           doc.text(r.section, 17, y + 4);
@@ -833,7 +853,7 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, p
       if (advanceSchedule?.applies) {
         if (y > 245) { doc.addPage(); y = 20; }
         y += 4;
-        doc.setFillColor(30, 64, 175); doc.setTextColor(255);
+        doc.setFillColor(...getAccentRGB()); doc.setTextColor(255);
         doc.rect(15, y, 180, 6, 'F');
         doc.setFontSize(9); doc.setFont('helvetica', 'bold');
         doc.text('E — Advance Tax', 17, y + 4);

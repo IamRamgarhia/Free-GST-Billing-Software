@@ -205,7 +205,7 @@ export default function InventoryView() {
           <Search size={16} className="search-icon" />
           <input type="text" placeholder="Search by name or HSN..." value={search}
             onChange={e => setSearch(e.target.value)} className="search-input" />
-          {search && <button className="icon-btn" onClick={() => setSearch('')}><X size={14} /></button>}
+          {search && <button className="icon-btn" onClick={() => setSearch('')} title="Clear search" aria-label="Clear search"><X size={14} /></button>}
         </div>
       </div>
 

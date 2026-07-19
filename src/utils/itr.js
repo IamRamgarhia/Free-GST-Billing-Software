@@ -929,21 +929,50 @@ export function compute44ADA({ digitalReceipts = 0, cashReceipts = 0, declaredIn
  * Section 44AE — presumptive taxation for transporters (goods-carriage owners).
  * Applies when the assessee owns ≤ 10 goods vehicles at any time in the year.
  * Deemed income per vehicle per month:
- *   - Heavy (> 12,000 kg gross weight): ₹1,000 per tonne
- *   - Light: ₹7,500
+ *   - Heavy (> 12,000 kg gross weight): ₹1,000 per tonne of gross weight
+ *   - Light (≤ 12,000 kg gross weight):  ₹7,500 flat
+ *
+ * v1.10.31 — Parity with 44AD / 44ADA: added `isEligible`, negative-input
+ * clamping (was silently multiplying negatives into a negative deemed),
+ * a note when total vehicle-months / 12 exceeds 10 (proxy for the
+ * "> 10 vehicles at any time" statutory disqualifier), and a warning when
+ * declaredIncome is below the deemed floor. Prior version was permissive
+ * enough that a user could type -5 into "vehicles" and the calculator
+ * would report negative deemed income without complaint.
  */
 export function compute44AE({ heavyVehicleMonths = 0, heavyVehicleTonnage = 0, lightVehicleMonths = 0, declaredIncome }) {
-  const heavy = round2(Number(heavyVehicleMonths) * Number(heavyVehicleTonnage) * 1000);
-  const light = round2(Number(lightVehicleMonths) * 7500);
+  const hMonths = Math.max(0, Number(heavyVehicleMonths) || 0);
+  const hTonnes = Math.max(0, Number(heavyVehicleTonnage) || 0);
+  const lMonths = Math.max(0, Number(lightVehicleMonths) || 0);
+  const heavy = round2(hMonths * hTonnes * 1000);
+  const light = round2(lMonths * 7500);
   const deemed = heavy + light;
   const finalIncome = Math.max(deemed, Number(declaredIncome) || 0);
+
+  const notes = [];
+  // A single vehicle owned for a full FY contributes 12 vehicle-months.
+  // So (hMonths + lMonths) / 12 approximates the peak vehicle count. If
+  // that's > 10, the assessee is outside §44AE eligibility. This is a
+  // proxy — the statute checks vehicle count "at any time in the year",
+  // not the annual average — so we surface it as a warning rather than
+  // hard-disqualification.
+  const impliedFleet = (hMonths + lMonths) / 12;
+  const isEligible = impliedFleet <= 10.0001;
+  if (!isEligible) {
+    notes.push(`Implied fleet size ≈ ${impliedFleet.toFixed(1)} vehicles exceeds the §44AE cap of 10 goods carriages. Assessee must maintain regular books and file ITR-3 with a §44AB audit report.`);
+  }
+  if (Number(declaredIncome) && Number(declaredIncome) < deemed) {
+    notes.push(`Declared income (${formatINR(declaredIncome)}) is less than the presumptive minimum (${formatINR(deemed)}). Assessee must maintain full books and file ITR-3.`);
+  }
+
   return {
     heavyIncome: heavy,
     lightIncome: light,
     deemedIncome: deemed,
     presumptiveIncome: round2(finalIncome),
+    isEligible,
     section: '44AE',
-    notes: [],
+    notes,
   };
 }
 
@@ -1096,6 +1125,57 @@ export function compute234CInterest(schedule) {
     interest += shortfall * 0.01;
   }
   return round2(interest);
+}
+
+/**
+ * Section 234A interest — for late filing of the return past the due date.
+ *
+ * v1.10.31 — Section was entirely absent from the app; only 234B and 234C
+ * were wired. 234A is a distinct charge (late FILING, not late PAYMENT)
+ * that catches a common real-world situation: a taxpayer who paid enough
+ * advance tax to escape 234B and 234C, but files their ITR after the due
+ * date (say, 15-Aug instead of 31-Jul). They still owe 1% per month on
+ * the unpaid net liability from the day after the due date until filing.
+ *
+ * Rate:   1% per month or part of a month (Rule 119A month counting)
+ * Base:   net tax payable after TDS + advance tax + self-assessment paid
+ *         so far — the "self-assessment tax outstanding on due date"
+ * Period: (due date + 1 day) → filing date
+ *
+ * Due date defaults (individual, non-audit): 31-Jul of AY.
+ * For audit cases (44AB, transfer pricing) it's 31-Oct — caller supplies
+ * `dueDate` explicitly for those.
+ *
+ * @param {number} netTaxPayable — total tax after 87A rebate + surcharge + cess
+ * @param {number} taxPaid — advance tax + TDS + self-assessment tax already paid
+ * @param {string} filingDate — ISO date the ITR was actually filed
+ * @param {string} [dueDate] — statutory due date; defaults to 31-Jul of the AY
+ * @param {string} [fy] — FY string; used only to derive default dueDate
+ * @returns {number}
+ */
+export function compute234AInterest(netTaxPayable, taxPaid, filingDate, dueDate, fy = CURRENT_FY) {
+  const outstanding = Math.max(0, (Number(netTaxPayable) || 0) - (Number(taxPaid) || 0));
+  if (outstanding <= 0) return 0;
+  // Derive default due date from FY (31-Jul of AY = FY-end year + 1).
+  let due;
+  if (dueDate) {
+    due = new Date(dueDate);
+  } else {
+    const startYear = Number(String(fy).split('-')[0]);
+    if (!Number.isFinite(startYear)) return 0;
+    due = new Date(`${startYear + 1}-07-31`);
+  }
+  const filed = filingDate ? new Date(filingDate) : new Date();
+  if (!(filed > due)) return 0;
+  // Rule 119A month counting: same logic as 234B — count calendar months
+  // between due and filing date, count any partial month as one full month.
+  const yearDiff = filed.getFullYear() - due.getFullYear();
+  const monthDiff = filed.getMonth() - due.getMonth();
+  let months = yearDiff * 12 + monthDiff;
+  if (filed.getDate() > due.getDate()) months += 1;
+  months = Math.max(1, months);
+  const shortfall = rule119A(outstanding);
+  return round2(shortfall * 0.01 * months);
 }
 
 /**

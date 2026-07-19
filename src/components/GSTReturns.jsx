@@ -903,8 +903,30 @@ export default function GSTReturns() {
         hsnDetailed[key].totalValue += split.taxable + split.cgst + split.sgst + split.utgst + split.igst + split.cess;
       });
     });
-    downloadCSV('GSTR1_HSN_Summary.csv', ['HSN', 'Description', 'UQC', 'Total Quantity', 'Rate %', 'Taxable Value', 'IGST Amount', 'CGST Amount', 'SGST Amount', 'Cess Amount', 'Total Value'],
-      Object.values(hsnDetailed).map(r => [r.hsn, r.desc, r.uqc, r.qty, r.rate, r.taxable.toFixed(2), r.igst.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.cess.toFixed(2), r.totalValue.toFixed(2)]));
+    // v1.10.31 — Column order + header labels now match the GSTR-1
+    // offline utility's Table 12 CSV template (v3.1.6+). The prior order
+    // put "Total Value" LAST and used "Rate %" — the portal importer
+    // rejects those with "Invalid file format". Correct order (portal):
+    //   HSN, Description, UQC, Total Quantity, Total Value, Rate,
+    //   Taxable Value, Integrated Tax Amount, Central Tax Amount,
+    //   State/UT Tax Amount, Cess Amount
+    downloadCSV(
+      'GSTR1_HSN_Summary.csv',
+      ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Rate', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount', 'State/UT Tax Amount', 'Cess Amount'],
+      Object.values(hsnDetailed).map(r => [
+        r.hsn,
+        r.desc,
+        r.uqc,
+        r.qty,
+        r.totalValue.toFixed(2),
+        r.rate,
+        r.taxable.toFixed(2),
+        r.igst.toFixed(2),
+        r.cgst.toFixed(2),
+        r.sgst.toFixed(2),
+        r.cess.toFixed(2),
+      ])
+    );
     toast('HSN CSV downloaded — GSTR-1 Table 12 format', 'success');
   };
 

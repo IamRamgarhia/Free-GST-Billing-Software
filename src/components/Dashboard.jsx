@@ -3,6 +3,7 @@ import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search
 import HelpButton from './HelpButton';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
+import { openWhatsAppShare } from '../utils/share';
 import { toast } from './Toast';
 
 // v1.10.13 — `bg` values switched from opaque tints (#fffbeb / #f5f3ff /
@@ -768,7 +769,6 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   };
 
   const shareWhatsApp = async (bill) => {
-    const phone = bill.clientPhone ? bill.clientPhone.replace(/\D/g, '') : '';
     const msg = buildShareMessage(bill);
     // v1.10.22 — try the native Web Share API first, with the actual PDF
     // attached. On mobile Chrome / Safari the share sheet lets the user
@@ -805,9 +805,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
         sessionStorage.setItem('fgsb_whatsappDesktopExplained', '1');
       }
     } catch { /* sessionStorage sandboxed — skip */ }
-    const encoded = encodeURIComponent(msg);
-    const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    openWhatsAppShare(bill.clientPhone, msg);
   };
 
   const shareEmail = (bill) => {
@@ -830,7 +828,6 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
 
   const sendReminder = (bill) => {
     const clientPhone = bill.clientPhone || bill.data?.client?.phone || '';
-    const phone = clientPhone.replace(/\D/g, '');
     const clientName = bill.clientName || 'Sir/Madam';
     const dueDate = bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN') : 'N/A';
     const businessName = profile?.businessName || 'Our Company';
@@ -854,9 +851,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       : isOverdueDate
         ? `Hi ${clientName}, this is a gentle reminder that Invoice ${bill.invoiceNumber} for ${outstandingStr} was due on ${dueDate}. Kindly arrange the payment at your earliest convenience. Thank you! - ${businessName}`
         : `Hi ${clientName}, this is a gentle reminder about the pending payment of ${outstandingStr} on Invoice ${bill.invoiceNumber}. Kindly arrange the payment at your earliest convenience. Thank you! - ${businessName}`;
-    const encoded = encodeURIComponent(msg);
-    const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    openWhatsAppShare(clientPhone, msg);
   };
 
   const getClientPhone = (bill) => {

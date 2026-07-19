@@ -295,7 +295,7 @@ export default function RecurringInvoices() {
                 </div>
                 <div className="line-item-delete">
                   {form.items.length > 1 && (
-                    <button className="icon-btn icon-btn-red" onClick={() => removeItem(idx)}><X size={14} /></button>
+                    <button className="icon-btn icon-btn-red" onClick={() => removeItem(idx)} title="Remove item" aria-label="Remove item"><X size={14} /></button>
                   )}
                 </div>
               </div>

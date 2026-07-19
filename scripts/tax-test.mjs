@@ -15,10 +15,12 @@ import {
   getStateCode,
 } from '../src/utils.js';
 import {
+  compute44AE,
   computeSurcharge,
   computeAdvanceTaxSchedule,
   compute234CInterest,
   compute234BInterest,
+  compute234AInterest,
   DEDUCTION_CAPS,
   effectiveDeductionCap,
   computeTax,
@@ -379,6 +381,47 @@ console.log('\n[V31-H4] Rule 119A ₹100 rounding on 234B shortfall');
   const sched = { applies: true, netLiability: 149_999, totalPaid: 0, fy: '2024-25' };
   const int234b = compute234BInterest(sched, '2025-05-31');
   approx(int234b, 2998, 'Rule 119A: shortfall ₹1,49,999 → interest on ₹1,49,900');
+}
+
+console.log('\n[V31-M2] Section 234A — late-filing interest');
+{
+  // FY 25-26 (due 31-Jul-2026). Filed 15-Aug-2026 → 1 month at 1%.
+  // Outstanding ₹1L → interest = 100_000 × 0.01 × 1 = ₹1,000.
+  const int1 = compute234AInterest(100_000, 0, '2026-08-15', undefined, '2025-26');
+  approx(int1, 1000, '₹1L outstanding, 15 days late (rounded to 1 month) → ₹1,000');
+  // Filed exactly on due date → ₹0.
+  const int2 = compute234AInterest(100_000, 0, '2026-07-31', undefined, '2025-26');
+  approx(int2, 0, 'Filed on due date → no 234A');
+  // Filed 3 months + 1 day late → 4 months × 1% × ₹1L = ₹4,000.
+  const int3 = compute234AInterest(100_000, 0, '2026-11-01', undefined, '2025-26');
+  approx(int3, 4000, '3m+1d late (Rule 119A: rounds up to 4 months) → ₹4,000');
+  // Taxes fully paid via TDS + advance → no outstanding → no 234A.
+  const int4 = compute234AInterest(100_000, 100_000, '2026-08-15', undefined, '2025-26');
+  approx(int4, 0, 'Zero outstanding (fully paid via TDS/advance) → no 234A');
+  // Rule 119A rounding — ₹1,49,999 outstanding → interest on ₹1,49,900.
+  const int5 = compute234AInterest(149_999, 0, '2026-08-15', undefined, '2025-26');
+  approx(int5, 1499, 'Rule 119A: ₹1,49,999 rounded down to ₹1,49,900 for interest calc');
+  // Explicit dueDate override (audit case, 31-Oct-2026).
+  const int6 = compute234AInterest(100_000, 0, '2026-11-15', '2026-10-31', '2025-26');
+  approx(int6, 1000, 'Audit case: due 31-Oct, filed 15-Nov → 1 month');
+}
+
+console.log('\n[V31-M3] §44AE parity — isEligible, negative clamp, declared-below-deemed');
+{
+  // 2 heavy vehicles × 12 tonnes × 12 months → ₹2,88,000 deemed.
+  const ok = compute44AE({ heavyVehicleMonths: 24, heavyVehicleTonnage: 12, lightVehicleMonths: 0 });
+  eq(ok.isEligible, true, 'Small fleet within 10-vehicle cap → eligible');
+  approx(ok.deemedIncome, 288_000, '2 vehicles × 12t × 12m × ₹1,000 = ₹2,88,000');
+  // 11 heavy vehicles × 12 months → 132 vehicle-months → implied fleet 11 > 10.
+  const over = compute44AE({ heavyVehicleMonths: 132, heavyVehicleTonnage: 15, lightVehicleMonths: 0 });
+  eq(over.isEligible, false, 'Implied fleet > 10 → NOT eligible');
+  truthy(over.notes.some(n => /fleet.*10/i.test(n)), 'Note explains the 10-vehicle disqualifier');
+  // Negative input is clamped to 0 (was silently producing negative income).
+  const neg = compute44AE({ heavyVehicleMonths: -5, heavyVehicleTonnage: 15, lightVehicleMonths: 0 });
+  approx(neg.deemedIncome, 0, 'Negative vehicle-months clamped to 0');
+  // Declared income below deemed → warning added.
+  const under = compute44AE({ heavyVehicleMonths: 24, heavyVehicleTonnage: 12, lightVehicleMonths: 0, declaredIncome: 100_000 });
+  truthy(under.notes.some(n => /less than the presumptive minimum/i.test(n)), 'Warns when declared < deemed');
 }
 
 console.log('\n────────────────────────────────────────');
