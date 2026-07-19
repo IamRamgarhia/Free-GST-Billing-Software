@@ -904,7 +904,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
 
       {overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}
-          style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '0.85rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          style={{ background: 'var(--danger-light)', border: '1px solid var(--danger-light)', borderRadius: 10, padding: '0.85rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <AlertTriangle size={20} style={{ color: '#dc2626', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 700, color: '#dc2626' }}>

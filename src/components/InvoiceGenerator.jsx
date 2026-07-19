@@ -122,9 +122,18 @@ const DEFAULT_OPTIONS = {
   showTDS: false,
   tdsSection: '194Q',
   tdsRate: 0.1,
+  // v1.10.31 — Data-F2.3: `tdsCumulativeThisYear` / `tcsCumulativeThisYear`
+  // were read by the totals memo and by `computeInvoiceTotals`'s ₹50L
+  // threshold logic, but never declared in DEFAULT_OPTIONS. That meant a
+  // fresh invoice had `undefined` for both, so the marginal-only threshold
+  // logic silently charged TDS/TCS from rupee-one instead of only after
+  // the client's running annual cumulative crossed ₹50L. Now the defaults
+  // exist; a future feature can auto-populate them from prior bills.
+  tdsCumulativeThisYear: 0,
   showTCS: false,
   tcsSection: '206C(1H)',
   tcsRate: 0.1,
+  tcsCumulativeThisYear: 0,
   customTitle: '',
   currency: 'INR',
   exchangeRate: '',

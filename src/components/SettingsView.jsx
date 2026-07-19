@@ -1066,7 +1066,7 @@ export default function SettingsView({ onSaved }) {
                 <div className="flex gap-2 mt-2">
                   {driveConnected ? (
                     <>
-                      <span className="status-badge" style={{ background: '#ecfdf5', color: '#059669' }}>
+                      <span className="status-badge" style={{ background: 'var(--info-bg)', color: 'var(--info-text)' }}>
                         <Cloud size={14} /> Connected
                       </span>
                       <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}

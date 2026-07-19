@@ -5,6 +5,13 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+// v1.10.31 — Data-F3.1: share computeInvoiceTotals with the client so
+// server-generated recurring invoices honour UTGST, cess, RCM, TDS/TCS,
+// discount modes (percent / unit / with-tax), tax-inclusive back-calc,
+// invoice-level discount, and round-off. Previously the recurring auto-fire
+// re-implemented totals inline and silently reintroduced every bug the
+// v1.10.1 extraction fixed. Same source of truth now.
+import { computeInvoiceTotals } from './src/utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
@@ -228,6 +235,35 @@ app.post('/api/bills', (req, res) => {
   res.json({ success: true });
 });
 
+// v1.10.31 — Data-F9.1: block deletion of a bill that's a client-credit
+// SOURCE for another live bill. Deleting it would leave the target bill
+// showing "paid" via credit-applied without a real source, breaking the
+// dual-entry integrity guaranteed by v1.10.24. Client can force-delete
+// by passing `?force=1` (they accept the ledger inconsistency).
+function findCreditDependents(billId) {
+  try {
+    const billsDir = path.join(DATA_DIR, 'bills');
+    const dependents = [];
+    for (const f of fs.readdirSync(billsDir).filter(n => n.endsWith('.json'))) {
+      let other;
+      try { other = readJSON(path.join(billsDir, f), null); } catch { continue; }
+      if (!other || other.id === billId) continue;
+      const payments = other.payments || other.data?.payments || [];
+      for (const p of payments) {
+        if (p?.mode !== 'credit-applied') continue;
+        const sources = p?.creditSourceBillIds || [];
+        if (sources.includes(billId)) {
+          dependents.push({ id: other.id, invoiceNumber: other.invoiceNumber, amount: p.amount });
+          break;
+        }
+      }
+    }
+    return dependents;
+  } catch {
+    return [];
+  }
+}
+
 app.delete('/api/bills/:id', (req, res) => {
   // v1.9.5 — soft delete: move to data/trash/ instead of unlinking so
   // users can restore within 30 days. Query ?permanent=1 skips trash and
@@ -235,6 +271,21 @@ app.delete('/api/bills/:id', (req, res) => {
   const fname = safeFileName(req.params.id) + '.json';
   const filePath = path.join(DATA_DIR, 'bills', fname);
   if (!fs.existsSync(filePath)) return res.json({ success: true });
+
+  // v1.10.31 — Data-F9.1: client-credit dependency check. Blocks silent
+  // deletion of a credit source that would leave a paid-via-credit target
+  // bill dangling. Force override via ?force=1.
+  const force = req.query.force === '1' || req.query.force === 'true';
+  if (!force) {
+    const dependents = findCreditDependents(req.params.id);
+    if (dependents.length > 0) {
+      return res.status(409).json({
+        error: 'client-credit-dependency',
+        message: 'This bill was used as a client-credit source on another invoice. Deleting it would leave that invoice paid via credit that no longer has a real source.',
+        dependents,
+      });
+    }
+  }
   if (req.query.permanent === '1') {
     try { fs.unlinkSync(filePath); } catch { /* ignore */ }
     return res.json({ success: true, permanent: true });
@@ -515,91 +566,99 @@ app.get('/api/export', (req, res) => {
 });
 
 app.post('/api/import', (req, res) => {
-  // v1.10.0 — Match POST /api/bills' overwrite semantics. Previously
-  // `/api/import` silently overwrote every same-id record — a bad or
-  // stale backup restored on top of newer invoices destroyed them.
-  // Now: skip existing bills unless ?overwrite=1. Report both counts.
+  // v1.10.0 — Match POST /api/bills' overwrite semantics for bills.
+  // v1.10.31 — Data-F5.1 fix: overwrite gating now applies to EVERY
+  // collection, not just bills. Previously clients / templates / products
+  // / expenses / recurring / receipts / profiles / purchases / meta were
+  // ALWAYS overwritten regardless of the `?overwrite` flag. A user
+  // restoring an old backup expecting a bill-only merge lost every new
+  // client / product / template they'd added since the backup — plus the
+  // meta counter reset caused invoice-number 409 loops on next save.
+  // Also v1.10.31 — Data-F12.2: after any import, scan the imported bills
+  // and reconcile the meta counter with each prefix's max existing suffix
+  // so the next reservation doesn't collide.
   const data = req.body;
   const overwrite = req.query.overwrite === '1' || req.query.overwrite === 'true';
-  let billCount = 0, billSkipped = 0, clientCount = 0, templateCount = 0, productCount = 0;
+  const counts = {
+    billCount: 0, billSkipped: 0,
+    clientCount: 0, clientSkipped: 0,
+    templateCount: 0, templateSkipped: 0,
+    productCount: 0, productSkipped: 0,
+    expenseCount: 0, expenseSkipped: 0,
+    recurringCount: 0, recurringSkipped: 0,
+    receiptCount: 0, receiptSkipped: 0,
+    profileCount: 0, profileSkipped: 0,
+    purchaseCount: 0, purchaseSkipped: 0,
+  };
 
+  // Helper: upsert one entity to a directory, honouring the overwrite flag.
+  const upsertOne = (dirName, entity, countKey, skipKey) => {
+    if (!entity?.id) return;
+    const p = path.join(DATA_DIR, dirName, safeFileName(entity.id) + '.json');
+    if (!overwrite && fs.existsSync(p)) { counts[skipKey]++; return; }
+    writeJSON(p, entity);
+    counts[countKey]++;
+  };
+
+  // Profile is a singleton (single file); overwrite-gated same way.
   if (data.profile) {
-    writeJSON(PROFILE_PATH, data.profile);
-  }
-  if (data.bills && Array.isArray(data.bills)) {
-    for (const bill of data.bills) {
-      if (bill.id) {
-        const p = path.join(DATA_DIR, 'bills', safeFileName(bill.id) + '.json');
-        if (!overwrite && fs.existsSync(p)) { billSkipped++; continue; }
-        writeJSON(p, bill);
-        billCount++;
-      }
+    if (overwrite || !fs.existsSync(PROFILE_PATH)) {
+      writeJSON(PROFILE_PATH, data.profile);
     }
   }
-  if (data.clients && Array.isArray(data.clients)) {
-    for (const cli of data.clients) {
-      if (cli.id) {
-        writeJSON(path.join(DATA_DIR, 'clients', safeFileName(cli.id) + '.json'), cli);
-        clientCount++;
-      }
-    }
-  }
-  if (data.termsTemplates && Array.isArray(data.termsTemplates)) {
-    for (const tpl of data.termsTemplates) {
-      if (tpl.id) {
-        writeJSON(path.join(DATA_DIR, 'templates', safeFileName(tpl.id) + '.json'), tpl);
-        templateCount++;
-      }
-    }
-  }
-  if (data.products && Array.isArray(data.products)) {
-    for (const prod of data.products) {
-      if (prod.id) {
-        writeJSON(path.join(DATA_DIR, 'products', safeFileName(prod.id) + '.json'), prod);
-        productCount++;
-      }
-    }
-  }
-  if (data.expenses && Array.isArray(data.expenses)) {
-    for (const exp of data.expenses) {
-      if (exp.id) {
-        writeJSON(path.join(DATA_DIR, 'expenses', safeFileName(exp.id) + '.json'), exp);
-      }
-    }
-  }
-  if (data.recurring && Array.isArray(data.recurring)) {
-    for (const rec of data.recurring) {
-      if (rec.id) {
-        writeJSON(path.join(DATA_DIR, 'recurring', safeFileName(rec.id) + '.json'), rec);
-      }
-    }
-  }
-  if (data.receipts && Array.isArray(data.receipts)) {
-    for (const rcp of data.receipts) {
-      if (rcp.id) {
-        writeJSON(path.join(DATA_DIR, 'receipts', safeFileName(rcp.id) + '.json'), rcp);
-      }
-    }
-  }
-  if (data.profiles && Array.isArray(data.profiles)) {
-    for (const prof of data.profiles) {
-      if (prof.id) {
-        writeJSON(path.join(DATA_DIR, 'profiles', safeFileName(prof.id) + '.json'), prof);
-      }
-    }
-  }
-  if (data.purchases && Array.isArray(data.purchases)) {
-    for (const pur of data.purchases) {
-      if (pur.id) {
-        writeJSON(path.join(DATA_DIR, 'purchases', safeFileName(pur.id) + '.json'), pur);
-      }
-    }
-  }
+  (data.bills || []).forEach(b => upsertOne('bills', b, 'billCount', 'billSkipped'));
+  (data.clients || []).forEach(c => upsertOne('clients', c, 'clientCount', 'clientSkipped'));
+  (data.termsTemplates || []).forEach(t => upsertOne('templates', t, 'templateCount', 'templateSkipped'));
+  (data.products || []).forEach(p => upsertOne('products', p, 'productCount', 'productSkipped'));
+  (data.expenses || []).forEach(e => upsertOne('expenses', e, 'expenseCount', 'expenseSkipped'));
+  (data.recurring || []).forEach(r => upsertOne('recurring', r, 'recurringCount', 'recurringSkipped'));
+  (data.receipts || []).forEach(r => upsertOne('receipts', r, 'receiptCount', 'receiptSkipped'));
+  (data.profiles || []).forEach(p => upsertOne('profiles', p, 'profileCount', 'profileSkipped'));
+  (data.purchases || []).forEach(p => upsertOne('purchases', p, 'purchaseCount', 'purchaseSkipped'));
+
+  // meta.json — same gating. Previously always overwrote → counters could
+  // regress below existing bill numbers → collision loop on next save.
   if (data.meta) {
-    writeJSON(META_PATH, data.meta);
+    if (overwrite || !fs.existsSync(META_PATH)) {
+      writeJSON(META_PATH, data.meta);
+    }
   }
 
-  res.json({ billCount, billSkipped, clientCount, templateCount, productCount, hasProfile: !!data.profile });
+  // v1.10.31 — Data-F12.2: reconcile meta counter with imported bill nums.
+  // For every bill just imported (or already on disk), extract the numeric
+  // suffix from its invoice number. Bump each `counter_<PREFIX>` in meta
+  // to at least max(existing) so the next reservation doesn't collide.
+  try {
+    const meta = readJSON(META_PATH, {});
+    const billFiles = fs.readdirSync(path.join(DATA_DIR, 'bills')).filter(f => f.endsWith('.json'));
+    const maxByPrefix = {};
+    for (const f of billFiles) {
+      let bill;
+      try { bill = readJSON(path.join(DATA_DIR, 'bills', f), null); } catch { continue; }
+      const num = String(bill?.invoiceNumber || bill?.id || '');
+      // Extract prefix + last numeric suffix (e.g. INV/2026-27/0007 → prefix INV, suffix 7)
+      const m = num.match(/^([A-Z]+)[\W_].*?(\d+)\s*$/i);
+      if (!m) continue;
+      const prefix = m[1].toUpperCase();
+      const suffix = parseInt(m[2], 10);
+      if (!Number.isFinite(suffix)) continue;
+      if (!maxByPrefix[prefix] || suffix > maxByPrefix[prefix]) maxByPrefix[prefix] = suffix;
+    }
+    let metaChanged = false;
+    for (const [prefix, maxNum] of Object.entries(maxByPrefix)) {
+      const key = `counter_${prefix}`;
+      const existing = Number(meta[key]) || 0;
+      if (maxNum > existing) {
+        meta[key] = maxNum;
+        metaChanged = true;
+      }
+    }
+    if (metaChanged) writeJSON(META_PATH, meta);
+  } catch (err) {
+    console.error('Post-import counter reconciliation failed:', err);
+  }
+
+  res.json({ ...counts, hasProfile: !!data.profile });
 });
 
 // ========================
@@ -828,7 +887,11 @@ function runDailyBackup() {
     ensureDir(target);
     const entries = fs.readdirSync(DATA_DIR, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.name === 'backups' || entry.name === 'trash') continue;
+      // v1.10.31 — Data-F7.1: `trash` is now INCLUDED in daily backups.
+      // Previously excluded → users restoring last week's backup lost every
+      // bill they'd trashed since, breaking the 30-day soft-delete promise.
+      // We still skip `backups` (no recursion) and log files.
+      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt') continue;
       const src = path.join(DATA_DIR, entry.name);
       const dst = path.join(target, entry.name);
       if (entry.isDirectory()) copyDirRecursive(src, dst);
@@ -1317,40 +1380,33 @@ async function processDueRecurring() {
       const invoiceNumber = nextInvoiceNumber(prefix);
       const invoiceDate = today;
 
-      // Recompute totals — must match the frontend's calc shape closely, and
-      // MUST route the tax split correctly. Pre-v1.6.8 this hardcoded
-      // cgst/sgst = taxTotal/2 for every bill, so every interstate recurring
-      // template shipped as intrastate B2B → wrong tax bucket → wrong GSTR-1.
-      let subtotal = 0, totalDiscount = 0, taxTotal = 0;
-      for (const item of (tpl.items || [])) {
-        const amount = (item.quantity || 0) * (item.rate || 0);
-        const discount = item.discount || 0;
-        const afterDiscount = Math.max(0, amount - discount);
-        subtotal += amount;
-        totalDiscount += discount;
-        taxTotal += (afterDiscount * (item.taxPercent || 0)) / 100;
-      }
-      const totalAmount = subtotal - totalDiscount + taxTotal;
-
-      // Interstate detection mirrors InvoiceGenerator.jsx / InvoicePreview.jsx:
-      //   - SEZ client → always interstate
-      //   - Explicit placeOfSupply override → compare that to seller state
-      //   - Otherwise → seller state vs client state
-      const norm = (s) => (s || '').trim().toLowerCase();
-      const sellerState = norm(profile.state);
-      const clientState = norm(tpl.clientState);
-      const pos = norm(tpl.placeOfSupply);
-      const isInterstate = !!tpl.isSEZ
-        || (pos && sellerState && pos !== sellerState)
-        || (sellerState && clientState && sellerState !== clientState);
-
-      const totals = {
-        subtotal, totalDiscount, taxableAmount: subtotal - totalDiscount,
-        cgst: isInterstate ? 0 : taxTotal / 2,
-        sgst: isInterstate ? 0 : taxTotal / 2,
-        igst: isInterstate ? taxTotal : 0,
-        total: totalAmount, cess: 0, tcsAmount: 0, tdsAmount: 0, roundOff: 0,
+      // v1.10.31 — Data-F3.1: use shared computeInvoiceTotals so every math
+      // fix (UTGST, cess, RCM, TDS/TCS ₹50L threshold, discount modes,
+      // tax-inclusive, invoice-level discount, round-off) applies here too.
+      // Prior inline math didn't recognise ANY of those and silently produced
+      // wrong tax buckets for recurring bills. All the v1.10.1 audit fixes
+      // were being reintroduced here.
+      const client = {
+        name: tpl.clientName,
+        state: tpl.clientState,
+        gstin: tpl.clientGstin,
+        isSEZ: !!tpl.isSEZ,
       };
+      const details = { placeOfSupply: tpl.placeOfSupply };
+      const invoiceOptions = tpl.invoiceOptions || {};
+      const totals = computeInvoiceTotals({
+        items: tpl.items || [],
+        profile,
+        client,
+        details,
+        showGST: invoiceOptions.showGST !== false,
+        taxInclusive: !!tpl.taxInclusive,
+        invoiceOptions,
+      });
+      const totalAmount = totals.total;
+      const taxTotal = totals.totalTaxAmount;
+      const subtotal = totals.subtotal;
+      const totalDiscount = totals.totalDiscount;
 
       const bill = {
         id: invoiceNumber,

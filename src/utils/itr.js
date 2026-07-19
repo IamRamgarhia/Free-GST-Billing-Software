@@ -1,15 +1,35 @@
 // ============================================================================
-// Indian Income Tax helpers — FY 2024-25 (Assessment Year 2025-26)
+// Indian Income Tax helpers — FY 2024-25 and FY 2025-26 (current filing season)
 // ----------------------------------------------------------------------------
 // Everything here is pure math. UI components in components/IncomeTax*.jsx
 // consume these helpers. Kept in a separate file so the tax logic can be
 // unit-tested and audited by a CA without loading React.
+//
+// v1.10.31 — Comprehensive tax law update from audit findings:
+//   - Budget 2025 new-regime slabs + ₹60k / ₹12L 87A rebate for FY 25-26
+//   - Finance (No. 2) Act 2024 STCG 20%, LTCG 12.5% + ₹1.25L exemption
+//     (effective 23-Jul-2024)
+//   - Senior (60+) and super-senior (80+) old-regime basic exemption slabs
+//   - Rule 119A ₹100 rounding for 234B / 234C
+//   - Marginal relief on surcharge threshold crossings
+//   - 80CCD(2) capped at 10 / 14% of salary
+//   - effectiveDeductionCap wired into computeAllowedDeductions
+//   - 87A eligibility uses total-income base (includes capital gains)
+//   - Special-rate tax (LTCG/STCG) surcharge capped at 15% end-to-end
 // ============================================================================
+
+/**
+ * v1.10.31 — Current filing season. Change ONE constant here; every
+ * FY-relative slab / rate / due-date resolves via this. Setting a different
+ * FY as CURRENT_FY makes the app default to that year end-to-end. Callers
+ * that need a specific FY pass it explicitly.
+ */
+export const CURRENT_FY = '2025-26';
 
 // ----------------------------- Regimes ---------------------------------------
 
 /**
- * OLD REGIME slabs for FY 2024-25 (individuals below 60 years).
+ * OLD REGIME slabs — individuals below 60 years.
  *
  * Rebate under Section 87A: full rebate if total income ≤ ₹5L (up to ₹12.5k tax).
  * Standard Deduction: ₹50,000 (for salaried / pensioners only).
@@ -20,6 +40,8 @@
  *   > ₹1Cr up to ₹2Cr  → 15%
  *   > ₹2Cr up to ₹5Cr  → 25%
  *   > ₹5Cr             → 37% (or 25% if opted for 115BAC — new regime)
+ *
+ * v1.10.31 — Old-regime slabs unchanged in Budget 2025.
  */
 export const OLD_REGIME_SLABS = [
   { upto: 250_000, rate: 0 },
@@ -28,8 +50,36 @@ export const OLD_REGIME_SLABS = [
   { upto: Infinity, rate: 0.30 },
 ];
 
+// Senior citizen (60+ but < 80) old-regime slabs — ₹3L basic exemption.
+export const OLD_REGIME_SLABS_SENIOR = [
+  { upto: 300_000, rate: 0 },
+  { upto: 500_000, rate: 0.05 },
+  { upto: 1_000_000, rate: 0.20 },
+  { upto: Infinity, rate: 0.30 },
+];
+
+// Super senior (80+) old-regime slabs — ₹5L basic exemption.
+export const OLD_REGIME_SLABS_SUPER_SENIOR = [
+  { upto: 500_000, rate: 0 },
+  { upto: 1_000_000, rate: 0.20 },
+  { upto: Infinity, rate: 0.30 },
+];
+
 /**
- * NEW REGIME (Section 115BAC) slabs for FY 2024-25 as of Union Budget 2024:
+ * v1.10.31 — Pick the right old-regime slab table by taxpayer age.
+ *   age >= 80  → super senior (₹5L basic exemption)
+ *   60 ≤ age < 80 → senior (₹3L basic exemption)
+ *   else → regular (₹2.5L basic exemption)
+ */
+export function getOldRegimeSlabs(age) {
+  const a = Number(age) || 0;
+  if (a >= 80) return OLD_REGIME_SLABS_SUPER_SENIOR;
+  if (a >= 60) return OLD_REGIME_SLABS_SENIOR;
+  return OLD_REGIME_SLABS;
+}
+
+/**
+ * NEW REGIME (Section 115BAC) — Budget 2024 slabs for FY 2024-25:
  *   0     - 3L  : 0%
  *   3L    - 7L  : 5%
  *   7L    - 10L : 10%
@@ -40,11 +90,8 @@ export const OLD_REGIME_SLABS = [
  * Rebate under Section 87A (new regime): up to ₹25,000 for total income ≤ ₹7L
  * (effectively zero tax up to ₹7L).
  * Standard Deduction: ₹75,000 (raised from ₹50k in Budget 2024).
- *
- * New regime is the DEFAULT since FY 2023-24 — assessees who want the old
- * regime must actively opt out.
  */
-export const NEW_REGIME_SLABS = [
+export const NEW_REGIME_SLABS_FY_2024_25 = [
   { upto: 300_000, rate: 0 },
   { upto: 700_000, rate: 0.05 },
   { upto: 1_000_000, rate: 0.10 },
@@ -52,6 +99,96 @@ export const NEW_REGIME_SLABS = [
   { upto: 1_500_000, rate: 0.20 },
   { upto: Infinity, rate: 0.30 },
 ];
+
+/**
+ * NEW REGIME — Budget 2025 slabs for FY 2025-26 (major restructure):
+ *   0     - 4L   : 0%
+ *   4L    - 8L   : 5%
+ *   8L    - 12L  : 10%
+ *   12L   - 16L  : 15%
+ *   16L   - 20L  : 20%
+ *   20L   - 24L  : 25%
+ *   24L+         : 30%
+ *
+ * Rebate under Section 87A (new regime FY 25-26): up to ₹60,000 for total
+ * income ≤ ₹12L (effectively zero tax on income up to ₹12L for a taxpayer
+ * with no capital gains).
+ *
+ * New regime remains the DEFAULT since FY 2023-24.
+ */
+export const NEW_REGIME_SLABS_FY_2025_26 = [
+  { upto: 400_000, rate: 0 },
+  { upto: 800_000, rate: 0.05 },
+  { upto: 1_200_000, rate: 0.10 },
+  { upto: 1_600_000, rate: 0.15 },
+  { upto: 2_000_000, rate: 0.20 },
+  { upto: 2_400_000, rate: 0.25 },
+  { upto: Infinity, rate: 0.30 },
+];
+
+/**
+ * v1.10.31 — Backward-compat alias for pre-v1.10.31 callers that read
+ * NEW_REGIME_SLABS directly. Resolves to the CURRENT_FY's table.
+ */
+export const NEW_REGIME_SLABS = CURRENT_FY === '2025-26'
+  ? NEW_REGIME_SLABS_FY_2025_26
+  : NEW_REGIME_SLABS_FY_2024_25;
+
+/**
+ * v1.10.31 — Pick the new-regime slab table for a given FY. Extending
+ * to a new FY = add a new SLABS constant + a case here.
+ */
+export function getNewRegimeSlabs(fy = CURRENT_FY) {
+  if (fy === '2025-26') return NEW_REGIME_SLABS_FY_2025_26;
+  return NEW_REGIME_SLABS_FY_2024_25; // FY 24-25 and earlier
+}
+
+/**
+ * v1.10.31 — 87A rebate parameters per FY. Old regime unchanged.
+ * New regime FY 25-26 raised threshold from ₹7L → ₹12L and cap from
+ * ₹25,000 → ₹60,000 (Budget 2025).
+ */
+export function get87AConfig(regime, fy = CURRENT_FY) {
+  if (regime === 'old') {
+    return { threshold: 500_000, cap: 12_500 };
+  }
+  // new regime
+  if (fy === '2025-26') return { threshold: 1_200_000, cap: 60_000 };
+  return { threshold: 700_000, cap: 25_000 }; // FY 24-25
+}
+
+/**
+ * v1.10.31 — Capital gains rates changed on 23-Jul-2024 (Finance No.2 Act 2024).
+ * §111A STCG on listed equity: 15% → 20%
+ * §112A LTCG on listed equity: 10% → 12.5%, exemption ₹1L → ₹1.25L
+ *
+ * For FY 2024-25, gains realised on/after 23-Jul-2024 use new rates. UI
+ * asks the user to enter the split; if the user just says "₹X LTCG for
+ * FY 24-25" without splitting, we default to the safer (higher) new rates.
+ *
+ * FY 2025-26 and later: always new rates.
+ */
+export function getCapitalGainsConfig(fy = CURRENT_FY) {
+  if (fy === '2024-25') {
+    // Transitional year — new rates apply to gains on/after 23-Jul-2024.
+    // Since the app can't reliably split, default to the newer regime
+    // (protects users from under-payment; caller can request 'preTransition'
+    // for the exact pre-23-Jul-2024 rates).
+    return {
+      stcgRate: 0.20,
+      ltcgRate: 0.125,
+      ltcgExemption: 125_000,
+      preTransition: { stcgRate: 0.15, ltcgRate: 0.10, ltcgExemption: 100_000 },
+    };
+  }
+  // FY 2025-26 and later — post-transition rates.
+  return {
+    stcgRate: 0.20,
+    ltcgRate: 0.125,
+    ltcgExemption: 125_000,
+    preTransition: { stcgRate: 0.15, ltcgRate: 0.10, ltcgExemption: 100_000 },
+  };
+}
 
 /**
  * Deduction caps under OLD regime (per Section reference).
@@ -148,20 +285,75 @@ export function computeSurcharge(tax, totalIncome, regime = 'new', opts = {}) {
   const specialTax = Math.max(0, Number(opts.specialRateTax) || 0);
   const cappedSpecialRate = Math.min(tierRate, 0.15);
   const regularTax = Math.max(0, tax - specialTax);
-  return round2(regularTax * tierRate + specialTax * cappedSpecialRate);
+  const rawSurcharge = regularTax * tierRate + specialTax * cappedSpecialRate;
+
+  // v1.10.31 — Marginal relief. Statute mandates the extra tax + surcharge
+  // from crossing a threshold cannot exceed the extra income beyond it.
+  // For an income of ₹50,00,010 with tax ~₹13L, 10% surcharge = ₹1.3L —
+  // but only ₹10 of extra income triggered it. Relief caps surcharge so
+  // (tax + surcharge)_now ≤ tax_at_threshold + (income - threshold).
+  //
+  // Compute tax at the threshold-1 rupee (where surcharge is one tier lower
+  // or zero) and use the delta as the ceiling for our surcharge.
+  const thresholds = [50_000_000, 20_000_000, 10_000_000, 5_000_000];
+  let applicableThreshold = 0;
+  for (const t of thresholds) {
+    if (totalIncome > t) { applicableThreshold = t; break; }
+  }
+  if (applicableThreshold === 0) return round2(rawSurcharge);
+
+  // Surcharge that would apply if income were exactly at the threshold.
+  const surchargeAtThreshold = (() => {
+    if (applicableThreshold === 5_000_000) return 0; // Below any surcharge
+    // The tier just below current: same fn with income at threshold - 1
+    return computeSurchargeInner(tax, applicableThreshold - 1, regime, opts);
+  })();
+
+  const extraIncome = totalIncome - applicableThreshold;
+  const extraTaxBurden = rawSurcharge - surchargeAtThreshold;
+  if (extraTaxBurden > extraIncome) {
+    // Cap: don't collect more extra tax than the extra income.
+    const cappedSurcharge = surchargeAtThreshold + extraIncome;
+    return round2(Math.max(0, cappedSurcharge));
+  }
+  return round2(rawSurcharge);
+}
+
+// Internal helper — same math as computeSurcharge but without the marginal
+// relief guard (would infinitely recurse). Used by computeSurcharge above
+// to compute the "surcharge at the previous threshold" reference.
+function computeSurchargeInner(tax, totalIncome, regime, opts) {
+  if (totalIncome <= 5_000_000) return 0;
+  const tier = (income) => {
+    if (income <= 10_000_000) return 0.10;
+    if (income <= 20_000_000) return 0.15;
+    if (income <= 50_000_000) return 0.25;
+    return regime === 'new' ? 0.25 : 0.37;
+  };
+  const tierRate = tier(totalIncome);
+  const specialTax = Math.max(0, Number(opts.specialRateTax) || 0);
+  const cappedSpecialRate = Math.min(tierRate, 0.15);
+  const regularTax = Math.max(0, tax - specialTax);
+  return regularTax * tierRate + specialTax * cappedSpecialRate;
 }
 
 /**
  * Section 87A rebate — makes small taxpayers effectively pay zero.
  * Old regime: ≤ ₹5L income → up to ₹12,500 rebate.
- * New regime: ≤ ₹7L income → up to ₹25,000 rebate.
+ * New regime FY 24-25: ≤ ₹7L income → up to ₹25,000 rebate.
+ * New regime FY 25-26: ≤ ₹12L income → up to ₹60,000 rebate (Budget 2025).
+ *
+ * v1.10.31 — Two audit findings baked in:
+ *   ITR-C2: rebate config resolves via get87AConfig(regime, fy) so FY 25-26
+ *           filers get the correct ₹60k cap / ₹12L threshold.
+ *   ITR-H2: eligibility now uses TOTAL income (including 111A / 112A capital
+ *           gains) not just slab-taxable income. A user with ₹4.8L slab
+ *           income + ₹50k LTCG used to get ₹12,500 rebate — statute denies
+ *           it because total income (₹5.3L) exceeds ₹5L threshold.
  */
-export function computeRebate87A(taxableIncome, tax, regime = 'new') {
-  if (regime === 'old') {
-    if (taxableIncome <= 500_000) return Math.min(tax, 12_500);
-    return 0;
-  }
-  if (taxableIncome <= 700_000) return Math.min(tax, 25_000);
+export function computeRebate87A(totalIncome, tax, regime = 'new', fy = CURRENT_FY) {
+  const { threshold, cap } = get87AConfig(regime, fy);
+  if (totalIncome <= threshold) return Math.min(tax, cap);
   return 0;
 }
 
@@ -182,23 +374,44 @@ export function standardDeduction(regime = 'new') {
 }
 
 /**
- * Cap each declared deduction to its statutory limit under old regime.
+ * Cap each declared deduction to its statutory limit.
  * Returns the sum of allowed deductions.
+ *
+ * v1.10.31 — Two audit findings baked in:
+ *   ITR-H1: 80D + 80DDB caps now context-sensitive via effectiveDeductionCap.
+ *           Previously 80D was hardcoded to ₹1L (the max), letting a 30-year-old
+ *           with 40-year-old parents claim ₹1L when statutory max is ₹50k.
+ *   ITR-H5: 80CCD(2) now capped at 10% of salary (14% for central govt
+ *           employees). Previously uncapped — a user could enter ₹50L
+ *           employer NPS and get full deduction (₹15.6L tax dodge at 30%).
+ *
+ * @param {object} userDeductions — { '80C': 150000, ... }
+ * @param {'old'|'new'} regime
+ * @param {object} ctx — { selfSenior?, parentsSenior?, salary?, isGovtEmployee? }
  */
-export function computeAllowedDeductions(userDeductions = {}, regime = 'old') {
+export function computeAllowedDeductions(userDeductions = {}, regime = 'old', ctx = {}) {
+  const salary = Math.max(0, Number(ctx.salary) || 0);
+  // 80CCD(2) — employer NPS. Cap at 10% of salary (14% for central govt).
+  // Available in BOTH regimes (unlike other Chapter VI-A deductions).
+  const nps2Rate = ctx.isGovtEmployee ? 0.14 : 0.10;
+  const nps2Cap = salary * nps2Rate;
+  const rawNps2 = Number(userDeductions['80CCD2']) || 0;
+  const allowedNps2 = Math.min(rawNps2, nps2Cap);
+
   if (regime === 'new') {
-    // Only 80CCD(2) — employer NPS contribution — is allowed under new regime.
-    return Number(userDeductions['80CCD2']) || 0;
+    // Only 80CCD(2) is allowed under new regime.
+    return round2(allowedNps2);
   }
+
   let total = 0;
-  for (const [section, cap] of Object.entries(DEDUCTION_CAPS)) {
+  for (const section of Object.keys(DEDUCTION_CAPS)) {
     const claimed = Number(userDeductions[section]) || 0;
+    // Use effectiveDeductionCap for context-sensitive sections (80D, 80DDB).
+    const cap = effectiveDeductionCap(section, ctx);
     total += Math.min(claimed, cap);
   }
-  // 80CCD(2) is available in both regimes and doesn't have a fixed cap
-  // (10-14% of salary — user's responsibility to enter valid figure).
-  total += Number(userDeductions['80CCD2']) || 0;
-  return total;
+  total += allowedNps2;
+  return round2(total);
 }
 
 /**
@@ -226,45 +439,65 @@ export function computeTax(inputs) {
     ltcgAtSpecialRate = 0,
     deductions = {},
     regime = 'new',
+    // v1.10.31 — new inputs from audit findings
+    fy = CURRENT_FY,
+    age = 0,                    // for senior/super-senior old-regime slabs
+    selfSenior = false,         // for 80D / 80DDB context
+    parentsSenior = false,      // for 80D
+    isGovtEmployee = false,     // for 80CCD(2) cap (14% vs 10%)
   } = inputs;
 
   // Standard deduction only applies against salary income
-  const stdDed = salary > 0 ? standardDeduction(regime) : 0;
+  const stdDed = salary > 0 ? Math.min(salary, standardDeduction(regime)) : 0;
   const salaryAfterStd = Math.max(0, salary - stdDed);
 
   // Gross Total Income = sum of heads (excludes special-rate gains)
   const gti = salaryAfterStd + businessIncome + housePropertyIncome + otherSources;
 
-  // Chapter VI-A deductions (only under old regime for most; §80CCD(2) always)
-  const allowedDeductions = computeAllowedDeductions(deductions, regime);
+  // Chapter VI-A deductions — pass context for 80D/80DDB/80CCD(2) caps.
+  const deductionCtx = { selfSenior, parentsSenior, salary, isGovtEmployee };
+  const allowedDeductions = computeAllowedDeductions(deductions, regime, deductionCtx);
 
   // Total taxable income under normal slabs
   const taxableIncome = Math.max(0, gti - allowedDeductions);
 
-  // Slab tax on normal income
-  const slabs = regime === 'new' ? NEW_REGIME_SLABS : OLD_REGIME_SLABS;
+  // Slab tax on normal income — FY-aware new regime, age-aware old regime.
+  const slabs = regime === 'new'
+    ? getNewRegimeSlabs(fy)
+    : getOldRegimeSlabs(age);
   const slabTax = computeSlabTax(taxableIncome, slabs);
 
-  // Special-rate taxes
-  const stcgTax = round2(stcgAtSpecialRate * 0.15);
-  const ltcgTaxable = Math.max(0, ltcgAtSpecialRate - 100_000); // ₹1L exempt under §112A
-  const ltcgTax = round2(ltcgTaxable * 0.10);
+  // v1.10.31 — Capital gains rates from FY config (post-23-Jul-2024 rates).
+  const cgConfig = getCapitalGainsConfig(fy);
+  const stcgTax = round2(stcgAtSpecialRate * cgConfig.stcgRate);
+  const ltcgTaxable = Math.max(0, ltcgAtSpecialRate - cgConfig.ltcgExemption);
+  const ltcgTax = round2(ltcgTaxable * cgConfig.ltcgRate);
+  const specialRateTax = stcgTax + ltcgTax;
 
-  const taxBeforeRebate = slabTax + stcgTax + ltcgTax;
+  const taxBeforeRebate = slabTax + specialRateTax;
 
-  // Rebate under 87A only applies to normal slab tax, not special-rate
-  const rebate = computeRebate87A(taxableIncome, slabTax, regime);
+  // v1.10.31 — 87A eligibility uses TOTAL INCOME under Section 2(45), which
+  // includes the FULL 111A/112A gains (before the ₹1.25L LTCG exemption).
+  // The exemption is a deduction for tax computation, not for total income.
+  // A user with ₹4.8L slab + ₹50k LTCG has total income ₹5.3L → rebate denied
+  // even though only ₹0 of the LTCG is taxable (below exemption).
+  // Rebate itself applies only to slab tax.
+  const totalIncomeForRebate = taxableIncome + stcgAtSpecialRate + ltcgAtSpecialRate;
+  const rebate = computeRebate87A(totalIncomeForRebate, slabTax, regime, fy);
   const taxAfterRebate = Math.max(0, taxBeforeRebate - rebate);
 
-  // Total income for surcharge tier (includes special-rate income)
+  // v1.10.31 — Wire specialRateTax through to surcharge helper so the 15%
+  // cap on 111A/112A gains actually fires (was dead code before). Total
+  // income for surcharge tier also uses gross LTCG (Section 2(45)).
   const totalIncomeForSurcharge = taxableIncome + stcgAtSpecialRate + ltcgAtSpecialRate;
-  const surcharge = computeSurcharge(taxAfterRebate, totalIncomeForSurcharge, regime);
+  const surcharge = computeSurcharge(taxAfterRebate, totalIncomeForSurcharge, regime, { specialRateTax });
 
   const cess = computeCess(taxAfterRebate + surcharge);
   const totalTax = round2(taxAfterRebate + surcharge + cess);
 
   return {
     // Inputs echoed for the summary
+    fy,
     grossTotalIncome: round2(gti),
     salaryAfterStd: round2(salaryAfterStd),
     standardDeduction: round2(stdDed),
@@ -275,6 +508,7 @@ export function computeTax(inputs) {
     slabTax: round2(slabTax),
     stcgTax: round2(stcgTax),
     ltcgTax: round2(ltcgTax),
+    specialRateTax: round2(specialRateTax),
     taxBeforeRebate: round2(taxBeforeRebate),
     rebate87A: round2(rebate),
     taxAfterRebate: round2(taxAfterRebate),
@@ -722,15 +956,36 @@ export function compute44AE({ heavyVehicleMonths = 0, heavyVehicleTonnage = 0, l
 // ============================================================================
 
 /**
- * Advance-tax installment schedule for FY 2024-25.
- * Each entry: due date + cumulative % of total tax to have paid by that date.
+ * v1.10.31 — Advance-tax due dates are now derived from the FY, not
+ * hardcoded strings. Prior code had `'2024-06-15'` etc. baked in — an FY
+ * 25-26 filer paying on `'2025-06-14'` sorted AFTER the hardcoded string
+ * and was flagged as late → phantom 234C interest up to 1% × 3 months ×
+ * (₹5L × 15%) = ₹2,250 per quarter.
+ *
+ * Now `getAdvanceTaxSchedule(fy)` returns the correct dates for any FY.
+ * For FY YYYY-YY, the four installments fall on:
+ *   Q1  15-Jun-YYYY   (15%)
+ *   Q2  15-Sep-YYYY   (45% cumulative)
+ *   Q3  15-Dec-YYYY   (75%)
+ *   Q4  15-Mar-(YYYY+1) (100%)
  */
-export const ADVANCE_TAX_SCHEDULE = [
-  { installment: 1, dueDate: '2024-06-15', cumulativePct: 0.15, label: 'By 15 June' },
-  { installment: 2, dueDate: '2024-09-15', cumulativePct: 0.45, label: 'By 15 Sept' },
-  { installment: 3, dueDate: '2024-12-15', cumulativePct: 0.75, label: 'By 15 Dec' },
-  { installment: 4, dueDate: '2025-03-15', cumulativePct: 1.00, label: 'By 15 March' },
-];
+export function getAdvanceTaxSchedule(fy = CURRENT_FY) {
+  const startYear = Number(String(fy).split('-')[0]);
+  if (!Number.isFinite(startYear)) {
+    throw new Error(`Invalid FY: ${fy}. Expected format YYYY-YY (e.g. "2025-26").`);
+  }
+  const endYear = startYear + 1;
+  return [
+    { installment: 1, dueDate: `${startYear}-06-15`, cumulativePct: 0.15, label: 'By 15 June' },
+    { installment: 2, dueDate: `${startYear}-09-15`, cumulativePct: 0.45, label: 'By 15 Sept' },
+    { installment: 3, dueDate: `${startYear}-12-15`, cumulativePct: 0.75, label: 'By 15 Dec' },
+    { installment: 4, dueDate: `${endYear}-03-15`,   cumulativePct: 1.00, label: 'By 15 March' },
+  ];
+}
+
+// Backward-compat: legacy default export for callers not passing an FY.
+// Resolves to CURRENT_FY.
+export const ADVANCE_TAX_SCHEDULE = getAdvanceTaxSchedule(CURRENT_FY);
 
 /**
  * Compute the advance-tax schedule.
@@ -740,17 +995,20 @@ export const ADVANCE_TAX_SCHEDULE = [
  * @param {'regular'|'presumptive'} mode — presumptive allows single 15-Mar payment
  * @returns {object}
  */
-export function computeAdvanceTaxSchedule(totalTax, tdsAlreadyDeducted = 0, paid = [], mode = 'regular') {
+export function computeAdvanceTaxSchedule(totalTax, tdsAlreadyDeducted = 0, paid = [], mode = 'regular', fy = CURRENT_FY) {
   const netLiability = Math.max(0, totalTax - (Number(tdsAlreadyDeducted) || 0));
   if (netLiability < 10_000) {
     return {
       netLiability, applies: false,
       note: 'Net liability (after TDS) is below ₹10,000 — no advance tax required.',
       schedule: [],
+      fy,
     };
   }
+  // v1.10.31 — Use FY-relative schedule instead of the stale-year default.
+  const schedule = getAdvanceTaxSchedule(fy);
   // Presumptive-mode assessees: single 100% installment on 15 March
-  const rows = (mode === 'presumptive' ? [ADVANCE_TAX_SCHEDULE[3]] : ADVANCE_TAX_SCHEDULE)
+  const rows = (mode === 'presumptive' ? [schedule[3]] : schedule)
     .map((row, i, arr) => {
       const cumulativeDue = round2(netLiability * row.cumulativePct);
       const totalPaidByDue = paid
@@ -775,7 +1033,27 @@ export function computeAdvanceTaxSchedule(totalTax, tdsAlreadyDeducted = 0, paid
     totalOutstanding: round2(Math.max(0, netLiability - totalPaid)),
     schedule: rows,
     mode,
+    fy,
   };
+}
+
+/**
+ * v1.10.31 — Rule 119A rounding helper.
+ *
+ * Rule 119A(a) of the Income Tax Rules: "the amount on which interest is
+ * calculated shall be rounded off to the nearest one hundred rupees and,
+ * for this purpose, any fraction of one hundred rupees shall be ignored".
+ *
+ * i.e. round DOWN to the nearest ₹100. Applied to every shortfall figure
+ * before multiplying by the 1%-per-month rate in 234B / 234C.
+ *
+ * On a ₹1,49,999 shortfall: legally the interest is computed on ₹1,49,900,
+ * not ₹1,49,999 — a difference of ₹0.99 per month. Small per case but
+ * compounded across 234B (up to 12 months) and 234C (up to 3 months) it
+ * matters for CA-audited returns.
+ */
+function rule119A(amount) {
+  return Math.floor(Math.max(0, Number(amount) || 0) / 100) * 100;
 }
 
 /**
@@ -792,29 +1070,30 @@ export function computeAdvanceTaxSchedule(totalTax, tdsAlreadyDeducted = 0, paid
 export function compute234CInterest(schedule) {
   if (!schedule.applies || !schedule.schedule.length) return 0;
   const netLiab = schedule.netLiability;
+  // v1.10.31 — Every shortfall wrapped in rule119A() before interest math.
   // Presumptive: single installment at 15-Mar, 1 month × 1% on shortfall.
   if (schedule.mode === 'presumptive' || schedule.schedule.length === 1) {
     const only = schedule.schedule[0];
-    const shortfall = round2(netLiab - (only?.totalPaidByDue || 0));
-    return round2(Math.max(0, shortfall) * 0.01);
+    const shortfall = rule119A(netLiab - (only?.totalPaidByDue || 0));
+    return round2(shortfall * 0.01);
   }
   let interest = 0;
   const [i1, i2, i3, i4] = schedule.schedule;
   if (i1 && i1.totalPaidByDue < 0.12 * netLiab) {
-    const shortfall = round2(netLiab * 0.15 - i1.totalPaidByDue);
-    interest += Math.max(0, shortfall) * 0.03;
+    const shortfall = rule119A(netLiab * 0.15 - i1.totalPaidByDue);
+    interest += shortfall * 0.03;
   }
   if (i2 && i2.totalPaidByDue < 0.36 * netLiab) {
-    const shortfall = round2(netLiab * 0.45 - i2.totalPaidByDue);
-    interest += Math.max(0, shortfall) * 0.03;
+    const shortfall = rule119A(netLiab * 0.45 - i2.totalPaidByDue);
+    interest += shortfall * 0.03;
   }
   if (i3) {
-    const shortfall = round2(netLiab * 0.75 - i3.totalPaidByDue);
-    interest += Math.max(0, shortfall) * 0.03;
+    const shortfall = rule119A(netLiab * 0.75 - i3.totalPaidByDue);
+    interest += shortfall * 0.03;
   }
   if (i4) {
-    const shortfall = round2(netLiab - i4.totalPaidByDue);
-    interest += Math.max(0, shortfall) * 0.01;
+    const shortfall = rule119A(netLiab - i4.totalPaidByDue);
+    interest += shortfall * 0.01;
   }
   return round2(interest);
 }
@@ -825,26 +1104,28 @@ export function compute234CInterest(schedule) {
  * @param {object} schedule — output of computeAdvanceTaxSchedule
  * @param {string} assessmentPaymentDate — ISO date; defaults to today
  */
-export function compute234BInterest(schedule, assessmentPaymentDate) {
+export function compute234BInterest(schedule, assessmentPaymentDate, fy) {
   if (!schedule.applies) return 0;
   const paidByYearEnd = schedule.totalPaid;
   const netLiab = schedule.netLiability;
   if (paidByYearEnd >= 0.9 * netLiab) return 0;
-  const shortfall = round2(netLiab - paidByYearEnd);
-  // From April 1 of AY. For FY 2024-25, that's 2025-04-01.
-  const fyEnd = new Date('2025-04-01');
+  // v1.10.31 — Rule 119A: round shortfall down to nearest ₹100 before
+  // multiplying by 1% per month.
+  const shortfall = rule119A(netLiab - paidByYearEnd);
+  // v1.10.31 — FY-relative April 1 (was hardcoded '2025-04-01'). Prefer
+  // schedule.fy, then explicit fy param, then CURRENT_FY.
+  const useFy = schedule?.fy || fy || CURRENT_FY;
+  const startYear = Number(String(useFy).split('-')[0]);
+  if (!Number.isFinite(startYear)) return 0;
+  const fyEnd = new Date(`${startYear + 1}-04-01`);
   const payDate = assessmentPaymentDate ? new Date(assessmentPaymentDate) : new Date();
   // v1.10.1 — Rule 119A: count calendar-month parts, not 30-day chunks.
-  // Prior code: `Math.ceil((payDate - fyEnd) / (30 days))` over-counted
-  // on the boundary (1-Apr → 31-May came out as 3 months instead of 2).
-  // Same-day payment (payDate = fyEnd) charged for 1 month with no time
-  // elapsed via `Math.max(1, ...)` — now handled via ms>0 check.
   if (payDate <= fyEnd) return 0;
   const yearDiff = payDate.getFullYear() - fyEnd.getFullYear();
   const monthDiff = payDate.getMonth() - fyEnd.getMonth();
   let months = yearDiff * 12 + monthDiff;
-  // If payment date is later in its month than fyEnd (2025-04-01), the
-  // partial month counts as one full month per Rule 119A.
+  // If payment date is later in its month than fyEnd, the partial month
+  // counts as one full month per Rule 119A.
   if (payDate.getDate() > fyEnd.getDate()) months += 1;
   months = Math.max(1, months);
   return round2(shortfall * 0.01 * months);

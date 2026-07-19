@@ -166,16 +166,24 @@ export default function BillOCR({ onClose, onExtracted }) {
     let worker = null;
     try {
       const Tesseract = await import('tesseract.js');
-      // v1.10.29 — Version pulled from tesseract's own package.json (see
-      // top-of-file import), so CDN paths stay in sync on future npm
-      // updates without hand-editing this file.
+      // v1.10.29 — Version pulled from tesseract's own package.json so CDN
+      // paths stay in sync on future npm updates.
+      // v1.10.31 — CORE VERSION FIX (root cause of "OCR is not working"
+      // through v1.10.30). tesseract.js v7 depends on tesseract.js-core@^7,
+      // not @6. Hardcoded @6.0.0 in the CDN URL 404'd (or loaded an ABI-
+      // incompatible core), causing the worker to fail during importScripts
+      // before recognition could start. Now derived from the SAME
+      // package.json so it tracks tesseract's version automatically. In the
+      // audit sanity check: node_modules/tesseract.js/package.json says
+      // "tesseract.js-core": "^7.0.0" — matches what's installed and what
+      // tesseract's own default corePath would resolve.
       const version = tesseractPkg.version || '7.0.0';
       const cdn = `https://cdn.jsdelivr.net/npm/tesseract.js@${version}/dist`;
       worker = await Tesseract.createWorker('eng', 1, {
         // Explicit CDN paths — safer than the auto-detected relative paths
         // that break after Vite hashes filenames in production builds.
         workerPath: `${cdn}/worker.min.js`,
-        corePath: `https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0`,
+        corePath: `https://cdn.jsdelivr.net/npm/tesseract.js-core@${version}`,
         langPath: 'https://tessdata.projectnaptha.com/4.0.0',
         logger: (m) => {
           if (m.status === 'recognizing text' && typeof m.progress === 'number') {

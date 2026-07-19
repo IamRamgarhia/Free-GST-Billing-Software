@@ -3,7 +3,23 @@ import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Fi
 import HelpButton from './HelpButton';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct } from '../store';
 import { formatCurrency, calculateRoundOff, getFYOptions } from '../utils';
+import { getPrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
+
+// v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
+// Purchase Bill PDF header rule + totals line pick up the user's brand.
+function getAccentRGB() {
+  try {
+    const ps = getPrintSettings();
+    if (ps.userColorsEnabled && ps.pdfAccent) {
+      const hex = String(ps.pdfAccent).replace('#', '');
+      if (/^[0-9a-f]{6}$/i.test(hex)) {
+        return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+      }
+    }
+  } catch { /* ignore */ }
+  return [30, 64, 175];
+}
 
 // v1.10.22 — Purchase-bill OCR modal. Lazy-loaded because tesseract.js is
 // ~2MB gzipped; we only pay the download cost when the user actually
@@ -181,7 +197,7 @@ export default function PurchaseBills() {
       doc.text(`Invoice #: ${purchase.invoiceNumber || '-'}`, marginL, y); y += 5;
       doc.text(`Date: ${purchase.date ? new Date(purchase.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}`, marginL, y); y += 5;
       doc.text(`Payment: ${purchase.paymentStatus || 'Unpaid'}   ·   ${purchase.interstate ? 'Interstate (IGST)' : 'Intrastate (CGST+SGST)'}`, marginL, y); y += 8;
-      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.5);
+      doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.5);
       doc.line(marginL, y, marginR, y); y += 8;
 
       doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
@@ -240,7 +256,7 @@ export default function PurchaseBills() {
       });
 
       // Totals
-      y += 4; doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.4);
+      y += 4; doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.4);
       doc.line(marginL + 100, y, marginR, y); y += 6;
       doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80);
       doc.text('Taxable', marginL + 100, y); doc.text(fmt(t.taxable), marginR, y, { align: 'right' }); y += 5;
@@ -309,47 +325,89 @@ export default function PurchaseBills() {
       // point (user can raise it in Inventory later). Runs in parallel
       // and non-fatal — a single-item failure doesn't block the
       // purchase-bill save.
+      // v1.10.31 — Data-F10.1-3: delta-based stock sync. Previously stock
+      // was incremented only on FIRST save (create). If the user edited the
+      // purchase later — changing qty from 10 → 20, or removing a line, or
+      // renaming a line — the product's stock stayed at 10 (F10.1) or a
+      // duplicate product was created (F10.3). Now:
+      //   • Save (edit path): compute per-line delta from the pre-edit
+      //     snapshot; apply that delta to each existing product's stock.
+      //   • Save (create path): increment stock by full quantity.
+      //   • Rename detection: match by productId first (persisted below),
+      //     then by name — a rename with productId keeps the same product.
       try {
         const existingProducts = await getAllProducts();
         const byName = new Map(existingProducts.map(p => [(p.name || '').trim().toLowerCase(), p]));
-        // v1.10.29 — when re-editing an existing purchase, `editingId` is set;
-        // to avoid double-adding stock every time the user re-saves, we only
-        // increment stock on the FIRST save (create), not on edit. New
-        // products always seed with the current-line stock.
-        const isFirstSave = !editingId;
-        const upserts = purchase.items.filter(it => it.name).map(it => {
-          const key = it.name.trim().toLowerCase();
-          const existing = byName.get(key);
+        const byId = new Map(existingProducts.map(p => [p.id, p]));
+
+        // Pre-edit snapshot: on edit, compute deltas per productId/name.
+        const priorLines = editingId
+          ? (purchases.find(p => p.id === editingId)?.items || [])
+          : [];
+        const priorQtyByKey = new Map();
+        for (const p of priorLines) {
+          const key = p.productId || `name:${(p.name || '').trim().toLowerCase()}`;
+          priorQtyByKey.set(key, (priorQtyByKey.get(key) || 0) + (Number(p.quantity) || 0));
+        }
+
+        // Batch stock adjustments per product so we don't race on parallel saves.
+        const stockDeltaById = new Map();
+        const productsToUpsert = new Map();
+
+        for (const it of purchase.items.filter(x => x.name)) {
           const qty = Number(it.quantity) || 0;
+          // Match order: productId (persisted below) → name (case-insensitive).
+          let existing = it.productId ? byId.get(it.productId) : null;
+          if (!existing) {
+            const key = it.name.trim().toLowerCase();
+            existing = byName.get(key);
+          }
           if (existing) {
-            return saveProduct({
+            // Delta = current qty − prior qty (for this product).
+            const priorKey = it.productId
+              ? it.productId
+              : `name:${(it.name || '').trim().toLowerCase()}`;
+            const priorQty = priorQtyByKey.get(priorKey) || 0;
+            const delta = qty - priorQty; // may be negative (line reduced) or zero (unchanged)
+            stockDeltaById.set(existing.id, (stockDeltaById.get(existing.id) || 0) + delta);
+            productsToUpsert.set(existing.id, {
               ...existing,
-              // Refresh purchase-side fields with the latest cost / HSN.
               purchasePrice: it.rate,
               hsn: existing.hsn || it.hsn,
               taxPercent: existing.taxPercent || it.taxPercent,
-              // v1.10.29 — carry cessPercent so tobacco / auto / coal items
-              // keep their cess rate when synced from purchase to product.
               cessPercent: existing.cessPercent || it.cessPercent || 0,
-              // v1.10.29 — increment stock on FIRST save of a purchase bill
-              // (the goods just arrived from the supplier). Skipped on edit
-              // so re-opening + resaving doesn't double-count.
-              stock: isFirstSave ? (Number(existing.stock) || 0) + qty : existing.stock,
+              // stock filled after we sum all deltas for this product.
+              _placeholderId: existing.id,
+            });
+          } else {
+            // New product — seed stock with the line qty.
+            productsToUpsert.set(`__new__::${it.name.trim().toLowerCase()}`, {
+              name: it.name.trim(),
+              hsn: it.hsn || '',
+              purchasePrice: it.rate,
+              sellingPrice: it.rate,
+              rate: it.rate,
+              taxPercent: it.taxPercent || 0,
+              cessPercent: it.cessPercent || 0,
+              unit: 'Nos',
+              stock: qty,
+              description: '',
             });
           }
-          return saveProduct({
-            name: it.name.trim(),
-            hsn: it.hsn || '',
-            purchasePrice: it.rate,
-            sellingPrice: it.rate, // starting point — user marks up in Inventory
-            rate: it.rate,
-            taxPercent: it.taxPercent || 0,
-            cessPercent: it.cessPercent || 0,
-            unit: 'Nos',
-            stock: qty,
-            description: '',
-          });
-        });
+        }
+
+        // Apply deltas + write.
+        const upserts = [];
+        for (const [key, prod] of productsToUpsert) {
+          if (prod._placeholderId) {
+            const existing = byId.get(prod._placeholderId);
+            const delta = stockDeltaById.get(prod._placeholderId) || 0;
+            const newStock = Math.max(0, (Number(existing.stock) || 0) + delta);
+            upserts.push(saveProduct({ ...prod, stock: newStock, _placeholderId: undefined }));
+          } else {
+            upserts.push(saveProduct(prod));
+          }
+        }
         await Promise.all(upserts);
       } catch (e) {
         console.warn('Products auto-sync from purchase failed (non-fatal):', e);

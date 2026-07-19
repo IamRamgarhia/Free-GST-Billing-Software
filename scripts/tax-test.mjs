@@ -21,6 +21,16 @@ import {
   compute234BInterest,
   DEDUCTION_CAPS,
   effectiveDeductionCap,
+  computeTax,
+  computeAllowedDeductions,
+  computeRebate87A,
+  getAdvanceTaxSchedule,
+  getCapitalGainsConfig,
+  get87AConfig,
+  getOldRegimeSlabs,
+  getNewRegimeSlabs,
+  CURRENT_FY,
+  NEW_REGIME_SLABS_FY_2025_26,
 } from '../src/utils/itr.js';
 
 let passed = 0, failed = 0;
@@ -235,10 +245,140 @@ console.log('\n[H10] 80D cap depends on senior status');
 
 console.log('\n[M6] 234B uses calendar months (not 30-day months)');
 {
-  const sched = { applies: true, netLiability: 100000, totalPaid: 0 };
+  // v1.10.31 — Test now specifies fy so compute234BInterest picks the
+  // correct April-1 anchor (was hardcoded to 2025-04-01; now FY-relative).
+  const sched = { applies: true, netLiability: 100000, totalPaid: 0, fy: '2024-25' };
   // 1-Apr-2025 to 31-May-2025 = 2 calendar months. 1% × 2 × 100000 = 2000.
   const int234b = compute234BInterest(sched, '2025-05-31');
   approx(int234b, 2000, 'Apr-1 to May-31 = 2 calendar months → 2000');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v1.10.31 — Audit-driven test cases. Every Critical/High tax finding from
+// the July 2026 comprehensive audit gets a regression test here.
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('\n[V31-C2] FY 25-26 new regime — Budget 2025 slabs + ₹60k rebate at ₹12L');
+{
+  // Salaried ₹12L income, new regime FY 25-26. Correct tax = ₹0 after 87A.
+  const r = computeTax({ salary: 1_275_000, regime: 'new', fy: '2025-26' });
+  approx(r.totalTax, 0, '₹12.75L salary FY 25-26 new regime → ₹0 tax (75k std ded + 60k rebate on ₹12L)');
+  // Above the ₹12L threshold: normal slab tax kicks in.
+  const r2 = computeTax({ salary: 1_400_000, regime: 'new', fy: '2025-26' });
+  truthy(r2.totalTax > 0, '₹14L salary above rebate threshold → some tax');
+}
+
+console.log('\n[V31-C4] Capital gains rates — post-July-2024 (STCG 20%, LTCG 12.5%, exempt ₹1.25L)');
+{
+  const cg = getCapitalGainsConfig('2025-26');
+  approx(cg.stcgRate, 0.20, 'STCG rate FY 25-26 = 20% (Finance No.2 Act 2024)');
+  approx(cg.ltcgRate, 0.125, 'LTCG rate FY 25-26 = 12.5%');
+  approx(cg.ltcgExemption, 125_000, 'LTCG exemption FY 25-26 = ₹1.25L');
+  // ₹10L LTCG at 12.5% over ₹1.25L exemption = ₹1,09,375
+  const r = computeTax({ ltcgAtSpecialRate: 1_000_000, regime: 'new', fy: '2025-26' });
+  approx(r.ltcgTax, 109_375, '₹10L LTCG → ₹1,09,375 tax at 12.5% over ₹1.25L exempt');
+  // ₹5L STCG at 20% = ₹1,00,000
+  const r2 = computeTax({ stcgAtSpecialRate: 500_000, regime: 'new', fy: '2025-26' });
+  approx(r2.stcgTax, 100_000, '₹5L STCG → ₹1,00,000 tax at 20%');
+}
+
+console.log('\n[V31-C1] 15% surcharge cap on 111A/112A gains now wired through computeTax');
+{
+  // ₹5.5Cr salary + ₹10L LTCG. New regime tier at ₹5.5Cr is 25%.
+  // LTCG tax (post exempt): (10L - 1.25L) × 12.5% = ~₹1,09,375
+  // Slab tax on ₹5.5Cr: ~₹1,63,20,000. Surcharge = slab × 25% + LTCG × 15%.
+  const r = computeTax({ salary: 55_000_000, ltcgAtSpecialRate: 1_000_000, regime: 'new', fy: '2025-26' });
+  // Without wiring: surcharge would be 25% on LTCG tax too. Now capped at 15%.
+  // The specific ratio: specialRateTax = ₹1,09,375. Its surcharge = 15% × 1,09,375 = ₹16,406.
+  // Meanwhile slab-tax-portion surcharge is at 25%. Total surcharge should
+  // reflect the blend.
+  truthy(r.specialRateTax > 0, 'specialRateTax populated (₹1L+ from LTCG)');
+  truthy(r.surcharge > 0, 'surcharge computed');
+  // Direct check: computeSurcharge with specialRateTax = specialRateTax
+  const specialSurcharge = computeSurcharge(r.specialRateTax, 55_000_000, 'new', { specialRateTax: r.specialRateTax });
+  approx(specialSurcharge, r.specialRateTax * 0.15, '15% cap on specialRateTax portion honored');
+}
+
+console.log('\n[V31-C3] Advance-tax due dates are FY-relative');
+{
+  const s2526 = getAdvanceTaxSchedule('2025-26');
+  eq(s2526[0].dueDate, '2025-06-15', 'FY 25-26 Q1 due = 15 Jun 2025');
+  eq(s2526[3].dueDate, '2026-03-15', 'FY 25-26 Q4 due = 15 Mar 2026');
+  const s2425 = getAdvanceTaxSchedule('2024-25');
+  eq(s2425[0].dueDate, '2024-06-15', 'FY 24-25 Q1 due = 15 Jun 2024');
+  // Filter test: FY 25-26 filer paying 2025-06-14 → counted for Q1.
+  const sched = computeAdvanceTaxSchedule(500_000, 0, [{ date: '2025-06-14', amount: 75_000 }], 'regular', '2025-26');
+  approx(sched.schedule[0].totalPaidByDue, 75_000, 'FY 25-26 payment 2025-06-14 counts toward Q1');
+}
+
+console.log('\n[V31-H1] effectiveDeductionCap wired into computeAllowedDeductions');
+{
+  // Non-senior with non-senior parents claiming ₹1L for 80D. Statute cap = ₹50k.
+  const total = computeAllowedDeductions({ '80D': 100_000 }, 'old', { selfSenior: false, parentsSenior: false });
+  approx(total, 50_000, 'Non-senior 80D capped at ₹50k (not ₹1L which was the static max)');
+  // Senior claiming ₹1L for 80D — allowed the full ₹1L (self ₹50k + parents ₹50k).
+  const total2 = computeAllowedDeductions({ '80D': 100_000 }, 'old', { selfSenior: true, parentsSenior: true });
+  approx(total2, 100_000, 'Both senior 80D allows full ₹1L');
+}
+
+console.log('\n[V31-H5] 80CCD(2) capped at 10% of salary (14% for govt)');
+{
+  // Salary ₹10L, claiming ₹5L employer NPS. Cap should be ₹1L (10%).
+  const total = computeAllowedDeductions({ '80CCD2': 500_000 }, 'new', { salary: 1_000_000 });
+  approx(total, 100_000, '80CCD(2) private-sector capped at 10% of salary');
+  const total2 = computeAllowedDeductions({ '80CCD2': 500_000 }, 'new', { salary: 1_000_000, isGovtEmployee: true });
+  approx(total2, 140_000, '80CCD(2) govt-sector capped at 14% of salary');
+  // Excessive claim without salary context → 0 allowed (no cap basis).
+  const total3 = computeAllowedDeductions({ '80CCD2': 500_000 }, 'new', {});
+  approx(total3, 0, '80CCD(2) without salary context → 0 allowed (safe default)');
+}
+
+console.log('\n[V31-H6] Senior / super-senior old-regime basic exemption slabs');
+{
+  const senior = getOldRegimeSlabs(65);
+  eq(senior[0].upto, 300_000, 'Senior (60-80) first slab up to ₹3L');
+  const superSenior = getOldRegimeSlabs(85);
+  eq(superSenior[0].upto, 500_000, 'Super senior (80+) first slab up to ₹5L');
+  const regular = getOldRegimeSlabs(30);
+  eq(regular[0].upto, 250_000, 'Regular (<60) first slab up to ₹2.5L');
+  // Senior with ₹3L income old regime → ₹0 tax (was ₹2,500 before fix).
+  const r = computeTax({ salary: 300_000, regime: 'old', fy: '2025-26', age: 65 });
+  approx(r.slabTax, 0, 'Senior with ₹3L salary → ₹0 slab tax');
+}
+
+console.log('\n[V31-H2] 87A eligibility uses TOTAL income including capital gains');
+{
+  // Old regime, salary ₹5.3L → after ₹50k std ded = ₹4.8L slab-taxable.
+  // Plus ₹50k LTCG → total income under Section 2(45) = ₹5.3L > ₹5L threshold.
+  // Rebate must be DENIED. Note: LTCG is counted at gross (₹50k), not
+  // post-exemption ₹0, because Section 87A eligibility uses total income
+  // per Section 2(45), which includes gross capital gains.
+  const r = computeTax({ salary: 530_000, ltcgAtSpecialRate: 50_000, regime: 'old', fy: '2025-26' });
+  approx(r.rebate87A, 0, '₹5.3L salary + ₹50k LTCG → total ₹5.3L > ₹5L → 87A rebate DENIED');
+  // Same salary, no capital gains → total ₹4.8L < ₹5L → rebate applies.
+  const r2 = computeTax({ salary: 530_000, regime: 'old', fy: '2025-26' });
+  truthy(r2.rebate87A > 0, '₹5.3L salary alone → total ₹4.8L → 87A rebate applies');
+}
+
+console.log('\n[V31-H3] Marginal relief on surcharge crossings');
+{
+  // Income ₹50,00,010 old regime. Base tax (before surcharge) ~₹13,12,503.
+  // Without relief: 10% surcharge = ~₹1,31,250. That's ₹1.3L extra tax for
+  // ₹10 extra income — reduced to ₹10 by marginal relief.
+  const tax_at_5cr = 1_312_500; // rough
+  const sr = computeSurcharge(tax_at_5cr, 5_000_010, 'old');
+  // Marginal relief caps surcharge at delta between thresholds. Actual value
+  // depends on exact tax — we just verify it's WAY under ₹1.3L.
+  truthy(sr < 50_000, `Marginal relief at ₹50,00,010 caps surcharge (got ₹${sr.toFixed(0)}, way under raw ₹1,31,250)`);
+}
+
+console.log('\n[V31-H4] Rule 119A ₹100 rounding on 234B shortfall');
+{
+  // Shortfall = ₹1,49,999 → round down to ₹1,49,900.
+  // At 1% × 2 months → ₹2,998 (not ₹2,999.98).
+  const sched = { applies: true, netLiability: 149_999, totalPaid: 0, fy: '2024-25' };
+  const int234b = compute234BInterest(sched, '2025-05-31');
+  approx(int234b, 2998, 'Rule 119A: shortfall ₹1,49,999 → interest on ₹1,49,900');
 }
 
 console.log('\n────────────────────────────────────────');

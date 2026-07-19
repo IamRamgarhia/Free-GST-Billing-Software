@@ -3,7 +3,24 @@ import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCirc
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
+import { getPrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
+
+// v1.10.31 — UI-C3: Shared helper to resolve the user's accent color as an
+// RGB tuple usable with jsPDF setFillColor / setDrawColor. Falls back to the
+// legacy blue (#1e40af = rgb(30, 64, 175)) when the user hasn't customised.
+function getAccentRGB() {
+  try {
+    const ps = getPrintSettings();
+    if (ps.userColorsEnabled && ps.pdfAccent) {
+      const hex = String(ps.pdfAccent).replace('#', '');
+      if (/^[0-9a-f]{6}$/i.test(hex)) {
+        return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+      }
+    }
+  } catch { /* ignore — fall through to default */ }
+  return [30, 64, 175];
+}
 import ClientModal from './ClientModal';
 
 const STATUS_COLORS = {
@@ -79,7 +96,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       };
 
       // ============== HEADER BAND ==============
-      doc.setFillColor(30, 64, 175);
+      doc.setFillColor(...getAccentRGB());
       doc.rect(0, 0, pageW, 22, 'F');
       doc.setTextColor(255); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
       doc.text('CLIENT STATEMENT', pageW / 2, 12, { align: 'center' });
@@ -120,19 +137,25 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         savedClient.phone ? `Ph: ${savedClient.phone}` : null,
       ].filter(Boolean);
 
-      const sellerHeight = sellerLines.length * 4;
-      const clientHeight = clientLines.length * 4;
-      let dy = 0;
+      // v1.10.31 — UI-C1 fix: `splitTextToSize` returns an ARRAY of
+      // wrapped sub-lines; jsPDF draws each at line-height 4mm but the
+      // outer loop only advanced `dy += 4`, so a 2-line-wrapped address
+      // collided with the next logical line ("Birnagar / Bhagar" bleed
+      // reported in Client Statement). Now dy advances by the actual
+      // rendered line count.
+      let sellerDy = 0;
       sellerLines.forEach(line => {
-        doc.text(doc.splitTextToSize(line, colWidth), colL, y + dy);
-        dy += 4;
+        const wrapped = doc.splitTextToSize(line, colWidth);
+        doc.text(wrapped, colL, y + sellerDy);
+        sellerDy += wrapped.length * 4;
       });
-      dy = 0;
+      let clientDy = 0;
       clientLines.forEach(line => {
-        doc.text(doc.splitTextToSize(line, colWidth), colR, y + dy);
-        dy += 4;
+        const wrapped = doc.splitTextToSize(line, colWidth);
+        doc.text(wrapped, colR, y + clientDy);
+        clientDy += wrapped.length * 4;
       });
-      y += Math.max(sellerHeight, clientHeight) + 5;
+      y += Math.max(sellerDy, clientDy) + 5;
 
       // ============== SUMMARY STRIP ==============
       doc.setFillColor(241, 245, 249);
@@ -173,7 +196,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       };
 
       // Header band
-      doc.setFillColor(30, 64, 175);
+      doc.setFillColor(...getAccentRGB());
       doc.rect(marginL, y, tableW, 9, 'F');
       doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
       doc.text('Date', marginL + 2, y + 6);
@@ -196,7 +219,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       const sortedBills = clientBills.slice().sort((a, b) => new Date(a.invoiceDate) - new Date(b.invoiceDate));
 
       const drawHeader = () => {
-        doc.setFillColor(30, 64, 175);
+        doc.setFillColor(...getAccentRGB());
         doc.rect(marginL, y, tableW, 9, 'F');
         doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
         doc.text('Date', marginL + 2, y + 6);
@@ -272,7 +295,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       // amounts. Real fix: park the label at marginL (~17mm) — 3x more breathing
       // room and it reads better as a bottom-of-page summary line anyway.
       y += 3;
-      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.6);
+      doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.6);
       doc.line(marginL, y, marginR, y); y += 8;
       doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42);
       doc.text('CLOSING BALANCE', marginL, y);
@@ -397,7 +420,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       doc.setFont('helvetica', 'normal');
 
       y += 4;
-      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.5);
+      doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.5);
       doc.line(marginL, y, marginR, y); y += 8;
 
       // Column headers
@@ -432,7 +455,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
 
       // Aging summary
       y += 6;
-      doc.setDrawColor(30, 64, 175); doc.setLineWidth(0.5);
+      doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.5);
       doc.line(marginL, y, marginR, y); y += 8;
       doc.setFontSize(10); doc.setFont('helvetica', 'bold');
       doc.text('AGEING SUMMARY', marginL, y); y += 8;
@@ -789,11 +812,11 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                               const sc = STATUS_COLORS[status] || STATUS_COLORS.unpaid;
                               const isOverdue = status !== 'paid' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
                               return (
-                                <tr key={bill.id} style={isOverdue ? { background: '#fef2f2' } : {}}>
+                                <tr key={bill.id} className={isOverdue ? 'row-overdue' : ''}>
                                   <td className="text-muted">{new Date(bill.invoiceDate).toLocaleDateString('en-IN')}</td>
                                   <td><span className="invoice-badge">{bill.invoiceNumber}</span></td>
                                   <td><span className="type-badge">{(INVOICE_TYPES[bill.invoiceType || 'tax-invoice'])?.label}</span></td>
-                                  <td className="font-bold" style={{ textAlign: 'right' }}>{formatCurrency(bill.totalAmount)}</td>
+                                  <td className="font-bold" style={{ textAlign: 'right' }}>{formatCurrency(bill.totalAmount, bill.currency || bill.data?.invoiceOptions?.currency || 'INR')}</td>
                                   <td>
                                     <select className="status-select" value={isOverdue && status !== 'overdue' ? 'overdue' : status}
                                       style={{ background: sc.bg, color: sc.color, borderColor: sc.color + '44', fontSize: '0.75rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid', cursor: 'pointer', fontWeight: 600 }}

@@ -28,11 +28,27 @@ function downloadCSV(filename, headers, rows) {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 
-function computeItemTaxSplit(item, isInterState, taxInclusive = false) {
+function computeItemTaxSplit(item, isInterState, taxInclusive = false, isIntraUT = false) {
+  // v1.10.31 — Cess (GST-C3) and UTGST (GST-C2 / H7) now flow through this
+  // helper so every downstream summary, CSV, and JSON payload gets them.
+  // Also: symmetric half-split for CGST/SGST (GST-H4/M6) — floor + ceil vs
+  // the prior asymmetric round-then-subtract which produced 1-paise
+  // portal mismatches per invoice.
   const { afterDiscount, taxAmount } = calculateLineItemTax(item, taxInclusive);
-  if (isInterState) return { taxable: afterDiscount, cgst: 0, sgst: 0, igst: taxAmount };
-  const half = Math.round((taxAmount / 2) * 100) / 100;
-  return { taxable: afterDiscount, cgst: half, sgst: taxAmount - half, igst: 0 };
+  const cessPct = Number(item.cessPercent) || 0;
+  const cess = round2(afterDiscount * cessPct / 100);
+  if (isInterState) return { taxable: afterDiscount, cgst: 0, sgst: 0, utgst: 0, igst: taxAmount, cess };
+  // Symmetric half-split: floor/ceil to nearest paise so CGST + SGST/UTGST
+  // sums exactly back to taxAmount (was: round + subtract, which produced
+  // asymmetric halves like {0.02, 0.01} for 0.03 → users saw "CGST > SGST").
+  const halfPaise = Math.round(taxAmount * 100) / 2;
+  const cgst = Math.floor(halfPaise) / 100;
+  const half2 = round2((Math.ceil(halfPaise) / 100));
+  if (isIntraUT) {
+    // 5 UTs without legislature — CGST + UTGST split; SGST bucket is zero.
+    return { taxable: afterDiscount, cgst, sgst: 0, utgst: half2, igst: 0, cess };
+  }
+  return { taxable: afterDiscount, cgst, sgst: half2, utgst: 0, igst: 0, cess };
 }
 
 function getTaxableAmount(totals) {
@@ -588,18 +604,36 @@ export default function GSTReturns() {
     return !(isInter && (b.totalAmount || 0) > 250000);
   });
 
+  // v1.10.31 — Helper: is this bill intra-UT (business + client in same Union
+  // Territory without legislature)? Value comes from computeInvoiceTotals'
+  // `totals.isIntraUT` when available; falls back to state-code inspection
+  // for legacy bills computed before that flag existed.
+  const billIsIntraUT = (bill) => {
+    if (bill?.data?.totals?.isIntraUT) return true;
+    return false; // Legacy bills default to false — will treat as SGST which is safe
+  };
+
   // ========== B2B Rows ==========
+  // v1.10.31 — GST-C2 fix: also read totals.utgst (was ignored → intra-UT
+  // bills lost 50% of tax in the CSV export). And GST-C3: expose cess so
+  // GSTR-3B and every summary row includes it.
   const b2bRows = b2bRegular.map(bill => {
     const { client, totals, details } = bill.data;
     const isInterState = billIsInterstate(bill);
     const pos = getStateCode(details?.placeOfSupply || client?.state || '');
+    // For GSTR-1 payload compat, UTGST goes into the SGST bucket (GSTN
+    // schema has no separate utgst field; `samt` covers both).
+    const sgstBucket = isInterState ? 0 : ((totals?.sgst || 0) + (totals?.utgst || 0));
     return {
       gstin: client.gstin, clientName: client.name || bill.clientName || '',
       invoiceNo: bill.invoiceNumber || '', date: bill.invoiceDate || '', pos,
       supplyType: isInterState ? 'Inter' : 'Intra',
       taxable: getTaxableAmount(totals),
-      cgst: isInterState ? 0 : (totals?.cgst || 0), sgst: isInterState ? 0 : (totals?.sgst || 0),
-      igst: isInterState ? (totals?.igst || 0) : 0, total: totals?.total || 0,
+      cgst: isInterState ? 0 : (totals?.cgst || 0),
+      sgst: sgstBucket,
+      igst: isInterState ? (totals?.igst || 0) : 0,
+      cess: totals?.cess || 0,
+      total: totals?.total || 0,
     };
   });
 
@@ -609,38 +643,87 @@ export default function GSTReturns() {
   b2cBills.forEach(bill => {
     const { items } = bill.data;
     const isInterState = billIsInterstate(bill);
+    const isIntraUT = billIsIntraUT(bill);
     (items || []).forEach(item => {
       const rate = item.taxPercent || 0;
-      if (!b2cByRate[rate]) b2cByRate[rate] = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
-      const split = computeItemTaxSplit(item, isInterState, !!bill.data?.taxInclusive);
-      b2cByRate[rate].taxable += split.taxable; b2cByRate[rate].cgst += split.cgst;
-      b2cByRate[rate].sgst += split.sgst; b2cByRate[rate].igst += split.igst;
-      b2cByRate[rate].total += split.taxable + split.cgst + split.sgst + split.igst;
+      if (!b2cByRate[rate]) b2cByRate[rate] = { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 0 };
+      const split = computeItemTaxSplit(item, isInterState, !!bill.data?.taxInclusive, isIntraUT);
+      b2cByRate[rate].taxable += split.taxable;
+      b2cByRate[rate].cgst += split.cgst;
+      // GST-C2: UTGST folded into SGST bucket for GSTR-1 payload compatibility.
+      b2cByRate[rate].sgst += split.sgst + split.utgst;
+      b2cByRate[rate].igst += split.igst;
+      b2cByRate[rate].cess += split.cess;
+      b2cByRate[rate].total += split.taxable + split.cgst + split.sgst + split.utgst + split.igst + split.cess;
     });
   });
   const b2cRates = Object.keys(b2cByRate).map(Number).sort((a, b) => a - b);
 
   // ========== HSN Summary ==========
+  // v1.10.31 — GST-H3 fix: key by hsn+rate+uqc so items with the same HSN
+  // but different UQCs (KGS vs NOS vs PCS) don't get their quantities
+  // summed nonsensically. Also GST-C3 + C2: include cess + UTGST in totals.
   const hsnMap = {};
   filteredBills.forEach(bill => {
     const { items } = bill.data;
     const isInterState = billIsInterstate(bill);
+    const isIntraUT = billIsIntraUT(bill);
     (items || []).forEach(item => {
       const hsn = item.hsn || 'N/A';
-      if (!hsnMap[hsn]) hsnMap[hsn] = { hsn, description: item.name || '', quantity: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
-      const split = computeItemTaxSplit(item, isInterState, !!bill.data?.taxInclusive);
-      hsnMap[hsn].quantity += item.quantity || 0; hsnMap[hsn].taxable += split.taxable;
-      hsnMap[hsn].cgst += split.cgst; hsnMap[hsn].sgst += split.sgst; hsnMap[hsn].igst += split.igst;
-      hsnMap[hsn].totalTax += split.cgst + split.sgst + split.igst;
+      const rate = item.taxPercent || 0;
+      const uqc = item.unit || 'OTH';
+      const key = `${hsn}|${rate}|${uqc}`;
+      if (!hsnMap[key]) hsnMap[key] = { hsn, rate, uqc, description: item.name || '', quantity: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, totalTax: 0 };
+      const split = computeItemTaxSplit(item, isInterState, !!bill.data?.taxInclusive, isIntraUT);
+      hsnMap[key].quantity += item.quantity || 0;
+      hsnMap[key].taxable += split.taxable;
+      hsnMap[key].cgst += split.cgst;
+      hsnMap[key].sgst += split.sgst + split.utgst;
+      hsnMap[key].igst += split.igst;
+      hsnMap[key].cess += split.cess;
+      hsnMap[key].totalTax += split.cgst + split.sgst + split.utgst + split.igst + split.cess;
     });
   });
-  const hsnRows = Object.values(hsnMap).sort((a, b) => a.hsn.localeCompare(b.hsn));
+  const hsnRows = Object.values(hsnMap).sort((a, b) => (a.hsn || '').localeCompare(b.hsn || ''));
 
   // ========== Totals ==========
-  const sumRows = (rows) => rows.reduce((acc, r) => ({ taxable: acc.taxable + r.taxable, cgst: acc.cgst + r.cgst, sgst: acc.sgst + r.sgst, igst: acc.igst + r.igst, total: acc.total + r.total }), { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 });
+  // v1.10.31 — GST-C3: sumRows now carries cess. GST-H2: credit notes
+  // netted from grandTotals so GSTR-3B outward supply table reflects
+  // the actual liability (was over-stated by full CN amount).
+  const sumRows = (rows) => rows.reduce((acc, r) => ({
+    taxable: acc.taxable + r.taxable, cgst: acc.cgst + r.cgst, sgst: acc.sgst + r.sgst,
+    igst: acc.igst + r.igst, cess: acc.cess + (r.cess || 0), total: acc.total + r.total,
+  }), { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 0 });
   const b2bTotals = sumRows(b2bRows);
-  const b2cTotals = b2cRates.reduce((acc, rate) => { const d = b2cByRate[rate]; return { taxable: acc.taxable + d.taxable, cgst: acc.cgst + d.cgst, sgst: acc.sgst + d.sgst, igst: acc.igst + d.igst, total: acc.total + d.total }; }, { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 });
-  const grandTotals = { taxable: b2bTotals.taxable + b2cTotals.taxable, cgst: b2bTotals.cgst + b2cTotals.cgst, sgst: b2bTotals.sgst + b2cTotals.sgst, igst: b2bTotals.igst + b2cTotals.igst, total: b2bTotals.total + b2cTotals.total };
+  const b2cTotals = b2cRates.reduce((acc, rate) => {
+    const d = b2cByRate[rate];
+    return {
+      taxable: acc.taxable + d.taxable, cgst: acc.cgst + d.cgst, sgst: acc.sgst + d.sgst,
+      igst: acc.igst + d.igst, cess: acc.cess + (d.cess || 0), total: acc.total + d.total,
+    };
+  }, { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 0 });
+  // v1.10.31 — GST-H2: subtract credit note totals from outward supply.
+  const cnTotals = (creditNotes || []).reduce((acc, b) => {
+    const t = b.data?.totals || {};
+    const isInter = billIsInterstate(b);
+    return {
+      taxable: acc.taxable + (getTaxableAmount(t) || 0),
+      cgst: acc.cgst + (isInter ? 0 : (t.cgst || 0)),
+      sgst: acc.sgst + (isInter ? 0 : ((t.sgst || 0) + (t.utgst || 0))),
+      igst: acc.igst + (isInter ? (t.igst || 0) : 0),
+      cess: acc.cess + (t.cess || 0),
+      total: acc.total + (t.total || 0),
+    };
+  }, { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 0 });
+  const grandTotals = {
+    taxable: Math.max(0, b2bTotals.taxable + b2cTotals.taxable - cnTotals.taxable),
+    cgst: Math.max(0, b2bTotals.cgst + b2cTotals.cgst - cnTotals.cgst),
+    sgst: Math.max(0, b2bTotals.sgst + b2cTotals.sgst - cnTotals.sgst),
+    igst: Math.max(0, b2bTotals.igst + b2cTotals.igst - cnTotals.igst),
+    cess: Math.max(0, b2bTotals.cess + b2cTotals.cess - cnTotals.cess),
+    total: b2bTotals.total + b2cTotals.total - cnTotals.total, // signed — CN nets down
+    cnTotals, // exposed for UI reconciliation display
+  };
 
   // ========== GSTR-3B ==========
   const outputTax = { cgst: grandTotals.cgst, sgst: grandTotals.sgst, igst: grandTotals.igst };
@@ -797,21 +880,31 @@ export default function GSTReturns() {
 
   const exportHSN = () => {
     if (hsnRows.length === 0) { toast('No HSN data', 'warning'); return; }
+    // v1.10.31 — GST-H3: key by hsn+rate+uqc so mixed-UQC items don't
+    // aggregate nonsensically. GST-C3: cess included. GST-C2: UTGST folded.
     const hsnDetailed = {};
     filteredBills.forEach(bill => {
       const { items } = bill.data;
       const isInter = billIsInterstate(bill);
+      const isIntraUT = billIsIntraUT(bill);
       (items || []).forEach(item => {
-        const hsn = item.hsn || 'N/A'; const rate = item.taxPercent || 0; const key = `${hsn}_${rate}`;
-        if (!hsnDetailed[key]) hsnDetailed[key] = { hsn, desc: item.name || '', uqc: 'NOS', qty: 0, rate, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalValue: 0 };
-        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
-        hsnDetailed[key].qty += item.quantity || 0; hsnDetailed[key].taxable += split.taxable;
-        hsnDetailed[key].cgst += split.cgst; hsnDetailed[key].sgst += split.sgst; hsnDetailed[key].igst += split.igst;
-        hsnDetailed[key].totalValue += split.taxable + split.cgst + split.sgst + split.igst;
+        const hsn = item.hsn || 'N/A';
+        const rate = item.taxPercent || 0;
+        const uqc = getUnitUQC(item.unit) || 'NOS';
+        const key = `${hsn}|${rate}|${uqc}`;
+        if (!hsnDetailed[key]) hsnDetailed[key] = { hsn, desc: item.name || '', uqc, qty: 0, rate, taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, totalValue: 0 };
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive, isIntraUT);
+        hsnDetailed[key].qty += item.quantity || 0;
+        hsnDetailed[key].taxable += split.taxable;
+        hsnDetailed[key].cgst += split.cgst;
+        hsnDetailed[key].sgst += split.sgst + split.utgst;
+        hsnDetailed[key].igst += split.igst;
+        hsnDetailed[key].cess += split.cess;
+        hsnDetailed[key].totalValue += split.taxable + split.cgst + split.sgst + split.utgst + split.igst + split.cess;
       });
     });
     downloadCSV('GSTR1_HSN_Summary.csv', ['HSN', 'Description', 'UQC', 'Total Quantity', 'Rate %', 'Taxable Value', 'IGST Amount', 'CGST Amount', 'SGST Amount', 'Cess Amount', 'Total Value'],
-      Object.values(hsnDetailed).map(r => [r.hsn, r.desc, r.uqc, r.qty, r.rate, r.taxable.toFixed(2), r.igst.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), '0.00', r.totalValue.toFixed(2)]));
+      Object.values(hsnDetailed).map(r => [r.hsn, r.desc, r.uqc, r.qty, r.rate, r.taxable.toFixed(2), r.igst.toFixed(2), r.cgst.toFixed(2), r.sgst.toFixed(2), r.cess.toFixed(2), r.totalValue.toFixed(2)]));
     toast('HSN CSV downloaded — GSTR-1 Table 12 format', 'success');
   };
 
@@ -865,15 +958,35 @@ export default function GSTReturns() {
     // if values are 0).
     const sup_details = {
       osup_det: {
+        // v1.10.31 — GST-C3: cess populated (was hardcoded 0 → GSTR-1 emitted
+        // cess but GSTR-3B did not → Section 61 mismatch notice for
+        // tobacco / coal / aerated / motor-vehicle sellers).
         txval: round2(grandTotals.taxable),
         iamt: round2(grandTotals.igst),
         camt: round2(grandTotals.cgst),
         samt: round2(grandTotals.sgst),
-        csamt: 0,
+        csamt: round2(grandTotals.cess),
       },
       osup_zero: { txval: 0, iamt: 0, csamt: 0 },
       osup_nil_exmp: { txval: 0 },
-      isup_rev: { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 },
+      // v1.10.31 — GST-M10: RCM inward supplies populated from purchases
+      // flagged as reverse-charge (was hardcoded 0 → self-remit RCM liability
+      // never reported → interest u/s 50).
+      isup_rev: (() => {
+        const rcmPurchases = (purchases || []).filter(p => !!p.reverseCharge);
+        if (rcmPurchases.length === 0) return { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
+        const t = rcmPurchases.reduce((acc, p) => ({
+          txval: acc.txval + (Number(p.taxableAmount) || 0),
+          iamt: acc.iamt + (p.interstate ? (Number(p.totalTax) || 0) : 0),
+          camt: acc.camt + (p.interstate ? 0 : (Number(p.totalTax) || 0) / 2),
+          samt: acc.samt + (p.interstate ? 0 : (Number(p.totalTax) || 0) / 2),
+          csamt: acc.csamt + (Number(p.totalCess) || 0),
+        }), { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 });
+        return {
+          txval: round2(t.txval), iamt: round2(t.iamt),
+          camt: round2(t.camt), samt: round2(t.samt), csamt: round2(t.csamt),
+        };
+      })(),
       osup_nongst: { txval: 0 },
     };
 
@@ -925,29 +1038,42 @@ export default function GSTReturns() {
       const ctin = client.gstin;
       if (!b2bMap[ctin]) b2bMap[ctin] = { ctin, inv: [] };
       const isInter = billIsInterstate(bill);
+      const isIntraUT = billIsIntraUT(bill);
+      const isRcm = !!bill.data?.invoiceOptions?.reverseCharge;
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
       const rateMap = {};
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0;
         if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
-        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
-        rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].camt += split.cgst; rateMap[rate].samt += split.sgst;
-        // P1 #13: cess per item = (afterDiscount) * cessPercent / 100.
-        // Compute from the same taxable base so it stays consistent with
-        // GST rate math when tax-inclusive.
-        const cessPct = Number(item.cessPercent) || 0;
-        if (cessPct > 0) rateMap[rate].csamt += split.taxable * cessPct / 100;
+        // v1.10.31 — GST-C2/H7: pass isIntraUT so UTGST folds into SGST bucket.
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive, isIntraUT);
+        rateMap[rate].txval += split.taxable;
+        rateMap[rate].iamt += split.igst;
+        rateMap[rate].camt += split.cgst;
+        rateMap[rate].samt += split.sgst + split.utgst;
+        rateMap[rate].csamt += split.cess;
       });
-      // P1 #11: rchrg derived from the bill's reverseCharge flag.
-      // P1 #12: SEZ classification — SEWP (with payment) / SEWOP (without).
-      //   Without payment = LUT / bond export (isSEZ + zero-rated / LUT term).
-      //   With payment = SEZ supply with IGST charged.
-      const rchrg = bill.data?.invoiceOptions?.reverseCharge ? 'Y' : 'N';
+      const rchrg = isRcm ? 'Y' : 'N';
       const isSEZ = !!client?.isSEZ;
-      const isLUT = /LUT|Letter of Undertaking|zero.?rated/i.test(bill.data?.customTerms || '') || !!bill.data?.invoiceOptions?.isLUT;
-      const invType = isSEZ ? (isLUT ? 'SEWOP' : 'SEWP') : 'R';
+      // v1.10.31 — GST-M3 + L5: `isLUT` now uses explicit flag first, term-
+      // scanning fallback for legacy bills (was false-positive on "no LUT
+      // applicable" text). Also GST-M9: SEZ + RCM combination — GSTN rejects
+      // SEWP/SEWOP with rchrg='Y'. Coerce inv_typ to 'R' if rchrg='Y'.
+      const isLUT = !!bill.data?.invoiceOptions?.isLUT
+        || /\bLUT\b|Letter of Undertaking/i.test(bill.data?.customTerms || '');
+      const invType = isRcm
+        ? 'R'
+        : (isSEZ ? (isLUT ? 'SEWOP' : 'SEWP') : 'R');
+      // v1.10.31 — GST-C1: `val` per-invoice for RCM must reconcile with
+      // per-rate iamt/camt/samt/csamt. When RCM, computeInvoiceTotals excludes
+      // tax from `total`, but the per-rate map STILL emits the notional tax.
+      // Portal validation requires `val ≈ txval + iamt + camt + samt + csamt`.
+      // For RCM, we emit val inclusive of notional tax so both sides balance.
+      // Also GST-H5: subtract round-off from val so per-rate sum matches.
+      const rateTotal = Object.values(rateMap).reduce((s, d) => s + d.txval + d.iamt + d.camt + d.samt + d.csamt, 0);
+      const val = isRcm ? round2(rateTotal) : round2((totals?.total || 0) - (totals?.roundOff || 0));
       b2bMap[ctin].inv.push({
-        inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg, inv_typ: invType,
+        inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val, pos, rchrg, inv_typ: invType,
         itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) } })),
       });
     });
@@ -956,15 +1082,18 @@ export default function GSTReturns() {
     b2cSmall.forEach(bill => {
       const { profile: prof, client, items, details } = bill.data;
       const isInter = billIsInterstate(bill);
+      const isIntraUT = billIsIntraUT(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || prof?.state || '');
       const splyTy = isInter ? 'INTER' : 'INTRA';
       (items || []).forEach(item => {
         const rate = item.taxPercent || 0; const key = `${splyTy}_${pos}_${rate}`;
         if (!b2csMap[key]) b2csMap[key] = { sply_ty: splyTy, pos, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
-        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive);
-        b2csMap[key].txval += split.taxable; b2csMap[key].iamt += split.igst; b2csMap[key].camt += split.cgst; b2csMap[key].samt += split.sgst;
-        const cessPct = Number(item.cessPercent) || 0;
-        if (cessPct > 0) b2csMap[key].csamt += split.taxable * cessPct / 100;
+        const split = computeItemTaxSplit(item, isInter, !!bill.data?.taxInclusive, isIntraUT);
+        b2csMap[key].txval += split.taxable;
+        b2csMap[key].iamt += split.igst;
+        b2csMap[key].camt += split.cgst;
+        b2csMap[key].samt += split.sgst + split.utgst; // v1.10.31 — UTGST folded
+        b2csMap[key].csamt += split.cess; // v1.10.31 — cess from split
       });
     });
     const b2csArr = Object.values(b2csMap).map(d => ({ ...d, txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) }));
@@ -1130,7 +1259,7 @@ export default function GSTReturns() {
 
       {/* NIL Return notice */}
       {isNilReturn && (
-        <div style={{ padding: '0.5rem 0.75rem', marginBottom: '0.75rem', borderRadius: '8px', background: '#fffbeb', fontSize: '0.8rem', color: '#92400e' }}>
+        <div style={{ padding: '0.5rem 0.75rem', marginBottom: '0.75rem', borderRadius: '8px', background: 'var(--warn-bg)', color: 'var(--warn-text)', fontSize: '0.8rem' }}>
           No invoices or expenses found — file a NIL return on the GST portal. NIL returns are mandatory.
         </div>
       )}
@@ -1918,7 +2047,7 @@ export default function GSTReturns() {
 
                 {guideTab === 'nil' && (
                   <>
-                    <div className="glass-panel p-4 mb-4" style={{ borderLeft: '4px solid #f59e0b', background: '#fffbeb' }}>
+                    <div className="glass-panel p-4 mb-4" style={{ borderLeft: '4px solid #f59e0b', background: 'var(--warn-bg)', color: 'var(--warn-text)' }}>
                       <h4 style={{ color: '#92400e', marginBottom: '0.5rem', fontSize: '0.9rem' }}>When to File NIL Return</h4>
                       <ul style={{ fontSize: '0.85rem', color: '#a16207', lineHeight: 1.8, paddingLeft: '1.25rem' }}>
                         <li>You had <strong>ZERO outward supplies</strong> (no sales/services) during the period</li>

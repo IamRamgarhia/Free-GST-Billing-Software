@@ -316,7 +316,12 @@ export function computeInvoiceTotals(opts) {
   // pre-tax GST-compliant discount should use per-line discount instead.
   const invDiscValue = finiteNonNeg(invoiceOptions.invoiceDiscountValue);
   const invDiscType = invoiceOptions.invoiceDiscountType === 'percent' ? 'percent' : 'fixed';
-  const preInvDiscTotal = baseTotal + tcsAmount + cessTotal;
+  // v1.10.31 — GST-C4: cess is also subject to RCM under §8(2) of the GST
+  // Compensation Cess Act. Buyer remits it, so the seller must not collect
+  // it on-invoice. Previously left in the total → buyer paid supplier's cess
+  // AND remitted own → double payment.
+  const cessOnInvoice = isReverseCharge ? 0 : cessTotal;
+  const preInvDiscTotal = baseTotal + tcsAmount + cessOnInvoice;
   const invoiceDiscountAmount = invDiscType === 'percent'
     ? Math.min(preInvDiscTotal, r2(preInvDiscTotal * Math.min(invDiscValue, 100) / 100))
     : Math.min(preInvDiscTotal, r2(invDiscValue));
@@ -335,12 +340,13 @@ export function computeInvoiceTotals(opts) {
   // v1.10.1 — totalTaxAmount now includes cess AND UTGST. Prior calc
   // `cgst + sgst + igst` excluded both. Reports over-counted revenue
   // for tobacco/auto/coal sellers.
+  // v1.10.31 — GST-C4: under RCM, cess is also zeroed for reporting.
   const totalTaxAmount = r2(
     (zeroTaxOnTotals ? 0 : cgst) +
     (zeroTaxOnTotals ? 0 : sgst) +
     (zeroTaxOnTotals ? 0 : utgst) +
     (zeroTaxOnTotals ? 0 : igst) +
-    cessTotal
+    (zeroTaxOnTotals ? 0 : cessTotal)
   );
 
   const result = {
@@ -539,13 +545,25 @@ const GST_STATE_CODES = {
   'telangana': '36', 'ladakh': '38',
 };
 
+// v1.10.31 — GST-H1: legacy codes normalized.
+// AP was reorganised in June 2014; old GSTINs with prefix `28` (before
+// bifurcation) should map to the current code `37` (Andhra Pradesh).
+// Daman & Diu had legacy code `25` before the 2020 merger into DNH+DD (`26`).
+// Without normalisation, a `28ABCDE…` GSTIN and the current state "Andhra
+// Pradesh" produced different codes → interstate/intrastate mis-classification.
+const LEGACY_STATE_CODE_MAP = { '28': '37', '25': '26' };
+
 // Get 2-digit GST state code from state name or GSTIN
 export const getStateCode = (stateOrGstin) => {
   if (!stateOrGstin) return '';
   const s = stateOrGstin.trim();
   // If it looks like a GSTIN (15 chars), extract first 2 digits
-  if (/^\d{2}[A-Z0-9]{13}$/i.test(s)) return s.substring(0, 2);
-  return GST_STATE_CODES[s.toLowerCase()] || '';
+  if (/^\d{2}[A-Z0-9]{13}$/i.test(s)) {
+    const prefix = s.substring(0, 2);
+    return LEGACY_STATE_CODE_MAP[prefix] || prefix;
+  }
+  const code = GST_STATE_CODES[s.toLowerCase()] || '';
+  return LEGACY_STATE_CODE_MAP[code] || code;
 };
 
 // v1.10.1 — Union Territories WITHOUT their own legislature use CGST +
@@ -621,12 +639,11 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
 
   const itemList = items.map((item, idx) => {
     // v1.10.1 — back-calculate taxable when the invoice is MRP-inclusive.
-    // Previously used gross MRP; portal rejected the file because
-    // taxableValue + tax > totInvValue.
-    // v1.10.22 — honour discountType (percent | fixed) so the e-way-bill
-    // payload's totals agree with the invoice's on-screen totals.
+    // v1.10.22 — honour discountType (percent | fixed).
+    // v1.10.31 — GST-C5: cess rate now populated per item (was 0).
     const gross = (Number(item.quantity) || 0) * (Number(item.rate) || 0) - resolveLineDiscount(item);
     const taxRate = Number(item.taxPercent) || 0;
+    const cessRate = Number(item.cessPercent) || 0;
     const taxable = taxInclusive && taxRate > 0
       ? gross / (1 + taxRate / 100)
       : gross;
@@ -641,7 +658,7 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
       cgstRate: isInterstate ? 0 : taxRate / 2,
       sgstRate: isInterstate ? 0 : taxRate / 2,
       igstRate: isInterstate ? taxRate : 0,
-      cessRate: 0,
+      cessRate,
     };
   });
 
@@ -669,13 +686,19 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
       // totals.taxableAmount which computeInvoiceTotals fills correctly
       // for both modes; fall back to the old calc for legacy callers.
       totalValue: Math.round(((totals.taxableAmount != null ? totals.taxableAmount : (totals.subtotal - totals.totalDiscount))) * 100) / 100,
-      cgstValue: Math.round(totals.cgst * 100) / 100,
-      sgstValue: Math.round(totals.sgst * 100) / 100,
-      igstValue: Math.round(totals.igst * 100) / 100,
-      cessValue: 0,
+      cgstValue: Math.round((totals.cgst || 0) * 100) / 100,
+      // v1.10.31 — GST-H7: UTGST folded into sgstValue bucket (NIC portal
+      // has no separate UTGST field; sum must reconcile with totInvValue).
+      sgstValue: Math.round(((totals.sgst || 0) + (totals.utgst || 0)) * 100) / 100,
+      igstValue: Math.round((totals.igst || 0) * 100) / 100,
+      // v1.10.31 — GST-C5: cess populated (was hardcoded 0 → NIC portal
+      // rejected any invoice with cess for total-consistency mismatch).
+      cessValue: Math.round((totals.cess || 0) * 100) / 100,
       totInvValue: Math.round(totals.total * 100) / 100,
       transMode: 1, // 1=Road
-      transDistance: 0,
+      // v1.10.31 — GST-C5: distance must be >= 1 (portal rejects 0). Caller
+      // can pass `opts.distance`. If unset we default to 1 (minimum valid).
+      transDistance: Math.max(1, Number(opts.distance) || 1),
       transporterName: '',
       transporterId: '',
       transDocNo: '',
