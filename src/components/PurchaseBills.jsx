@@ -89,25 +89,46 @@ export default function PurchaseBills() {
   // purchase being previewed; modal has a Download PDF button inside.
   const [viewPurchase, setViewPurchase] = useState(null);
   const applyOCR = (extracted) => {
-    // Open the purchase form (add mode) pre-filled with what OCR gave us.
-    // Line items stay empty — user fills them manually since bill layouts
-    // are too variable to auto-parse reliably.
+    // v1.10.35 — Now consumes the richer payload from BillOCR:
+    // extracted.items[] with name/hsn/qty/rate/taxPercent/amount, and
+    // extracted.taxBreakdown with cgst/sgst/igst/cess. Falls back to
+    // the old single-line-from-grand-total behaviour only if no line
+    // items were detected at all.
     setEditingId(null);
+    let items;
+    if (Array.isArray(extracted.items) && extracted.items.length > 0) {
+      // Trust the OCR-extracted line items. Strip the internal match
+      // metadata (_matchedProductId etc.) since the purchase form
+      // doesn't consume it.
+      items = extracted.items.map(it => ({
+        name: it.name || '',
+        hsn: it.hsn || '',
+        quantity: Number(it.quantity) || 1,
+        rate: Number(it.rate) || 0,
+        taxPercent: Number(it.taxPercent) || 0,
+        cessPercent: 0,
+      }));
+    } else if (extracted.grandTotal > 0) {
+      // Legacy fallback — no line items detected, seed a single-row
+      // placeholder from the grand total so the user has something to
+      // split.
+      items = [{ name: 'From OCR — split into real items', hsn: '', quantity: 1, rate: extracted.grandTotal, taxPercent: 0, cessPercent: 0 }];
+    } else {
+      items = [{ ...emptyItem }];
+    }
     setForm({
       ...emptyForm,
       date: extracted.date || emptyForm.date,
       supplierName: extracted.supplierName || '',
       supplierGstin: extracted.supplierGstin || '',
       invoiceNumber: extracted.invoiceNumber || '',
-      // If the OCR-extracted grand total is non-zero, seed a single line at
-      // that amount so the totals row shows a reasonable number until the
-      // user breaks it out into real items.
-      items: extracted.grandTotal > 0
-        ? [{ name: 'From OCR — split into real items', hsn: '', quantity: 1, rate: extracted.grandTotal, taxPercent: 0, cessPercent: 0 }]
-        : [{ ...emptyItem }],
+      items,
     });
     setShowForm(true);
-    toast('OCR values loaded — please review, then break the total into line items with correct GST.', 'info');
+    const msg = Array.isArray(extracted.items) && extracted.items.length > 0
+      ? `OCR loaded ${extracted.items.length} line item${extracted.items.length === 1 ? '' : 's'} — review HSN + tax rates before saving.`
+      : 'OCR values loaded — please review, then break the total into line items with correct GST.';
+    toast(msg, 'info');
   };
 
   const fyOptions = getFYOptions();
@@ -582,7 +603,11 @@ export default function PurchaseBills() {
                 {t.cess > 0.005 && <><span style={{ color: 'var(--text-muted)' }}>Cess</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.cess)}</span></>}
                 {Math.abs(t.roundOff) > 0.005 && <><span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Round-off</span><span style={{ textAlign: 'right', fontStyle: 'italic' }}>{(t.roundOff > 0 ? '+' : '') + formatCurrency(t.roundOff)}</span></>}
                 <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, fontWeight: 700 }}>TOTAL</span>
-                <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, textAlign: 'right', fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>{formatCurrency(t.finalTotal)}</span>
+                {/* v1.10.34 — was hardcoded color:'#0f172a' (slate-900) which
+                    disappeared against the dark card background. Reported
+                    with screenshot showing invisible total on Purchase Bill
+                    view modal. Now uses --text so it flips with theme. */}
+                <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, textAlign: 'right', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)' }}>{formatCurrency(t.finalTotal)}</span>
               </div>
               {p.note && <p style={{ fontSize: '0.82rem', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '1rem' }}>Note: {p.note}</p>}
               {/* Action bar */}

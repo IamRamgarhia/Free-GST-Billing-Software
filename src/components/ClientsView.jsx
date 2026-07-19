@@ -189,11 +189,19 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       // Debit  = amount charged to the client (increases receivable)
       // Credit = payment received / credit note (decreases receivable)
       // Balance = running Dr - Cr
+      //
+      // v1.10.35 — Column widths widened after a report showed "Dr"
+      // suffix crowding the balance number. Prior debitEnd=140 /
+      // creditEnd=168 / balanceEnd=193 left only 4mm between Credit
+      // and Balance text — tight when both were 5-digit rupee amounts.
+      // Now the Particulars column is trimmed by 5mm and that space is
+      // distributed into Debit/Credit/Balance so each has proper breathing
+      // room and long "Dr/Cr" suffixes never clip the page margin.
       const col = {
-        dateEnd: 42,        // Date column: 15 to 42 (27mm)
-        particEnd: 105,     // Particulars: 42 to 105 (63mm)
-        debitEnd: 140,      // Debit right-aligned at 140
-        creditEnd: 168,     // Credit right-aligned at 168
+        dateEnd: 40,        // Date column: 15 to 40 (25mm — dd/mm/yyyy fits at 8.5pt)
+        particEnd: 100,     // Particulars: 40 to 100 (60mm)
+        debitEnd: 133,      // Debit right-aligned at 133
+        creditEnd: 163,     // Credit right-aligned at 163
         balanceEnd: marginR - 2, // Balance right-aligned at 193
       };
 
@@ -209,12 +217,16 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       doc.setTextColor(0);
       y += 11;
 
-      // Opening balance row
+      // Opening balance row — italic + muted, above the first real row.
       doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(80);
       doc.text('Opening Balance', col.dateEnd + 2, y);
       doc.text(fmt(0), col.balanceEnd, y, { align: 'right' });
+      // v1.10.35 — thin separator so the opening line reads as a
+      // distinct baseline, not as a squished header extension.
+      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.15);
+      doc.line(marginL, y + 2, marginR, y + 2);
       doc.setTextColor(15, 23, 42); doc.setFont('helvetica', 'normal');
-      y += 6;
+      y += 7;
 
       // Rows
       let runningBalance = 0;
@@ -230,7 +242,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         doc.text('Credit', col.creditEnd, y + 6, { align: 'right' });
         doc.text('Balance', col.balanceEnd, y + 6, { align: 'right' });
         doc.setTextColor(0);
-        y += 11;
+        y += 12;   // v1.10.35 — was 11; 1mm extra so text doesn't kiss the header rectangle bottom
       };
 
       for (let i = 0; i < sortedBills.length; i++) {
@@ -248,10 +260,22 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         // Page break with header repeat
         if (y > 260) { doc.addPage(); y = 20; drawHeader(); }
 
-        // Alt row shading
+        // v1.10.35 — Row rendering rewrite for the reported "shows data
+        // in incorrect way" screenshot:
+        //   - Row height increased 6mm → 7mm so descenders don't kiss
+        //     the next row and the alt-shade rectangle covers the whole
+        //     row cleanly.
+        //   - Alt shading Y offset fixed (was y-4, showed above the row
+        //     text baseline on some renders).
+        //   - Empty debit/credit cells render as a light em-dash "—"
+        //     instead of a hard hyphen "-", matching the app's cell-empty
+        //     convention and reducing visual noise.
+        //   - The " Dr" / " Cr" suffix now uses the actual sign — was
+        //     always " Dr" even for credit-side balances.
+        const rowH = 7;
         if (i % 2 === 1) {
           doc.setFillColor(248, 250, 252);
-          doc.rect(marginL, y - 4, tableW, 6, 'F');
+          doc.rect(marginL, y - rowH + 2, tableW, rowH, 'F');
         }
 
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
@@ -262,17 +286,30 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         const particulars = `${bill.invoiceNumber || ''} · ${typeLabel}`;
         const particText = doc.splitTextToSize(particulars, col.particEnd - col.dateEnd - 4);
         doc.text(particText[0] || '', col.dateEnd + 2, y);
-        // Debit
-        doc.text(debit > 0 ? fmt(debit) : '-', col.debitEnd, y, { align: 'right' });
+        // Debit — em-dash placeholder for empty cells.
+        if (debit > 0) {
+          doc.text(fmt(debit), col.debitEnd, y, { align: 'right' });
+        } else {
+          doc.setTextColor(180); doc.text('—', col.debitEnd, y, { align: 'right' }); doc.setTextColor(15, 23, 42);
+        }
         // Credit
-        doc.text(credit > 0 ? fmt(credit) : '-', col.creditEnd, y, { align: 'right' });
-        // Balance
+        if (credit > 0) {
+          doc.text(fmt(credit), col.creditEnd, y, { align: 'right' });
+        } else {
+          doc.setTextColor(180); doc.text('—', col.creditEnd, y, { align: 'right' }); doc.setTextColor(15, 23, 42);
+        }
+        // Balance — sign determines Dr / Cr suffix. Red for owing (Dr),
+        // green for surplus (Cr), black for balanced.
         runningBalance += debit - credit;
-        if (runningBalance > 0.01) { doc.setFont('helvetica', 'bold'); doc.setTextColor(220, 38, 38); }
-        else { doc.setTextColor(5, 150, 105); }
-        doc.text(fmt(runningBalance) + ' Dr', col.balanceEnd, y, { align: 'right' });
+        const isDr = runningBalance > 0.01;
+        const isCr = runningBalance < -0.01;
+        if (isDr) { doc.setFont('helvetica', 'bold'); doc.setTextColor(220, 38, 38); }
+        else if (isCr) { doc.setTextColor(5, 150, 105); }
+        else { doc.setTextColor(15, 23, 42); }
+        const suffix = isDr ? ' Dr' : isCr ? ' Cr' : '';
+        doc.text(fmt(Math.abs(runningBalance)) + suffix, col.balanceEnd, y, { align: 'right' });
         doc.setTextColor(15, 23, 42); doc.setFont('helvetica', 'normal');
-        y += 6;
+        y += rowH;
 
         // Add a follow-on row for the payment if any
         if (paid > 0.01 && !isCreditNote) {
@@ -281,11 +318,15 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
           doc.text('   Payment recd against above', col.dateEnd + 2, y);
           doc.text(fmt(paid), col.creditEnd, y, { align: 'right' });
           runningBalance -= paid;
-          if (runningBalance > 0.01) { doc.setFont('helvetica', 'bold'); doc.setTextColor(220, 38, 38); }
-          else { doc.setFont('helvetica', 'normal'); doc.setTextColor(5, 150, 105); }
-          doc.text(fmt(runningBalance) + ' Dr', col.balanceEnd, y, { align: 'right' });
+          const isDr2 = runningBalance > 0.01;
+          const isCr2 = runningBalance < -0.01;
+          if (isDr2) { doc.setFont('helvetica', 'bold'); doc.setTextColor(220, 38, 38); }
+          else if (isCr2) { doc.setFont('helvetica', 'normal'); doc.setTextColor(5, 150, 105); }
+          else { doc.setFont('helvetica', 'normal'); doc.setTextColor(15, 23, 42); }
+          const suffix2 = isDr2 ? ' Dr' : isCr2 ? ' Cr' : '';
+          doc.text(fmt(Math.abs(runningBalance)) + suffix2, col.balanceEnd, y, { align: 'right' });
           doc.setTextColor(15, 23, 42); doc.setFont('helvetica', 'normal');
-          y += 6;
+          y += rowH;
         }
       }
 

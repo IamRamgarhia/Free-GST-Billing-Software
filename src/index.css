@@ -652,6 +652,17 @@ body {
   box-shadow: 0 0 0 3px var(--primary-light);
 }
 
+/* v1.10.34 — Private-note textarea gets a warm-ivory tint in light
+   mode (visually separates it from regular fields), a muted warm tint
+   in dark mode. Prior inline `background:'#fffef5'` looked yellow-on-
+   dark and unreadable in dark mode. */
+.note-textarea {
+  background: #fffef5;
+}
+[data-theme="dark"] .note-textarea {
+  background: rgba(217, 119, 6, 0.08);
+}
+
 select.form-input {
   cursor: pointer;
   appearance: none;

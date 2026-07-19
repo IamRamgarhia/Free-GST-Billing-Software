@@ -218,8 +218,8 @@ export default function RecurringInvoices() {
 
       {/* Due Now Alert */}
       {dueTemplates.length > 0 && (
-        <div className="glass-panel p-4 mb-6" style={{ borderLeft: '4px solid #f59e0b', background: '#fffbeb' }}>
-          <h4 style={{ marginBottom: '0.5rem', color: '#92400e' }}>{dueTemplates.length} invoice{dueTemplates.length > 1 ? 's' : ''} due for generation</h4>
+        <div className="glass-panel p-4 mb-6" style={{ borderLeft: '4px solid #f59e0b', background: 'var(--warn-bg)', color: 'var(--warn-text)' }}>
+          <h4 style={{ marginBottom: '0.5rem', color: 'var(--warn-text)' }}>{dueTemplates.length} invoice{dueTemplates.length > 1 ? 's' : ''} due for generation</h4>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {dueTemplates.map(tpl => (
               <button key={tpl.id} className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
@@ -349,7 +349,7 @@ export default function RecurringInvoices() {
                   }, 0);
                   const isDue = tpl.active !== false && tpl.nextDate && tpl.nextDate <= new Date().toISOString().split('T')[0];
                   return (
-                    <tr key={tpl.id} style={isDue ? { background: '#fffbeb' } : {}}>
+                    <tr key={tpl.id} className={isDue ? 'row-warning' : ''}>
                       <td className="font-medium">{tpl.clientName}</td>
                       <td><span className="type-badge">{FREQUENCIES.find(f => f.value === tpl.frequency)?.label}</span></td>
                       <td className="text-muted">{INVOICE_TYPES[tpl.invoiceType || 'tax-invoice']?.label}</td>

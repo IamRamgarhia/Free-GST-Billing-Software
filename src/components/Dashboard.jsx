@@ -623,8 +623,16 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
    // handler) and stitches them into a single multi-page PDF. Zip would be
    // cleaner but pulling in JSZip inflates the bundle by ~140KB; one big
    // PDF is what CAs want anyway (one file to archive).
-  const bulkExportPDF = async () => {
-    const sel = getSelectedBills();
+  // v1.10.35 — `billsOverride` skips the selectedIds read entirely. Used
+  // by the "Quick print" filter buttons (bulkPrintByFilter) which need
+  // to export a computed set WITHOUT waiting for a React state commit
+  // — the old code called `setSelectedIds(new Set(target))` then
+  // `setTimeout(bulkExportPDF, 20)`, but the setTimeout captured the
+  // stale bulkExportPDF closure whose getSelectedBills read the OLD
+  // (empty) selectedIds → silent no-op. Reported: "Paid button blinks,
+  // shows nothing."
+  const bulkExportPDF = async (billsOverride = null) => {
+    const sel = billsOverride || getSelectedBills();
     if (sel.length === 0) return;
     if (sel.length > 100 && !await confirmAction({
       title: `Export ${sel.length} invoices?`,
@@ -716,14 +724,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
       toast(`No ${filterKind === 'all' ? '' : filterKind + ' '}invoices to print`, 'warning');
       return;
     }
-    const savedSelection = new Set(selectedIds);
-    setSelectedIds(new Set(targetBills.map(b => b.id)));
-    // Give React a tick to commit the new selection before bulkExportPDF
-    // reads getSelectedBills(). Then restore the previous selection.
-    setTimeout(async () => {
-      try { await bulkExportPDF(); }
-      finally { setSelectedIds(savedSelection); }
-    }, 20);
+    // v1.10.35 — Pass the computed bill set directly. Prior code briefly
+    // mutated selectedIds via setState then setTimeout(...bulkExportPDF)
+    // which read stale state through the setTimeout closure and printed
+    // nothing. Now the export runs immediately with the correct set and
+    // the user's selection is left untouched.
+    await bulkExportPDF(targetBills);
   };
 
   // v1.10.22 — Generate a single-bill PDF as a Blob. Split out of the

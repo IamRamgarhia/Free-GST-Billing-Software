@@ -71,6 +71,64 @@ window.addEventListener('blur', () => {
   if (window.__fgsbSwUpdateReady) window.__fgsbApplyUpdate();
 });
 
+// v1.10.35 — Nuclear defensive path for the "still white screen on
+// refresh after v1.10.33" report. Root cause: users' currently-running
+// SW was installed BEFORE we set skipWaiting=true, so their SW still
+// behaves the old way — stalls in `waiting` state and never activates
+// the fresh SW that was published. Result: browser reloads → SW serves
+// stale index.html + stale bundle names → the referenced JS chunks
+// no longer exist → white screen.
+//
+// On every load:
+//   1. If a `waiting` SW registration exists, force it to skipWaiting
+//      via message post AND reload once it activates. One-time cost:
+//      one auto-reload the first time the user hits v1.10.35.
+//   2. If the loaded main bundle hits a `chunk-load` error (imports
+//      referencing files the SW's cache doesn't have), auto-reload
+//      once — belt-and-braces after case 1.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (!reg) return;
+    // Take the waiting SW live if there is one.
+    if (reg.waiting) {
+      try {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } catch { /* ignore */ }
+    }
+    // Any time a fresh SW takes control, reload once so the client
+    // JS matches the SW's manifest. Only fires when we didn't cause
+    // it ourselves (already-mounted app).
+    let alreadyReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (alreadyReloaded) return;
+      alreadyReloaded = true;
+      window.location.reload();
+    });
+  }).catch(() => { /* not registered yet — first load */ });
+
+  // Chunk-load safety net. Vite's dynamic imports produce
+  // `Failed to fetch dynamically imported module` (Chrome) or
+  // `error loading dynamically imported module` (Firefox/Safari) when
+  // the requested chunk name changed post-deploy. Reload once to
+  // fetch the current index.html + its correct chunk map.
+  let chunkReloadFired = false;
+  window.addEventListener('error', (e) => {
+    const msg = String(e?.message || e?.error?.message || '');
+    if (!chunkReloadFired && /dynamically imported module|Loading chunk|Failed to fetch dynamically/i.test(msg)) {
+      chunkReloadFired = true;
+      // Small delay so we don't reload-loop on a genuine broken state.
+      setTimeout(() => window.location.reload(), 200);
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = String(e?.reason?.message || e?.reason || '');
+    if (!chunkReloadFired && /dynamically imported module|Loading chunk|Failed to fetch dynamically/i.test(msg)) {
+      chunkReloadFired = true;
+      setTimeout(() => window.location.reload(), 200);
+    }
+  });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />

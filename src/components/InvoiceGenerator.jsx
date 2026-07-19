@@ -7,6 +7,7 @@ import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, 
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
+import ThermalPreviewModal from './ThermalPreviewModal';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
@@ -534,6 +535,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     } catch { return draft?.invoiceOptions || { ...DEFAULT_OPTIONS }; }
   });
   const [showOptions, setShowOptions] = useState(false);
+  // v1.10.34 — Thermal receipt preview modal state. See directPrint below.
+  const [showThermalPreview, setShowThermalPreview] = useState(false);
   const printRef = useRef(null);
   const draftInitialized = useRef(!!draft);
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
@@ -1381,6 +1384,44 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           toast('Credit applied on this bill, but source bill update failed. Please review Client ledger.', 'warning');
         }
       }
+      // v1.10.35 — Reported: "if user has selected thermal or any paper
+      // size according to client it should always show that same auto or
+      // else if user create new invoice and select thermal and if again
+      // create new invoice with a4 pdf it should remember the choice and
+      // next time show same so that if user change in new it won't
+      // change that in older one".
+      //
+      // Behaviour:
+      //  - Client selected: persist paperSize + currency + auto-print
+      //    onto the client record so next invoice for that client
+      //    defaults to the same choice.
+      //  - No client selected: fall through to global default (already
+      //    persisted via localStorage 'freegstbill_invoiceOptions' on
+      //    every options change — see the useEffect around line 594).
+      //  - Prior client-select code (~line 1131) reads cli.preferred*
+      //    already, so this write-side fix closes the loop.
+      // Fire-and-forget: don't block the save UX on a preference update.
+      if (selectedClientId) {
+        const cli = savedClients.find(c => c.id === selectedClientId);
+        if (cli) {
+          const nextPaperSize = invoiceOptions.paperSize || 'a4';
+          const nextCurrency = invoiceOptions.currency || 'INR';
+          const changed = cli.preferredPaperSize !== nextPaperSize
+            || cli.preferredCurrency !== nextCurrency;
+          if (changed) {
+            const updatedClient = {
+              ...cli,
+              preferredPaperSize: nextPaperSize,
+              preferredCurrency: nextCurrency,
+            };
+            saveClient(updatedClient).then(() => {
+              // Refresh the in-memory clients list so subsequent
+              // handleSelectClient calls see the new preference.
+              setSavedClients(prev => prev.map(c => c.id === cli.id ? updatedClient : c));
+            }).catch(() => { /* non-blocking */ });
+          }
+        }
+      }
       // Mark that the invoice has been persisted at least once — subsequent
       // saves (auto-save, Save & Leave, Save & Download) can safely overwrite.
       hasBeenSaved.current = true;
@@ -2193,48 +2234,33 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const directPrint = async () => {
     if (!printRef.current) return;
+    // v1.10.34 — Thermal now opens a dedicated preview modal instead
+    // of the buildPDF → iframe path. Reasons:
+    //   - buildPDF rasterizes text via html2canvas → JPEG, losing
+    //     glyph sharpness at small font sizes on 203dpi thermal
+    //     printers.
+    //   - The compact modal doubles as a preview — user sees exactly
+    //     what will print, then clicks Print. Matches the POS-app UX
+    //     the user shared as a reference ("preview like this").
+    //   - The modal's Print button uses raw HTML in a hidden iframe
+    //     with @page: size widthMm auto → Chrome sends VECTOR text
+    //     to the driver. Text stays crisp at any DPI. See
+    //     ThermalPreviewModal.jsx for details.
+    // A4 / sheet paper still use the existing buildPDF path.
+    if (isThermalPaper()) {
+      setShowThermalPreview(true);
+      return;
+    }
     setSaving(true);
     try {
       await withPreviewOnScreen(async () => {
-      // v1.10.33 (v3) — Unified print path for thermal AND sheet paper.
-      // Prior thermal branch called window.print() on the parent window,
-      // which relied on the global @page CSS to size the paper. Chrome's
-      // print preview then defaulted to A4 (the user's usual paper) and
-      // showed a huge blank area below a small receipt — reported
-      // twice with screenshots of the empty grey/black area under the
-      // "cut here" line.
-      //
-      // Now: thermal uses the same buildPDF → printViaIframe path as
-      // A4. buildPDF for thermal already produces a content-height PDF
-      // (see the paperCfg.kind==='thermal' branch in the single-page
-      // block), so Chrome's print dialog shows a compact page that
-      // matches the receipt exactly — same behaviour as the on-screen
-      // preview, no more blank paper. Text becomes a raster (JPEG) but
-      // thermal printers are 203dpi anyway, so no visible loss.
-      //
-      // Buffer-safe mode still fires via a temporary style tag around
-      // the iframe print for old thermal printers with tiny buffers.
-      const ps = getPrintSettings();
-      let bufSafeEl = null;
-      if (isThermalPaper() && ps.thermalBufferSafe) {
-        bufSafeEl = document.createElement('style');
-        bufSafeEl.id = 'fgsb-thermal-buffer-safe';
-        bufSafeEl.textContent = `
-          @media print {
-            img {
-              filter: grayscale(100%) contrast(1.2) !important;
-              image-rendering: -webkit-optimize-contrast !important;
-            }
-          }
-        `;
-        document.head.appendChild(bufSafeEl);
-      }
       try {
         const pdf = await buildPDF();
         const blob = pdf.output('blob');
         printViaIframe(blob);
-      } finally {
-        if (bufSafeEl) setTimeout(() => bufSafeEl.remove(), 3000);
+      } catch (err) {
+        console.error('A4 print failed', err);
+        toast('Print failed — try Download PDF instead', 'error');
       }
       }); // end withPreviewOnScreen
     } catch (e) {
@@ -3331,9 +3357,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v4m0 4h.01"/></svg>
                 Private Note (not shown on invoice)
               </label>
-              <textarea rows="2" className="form-input" value={internalNote}
+              <textarea rows="2" className="form-input note-textarea" value={internalNote}
                 onChange={(e) => setInternalNote(e.target.value)}
-                style={{ background: '#fffef5', fontSize: '0.82rem' }}
+                style={{ fontSize: '0.82rem' }}
                 placeholder="e.g. Client asked for 15-day credit, follow up on 20th, referred by Ravi..." />
             </div>
           </div>
@@ -3422,6 +3448,25 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           </div>
         </div>
       </div>
+
+      {/* v1.10.34 — Thermal receipt preview modal. Opens when the user
+          clicks Print on a thermal-sized invoice. Modal shows the receipt
+          live, click Print inside to send vector HTML to the printer. */}
+      <ThermalPreviewModal
+        isOpen={showThermalPreview}
+        onClose={() => setShowThermalPreview(false)}
+        profile={profile}
+        client={client}
+        details={details}
+        items={items}
+        totals={totals}
+        invoiceType={invoiceType}
+        customTerms={customTerms}
+        customNotes={customNotes}
+        extraSections={extraSections}
+        invoiceOptions={invoiceOptions}
+        onDownloadPdf={generatePDF}
+      />
 
       {/* P2 #32 — 3-option leave modal. Replaces the previous confusing
           browser confirm() where OK=save was counterintuitive. */}
