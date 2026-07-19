@@ -3,6 +3,7 @@ import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload } from 'lucide-re
 import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings } from '../store';
 import { getAllUnits, getCountryConfig, formatCurrency } from '../utils';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 
 // v1.10.29 — reported: "here purchase price and selling price need".
 // Product now carries BOTH: `purchasePrice` (what we paid the supplier) and
@@ -115,7 +116,12 @@ export default function InventoryView() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Delete this product? This cannot be undone.')) {
+    if (await confirmAction({
+      title: 'Delete this product?',
+      message: 'Existing invoices that used this product keep their line items unchanged. This just removes the product from your catalog.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })) {
       try {
         await deleteProduct(id);
         toast('Product deleted', 'success');

@@ -3,6 +3,7 @@ import { RefreshCw, Plus, Edit3, Trash2, Play, Pause, X, Save } from 'lucide-rea
 import { getAllRecurring, saveRecurring, deleteRecurring, getAllClients, saveBill, getNextInvoiceNumber } from '../store';
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 
 const FREQUENCIES = [
   { value: 'weekly', label: 'Weekly' },
@@ -120,7 +121,12 @@ export default function RecurringInvoices() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Delete this recurring invoice template?')) {
+    if (await confirmAction({
+      title: 'Delete this recurring invoice?',
+      message: 'The template will stop generating new invoices. Existing generated invoices stay in your dashboard untouched.',
+      confirmLabel: 'Delete template',
+      tone: 'danger',
+    })) {
       try { await deleteRecurring(id); toast('Deleted', 'success'); load(); }
       catch { toast('Failed to delete', 'error'); }
     }

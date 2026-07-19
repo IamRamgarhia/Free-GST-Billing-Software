@@ -5,6 +5,7 @@ import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProf
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 
 // v1.10.13 — `bg` values switched from opaque tints (#fffbeb / #f5f3ff /
 // etc.) to translucent alpha versions of the accent color. Reason:
@@ -265,7 +266,13 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo]);
 
   const handleDelete = async (bill) => {
-    if (confirm('Delete this invoice? This cannot be undone.')) {
+    const ok = await confirmAction({
+      title: 'Delete this invoice?',
+      message: `Invoice ${bill.invoiceNumber} for ${bill.clientName} will be soft-deleted (moved to Trash for 30 days). Stock will be restored for any products in this invoice.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (ok) {
       try {
         // Restore stock for products used in this invoice
         if (bill.data?.items) {
@@ -336,7 +343,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const alreadyPaid = Number(bill.paidAmount) || 0;
     const outstanding = Math.max(0, billTotal - alreadyPaid);
     if (amount > outstanding + 0.01) {
-      const proceed = confirm(`This payment (${formatCurrency(amount, bill.currency)}) is more than the outstanding balance (${formatCurrency(outstanding, bill.currency)}). Record it as an overpayment anyway?`);
+      const proceed = await confirmAction({
+        title: 'Record as overpayment?',
+        message: `This payment (${formatCurrency(amount, bill.currency)}) is more than the outstanding balance (${formatCurrency(outstanding, bill.currency)}).\n\nThe extra will be saved as client credit and can be applied to future invoices.`,
+        confirmLabel: 'Yes, record overpayment',
+        tone: 'warning',
+      });
       if (!proceed) return;
     }
     const paymentEntry = {
@@ -398,7 +410,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   // index directly. Modern rows still have ids for the receipt modal
   // to reference, but mutation is index-based.
   const deletePaymentAt = async (bill, idx) => {
-    if (!confirm('Delete this payment? The invoice will revert to unpaid/partial if the sum drops below the total.')) return;
+    if (!await confirmAction({
+      title: 'Delete this payment?',
+      message: 'The invoice will revert to unpaid/partial if the sum drops below the total.',
+      confirmLabel: 'Delete payment',
+      tone: 'danger',
+    })) return;
     const target = (bill.payments || [])[idx];
     const payments = (bill.payments || []).filter((_, i) => i !== idx);
     const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -450,7 +467,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     const newTotal = othersSum + newAmount;
     const billTotal = Number(bill.totalAmount) || 0;
     if (newTotal > billTotal + 0.01) {
-      const ok = confirm(`This edit brings the total received (${formatCurrency(newTotal, bill.currency)}) above the invoice total (${formatCurrency(billTotal, bill.currency)}). Save as overpayment?`);
+      const ok = await confirmAction({
+        title: 'Save as overpayment?',
+        message: `This edit brings the total received (${formatCurrency(newTotal, bill.currency)}) above the invoice total (${formatCurrency(billTotal, bill.currency)}).`,
+        confirmLabel: 'Save overpayment',
+        tone: 'warning',
+      });
       if (!ok) return;
     }
     const target = (bill.payments || [])[idx];
@@ -513,7 +535,13 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const bulkMarkStatus = async (newStatus) => {
     const sel = getSelectedBills();
     if (sel.length === 0) return;
-    if (!confirm(`Mark ${sel.length} invoice${sel.length !== 1 ? 's' : ''} as ${newStatus}?`)) return;
+    if (!await confirmAction({
+      title: `Mark ${sel.length} invoice${sel.length !== 1 ? 's' : ''} as ${newStatus}?`,
+      message: newStatus === 'paid'
+        ? 'A synthetic payment will be recorded for each so payment history + cashflow stay consistent.'
+        : 'The status change is reversible — you can flip it back any time.',
+      confirmLabel: `Mark as ${newStatus}`,
+    })) return;
     setBulkBusy(true);
     try {
       // Bulk mark-paid must push synthetic payments per bill so payment
@@ -549,7 +577,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const bulkDelete = async () => {
     const sel = getSelectedBills();
     if (sel.length === 0) return;
-    if (!confirm(`Delete ${sel.length} invoice${sel.length !== 1 ? 's' : ''}? This cannot be undone (the PDF copies in Saved Invoices/ stay).`)) return;
+    if (!await confirmAction({
+      title: `Delete ${sel.length} invoice${sel.length !== 1 ? 's' : ''}?`,
+      message: 'The invoices will be moved to Trash for 30 days. The PDF copies in Saved Invoices/ stay untouched.',
+      confirmLabel: `Delete ${sel.length}`,
+      tone: 'danger',
+    })) return;
     setBulkBusy(true);
     try {
       const results = await Promise.allSettled(sel.map(b => deleteBill(b.id)));
@@ -593,7 +626,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
   const bulkExportPDF = async () => {
     const sel = getSelectedBills();
     if (sel.length === 0) return;
-    if (sel.length > 100 && !confirm(`Exporting ${sel.length} invoices as one PDF may take a minute and produce a large file. Continue?`)) return;
+    if (sel.length > 100 && !await confirmAction({
+      title: `Export ${sel.length} invoices?`,
+      message: `This may take a minute and produce a large PDF file.`,
+      confirmLabel: 'Continue',
+      tone: 'warning',
+    })) return;
     setBulkBusy(true);
     try {
       const { jsPDF } = await import('jspdf');

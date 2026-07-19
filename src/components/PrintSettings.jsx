@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Printer, TestTube, RotateCcw, Info, Save as SaveIcon, Trash2 } from 'lucide-react';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 import InvoicePreview from './InvoicePreview';
 import { getProfile } from '../store';
 import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampleInvoice, BUSINESS_PRESETS, applyBusinessPreset, LABEL_PRESETS } from '../utils/printSettings';
@@ -890,8 +891,13 @@ export default function PrintSettings() {
           {Object.entries(BUSINESS_PRESETS).map(([key, preset]) => (
             <button key={key} type="button" className="btn btn-secondary"
               style={{ fontSize: '0.8rem', padding: '0.6rem', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', gap: '3px' }}
-              onClick={() => {
-                if (!confirm(`Apply "${preset.label}" preset? This will overwrite ${Object.keys(preset.patch).length} settings.`)) return;
+              onClick={async () => {
+                if (!await confirmAction({
+                  title: `Apply "${preset.label}" preset?`,
+                  message: `This will overwrite ${Object.keys(preset.patch).length} print settings on top of your current setup. You can undo by picking "Reset to defaults".`,
+                  confirmLabel: 'Apply preset',
+                  tone: 'warning',
+                })) return;
                 const next = applyBusinessPreset(settings, key);
                 setSettings(next);
                 savePrintSettings(next);
@@ -1049,8 +1055,13 @@ export default function PrintSettings() {
           templates={settings.savedTemplates || []}
           onChange={v => set({ savedTemplates: v })}
           currentSettings={settings}
-          onLoad={(tpl) => {
-            if (!confirm(`Load template "${tpl.name}"? This will overwrite your current settings.`)) return;
+          onLoad={async (tpl) => {
+            if (!await confirmAction({
+              title: `Load template "${tpl.name}"?`,
+              message: 'This overwrites your current print settings. Save the current setup as a template first if you want to be able to go back.',
+              confirmLabel: 'Load template',
+              tone: 'warning',
+            })) return;
             setSettings(tpl.settings);
             savePrintSettings(tpl.settings);
             toast(`Loaded "${tpl.name}"`, 'success');

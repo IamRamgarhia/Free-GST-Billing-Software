@@ -3,6 +3,7 @@ import { Wallet, Plus, Edit3, Trash2, Search, X, Save, Download, Calendar } from
 import { getAllExpenses, saveExpense, deleteExpense } from '../store';
 import { formatCurrency, getFYOptions } from '../utils';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 
 // Each category is tagged with its ITR (Income Tax Return) head so the
 // v1.7.0+ ITR Filing Summary can auto-aggregate expenses under the correct
@@ -164,7 +165,12 @@ export default function ExpenseTracker() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Delete this expense?')) {
+    if (await confirmAction({
+      title: 'Delete this expense?',
+      message: 'The row is removed from your expense ledger. Any GST ITC claimed against this bill in past returns stays as filed.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })) {
       try {
         await deleteExpense(id);
         toast('Expense deleted', 'success');

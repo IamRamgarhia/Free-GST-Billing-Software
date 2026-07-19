@@ -5,6 +5,7 @@ import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProd
 import { formatCurrency, calculateRoundOff, getFYOptions } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
+import { confirmAction, promptAction } from './ConfirmModal';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -422,7 +423,12 @@ export default function PurchaseBills() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Delete this purchase bill?')) {
+    if (await confirmAction({
+      title: 'Delete this purchase bill?',
+      message: 'Stock levels for the products in this bill will be reverted. Any GST ITC already claimed against this bill in past returns stays as filed.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })) {
       try {
         await deletePurchase(id);
         toast('Purchase deleted', 'success');
@@ -712,9 +718,16 @@ export default function PurchaseBills() {
                        agriculture 0.1% and any bespoke rate. */}
                   <select className="form-input" value={
                     ['0','0.1','0.25','3','5','12','18','28'].includes(String(item.taxPercent)) ? String(item.taxPercent) : '__custom__'
-                  } onChange={e => {
+                  } onChange={async e => {
                     if (e.target.value === '__custom__') {
-                      const v = window.prompt('Custom tax rate (%):', String(item.taxPercent || 0));
+                      const v = await promptAction({
+                        title: 'Custom tax rate',
+                        message: 'Enter a GST rate between 0% and 100% (up to 2 decimals).',
+                        defaultValue: String(item.taxPercent || 0),
+                        placeholder: 'e.g. 7.5',
+                        inputType: 'number',
+                        confirmLabel: 'Apply rate',
+                      });
                       const n = parseFloat(v);
                       if (Number.isFinite(n) && n >= 0 && n <= 100) updateItem(idx, 'taxPercent', n);
                     } else {

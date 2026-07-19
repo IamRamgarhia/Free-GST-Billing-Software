@@ -20,6 +20,7 @@ import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SetupWizard from './components/SetupWizard';
 import ToastContainer from './components/Toast';
+import ConfirmModalContainer from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
 const SettingsView = lazy(() => import('./components/SettingsView'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
@@ -604,6 +605,7 @@ function App() {
           setShowWelcome(false);
         }} />
         <ToastContainer />
+        <ConfirmModalContainer />
       </>
     );
   }
@@ -1051,6 +1053,7 @@ function App() {
       )}
 
       <ToastContainer />
+      <ConfirmModalContainer />
     </div>
   );
 }

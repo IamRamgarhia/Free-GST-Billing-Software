@@ -5,6 +5,7 @@ import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveB
 import { formatCurrency, INVOICE_TYPES } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
+import { confirmAction } from './ConfirmModal';
 import { toast } from './Toast';
 
 // v1.10.31 — UI-C3: Shared helper to resolve the user's accent color as an
@@ -508,7 +509,12 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   });
 
   const handleDeleteClient = async (id) => {
-    if (confirm('Remove this saved client?')) {
+    if (await confirmAction({
+      title: 'Remove this saved client?',
+      message: 'Their existing invoices stay untouched — this only removes them from your saved clients list. You can add them again anytime.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    })) {
       await deleteClient(id);
       toast('Client removed', 'success');
       loadData();
@@ -516,7 +522,12 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   };
 
   const handleDeleteBill = async (id) => {
-    if (confirm('Delete this invoice? This cannot be undone.')) {
+    if (await confirmAction({
+      title: 'Delete this invoice?',
+      message: 'The invoice will be moved to Trash for 30 days. Can be restored from Settings → Trash.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })) {
       try { await deleteBill(id); toast('Invoice deleted', 'success'); loadData(); }
       catch { toast('Failed to delete', 'error'); }
     }

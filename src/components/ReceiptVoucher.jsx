@@ -3,6 +3,7 @@ import { Receipt, Plus, Trash2, Search, Printer, Pencil } from 'lucide-react';
 import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
 import { formatCurrency, numberToWords } from '../utils';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
 
@@ -198,7 +199,12 @@ export default function ReceiptVoucher() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('Delete this receipt?')) {
+    if (await confirmAction({
+      title: 'Delete this receipt?',
+      message: 'The receipt voucher is removed from your records. The underlying invoice payment (if this was linked to one) stays intact.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })) {
       try { await deleteReceipt(id); toast('Deleted', 'success'); loadData(); }
       catch { toast('Failed to delete', 'error'); }
     }

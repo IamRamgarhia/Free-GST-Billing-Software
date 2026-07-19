@@ -5,6 +5,7 @@ import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFrom
 import { Save, Upload, Download, Plus, Trash2, Edit3, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw, Save as SaveIcon } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
+import { confirmAction } from './ConfirmModal';
 import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
 import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill } from '../store';
@@ -146,8 +147,13 @@ export default function SettingsView({ onSaved }) {
     toast(idx >= 0 ? 'Account updated' : 'Account added', 'success');
   };
 
-  const removeAccount = (acc) => {
-    if (!confirm(`Delete payment account "${acc.label || acc.bankName || 'this account'}"? Existing invoices that used it keep their PDFs.`)) return;
+  const removeAccount = async (acc) => {
+    if (!await confirmAction({
+      title: `Delete payment account "${acc.label || acc.bankName || 'this account'}"?`,
+      message: 'Existing invoices that used this account keep their frozen bank-detail snapshots (v1.10.19 invariant) — the PDFs stay exactly as printed.',
+      confirmLabel: 'Delete account',
+      tone: 'danger',
+    })) return;
     const next = getPaymentAccounts(profile).filter(a => a.id !== 'legacy' && a.id !== acc.id);
     if (next.length > 0 && !next.some(a => a.isDefault)) next[0].isDefault = true;
     updateAccounts(next);
@@ -438,7 +444,12 @@ export default function SettingsView({ onSaved }) {
   };
 
   const handleDeleteTemplate = async (id) => {
-    if (confirm('Delete this template?')) { await deleteTermsTemplate(id); toast('Deleted', 'success'); loadTemplates(); }
+    if (await confirmAction({
+      title: 'Delete this template?',
+      message: 'Existing invoices that used this Terms preset keep their text — this only removes the reusable template.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })) { await deleteTermsTemplate(id); toast('Deleted', 'success'); loadTemplates(); }
   };
 
   // Multi-business profiles
@@ -466,7 +477,12 @@ export default function SettingsView({ onSaved }) {
   };
 
   const handleDeleteProfile = async (id) => {
-    if (confirm('Delete this saved business profile?')) {
+    if (await confirmAction({
+      title: 'Delete this saved business profile?',
+      message: 'Invoices already saved under this profile stay untouched. Only removes the profile from your saved list.',
+      confirmLabel: 'Delete profile',
+      tone: 'danger',
+    })) {
       await deleteBusinessProfile(id);
       toast('Profile deleted', 'success');
       loadBusinessProfiles();
@@ -1411,7 +1427,12 @@ function BackupAndTrashPanel() {
   useEffect(() => { loadAll(); }, []);
 
   const handleRestoreBackup = async (date) => {
-    if (!confirm(`Restore all data from backup ${date}? This OVERWRITES your current data. A snapshot of the current state will be taken first.`)) return;
+    if (!await confirmAction({
+      title: `Restore all data from backup ${date}?`,
+      message: 'This OVERWRITES your current data. A snapshot of the current state will be taken first — if the restore looks wrong, you can roll back.',
+      confirmLabel: 'Restore backup',
+      tone: 'warning',
+    })) return;
     try {
       await triggerBackup();
       await restoreBackup(date);
@@ -1432,7 +1453,12 @@ function BackupAndTrashPanel() {
   };
 
   const handlePurgeTrash = async (id) => {
-    if (!confirm('Permanently delete this invoice? Cannot be undone.')) return;
+    if (!await confirmAction({
+      title: 'Permanently delete this invoice?',
+      message: 'This bypasses the 30-day Trash grace period. The invoice and its PDF are gone for good.',
+      confirmLabel: 'Delete permanently',
+      tone: 'danger',
+    })) return;
     try {
       await purgeTrashedBill(id);
       toast('Invoice permanently deleted', 'info');
@@ -1445,7 +1471,12 @@ function BackupAndTrashPanel() {
   // v1.10.22 — reported: "add here delete option i know u added 30 days
   // auto delete but manual delete also u add". Individual backup delete.
   const handleDeleteBackup = async (date) => {
-    if (!confirm(`Delete backup ${date}? This cannot be undone. Auto-backups still run daily.`)) return;
+    if (!await confirmAction({
+      title: `Delete backup ${date}?`,
+      message: 'Auto-backups still run daily, so future data will be safe. This just removes the archived snapshot.',
+      confirmLabel: 'Delete backup',
+      tone: 'danger',
+    })) return;
     try {
       await deleteBackup(date);
       toast(`Backup ${date} deleted`, 'info');

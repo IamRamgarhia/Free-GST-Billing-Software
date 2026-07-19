@@ -6,6 +6,7 @@ import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveC
 import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
+import { confirmAction, promptAction } from './ConfirmModal';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
@@ -63,7 +64,15 @@ function RichEditor({ value, onChange, placeholder, toolbar = false }) {
           <span style={{ width: 1, background: 'var(--border-color)', margin: '0 0.2rem' }} />
           <button type="button" onClick={() => applyFormat('formatBlock', '<h4>')}  title="Heading"   style={{ ...btnStyle, fontWeight: 700, fontSize: '0.85rem' }}>H</button>
           <button type="button" onClick={() => applyFormat('formatBlock', '<p>')}   title="Paragraph" style={btnStyle}>¶</button>
-          <button type="button" onClick={() => { const url = window.prompt('Link URL:'); if (url) applyFormat('createLink', url); }} title="Insert link" style={btnStyle}>🔗</button>
+          <button type="button" onClick={async () => {
+            const url = await promptAction({
+              title: 'Insert link',
+              message: 'Paste the URL to link to. Selected text will become the link.',
+              placeholder: 'https://example.com',
+              confirmLabel: 'Insert',
+            });
+            if (url) applyFormat('createLink', url);
+          }} title="Insert link" style={btnStyle}>🔗</button>
           <span style={{ width: 1, background: 'var(--border-color)', margin: '0 0.2rem' }} />
           <button type="button" onClick={() => applyFormat('removeFormat')} title="Clear formatting" style={btnStyle}>✕</button>
         </div>
@@ -336,9 +345,16 @@ const LineItem = memo(function LineItem({
           <label className="form-label">{taxLabel} %</label>
           <select className="form-input"
             value={countryTaxRates.includes(Number(item.taxPercent)) ? String(item.taxPercent) : '__custom__'}
-            onChange={(e) => {
+            onChange={async (e) => {
               if (e.target.value === '__custom__') {
-                const raw = window.prompt(`Custom ${taxLabel} rate (%):`, String(item.taxPercent || 0));
+                const raw = await promptAction({
+                  title: `Custom ${taxLabel} rate`,
+                  message: `Enter a ${taxLabel} rate between 0% and 100% (up to 2 decimals).`,
+                  defaultValue: String(item.taxPercent || 0),
+                  placeholder: 'e.g. 7.5',
+                  inputType: 'number',
+                  confirmLabel: 'Apply rate',
+                });
                 if (raw === null) return;
                 const n = parseFloat(raw);
                 if (!isFinite(n) || n < 0 || n > 100) { toast('Tax rate must be between 0 and 100', 'warning'); return; }
@@ -1092,8 +1108,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   // Custom unit handler — prompts for a label, persists to localStorage, applies to current item.
   // v1.10.7 — useCallback for the LineItem memoization benefit.
-  const handleAddCustomUnit = useCallback((itemId) => {
-    const label = (typeof window !== 'undefined' ? window.prompt('New unit (e.g. Carat, Bundle, Bushel):') : '');
+  const handleAddCustomUnit = useCallback(async (itemId) => {
+    const label = await promptAction({
+      title: 'Add custom unit',
+      message: 'Enter a short unit label. Saved for reuse across future invoices.',
+      placeholder: 'e.g. Carat, Bundle, Bushel',
+      confirmLabel: 'Add unit',
+    });
     if (!label) return;
     const trimmed = label.trim();
     if (!trimmed) return;
@@ -1108,8 +1129,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     handleItemChange(itemId, 'unit', trimmed);
   }, [handleItemChange]);
 
-  const handleRemoveCustomUnit = useCallback((label) => {
-    if (!confirm(`Remove custom unit "${label}"? Existing invoices keep this label, but it will no longer appear in dropdowns.`)) return;
+  const handleRemoveCustomUnit = useCallback(async (label) => {
+    if (!await confirmAction({
+      title: `Remove custom unit "${label}"?`,
+      message: 'Existing invoices keep this label unchanged. It just no longer appears in the unit dropdowns.',
+      confirmLabel: 'Remove unit',
+      tone: 'danger',
+    })) return;
     removeCustomUnit(label);
     setUnits(getAllUnits());
     toast(`Removed custom unit "${label}"`, 'success');
@@ -3247,7 +3273,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Insert preset (by business type)</label>
                 <select className="form-input" defaultValue=""
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     if (!e.target.value) return;
                     const preset = TERMS_PRESETS.find(p => p.id === e.target.value);
                     if (!preset) return;
@@ -3258,7 +3284,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     if (customTerms && customTerms.replace(/<[^>]*>/g, '').trim()) {
                       const skipConfirm = sessionStorage.getItem('gst_termsPresetConfirmed') === '1';
                       if (!skipConfirm) {
-                        const proceed = confirm('Replace your current Terms with this preset? Your existing text will be lost.\n\n(This confirmation is shown once per session — subsequent preset swaps will happen silently.)');
+                        const proceed = await confirmAction({
+                          title: 'Replace current Terms?',
+                          message: 'Your existing Terms text will be lost. Subsequent preset swaps this session will happen silently — this confirmation is shown once.',
+                          confirmLabel: 'Replace',
+                          tone: 'warning',
+                        });
                         if (!proceed) { e.target.value = ''; return; }
                         try { sessionStorage.setItem('gst_termsPresetConfirmed', '1'); } catch { /* ignore */ }
                       }
