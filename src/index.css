@@ -87,8 +87,10 @@
 [data-theme="dark"] .btn-secondary { background: #1e293b; color: #f1f5f9; border-color: #334155; }
 [data-theme="dark"] .btn-secondary:hover:not(:disabled) { background: #334155; border-color: #475569; }
 [data-theme="dark"] .modal-content { background: #1e293b; }
-[data-theme="dark"] .data-table th { background: rgba(30,41,59,0.5); color: #94a3b8; }
-[data-theme="dark"] .data-table tr:hover td { background: rgba(30,41,59,0.5); }
+[data-theme="dark"] .data-table th { background: rgba(30,41,59,0.55); color: #94a3b8; }
+[data-theme="dark"] .data-table td { border-bottom-color: rgba(148,163,184,0.08); }
+[data-theme="dark"] .data-table tr:hover td { background: rgba(51,65,85,0.35); }
+[data-theme="dark"] .data-table tr:hover td:first-child { box-shadow: inset 3px 0 0 #60a5fa; }
 .row-overdue td { background: #fef2f2; }
 [data-theme="dark"] .row-overdue td { background: rgba(220,38,38,0.12) !important; color: #f1f5f9; }
 .row-warning td { background: #fffbeb; }
@@ -705,32 +707,46 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   border-color: #d1d5db;
 }
 
+/* v1.10.33 — Icon buttons: slightly larger tap target (28→30px),
+   subtle background transition, and a lift on hover so the row's
+   actions feel interactive rather than static. */
 .icon-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
   border: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+.icon-btn:hover { transform: translateY(-1px); }
+.icon-btn:active { transform: translateY(0); }
+.icon-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .icon-btn-blue {
   background: var(--primary-light);
   color: var(--primary);
 }
-.icon-btn-blue:hover { background: rgba(37, 99, 235, 0.15); }
+.icon-btn-blue:hover { background: rgba(37, 99, 235, 0.18); box-shadow: 0 2px 6px rgba(37,99,235,0.15); }
 
 .icon-btn-red {
   background: var(--danger-light);
   color: var(--danger);
 }
-.icon-btn-red:hover { background: rgba(220, 38, 38, 0.15); }
+.icon-btn-red:hover { background: rgba(220, 38, 38, 0.18); box-shadow: 0 2px 6px rgba(220,38,38,0.15); }
 
 /* ========= Dashboard ========= */
-.dashboard-container { max-width: 1000px; margin: 0 auto; width: 100%; }
+/* v1.10.33 — Bumped from 1000px. The invoice table has 8 columns
+   including a 7-8 icon Actions column (~250px) — 1000px squeezed
+   the last icon(s) off-screen on wide monitors. 1400px gives room
+   for every column at natural width while still preventing infinite
+   stretch on ultra-wide displays. */
+.dashboard-container { max-width: 1400px; margin: 0 auto; width: 100%; }
 .settings-container { max-width: 800px; margin: 0 auto; width: 100%; }
 
 .stats-grid {
@@ -794,58 +810,118 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 
 .table-header h3 { margin: 0; font-size: 1rem; }
 
-.table-scroll { overflow-x: auto; }
+/* v1.10.33 — Scroll container gets a fade at the right edge so
+   users know there's more table off-screen on narrow viewports. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
 
 .data-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 900px;
+  /* v1.10.33 — Bumped from 900px to 1100px. The 8-column + 8-icon
+     action row needs 1050-1100px to render without ellipsis pressure
+     on Amount / Client. */
+  min-width: 1100px;
+  /* Financial columns look right when digits align; tabular-nums
+     guarantees monospace-style digit widths without a mono font. */
+  font-variant-numeric: tabular-nums;
 }
 
 .data-table th {
   text-align: left;
-  padding: 0.5rem 0.5rem;
-  font-size: 0.65rem;
+  padding: 0.7rem 0.6rem;   /* v1.10.33 — was 0.5rem/0.5rem, felt cramped */
+  font-size: 0.68rem;        /* +0.03rem — 0.65rem was borderline unreadable */
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;    /* wider tracking → premium feel */
   color: var(--text-secondary);
   font-weight: 600;
   border-bottom: 1px solid var(--border);
-  background: rgba(249, 250, 251, 0.5);
+  background: rgba(249, 250, 251, 0.6);
   white-space: nowrap;
 }
 
 .data-table td {
-  padding: 0.5rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 0.6rem;   /* v1.10.33 — was 0.5rem, needed breathing room */
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);  /* softer than --border */
   vertical-align: middle;
-  font-size: 0.78rem;
+  font-size: 0.82rem;        /* +0.04rem — 0.78rem read as micro */
   white-space: nowrap;
 }
 
 .data-table td.td-client {
   white-space: normal;
-  max-width: 160px;
+  max-width: 200px;          /* v1.10.33 — was 160px, ellipsis triggered too early */
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(249, 250, 251, 0.5); }
+/* v1.10.33 — Row hover: subtle background + a hair-line primary
+   accent on the left edge. Makes the row feel selectable without
+   changing layout. */
+.data-table tbody tr {
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.data-table tr:hover td {
+  background: rgba(249, 250, 251, 0.7);
+}
+.data-table tr:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+/* v1.10.33 — Actions column: keep it flush right so the last icon
+   never hits the scroll edge, and give it a tiny left padding so
+   Delete doesn't kiss the Email button on narrow rows. */
+.data-table th:last-child,
+.data-table td:last-child { text-align: right; padding-right: 0.85rem; }
 
 .invoice-badge {
   display: inline-block;
-  padding: 0.15rem 0.45rem;
+  padding: 0.2rem 0.5rem;
   background: var(--primary-light);
   color: var(--primary);
-  border-radius: 5px;
-  font-size: 0.72rem;
+  border-radius: 6px;         /* was 5px — matches --radius-sm rhythm */
+  font-size: 0.74rem;
   font-weight: 600;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
-.table-actions { display: flex; gap: 0.25rem; flex-wrap: nowrap; }
+/* v1.10.33 — Currency chip on non-INR amounts. Was an inline-style
+   pill; extracted so dark mode + hover states can carry through. */
+.currency-chip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: var(--primary-light);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+[data-theme="dark"] .currency-chip { background: rgba(59,130,246,0.18); color: #93c5fd; }
+
+.table-actions {
+  display: flex;
+  gap: 0.3rem;                /* v1.10.33 — was 0.25rem; tighter set felt cluttered */
+  flex-wrap: nowrap;
+  justify-content: flex-end;  /* right-align inside the cell */
+}
+
+/* v1.10.33 — Muted em-dash placeholder for empty numeric cells
+   (Paid, Due Date, etc.). Wraps `-` looks weak against real values;
+   an em-dash in --text-muted reads as "no data" instead of "typo". */
+.data-table td .cell-empty {
+  color: var(--text-muted);
+  opacity: 0.55;
+  font-weight: 400;
+}
 
 .empty-state {
   padding: 4rem 2rem;
@@ -1802,13 +1878,34 @@ a:focus-visible {
    feature is working in market". Previously hidden due to width
    concerns; a 32×32mm QR fits comfortably on 48mm-printable 58mm rolls
    as long as we cap its size. */
-.paper-thermal-58 canvas,
-.paper-thermal-58 .upi-qr,
-.paper-thermal-58 .qr-block img { max-width: 40px; max-height: 40px; margin: 0 auto; }
-.paper-thermal-58 .qr-block { text-align: center; }
-.paper-thermal-80 canvas,
-.paper-thermal-80 .upi-qr,
-.paper-thermal-80 .qr-block img { max-width: 60px; max-height: 60px; }
+/* v1.10.33 — Thermal QR + logo caps. Prior rules targeted `.qr-block img`,
+   `.upi-qr`, `canvas`, and `.invoice-header-*` — but the thermal branch
+   renders the QR as a plain `<img class="thermal-qr">` (no wrapper,
+   NOT a canvas) and the logo as `<img class="thermal-logo">` outside any
+   `.invoice-header-*` container. So every prior selector was dead
+   code. Now the caps sit on the actual className. Per-paper caps are
+   ceilings; the inline width from InvoicePreview (derived from
+   paperCfg.widthMm) is usually smaller and already ~50% of printable
+   width — the CSS ceiling is a hard defence against a stale
+   inline-style that could overflow. */
+.paper-thermal .thermal-qr {
+  max-width: 90px; max-height: 90px; margin: 0 auto;
+  display: block;
+}
+.paper-thermal-58 .thermal-qr { max-width: 70px; max-height: 70px; }
+.paper-thermal-76 .thermal-qr { max-width: 90px; max-height: 90px; }
+.paper-thermal-80 .thermal-qr { max-width: 100px; max-height: 100px; }
+.paper-thermal-112 .thermal-qr { max-width: 140px; max-height: 140px; }
+.paper-thermal-custom .thermal-qr { max-width: 80px; max-height: 80px; }
+
+.paper-thermal .thermal-logo {
+  max-height: 45px; max-width: 60%;
+  object-fit: contain;
+  margin-bottom: 4px;
+  display: block;
+}
+.paper-thermal-58 .thermal-logo { max-height: 30px; }
+.paper-thermal-custom .thermal-logo { max-height: 32px; }
 /* Hide multi-column grid layouts on thermal — stack everything. */
 .paper-thermal .grid,
 .paper-thermal [class*="grid-"] {
@@ -2452,6 +2549,7 @@ kbd {
   background: white;
   color: var(--text);
   cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   /* v1.9.15 — user reported date input clipping to "n-yyyy" on narrow
      dashboard views. Browsers give <input type="date"> whatever width
      they feel like; force a comfortable minimum. */
@@ -2459,19 +2557,29 @@ kbd {
 }
 .filter-date { min-width: 145px; }
 
+/* v1.10.33 — Filter focus now matches search-input's ring so the
+   filter row looks like one cohesive control group instead of a
+   grab-bag of inputs. */
 .filter-select:focus, .filter-date:focus {
   outline: none;
   border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
+/* v1.10.33 — Type badge: uppercase micro-caps, monospace, and a
+   subtle border so it reads as a "kind" tag rather than plain grey
+   text. */
 .type-badge {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
+  font-size: 0.66rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
   background: #f3f4f6;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(148,163,184,0.15);
 }
 
 /* ========= Upload Areas ========= */
@@ -2682,16 +2790,25 @@ kbd {
 
 .status-badge:hover { opacity: 0.8; }
 
+/* v1.10.33 — Status pill: rounded-full shape, slightly larger tap
+   target, and a soft focus ring so keyboard users see selection
+   without the browser's default 2px black outline. */
 .status-select {
   appearance: auto;
-  padding: 0.25rem 0.4rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
   border: 1px solid;
   cursor: pointer;
   font-family: inherit;
   outline: none;
+  transition: box-shadow 0.15s ease, transform 0.12s ease;
+  letter-spacing: 0.01em;
+}
+.status-select:hover { transform: translateY(-1px); }
+.status-select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
 }
 
 /* ========= Stats Grid 4-col ========= */

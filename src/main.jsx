@@ -7,23 +7,50 @@ import './index.css'
 // v1.10.2 — Deferred SW update. Prior code called `updateSW(true)`
 // inside `onNeedRefresh` which triggers `location.reload()` immediately.
 // If the user was mid-invoice (typing line items, editing terms), that
-// state was blown away on every deploy. Now:
+// state was blown away on every deploy.
 //
-//   1. onNeedRefresh: stash the "update ready" flag on window.
-//   2. A window-level 'fgsb-sw-update-ready' event fires so any UI
-//      component (App.jsx) can render an "Update available" toast.
-//   3. reload only happens on window blur / route change / user click —
-//      never mid-form.
-//
-// The registerType was also flipped from 'autoUpdate' to 'prompt' in
-// vite.config.js so the SW doesn't skipWaiting on its own.
+// v1.10.33 — Reported "it work in incognito only ... it should auto
+// refresh hard cache after update". Root cause: v1.10.2's deferred
+// pattern only fired the update on blur, but if the user never blurred
+// the tab AND the old bundle hashes stopped matching the new
+// index.html assets, the tab served a broken bundle → white screen.
+// Now:
+//   1. onNeedRefresh: stash flag + dispatch event (existing UI hook).
+//   2. Auto-apply after 20 seconds of no user activity — long enough
+//      that a mid-form user can save/finish, short enough that we
+//      don't wait for a browser blur that may never come.
+//   3. Still auto-apply on blur (fastest safe moment).
+//   4. Also auto-apply immediately if the user is on a read-only view
+//      (dashboard, clients, reports). Detected via presence of ANY
+//      `contenteditable`, `<input>`, or `<textarea>` with a non-empty
+//      value — if none, we're not editing.
 let __updateSW = null;
 window.__fgsbSwUpdateReady = false;
+
+const hasUnsavedInput = () => {
+  try {
+    const inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+    for (const el of inputs) {
+      if (el.value && String(el.value).trim().length > 0) return true;
+      if (el.getAttribute?.('contenteditable') === 'true' && el.textContent?.trim().length > 0) return true;
+    }
+    return false;
+  } catch { return false; }
+};
 
 __updateSW = registerSW({
   onNeedRefresh() {
     window.__fgsbSwUpdateReady = true;
     window.dispatchEvent(new CustomEvent('fgsb-sw-update-ready'));
+    // If user is on a read-only view, apply immediately — no white-screen
+    // risk from stale hash-mismatched bundle.
+    if (!hasUnsavedInput()) {
+      setTimeout(() => window.__fgsbApplyUpdate?.(), 500);
+      return;
+    }
+    // Otherwise wait 20s — enough to finish typing a line or two, then
+    // auto-apply. User can also blur / navigate to trigger it sooner.
+    setTimeout(() => window.__fgsbApplyUpdate?.(), 20_000);
   },
   onOfflineReady() {
     // Prior console.log removed — production hygiene (v1.9.15 audit L1).
@@ -34,6 +61,7 @@ __updateSW = registerSW({
 // Called by whichever UI component (or auto-defer logic) decides now is
 // the right moment to activate the pending SW and reload.
 window.__fgsbApplyUpdate = () => {
+  if (!window.__fgsbSwUpdateReady) return;
   window.__fgsbSwUpdateReady = false;
   if (__updateSW) __updateSW(true);
 };

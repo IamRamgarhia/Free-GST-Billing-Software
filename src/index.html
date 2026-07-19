@@ -11,9 +11,25 @@
       tags can't execute, and connect-src is limited to localhost + Google
       services (only place we make outbound calls).
     -->
+    <!--
+      v1.10.33 — Tesseract assets now bundled into public/tesseract/ by
+      scripts/bundle-tesseract-assets.mjs. That means:
+        - script-src no longer needs https://cdn.jsdelivr.net (worker
+          serves from same-origin)
+        - connect-src no longer needs jsdelivr or tessdata.projectnaptha
+          (traineddata + core WASM serve from same-origin)
+      What STAYS wide:
+        - 'wasm-unsafe-eval' in script-src → tesseract-core compiles a
+          WebAssembly module, which requires this outside of a fresh
+          instantiation flow
+        - worker-src 'self' blob: → tesseract creates its worker from a
+          blob URL. Without an explicit worker-src, it falls back to
+          script-src (which excludes blob:) and blocks the worker.
+    -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src  'self' https://accounts.google.com https://apis.google.com;
+      script-src  'self' 'wasm-unsafe-eval' https://accounts.google.com https://apis.google.com;
+      worker-src  'self' blob:;
       style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src    'self' https://fonts.gstatic.com data:;
       img-src     'self' data: blob: https://*.googleusercontent.com;
@@ -57,6 +73,9 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-180.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- v1.10.33 — Chrome deprecated the apple-* variant. Keep both for
+         cross-browser installability. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="GST Billing" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 

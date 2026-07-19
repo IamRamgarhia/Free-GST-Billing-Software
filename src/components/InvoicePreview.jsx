@@ -380,6 +380,19 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     const sellerCurrency = getCountryConfig(profile?.country).currency;
     const currencySymbol = sellerCurrency === 'INR' ? 'Rs.' : sellerCurrency;
     const showRoundOff = opt('showRoundOff', false);
+    // v1.10.33 — Split the single "isNarrow" threshold into two.
+    // Prior code used `widthMm < 80` for everything, but thermal80 has
+    // widthMm=72 (printable area) and thermal76 has 68 — BOTH tripped
+    // the flag and silently:
+    //   (a) hid the HSN column even with showHSN=true
+    //   (b) rendered at the same tiny font as thermal58
+    // Now:
+    //   - isVeryNarrow (< 60mm) → thermal58 only, aggressive compaction
+    //     (smaller font, hide HSN inline, tighter "Amt" header)
+    //   - isNarrow (< 80mm) kept for column-width math where the
+    //     thermal80 receipt still needs slightly narrower columns than
+    //     thermal112 sheet-style rolls
+    const isVeryNarrow = paperCfg.widthMm < 60;
     const isNarrow = paperCfg.widthMm < 80;
 
     // -- Settings pulled from `eff` (merged options + printSettings) ---------
@@ -410,10 +423,10 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     // after the print driver's raster smoothing. Baseline print quality on
     // low-DPI POS printers is what these numbers are tuned against.
     const fontSizeMap = {
-      small:  isNarrow ? 9.5 : 11,
-      medium: isNarrow ? 11 : 12.5,
-      large:  isNarrow ? 12.5 : 14.5,
-      xlarge: isNarrow ? 14 : 16.5,
+      small:  isVeryNarrow ? 9.5 : 11,
+      medium: isVeryNarrow ? 11 : 12.5,
+      large:  isVeryNarrow ? 12.5 : 14.5,
+      xlarge: isVeryNarrow ? 14 : 16.5,
     };
     const fontSizeBase = (fontSizeMap[fontSize] || fontSizeMap.medium) + 'px';
     // FontFamily: monospace prints crisper on thermal, but some printers
@@ -478,7 +491,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         {/* ================= HEADER ================= */}
         <div style={{ padding: '8px 4px 6px', textAlign: headerAlign, ...dashLine, color: '#000' }}>
           {showLogo && profile?.logo && (
-            <img src={profile.logo} alt="" style={{ maxHeight: 45, marginBottom: 4, filter: contrastFilter }} />
+            /* v1.10.33 — On very narrow rolls (thermal58 / custom <
+               60mm) even a 45px logo eats vertical space that could hold
+               a line of item text. Cap at 40% of paper width so the
+               logo scales down on narrower rolls without disappearing. */
+            <img src={profile.logo} alt="" className="thermal-logo"
+              style={{ maxHeight: Math.min(45, Math.round(paperCfg.widthMm * 3.78 * 0.4)), marginBottom: 4, filter: contrastFilter }} />
           )}
           <div style={{ fontWeight: strongWeight, fontSize: '1.15em', letterSpacing: '0.02em' }}>
             {(headerCaps || allCaps) ? (profile?.businessName || '').toUpperCase() : (profile?.businessName || '')}
@@ -532,14 +550,14 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                 textTransform: 'uppercase', gap: '4px',
               }}>
                 <span>Item</span>
-                <span style={{ textAlign: 'right' }}>{isNarrow ? 'Amt' : 'Amount'}</span>
+                <span style={{ textAlign: 'right' }}>{isVeryNarrow ? 'Amt' : 'Amount'}</span>
               </div>
               {(items || []).map((item, idx) => {
                 const amount = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
                 const qty = Number(item.quantity) || 0;
                 const rate = Number(item.rate) || 0;
                 const tax = showGST && item.taxPercent > 0 ? ` +${item.taxPercent}%` : '';
-                const hsnBit = showHSN && item.hsn && !isNarrow ? '  |  HSN ' + item.hsn : '';
+                const hsnBit = showHSN && item.hsn && !isVeryNarrow ? '  |  HSN ' + item.hsn : '';
                 return (
                   <div key={idx} style={{ marginBottom: 5, fontSize: '0.95em' }}>
                     <div style={{ fontWeight: strongWeight, wordBreak: 'break-word' }}>
@@ -649,13 +667,29 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
              rolls silently dropped it. Now: always render when enabled;
              on 58mm the QR is smaller (auto via qrSizePx below) to fit
              the 48mm printable width. */}
-        {opt('showUPI') && qrDataUrl && (
+        {opt('showUPI') && qrDataUrl && (() => {
+          // v1.10.33 — QR size cap now derived from actual paper width,
+          // not a hardcoded "90px if isNarrow" bucket. Prior code capped
+          // 90px on anything < 80mm; on a 40mm custom roll that was
+          // 23.8mm (60% of the printable area) — QR blew past the paper
+          // edge on the physical printer. The v1.10.33 CSS rules that
+          // "fixed" this (.paper-thermal-58 canvas, .paper-thermal-
+          // custom canvas etc.) never matched because the thermal branch
+          // renders the QR as a plain <img>, not a <canvas>, and without
+          // any qr-block wrapper. Now the cap sits inline where it
+          // actually applies: max ~50% of printable width, giving room
+          // for the "Scan to pay via UPI" label below.
+          // Math: 1mm ≈ 3.78 px at 96dpi. 0.5 factor → half the width.
+          const capPx = Math.round(paperCfg.widthMm * 3.78 * 0.5);
+          const size = Math.min(qrSizePx, capPx);
+          return (
           <div style={{ padding: secPad, textAlign: 'center', ...dashLine }}>
-            <img src={qrDataUrl} alt="UPI QR"
-              style={{ width: isNarrow ? Math.min(qrSizePx, 90) : qrSizePx, height: isNarrow ? Math.min(qrSizePx, 90) : qrSizePx, filter: contrastFilter }} />
+            <img src={qrDataUrl} alt="UPI QR" className="thermal-qr"
+              style={{ width: size, height: size, filter: contrastFilter }} />
             <div style={{ fontSize: '0.85em', fontWeight: strongWeight }}>{cap('Scan to pay via UPI')}</div>
           </div>
-        )}
+          );
+        })()}
 
         {showNotes && customNotes && (
           <div style={{ padding: secPad, fontSize: '0.9em', fontWeight: baseWeight, ...dashLine }}

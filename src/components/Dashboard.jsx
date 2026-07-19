@@ -1231,12 +1231,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
                       </td>}
                       {visibleColumns.amount && <td className="font-bold">
                         {formatCurrency(bill.totalAmount, billCurrency)}
-                        {billCurrency !== 'INR' && !visibleColumns.currency && <span style={{ marginLeft: 5, fontSize: '0.7rem', fontWeight: 600, color: '#3b82f6', background: 'rgba(59,130,246,0.1)', padding: '1px 5px', borderRadius: 4 }}>{billCurrency}</span>}
+                        {billCurrency !== 'INR' && !visibleColumns.currency && <span className="currency-chip">{billCurrency}</span>}
                       </td>}
                       {visibleColumns.currency && <td className="text-muted">{billCurrency}</td>}
-                      {visibleColumns.dueDate && <td className="text-muted">{bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN') : '-'}</td>}
+                      {visibleColumns.dueDate && <td className="text-muted">{bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN') : <span className="cell-empty">—</span>}</td>}
                       {visibleColumns.printed && <td className="text-muted" style={{ textAlign: 'center' }}>{Number(bill.printedCount) || 0}×</td>}
-                      <td className="text-muted">{(bill.paidAmount || 0) > 0 ? formatCurrency(bill.paidAmount, billCurrency) : '-'}</td>
+                      <td className="text-muted">{(bill.paidAmount || 0) > 0 ? formatCurrency(bill.paidAmount, billCurrency) : <span className="cell-empty">—</span>}</td>
                       {visibleColumns.status && <td>
                         <select className="status-select" value={isOverdue && status !== 'overdue' ? 'overdue' : status}
                           style={{ background: sc.bg, color: sc.color, borderColor: sc.color + '44' }}

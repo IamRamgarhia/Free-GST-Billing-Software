@@ -26,7 +26,9 @@ export default function SetupWizard({ onClose }) {
   // for users who genuinely want to dismiss and configure later.
   const finish = () => {
     const current = getPrintSettings();
-    let next = { ...current, onboardingComplete: true, labelLanguage: language };
+    // v1.10.33 — Clear onboardingSkipped when the user actually
+    // completes setup, so the "Finish setup" pill hides for good.
+    let next = { ...current, onboardingComplete: true, onboardingSkipped: false, labelLanguage: language };
     if (selectedBiz) next = applyBusinessPreset(next, selectedBiz);
     if (paperSize) next.paperSize = paperSize;
     savePrintSettings(next);
@@ -35,9 +37,16 @@ export default function SetupWizard({ onClose }) {
   };
 
   const skip = () => {
+    // v1.10.33 — Distinguishes "Skip" from "None of these":
+    //   Skip           → onboardingComplete=true, onboardingSkipped=true
+    //                    (App shows a bottom-right "Finish setup" pill)
+    //   None of these  → onboardingComplete=true, onboardingSkipped=false
+    //                    (user chose to configure manually — no nag)
+    // Reported: "if user skip it should show in right side bottom so
+    // they can do it again".
     const current = getPrintSettings();
-    savePrintSettings({ ...current, onboardingComplete: true });
-    toast('Setup skipped — configure any time from Settings → Print & PDF.', 'info');
+    savePrintSettings({ ...current, onboardingComplete: true, onboardingSkipped: true });
+    toast('Setup skipped — use the "Finish setup" pill to come back to it.', 'info');
     onClose();
   };
   const canFinish = !!selectedBiz || !!paperSize || language !== 'en';
@@ -91,8 +100,21 @@ export default function SetupWizard({ onClose }) {
               ))}
             </div>
             <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+              {/* v1.10.33 — Was a plain "clear selection" button that did
+                  nothing visible (the wizard stayed open, no progress).
+                  Users tapped it, nothing happened, then reported "None
+                  of these — I'll configure manually not working". Now:
+                  the button treats "configure manually" as an explicit
+                  intent → mark onboarded (so the wizard stops nagging)
+                  AND close. User lands on the dashboard with all defaults
+                  intact, free to tweak from Settings when they want. */}
               <button type="button" className="btn btn-secondary" style={{ fontSize: '0.82rem' }}
-                onClick={() => setSelectedBiz('')}>
+                onClick={() => {
+                  const current = getPrintSettings();
+                  savePrintSettings({ ...current, onboardingComplete: true, onboardingSkipped: false });
+                  toast('Setup dismissed — configure any time from Settings → Print & PDF.', 'info');
+                  onClose();
+                }}>
                 None of these — I'll configure manually
               </button>
             </div>

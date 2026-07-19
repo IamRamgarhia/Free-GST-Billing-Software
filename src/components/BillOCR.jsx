@@ -177,16 +177,28 @@ export default function BillOCR({ onClose, onExtracted }) {
       // audit sanity check: node_modules/tesseract.js/package.json says
       // "tesseract.js-core": "^7.0.0" — matches what's installed and what
       // tesseract's own default corePath would resolve.
-      const version = tesseractPkg.version || '7.0.0';
-      const cdn = `https://cdn.jsdelivr.net/npm/tesseract.js@${version}/dist`;
+      // v1.10.33 — All tesseract assets are now bundled with the app
+      // (see scripts/bundle-tesseract-assets.mjs). Prior CDN paths
+      // caused three failure modes: (a) CSP blocked blob workers even
+      // after fix, (b) cnd.jsdelivr resolved @${version} to a 404 when
+      // tesseract.js-core's version drifted from tesseract.js's, (c) a
+      // ~10MB traineddata download stalled at "0%" behind flaky mobile
+      // networks. Local paths eliminate all three. Zero network at run.
+      //
+      // Assets live under /tesseract/ (served from public/tesseract/):
+      //   /tesseract/worker.min.js
+      //   /tesseract/core/tesseract-core-*.wasm(.js)
+      //   /tesseract/lang/eng.traineddata
       worker = await Tesseract.createWorker('eng', 1, {
-        // Explicit CDN paths — safer than the auto-detected relative paths
-        // that break after Vite hashes filenames in production builds.
-        workerPath: `${cdn}/worker.min.js`,
-        corePath: `https://cdn.jsdelivr.net/npm/tesseract.js-core@${version}`,
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+        workerPath: '/tesseract/worker.min.js',
+        corePath: '/tesseract/core',
+        langPath: '/tesseract/lang',
+        // v1.10.33 — traineddata is served as raw .traineddata (not .gz);
+        // tell tesseract not to expect gzip so it doesn't try to gunzip
+        // an already-plain file and fail with "invalid magic number".
+        gzip: false,
         logger: (m) => {
-          if (m.status === 'recognizing text' && typeof m.progress === 'number') {
+          if (typeof m?.progress === 'number') {
             setProgress(Math.round(m.progress * 100));
           }
         },

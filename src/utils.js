@@ -183,15 +183,19 @@ const sum = (arr) => arr.reduce((s, n) => s + (Number(n) || 0), 0);
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 export function computeInvoiceTotals(opts) {
-  const {
-    items = [],
-    profile = {},
-    client = {},
-    details = {},
-    showGST = true,
-    taxInclusive = false,
-    invoiceOptions = {},
-  } = opts || {};
+  // v1.10.33 — Destructure defaults only fire on `undefined`, not `null`.
+  // Callers that pass `profile: null` (e.g. InvoiceGenerator mounted
+  // before the /api/profile fetch resolves) bypassed the `= {}` default
+  // and blew up on `profile.country` reading null. Explicit `|| {}`
+  // normalises both cases so the totals calc never crashes on cold load.
+  const rawOpts = opts || {};
+  const items = rawOpts.items || [];
+  const profile = rawOpts.profile || {};
+  const client = rawOpts.client || {};
+  const details = rawOpts.details || {};
+  const showGST = rawOpts.showGST !== false;
+  const taxInclusive = !!rawOpts.taxInclusive;
+  const invoiceOptions = rawOpts.invoiceOptions || {};
 
   const warnings = [];
   const isIndia = (profile.country || 'India') === 'India';

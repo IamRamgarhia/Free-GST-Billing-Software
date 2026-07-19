@@ -1,6 +1,6 @@
 {
   "name": "free-gst-billing-software",
-  "version": "1.10.32",
+  "version": "1.10.33",
   "description": "Free, open-source GST invoice & billing software for India. Tax Invoice, Proforma, Credit Note, Bill of Supply, Delivery Challan, GSTR-1 / GSTR-3B JSON exports, GSTR-2B reconciliation, e-Way Bill, TDS / TCS reports (Form 26Q / 27EQ), multi-currency for 22 countries, per-line custom units, rich-text Terms with 13 India presets, granular backup with optional Google Drive sync. Offline-first PWA. By DiceCodes.",
   "author": "DiceCodes <Contact@dicecodes.com>",
   "license": "MIT",
@@ -79,13 +79,16 @@
   },
   "scripts": {
     "server": "node server.js",
-    "dev": "node server.js & vite",
-    "dev:win": "start /b node server.js && vite",
+    "postinstall": "node scripts/bundle-tesseract-assets.mjs",
+    "prebuild": "node scripts/bundle-tesseract-assets.mjs",
+    "dev": "node scripts/bundle-tesseract-assets.mjs && node server.js & vite",
+    "dev:win": "node scripts/bundle-tesseract-assets.mjs && (start /b node server.js) && vite",
     "build": "vite build",
     "start": "vite build && node server.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "bundle:tesseract": "node scripts/bundle-tesseract-assets.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",

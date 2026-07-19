@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
 import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals } from '../utils';
-import { getPrintSettings } from '../utils/printSettings';
+import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
@@ -403,9 +403,47 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false });
   // v1.9.1 — preview zoom (session-only). Reads from printSettings for the
   // initial value so the user's preference carries across bill switches.
+  // v1.10.33 — Was READ-ONLY: the initial-load line pulled from
+  // printSettings.previewZoom but nothing ever wrote it back. Every fresh
+  // session started at 100% regardless of "sticky" comment. Now persists
+  // on every change through the useEffect below. Also added a ref +
+  // handleFitToWidth for the "Fit" button that actually fits.
+  const previewPaneRef = useRef(null);
   const [previewZoom, setPreviewZoom] = useState(() => {
     try { return Number(getPrintSettings().previewZoom) || 100; } catch { return 100; }
   });
+  useEffect(() => {
+    try {
+      const s = getPrintSettings();
+      if (Number(s.previewZoom) !== previewZoom) {
+        savePrintSettings({ ...s, previewZoom });
+      }
+    } catch { /* sandboxed localStorage — session-only degradation ok */ }
+  }, [previewZoom]);
+  // v1.10.33 — Actual fit-to-width. A4 preview renders at 794px @ 96dpi;
+  // narrower paper sizes (A5, thermal, custom) can be smaller so we honor
+  // the preview element's natural offsetWidth when possible. Fallback to
+  // 794 covers the moment before InvoicePreview has mounted. Scale is
+  // clamped 50-200% (matches the +/- limits so users don't get a "Fit"
+  // that falls outside the range they can then tweak from).
+  //
+  // v1.10.33 (v2) — offsetWidth is LAYOUT width, unaffected by
+  // `transform: scale(...)`. First cut divided by currentScale which
+  // over-corrected on every click ("Fit → 44% → Fit → 24% → …").
+  // Just read offsetWidth as-is — it's already the natural (unscaled)
+  // width of the preview at the current paper size.
+  const handleFitToWidth = useCallback(() => {
+    if (!previewPaneRef.current) { setPreviewZoom(100); return; }
+    const pane = previewPaneRef.current;
+    const scaler = pane.querySelector('.preview-scaler');
+    const preview = scaler?.querySelector('.invoice-preview-container');
+    const paneWidth = pane.clientWidth - 16; // 8px inset breathing room on each side
+    const naturalWidth = preview?.offsetWidth || 794;
+    if (!(paneWidth > 0 && naturalWidth > 0)) { setPreviewZoom(100); return; }
+    const ratio = paneWidth / naturalWidth;
+    const nextZoom = Math.max(50, Math.min(200, Math.round(ratio * 100)));
+    setPreviewZoom(nextZoom);
+  }, []);
   // v1.10.22 — reported: "sidebar menu toggle option so customer will get
   // a close view for entries because quantity entry u see space is like
   // that we have to see in invoice preview what we are entering". Focus
@@ -1122,7 +1160,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (!editingBill) {
       setInvoiceOptions(prev => ({
         ...prev,
-        paperSize: cli.preferredPaperSize || 'a4',
+        // v1.10.33 — Was `cli.preferredPaperSize || 'a4'` which HARD-RESET
+        // to A4 for every client without an explicit preference — wiping
+        // out the user's globally saved default (e.g. someone who prints
+        // every invoice on 80mm thermal would land back on A4 the moment
+        // they picked a client). Now falls back to prev.paperSize so
+        // globally-persisted choice sticks until the user changes it.
+        paperSize: cli.preferredPaperSize || prev.paperSize || 'a4',
         currency: cli.preferredCurrency || prev.currency || 'INR',
         // v1.10.5 — client-level auto-print override (see original comment).
         clientAutoPrint: !!cli.autoPrint,
@@ -1504,7 +1548,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const paperCfg = getPaperSize(invoiceOptions.paperSize, invoiceOptions);
     // jsPDF orientation defaults to 'portrait' if the paper config doesn't
     // specify it, so pre-v1.8.3 saved bills keep rendering portrait.
-    const pdf = new jsPDF({
+    // Note: `let pdf` (not const) so the thermal path can replace it with
+    // a content-height-sized instance after html2canvas returns — thermal
+    // receipts were previously always 297mm tall regardless of actual
+    // content, wasting 15-20cm of blank paper per receipt when the PDF
+    // was reprinted.
+    let pdf = new jsPDF({
       orientation: paperCfg.jsPdfOrientation || 'portrait',
       unit: 'mm',
       format: paperCfg.jsPdfFormat,
@@ -1671,6 +1720,27 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // Single-page fits — no cropping needed.
       const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
       const finalH = Math.min(scaledImgHeight, contentHeight);
+      // v1.10.33 — Thermal receipts: replace the padded 72×297mm page
+      // with one exactly tall enough for the actual receipt content.
+      // Prior behaviour: a 40-line receipt on thermal80 produced a PDF
+      // with the receipt in the top ~130mm and 165mm of blank paper
+      // below — visible in Chrome's Save-as-PDF preview as the huge
+      // dark area below the "cut here" line the user reported. Now
+      // the PDF page height matches the receipt height (+ margins),
+      // so the PDF looks like the on-screen preview.
+      //
+      // Only fires for the single-page path — multi-page thermal
+      // (extremely long receipts) still uses paperCfg.heightMm as a
+      // reasonable page-break unit.
+      if (paperCfg.kind === 'thermal') {
+        const thermalHeightMm = Math.max(30, Math.ceil(finalH + mTop + mBottom + 2));
+        pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: [paperCfg.widthMm, thermalHeightMm],
+          compress: true,
+        });
+      }
       pdf.addImage(mainImg, imgFormat, contentXOffset, contentYOffset, contentWidth, finalH, undefined, 'MEDIUM');
       pageRecipes.push({ img: mainImg, y: contentYOffset, h: finalH, x: contentXOffset, w: contentWidth });
     } else {
@@ -1824,7 +1894,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // continuous receipt roll, (c) invoice QR / feedback QR crowd out
     // the actual print on 58mm rolls. All post-processing steps below
     // are skipped when the paper is thermal.
-    const isThermalPdf = (invoiceOptions.paperSize || 'a4').startsWith('thermal');
+    // v1.10.33 — Same fix as isThermalPaper below. `.startsWith('thermal')`
+    // missed the `custom` preset at sub-100mm widths, so a Custom 76mm
+    // PDF got the sheet-only watermark / page numbers / QR overlays that
+    // don't belong on a thermal roll.
+    const isThermalPdf = getPaperSize(invoiceOptions.paperSize, invoiceOptions).kind === 'thermal';
 
     // ----- Watermark overlay -----
     // v1.10.12 — Cleaned up the preset ↔ custom decision:
@@ -2043,7 +2117,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // we hand the browser the invoice HTML directly via a print-focused
   // window.print() flow. Modern printer drivers handle 58/80mm rolls
   // natively when the CSS `@page size` matches.
-  const isThermalPaper = () => (invoiceOptions.paperSize || 'a4').startsWith('thermal');
+  //
+  // v1.10.33 — Bug fix: was `.startsWith('thermal')` which does NOT
+  // match the `custom` preset even when its width is under 100mm
+  // (getPaperSize returns kind='thermal' for those). So a user picking
+  // Custom 76mm was routed through the sheet-print path — thick roll
+  // wasted paper, watermark stamped on receipt, HSN/rate lines shown.
+  // Now: single source of truth — getPaperSize().kind.
+  const isThermalPaper = () => getPaperSize(invoiceOptions.paperSize, invoiceOptions).kind === 'thermal';
 
   // v1.10.26 — Focus mode moves the preview pane off-screen (position:
   // absolute), which is fine for html2canvas (layout still computed) but
@@ -2089,49 +2170,46 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setSaving(true);
     try {
       await withPreviewOnScreen(async () => {
-      if (isThermalPaper()) {
-        // v1.10.11 — Thermal buffer-safe mode. When enabled, we inject
-        // a temporary print stylesheet that forces grayscale + reduces
-        // font weight so the raster the printer driver builds is
-        // simpler. Old thermal printers with tiny buffers (< 128 KB)
-        // stall out on colour + high-detail rasters. Rule set is
-        // removed after print().
-        const ps = getPrintSettings();
-        let bufSafeEl = null;
-        if (ps.thermalBufferSafe) {
-          bufSafeEl = document.createElement('style');
-          bufSafeEl.id = 'fgsb-thermal-buffer-safe';
-          bufSafeEl.textContent = `
-            @media print {
-              #invoice-preview, #invoice-preview * {
-                filter: grayscale(100%) contrast(1.15) !important;
-                background-image: none !important;
-                background-color: #ffffff !important;
-                color: #000000 !important;
-                text-shadow: none !important;
-                box-shadow: none !important;
-              }
-              #invoice-preview img {
-                filter: grayscale(100%) contrast(1.2) !important;
-                image-rendering: -webkit-optimize-contrast !important;
-              }
-              #invoice-preview .qr-code, #invoice-preview canvas {
-                filter: grayscale(100%) contrast(1.4) !important;
-              }
+      // v1.10.33 (v3) — Unified print path for thermal AND sheet paper.
+      // Prior thermal branch called window.print() on the parent window,
+      // which relied on the global @page CSS to size the paper. Chrome's
+      // print preview then defaulted to A4 (the user's usual paper) and
+      // showed a huge blank area below a small receipt — reported
+      // twice with screenshots of the empty grey/black area under the
+      // "cut here" line.
+      //
+      // Now: thermal uses the same buildPDF → printViaIframe path as
+      // A4. buildPDF for thermal already produces a content-height PDF
+      // (see the paperCfg.kind==='thermal' branch in the single-page
+      // block), so Chrome's print dialog shows a compact page that
+      // matches the receipt exactly — same behaviour as the on-screen
+      // preview, no more blank paper. Text becomes a raster (JPEG) but
+      // thermal printers are 203dpi anyway, so no visible loss.
+      //
+      // Buffer-safe mode still fires via a temporary style tag around
+      // the iframe print for old thermal printers with tiny buffers.
+      const ps = getPrintSettings();
+      let bufSafeEl = null;
+      if (isThermalPaper() && ps.thermalBufferSafe) {
+        bufSafeEl = document.createElement('style');
+        bufSafeEl.id = 'fgsb-thermal-buffer-safe';
+        bufSafeEl.textContent = `
+          @media print {
+            img {
+              filter: grayscale(100%) contrast(1.2) !important;
+              image-rendering: -webkit-optimize-contrast !important;
             }
-          `;
-          document.head.appendChild(bufSafeEl);
-        }
-        try {
-          window.print();
-        } finally {
-          if (bufSafeEl) setTimeout(() => bufSafeEl.remove(), 2000);
-        }
-        return;
+          }
+        `;
+        document.head.appendChild(bufSafeEl);
       }
-      const pdf = await buildPDF();
-      const blob = pdf.output('blob');
-      printViaIframe(blob);
+      try {
+        const pdf = await buildPDF();
+        const blob = pdf.output('blob');
+        printViaIframe(blob);
+      } finally {
+        if (bufSafeEl) setTimeout(() => bufSafeEl.remove(), 3000);
+      }
       }); // end withPreviewOnScreen
     } catch (e) {
       toast('Print failed — try Download PDF instead', 'error');
@@ -2260,7 +2338,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           </button>
           <button className="btn btn-secondary" onClick={directPrint} disabled={saving}
             title={
-              (invoiceOptions.paperSize || 'a4').startsWith('thermal')
+              isThermalPaper()
                 ? 'Send directly to your thermal printer'
                 : 'Open browser print dialog (skip the PDF download)'
             }>
@@ -2642,7 +2720,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   { group: 'Items table', items: [
                     ['showHSN', 'HSN/SAC column'],
                     ['showItemQty', 'Qty column'],
-                    ['showItemUnit', 'Unit column'],
+                    // v1.10.33 — Renamed from "Unit column" to match
+                    // reality: InvoicePreview renders the unit INSIDE the
+                    // Qty cell ("5 Nos", not a separate column). Prior
+                    // label misled users into unticking Qty and expecting
+                    // Unit to survive as its own column — it just vanished
+                    // instead. Label now describes what actually happens.
+                    ['showItemUnit', 'Unit suffix (next to Qty)'],
                     ['showRateColumn', 'Rate column'],
                     ['showDiscount', 'Discount column'],
                     ['showGST', 'Tax % column (GST/VAT/etc.)'],
@@ -2806,7 +2890,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     Hide all
                   </button>
                   <button type="button" className="btn btn-secondary"
-                    onClick={() => setInvoiceOptions(DEFAULT_OPTIONS)}
+                    onClick={() => setInvoiceOptions(prev => ({
+                      ...DEFAULT_OPTIONS,
+                      // v1.10.33 — Preserve per-bill data that lives inside
+                      // invoiceOptions but is NOT a "display option" the
+                      // reset button should touch. Prior code was a raw
+                      // setInvoiceOptions(DEFAULT_OPTIONS) which nulled
+                      // paymentAccountSnapshot (bank details frozen at save
+                      // time, v1.10.20 invariant) and selectedAccountId
+                      // (the account picked for THIS bill) — so an edit-
+                      // then-reset silently repointed the bank block to the
+                      // legacy profile bank.
+                      paymentAccountSnapshot: prev.paymentAccountSnapshot,
+                      selectedAccountId: prev.selectedAccountId,
+                    }))}
                     style={{ fontSize: '0.72rem', padding: '0.3rem 0.6rem' }}>
                     Reset to default
                   </button>
@@ -3261,7 +3358,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             dimensions so html2canvas can snapshot it, but it's invisible
             to the user and out of the flex flow (so the editor still
             takes the full viewport width in focus mode). */}
-        <div className="preview-pane" style={previewCollapsed
+        <div ref={previewPaneRef} className="preview-pane" style={previewCollapsed
           ? { position: 'absolute', left: '-99999px', top: 0, width: '794px', pointerEvents: 'none', opacity: 0 }
           : undefined}>
           <div className="preview-pane-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3276,9 +3373,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <button type="button" className="btn btn-secondary" title="Zoom in"
                 style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', minWidth: 24 }}
                 onClick={() => setPreviewZoom(z => Math.min(200, z + 10))}>+</button>
-              <button type="button" className="btn btn-secondary" title="Reset to fit"
+              {/* v1.10.33 — REAL fit-to-width. Prior code was
+                  setPreviewZoom(100), which just set 100%, not "fit". On
+                  narrow viewports the preview overflowed; on wide ones it
+                  looked tiny. Now measures the pane's content width and
+                  the preview's natural width (A4 = 794px @ 96dpi) and
+                  scales so the preview fills without overflow. */}
+              <button type="button" className="btn btn-secondary" title="Fit to preview width"
                 style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}
-                onClick={() => setPreviewZoom(100)}>Fit</button>
+                onClick={handleFitToWidth}>Fit</button>
             </span>
           </div>
           <div className="preview-scaler" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top left' }}>

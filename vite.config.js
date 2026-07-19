@@ -42,6 +42,14 @@ export default defineConfig({
       // defer the reload until the user is idle. The main.jsx handler
       // now stores an "update ready" flag and reloads on next window
       // blur / navigation, never mid-form.
+      // v1.10.33 — Kept 'prompt' but bumped skipWaiting → true below.
+      // Reported: "it work in incognito only" — user's tab had a stale
+      // SW serving a broken hash-mismatched bundle after a redeploy,
+      // so main.jsx never loaded and the tab stayed blank. skipWaiting
+      // makes new SWs activate immediately on install (no more 24-hour
+      // wait for the old SW to release), and the runtime cache below
+      // gets `cleanupOutdatedCaches: true` so orphaned assets from a
+      // previous version don't shadow the new ones.
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'og-preview.png'],
       manifest: {
@@ -138,16 +146,34 @@ export default defineConfig({
           '**/assets/pdf-*.js',
           '**/assets/qr-*.js',
           '**/assets/index.es-*.js',
+          // v1.10.33 — Tesseract worker + core + traineddata (~22MB total).
+          // Excluded from precache — cached on demand by the runtime rule
+          // below so the initial SW install stays ~1MB, and the OCR
+          // dependency is downloaded once when the user actually opens
+          // the OCR modal.
+          '**/tesseract/**',
         ],
+        // v1.10.33 — allow the 3.9MB traineddata and 3.3MB wasm cores to
+        // enter the runtime cache. Workbox's default 2MB cap would
+        // silently skip them and offline-second-use OCR would break.
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        // v1.10.2 — Prompt-mode SW: don't auto-take-control until the
-        // main.jsx handler decides it's safe. Prior autoUpdate mode had
-        // skipWaiting+clientsClaim implicit, and combined with a
-        // location.reload() in main.jsx it would blow away mid-invoice
-        // form state on every deploy. See main.jsx onNeedRefresh.
-        skipWaiting: false,
-        clientsClaim: false,
+        // v1.10.33 — Was `false` on both. Kept the prompt-mode reload
+        // deferral in main.jsx but flipped these to true because:
+        //   1. skipWaiting=true lets the new SW take over on install
+        //      without waiting for every open tab to close first. Prior
+        //      value stalled the SW in `waiting` until the user closed
+        //      every browser tab and reopened the app — meanwhile the
+        //      OLD SW served the OLD bundle whose file hashes no longer
+        //      matched what index.html referenced → white screen.
+        //   2. clientsClaim=true means any currently-open tab starts
+        //      talking to the new SW immediately after activation.
+        //      Combined with cleanupOutdatedCaches below, orphaned
+        //      chunks from the previous deploy get evicted.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           // v1.10.2 — /api/* runtime cache. Missing this rule meant the
           // "offline billing counter" promise was broken: fetch() throws
@@ -203,6 +229,20 @@ export default defineConfig({
             options: {
               cacheName: 'images-cache',
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          // v1.10.33 — OCR assets. CacheFirst so second-time OCR is
+          // instant and works offline once the user has opened the
+          // modal once online. maxAgeSeconds is a year — these files
+          // are versioned in-place by scripts/bundle-tesseract-assets.mjs
+          // and don't change without a redeploy.
+          {
+            urlPattern: /\/tesseract\/.*\.(?:js|wasm|traineddata)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'tesseract-cache',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
