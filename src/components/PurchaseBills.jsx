@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, FileText, Eye } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct } from '../store';
 import { formatCurrency, calculateRoundOff, getFYOptions } from '../utils';
@@ -67,6 +67,10 @@ export default function PurchaseBills() {
   const [form, setForm] = useState({ ...emptyForm, items: [{ ...emptyItem }] });
   // v1.10.22 — OCR modal state.
   const [showOCR, setShowOCR] = useState(false);
+  // v1.10.30 — reported: "add a view only option modal type so can user
+  // check the price without downloading the file every time". Holds the
+  // purchase being previewed; modal has a Download PDF button inside.
+  const [viewPurchase, setViewPurchase] = useState(null);
   const applyOCR = (extracted) => {
     // Open the purchase form (add mode) pre-filled with what OCR gave us.
     // Line items stay empty — user fills them manually since bill layouts
@@ -209,14 +213,30 @@ export default function PurchaseBills() {
         if (y > 265) { doc.addPage(); y = 20; }
         const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
         const withTax = lineTotal * (1 + (Number(item.taxPercent) || 0) / 100);
+        // v1.10.30 — reported: "in purchase bill pdf long names got cut in
+        // pdf fix". Prior code used `.slice(0, 40)` which mid-word truncated
+        // "4 Copier Paper (Pack of..." → "4 Copier Paper (Pack o". Now we
+        // wrap the description into as many lines as needed (70mm column
+        // width). The row height grows to fit the wrapped text so nothing
+        // clips into the next line.
+        const nameCol = 70; // mm — width of description column
+        const nameLines = doc.splitTextToSize(String(item.name || '-'), nameCol);
+        const rowH = Math.max(6, nameLines.length * 4.5);
+        // Page break if this row won't fit.
+        if (y + rowH > 275) { doc.addPage(); y = 20; }
         doc.text(String(idx + 1), marginL, y);
-        doc.text(String(item.name || '-').slice(0, 40), marginL + 8, y);
+        // Description wraps top-aligned.
+        nameLines.forEach((line, lineIdx) => {
+          doc.text(line, marginL + 8, y + lineIdx * 4.5);
+        });
+        // Everything else aligns to the top of the row (so it lines up
+        // with the first line of the wrapped description).
         doc.text(String(item.hsn || '-'), marginL + 80, y);
         doc.text(String(item.quantity || 0), marginL + 100, y, { align: 'right' });
         doc.text(fmt(item.rate), marginL + 122, y, { align: 'right' });
         doc.text(String(item.taxPercent || 0) + '%', marginL + 140, y, { align: 'right' });
         doc.text(fmt(withTax), marginR, y, { align: 'right' });
-        y += 6;
+        y += rowH;
       });
 
       // Totals
@@ -434,6 +454,83 @@ export default function PurchaseBills() {
           <BillOCR onClose={() => setShowOCR(false)} onExtracted={applyOCR} />
         </Suspense>
       )}
+
+      {/* v1.10.30 — Purchase view modal (quick check, no download). */}
+      {viewPurchase && (() => {
+        const p = viewPurchase;
+        const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
+        return (
+          <div className="modal-overlay" onClick={() => setViewPurchase(null)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 720 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <h3 className="section-title" style={{ margin: 0 }}>Purchase Bill · {p.invoiceNumber || '—'}</h3>
+                <button className="icon-btn" onClick={() => setViewPurchase(null)} title="Close"><X size={18} /></button>
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                {p.date ? new Date(p.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''} · {p.paymentStatus || 'Unpaid'} · {p.interstate ? 'Interstate (IGST)' : 'Intrastate (CGST+SGST)'}
+              </div>
+              {/* Supplier block */}
+              <div style={{ background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: 6, marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Supplier</div>
+                <div style={{ fontWeight: 600 }}>{p.supplierName || '—'}</div>
+                {p.supplierAddress && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.supplierAddress}</div>}
+                {p.supplierGstin && <div style={{ fontSize: '0.82rem' }}>GSTIN: <strong>{p.supplierGstin}</strong></div>}
+              </div>
+              {/* Line items */}
+              <div style={{ overflowX: 'auto', maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginBottom: '1rem' }}>
+                <table className="data-table" style={{ fontSize: '0.82rem', width: '100%', minWidth: 500 }}>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Description</th>
+                      <th>HSN</th>
+                      <th style={{ textAlign: 'right' }}>Qty</th>
+                      <th style={{ textAlign: 'right' }}>Rate</th>
+                      <th style={{ textAlign: 'right' }}>GST%</th>
+                      <th style={{ textAlign: 'right' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(p.items || []).map((it, idx) => {
+                      const line = (Number(it.quantity) || 0) * (Number(it.rate) || 0);
+                      const withTax = line * (1 + (Number(it.taxPercent) || 0) / 100);
+                      return (
+                        <tr key={idx}>
+                          <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                          <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{it.name || '—'}</td>
+                          <td style={{ color: 'var(--text-muted)' }}>{it.hsn || '—'}</td>
+                          <td style={{ textAlign: 'right' }}>{it.quantity || 0}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(it.rate || 0)}</td>
+                          <td style={{ textAlign: 'right' }}>{it.taxPercent || 0}%</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(withTax)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Totals */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.35rem 1rem', fontSize: '0.9rem', maxWidth: 320, marginLeft: 'auto' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Taxable</span>
+                <span style={{ textAlign: 'right' }}>{formatCurrency(t.taxable)}</span>
+                <span style={{ color: 'var(--text-muted)' }}>Tax</span>
+                <span style={{ textAlign: 'right' }}>{formatCurrency(t.tax)}</span>
+                {t.cess > 0.005 && <><span style={{ color: 'var(--text-muted)' }}>Cess</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.cess)}</span></>}
+                {Math.abs(t.roundOff) > 0.005 && <><span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Round-off</span><span style={{ textAlign: 'right', fontStyle: 'italic' }}>{(t.roundOff > 0 ? '+' : '') + formatCurrency(t.roundOff)}</span></>}
+                <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, fontWeight: 700 }}>TOTAL</span>
+                <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, textAlign: 'right', fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>{formatCurrency(t.finalTotal)}</span>
+              </div>
+              {p.note && <p style={{ fontSize: '0.82rem', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '1rem' }}>Note: {p.note}</p>}
+              {/* Action bar */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <button className="btn btn-secondary" onClick={() => setViewPurchase(null)}>Close</button>
+                <button className="btn btn-secondary" onClick={() => { openEdit(p); setViewPurchase(null); }}><Edit3 size={14} /> Edit</button>
+                <button className="btn btn-primary" onClick={() => viewAsPdf(p)}><Download size={14} /> Download PDF</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
@@ -672,8 +769,10 @@ export default function PurchaseBills() {
                       </td>
                       <td>
                         <div className="table-actions">
-                          {/* v1.10.29 — View as PDF (feature ask). */}
-                          <button className="icon-btn" onClick={() => viewAsPdf(p)} title="View as PDF"><FileText size={15} /></button>
+                          {/* v1.10.30 — quick View modal (no download).
+                              Modal has a Download PDF button inside for
+                              users who do want the file. */}
+                          <button className="icon-btn" onClick={() => setViewPurchase(p)} title="View details (no download)"><Eye size={15} /></button>
                           <button className="icon-btn icon-btn-blue" onClick={() => openEdit(p)} title="Edit"><Edit3 size={15} /></button>
                           <button className="icon-btn icon-btn-red" onClick={() => handleDelete(p.id)} title="Delete"><Trash2 size={15} /></button>
                         </div>

@@ -878,8 +878,8 @@ export const PAPER_SIZES = {
   // invoiceOptions.customPaperWidth / customPaperHeight. The Customize
   // panel exposes two number inputs when this is selected.
   custom: {
-    label: 'Custom size (any width / height)',
-    hint: 'Enter your exact printable width + height in mm. Use for uncommon printer sizes or special stationery.',
+    label: 'Custom size (thermal / roll / stationery)',
+    hint: 'Enter any width + height in mm. Widths under 100mm auto-switch to thermal receipt layout (same behaviour as 58 / 80mm presets). Use for 40mm / 76mm / 90mm rolls, or A6 / letter / label stationery.',
     widthMm: 210, heightMm: 297, // fallback defaults if the user hasn't set custom values yet
     jsPdfFormat: [210, 297], jsPdfOrientation: 'portrait',
     cssClass: 'paper-custom',

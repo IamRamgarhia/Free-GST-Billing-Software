@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.30] — 2026-07-14
+
+**Five fixes from the follow-up feedback.**
+
+### Fixed — OCR still failing with "OCR failed: undefined"
+
+**Reported.** Screenshot with the toast text
+`"OCR failed: undefined. Try a sharper photo or check your network."`
+The v1.10.29 fix improved the error handling, but a subtle bug in the
+fallback chain used `String(err)` which returned the literal string
+`"undefined"` when tesseract rejected with a non-Error value.
+
+**Fix.** Aggressive normalization across every shape tesseract can
+throw: string, `{ message }`, `{ data }`, `{ data.message }`, or plain
+object. If everything's empty we say `"Unknown error (see browser
+console — F12 — for details)"` instead of `"undefined"`. Hint text
+now covers 502/503/504 gateway errors, SharedArrayBuffer availability,
+and timeouts too. Toast stays up 12 seconds so the user can read the
+diagnosis.
+
+### Fixed — Thermal font too small / print too light
+
+**Reported.** "fix the font issue and print issue in thermal baki
+print 80mm and 58mm default working till now ok."
+
+**Fix.** Two-part tweak:
+
+1. **Font sizes bumped ~10-15%** across all four thermal presets:
+   - `small`   58mm/80mm → 9.5px / 11px (was 8.5 / 10)
+   - `medium`  → 11 / 12.5 (was 9.5 / 11)  ← default
+   - `large`   → 12.5 / 14.5 (was 10.5 / 12.5)
+   - `xlarge`  → 14 / 16.5 (was 11.5 / 14)
+   Tuned against low-DPI POS printers where raster smoothing eats
+   ~1px off every glyph.
+2. **Text-shadow double-strike strengthened.** Prior 0.4px horizontal
+   was thin. Now 0.6px horizontal + 0.6px vertical + a diagonal
+   0.4px so glyphs read visibly darker on lightly-burning thermal
+   heads without fattening the font weight (which would misalign
+   number columns).
+
+### Fixed — Long product names truncated in Purchase Bill PDF
+
+**Reported.** "in purchase bill pdf long names got cut in pdf fix"
+with a screenshot showing "4 Copier Paper (Pack o" truncated
+mid-word.
+
+**Root cause.** `viewAsPdf` hard-coded `.slice(0, 40)` on the item
+name for its column width, silently cutting anything longer.
+
+**Fix.** Uses `doc.splitTextToSize(name, 70 /* mm */)` to word-wrap.
+Row height grows to fit however many lines the wrapped name needs;
+neighbouring columns (HSN, qty, rate, GST%, amount) stay top-aligned
+with the first line so nothing overlaps.
+
+### Improved — Custom thermal paper size discoverability
+
+**Reported.** "ek chis karna hai jaise app 80mm 58mm sellect karne se
+print de rahe hai jaise option hai waise hi custom size ke liye bhi
+kijiye" — user wanted a custom thermal size option similar to 80mm /
+58mm presets.
+
+**Discovery.** The infrastructure already existed since v1.9.1 —
+`custom` paper size at [utils.js:880](src/utils.js#L880) already
+takes `customPaperWidth` + `customPaperHeight` from invoice options
+and auto-switches to thermal receipt layout when width < 100mm. The
+label just wasn't clear that it worked for thermal too.
+
+**Fix.**
+1. Label renamed from `"Custom size (any width / height)"` to
+   `"Custom size (thermal / roll / stationery)"`.
+2. Hint now explicitly says "widths under 100mm auto-switch to
+   thermal receipt layout — same as 58 / 80mm presets".
+3. **Quick-pick chips** for the most-asked uncommon rolls: 40mm,
+   76mm, 90mm, 110mm — one click sets the width without typing.
+
+### Added — Purchase Bill quick-view modal (no download)
+
+**Reported.** "add a view only option modal type so can user check
+the price without downloading the file every time. i know u can say
+to edit and check that but if some data entered wrongly thats why."
+
+**Fix.** Replaced the FileText row action with an **Eye icon** →
+opens a modal that shows every purchase detail formatted inline:
+
+- Header: invoice #, date, payment status, interstate/intrastate
+- Supplier block: name, address, GSTIN
+- Line items table (scrollable if many): #, description, HSN, qty,
+  rate, GST%, amount
+- Tax breakdown: taxable, tax, cess, round-off, TOTAL
+- Note (if any)
+- Action bar: Close / Edit (opens edit form) / Download PDF
+
+Users can now verify a purchase in ~1 second without generating +
+opening a file. The Download PDF option is still one click away
+inside the modal for anyone who does want the file.
+
+### Verified
+
+- `npx vite build` — clean
+- `node scripts/tax-test.mjs` — 31/31 pass
+- `node scripts/discount-modes-test.mjs` — 9/9 pass
+
+---
+
 ## [1.10.29] — 2026-07-14
 
 **Big batch: 4 bugs + 3 features + 4 quality follow-ups.**

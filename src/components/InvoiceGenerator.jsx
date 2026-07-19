@@ -2698,8 +2698,26 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                                 className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }} />
                             </div>
                             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', gridColumn: 'span 2', margin: 0 }}>
-                              Tip: enter your printer's <strong>printable</strong> width, not the roll width. Most 58mm thermals print at 48mm; 80mm print at 72mm. Below 100mm switches to thermal receipt layout.
+                              Tip: enter your printer's <strong>printable</strong> width, not the roll width. Most 58mm thermals print at 48mm; 80mm print at 72mm. <strong>Below 100mm width auto-switches to thermal receipt layout</strong> — same rendering as the 58/80mm presets, just at your exact size.
                             </p>
+                            {/* v1.10.30 — quick-pick chips for uncommon thermal rolls. */}
+                            <div style={{ gridColumn: 'span 2', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: 4 }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', alignSelf: 'center' }}>Quick-pick:</span>
+                              {[
+                                { label: '40mm', w: 32 },
+                                { label: '76mm', w: 68 },
+                                { label: '90mm', w: 80 },
+                                { label: '110mm', w: 102 },
+                              ].map(p => (
+                                <button type="button" key={p.label}
+                                  onClick={() => setInvoiceOptions(prev => ({ ...prev, customPaperWidth: p.w, customPaperHeight: 297 }))}
+                                  className="btn btn-secondary"
+                                  style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}
+                                  title={`Set to ${p.label} roll (${p.w}mm printable × auto height)`}>
+                                  {p.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         )}
 

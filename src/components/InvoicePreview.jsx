@@ -405,11 +405,15 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
 
     // Base font-size in px based on paper width + user preference.
     // Larger widths get slightly bigger base so 80mm reads bolder than 58mm.
+    // v1.10.30 — reported: "fix the font issue and print issue in thermal".
+    // Bumped every size ~10-15% so even 58mm at 'small' stays readable
+    // after the print driver's raster smoothing. Baseline print quality on
+    // low-DPI POS printers is what these numbers are tuned against.
     const fontSizeMap = {
-      small:  isNarrow ? 8.5 : 10,
-      medium: isNarrow ? 9.5 : 11,
-      large:  isNarrow ? 10.5 : 12.5,
-      xlarge: isNarrow ? 11.5 : 14,
+      small:  isNarrow ? 9.5 : 11,
+      medium: isNarrow ? 11 : 12.5,
+      large:  isNarrow ? 12.5 : 14.5,
+      xlarge: isNarrow ? 14 : 16.5,
     };
     const fontSizeBase = (fontSizeMap[fontSize] || fontSizeMap.medium) + 'px';
     // FontFamily: monospace prints crisper on thermal, but some printers
@@ -446,8 +450,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     // -webkit-text-stroke this makes even the lightest thermal printer
     // produce crisp readable output. User can turn it OFF via Ultra weight
     // setting if they don't need it.
+    // v1.10.30 — stronger double-strike for thermal readability. Prior
+    // 0.4px shadow was thin; bumping to 0.6px + adding a diagonal makes
+    // glyphs read darker on lightly-burning heads without needing a
+    // heavier font weight (which fattens columns and misaligns numbers).
     const textDarkenShadow = fontWeight === 'normal' ? 'none'
-                           : '0.4px 0 0 currentColor, 0 0.4px 0 currentColor';
+                           : '0.6px 0 0 currentColor, 0 0.6px 0 currentColor, 0.4px 0.4px 0 currentColor';
     const rootStyle = {
       ...containerStyle,
       color: '#000',

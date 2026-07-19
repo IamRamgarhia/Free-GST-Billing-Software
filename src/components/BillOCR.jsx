@@ -192,14 +192,29 @@ export default function BillOCR({ onClose, onExtracted }) {
       setStatus('done');
     } catch (err) {
       console.error('OCR failed:', err);
-      // Give the user the actual reason instead of a generic "try again"
-      // that doesn't help them diagnose network / worker / core issues.
-      const msg = (err && err.message) ? err.message : String(err);
-      let hint = 'Try a sharper photo or check your network.';
-      if (/fetch|network|Failed to fetch|CDN/i.test(msg)) hint = 'Network fetch failed — OCR needs to download the language model (~2MB) on first use. Check your connection.';
-      else if (/worker/i.test(msg)) hint = 'Tesseract worker failed to load. Try refreshing the page (Ctrl+F5) to fetch a clean bundle.';
-      else if (/blob|image|corrupt/i.test(msg)) hint = 'Could not decode the image. Try a JPG or PNG (max 8MB).';
-      toast(`OCR failed: ${msg.slice(0, 100)}${msg.length > 100 ? '…' : ''}. ${hint}`, 'error', 10000);
+      // v1.10.30 — reported: "ocr issue hai abhi bhi" with screenshot
+      // showing "OCR failed: undefined." Root cause: v1.10.29 used
+      // `err.message || String(err)`, but tesseract sometimes rejects with
+      // a non-Error value (a string, a plain object, or literally
+      // undefined) → `String(undefined)` → the toast said "undefined".
+      // Now we normalize aggressively across every shape tesseract can
+      // throw / reject.
+      let msg = '';
+      if (typeof err === 'string') msg = err;
+      else if (err && typeof err.message === 'string' && err.message) msg = err.message;
+      else if (err && typeof err.data === 'string') msg = err.data;
+      else if (err && err.data && typeof err.data.message === 'string') msg = err.data.message;
+      else if (err) { try { msg = JSON.stringify(err); } catch { msg = 'Unknown error'; } }
+      else msg = 'Unknown error';
+      if (msg === 'undefined' || msg === '{}' || !msg.trim()) msg = 'Unknown error (see browser console — F12 — for details)';
+
+      let hint = 'Try a sharper photo, or open the browser console (F12) for the full error.';
+      if (/fetch|network|Failed to fetch|CDN|502|503|504/i.test(msg)) hint = 'Network fetch failed — OCR needs to download ~2MB of language data on first use. Check your connection and try again in a moment.';
+      else if (/worker|SharedArrayBuffer|not defined/i.test(msg)) hint = 'Tesseract worker failed to load. Hard-refresh (Ctrl+F5) to fetch a clean bundle. If it keeps failing, the app may need HTTPS + COOP/COEP headers for tesseract v7.';
+      else if (/blob|image|decode|corrupt|invalid/i.test(msg)) hint = 'Could not decode the image. Try a JPG or PNG under 8MB, taken with good lighting.';
+      else if (/timeout|timed out/i.test(msg)) hint = 'OCR timed out. Image may be too large — try cropping to just the invoice header.';
+
+      toast(`OCR failed: ${msg.slice(0, 120)}${msg.length > 120 ? '…' : ''} · ${hint}`, 'error', 12000);
       setStatus('error');
       if (worker) { try { await worker.terminate(); } catch { /* ignore */ } }
     }
