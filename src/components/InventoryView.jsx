@@ -4,8 +4,14 @@ import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSe
 import { getAllUnits, getCountryConfig, formatCurrency } from '../utils';
 import { toast } from './Toast';
 
+// v1.10.29 — reported: "here purchase price and selling price need".
+// Product now carries BOTH: `purchasePrice` (what we paid the supplier) and
+// `sellingPrice` (what we charge the customer). Legacy `rate` field is
+// still written on save (mirrors sellingPrice) so any pre-v1.10.29 reader
+// still gets a valid number, but the form no longer edits it directly —
+// dead state removed for clarity.
 const emptyForm = {
-  name: '', hsn: '', rate: '', taxPercent: '', unit: 'Nos', stock: '', description: '',
+  name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', unit: 'Nos', stock: '', description: '',
 };
 
 export default function InventoryView() {
@@ -54,10 +60,14 @@ export default function InventoryView() {
   };
 
   const openEdit = (product) => {
+    // v1.10.29 — Backward-compat: pre-v1.10.29 products only had `rate`.
+    // Read `sellingPrice` if set, else fall back to `rate`. `purchasePrice`
+    // is new — starts empty for legacy products until the user fills it.
     setForm({
       name: product.name || '',
       hsn: product.hsn || '',
-      rate: product.rate || '',
+      purchasePrice: product.purchasePrice ?? '',
+      sellingPrice: product.sellingPrice ?? product.rate ?? '',
       taxPercent: product.taxPercent || '',
       unit: product.unit || 'Nos',
       stock: product.stock || '',
@@ -79,11 +89,17 @@ export default function InventoryView() {
       return;
     }
     try {
+      // v1.10.29 — Persist both prices. `rate` mirrors sellingPrice so any
+      // old caller reading .rate still gets the right number.
+      const sellingPrice = form.sellingPrice ? parseFloat(form.sellingPrice) : 0;
+      const purchasePrice = form.purchasePrice ? parseFloat(form.purchasePrice) : 0;
       const product = {
         ...(editingId ? { id: editingId } : {}),
         name: form.name.trim(),
         hsn: form.hsn.trim(),
-        rate: form.rate ? parseFloat(form.rate) : 0,
+        purchasePrice,
+        sellingPrice,
+        rate: sellingPrice, // mirror for legacy readers
         taxPercent: form.taxPercent ? parseFloat(form.taxPercent) : 0,
         unit: form.unit,
         stock: form.stock ? parseFloat(form.stock) : 0,
@@ -209,10 +225,23 @@ export default function InventoryView() {
                 <input type="text" className="form-input" value={form.hsn}
                   onChange={e => updateField('hsn', e.target.value)} placeholder="e.g. 998314" />
               </div>
+              {/* v1.10.29 — Purchase price + selling price side by side.
+                  Selling price seeds the invoice rate; purchase price seeds
+                  the purchase-bill rate. Legacy `rate` field kept invisible
+                  for backward compat — writes through to sellingPrice. */}
               <div className="form-group">
-                <label className="form-label">Rate (Default Price)</label>
-                <input type="number" className="form-input" value={form.rate}
-                  onChange={e => updateField('rate', e.target.value)} placeholder="0.00" min="0" />
+                <label className="form-label">Purchase Price</label>
+                <input type="number" className="form-input" value={form.purchasePrice}
+                  onChange={e => updateField('purchasePrice', e.target.value)}
+                  placeholder="0.00" min="0" step="any"
+                  title="What you pay the supplier. Auto-fills on new Purchase Bills." />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Selling Price</label>
+                <input type="number" className="form-input" value={form.sellingPrice}
+                  onChange={e => updateField('sellingPrice', e.target.value)}
+                  placeholder="0.00" min="0" step="any"
+                  title="What you charge the customer. Auto-fills on new Invoices." />
               </div>
               <div className="form-group">
                 <label className="form-label">GST %</label>

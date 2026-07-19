@@ -7,6 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.29] — 2026-07-14
+
+**Big batch: 4 bugs + 3 features + 4 quality follow-ups.**
+
+### 🐛 Bugs
+
+**Per-line tax used raw discount, ignored Unit/W-Tax bases.** Reported
+via screenshot: line 2 (Bill Book, 10 × ₹95, ₹5 Unit-base discount)
+showed CGST ₹85.05 in the per-line table (as if disc = ₹5) but
+Discount ₹50 / CGST ₹83.25 in the totals bar (as if disc = ₹50) —
+GST mismatch inside a single PDF. Root cause:
+[InvoicePreview.jsx:839](src/components/InvoicePreview.jsx#L839)
+used `item.discount || 0` (raw value); `computeInvoiceTotals`
+correctly routed through `resolveLineDiscount(item)`. Fix: import
+`resolveLineDiscount` in InvoicePreview and use it on the per-line
+render. Totals + per-line breakdown now agree.
+
+**Thermal print included entire app UI (sidebar, menu, editor).**
+Reported: "thermal print me kuch error ho raha hai" with screenshot
+showing the browser print preview rendering the WHOLE app instead
+of just the receipt. Root cause: `directPrint()` for thermal calls
+`window.print()` which prints the visible viewport; no `@media
+print` rules to hide non-invoice UI. Fix: added a `@media print`
+block that hides `body *` and unhides only `#invoice-preview`,
+positioning it at 0,0 with no margins.
+
+**WhatsApp share button sent subtotal, not total.** Reported: "when
+i use whatsapp button it is sending subtotal amount". Root cause:
+[InvoiceGenerator.jsx:2183](src/components/InvoiceGenerator.jsx#L2183)
+used `items.reduce((s, i) => s + (i.quantity * i.rate), 0)` — that's
+the pre-tax subtotal. Fix: switched to `totals.total` (post-tax,
+post-discount, includes round-off + TCS + invoice-level discount).
+Message now includes subtotal AND total on separate lines, plus
+date and business name signature.
+
+**OCR failed silently with a generic "try again" toast.** Reported:
+"ocr is not working". Root cause: tesseract.js v7 in a Vite bundle
+often can't resolve its own worker.js / core / eng.traineddata
+paths correctly. Fix: pin `workerPath` / `corePath` / `langPath` to
+explicit CDN URLs (jsdelivr for worker/core, tessdata project for
+language models). Version pulled from `tesseract.js/package.json`
+via native Vite JSON import so future `npm update tesseract.js`
+tracks automatically. Errors now surface the actual message plus
+an actionable hint ("Network fetch failed — needs to download
+~2MB", "Worker failed — Ctrl+F5 to refresh bundle", etc.).
+
+### ✨ Features
+
+**Purchase Bills: View as PDF button.** Reported: "option to view
+as pdf give it that will be better". New FileText icon per row
+generates a single-page PDF (header, supplier block with address +
+GSTIN, line items table, tax + cess breakdown, round-off, total,
+optional note). Uses jsPDF's built-in helpers — no autotable
+dependency added.
+
+**Purchase Bills auto-sync items to Products.** Reported: "items
+added in purchase bill also available for sale means automatically
+added to the product page too". On purchase-bill save, each line
+item is upserted into Products by name (trimmed, case-insensitive).
+Existing products get their `purchasePrice`, `hsn` (if empty), and
+`cessPercent` (if empty) updated + **stock incremented by the
+purchase quantity** on FIRST save (skipped on edit to prevent
+double-counting). New products get seeded with sellingPrice =
+purchasePrice as a starting point. Non-fatal: a sync failure
+doesn't block the purchase save.
+
+**Products: Purchase Price + Selling Price fields.** Reported:
+"here purchase price and selling price need". Two side-by-side
+inputs in the Add/Edit Product form. Legacy `rate` field kept in
+storage (mirrors sellingPrice on save) so pre-v1.10.29 readers
+still work; new products always write both. InvoiceGenerator's
+product picker uses `sellingPrice ?? rate ?? 0`; Purchase-Bills
+auto-sync updates `purchasePrice`.
+
+### 🔧 Quality follow-ups
+
+**@media print scoped with `:has(#invoice-preview)`** so Ctrl+P on
+Dashboard / Clients / Reports (any view without an invoice preview
+in the DOM) gets the browser's default print behaviour instead of
+a blank page. `:has()` is supported in every Chromium 105+ /
+Safari 15.4+ / Firefox 121+ — safe for the PWA target.
+
+**Purchase → Products cess carry:** `cessPercent` now flows from
+purchase line items into synced Products, so tobacco / auto / coal
+items keep their cess rate for future invoices.
+
+**Purchase Bill: supplier address field.** New optional row in
+the purchase form; shows on the PDF header under the supplier
+name. Pre-v1.10.29 records with no address render byte-identical.
+
+**InventoryView cleanup:** removed dead `rate` state from the
+Product form — it was hidden from UI but still in emptyForm /
+openEdit for no reason. Save path still writes `rate = sellingPrice`
+as a backward-compat mirror.
+
+### Verified
+
+- `npx vite build` — clean
+- `node scripts/tax-test.mjs` — 31/31 pass
+- `node scripts/discount-modes-test.mjs` — 9/9 pass
+
+---
+
 ## [1.10.28] — 2026-07-14
 
 **Compact invoice layout + slower-device print reliability.**

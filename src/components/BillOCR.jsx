@@ -1,6 +1,11 @@
 import { useState, useRef } from 'react';
 import { X, Upload, Loader, Wand2 } from 'lucide-react';
 import { toast } from './Toast';
+// v1.10.29 — Pull the installed tesseract.js version straight from its
+// package.json so that when we `npm update tesseract.js`, the CDN paths
+// track automatically. Vite handles JSON imports natively — no bundle
+// bloat beyond the version string.
+import tesseractPkg from 'tesseract.js/package.json';
 
 /*
  * v1.10.22 — Purchase-bill OCR.
@@ -149,11 +154,29 @@ export default function BillOCR({ onClose, onExtracted }) {
     if (!file) return;
     setStatus('ocr');
     setProgress(0);
+    // v1.10.29 — reported: "ocr is not working". Common failure modes with
+    // tesseract.js v7 in a Vite bundle:
+    //   (a) worker.js path resolution fails after production build
+    //   (b) eng.traineddata CDN fetch blocked by corporate proxy / offline
+    //   (c) SharedArrayBuffer unavailable without cross-origin-isolated headers
+    // Now: pin corePath / workerPath / langPath to jsdelivr CDN explicitly
+    // (tesseract.js's built-in path resolution is fragile in bundlers), catch
+    // the actual error message, and surface it to the user so they know
+    // whether to retry, check network, or report a bug.
+    let worker = null;
     try {
-      // Dynamic import keeps tesseract's ~2MB core out of the main
-      // bundle — only fetched when a user actually opens this modal.
       const Tesseract = await import('tesseract.js');
-      const worker = await Tesseract.createWorker('eng', 1, {
+      // v1.10.29 — Version pulled from tesseract's own package.json (see
+      // top-of-file import), so CDN paths stay in sync on future npm
+      // updates without hand-editing this file.
+      const version = tesseractPkg.version || '7.0.0';
+      const cdn = `https://cdn.jsdelivr.net/npm/tesseract.js@${version}/dist`;
+      worker = await Tesseract.createWorker('eng', 1, {
+        // Explicit CDN paths — safer than the auto-detected relative paths
+        // that break after Vite hashes filenames in production builds.
+        workerPath: `${cdn}/worker.min.js`,
+        corePath: `https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0`,
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
         logger: (m) => {
           if (m.status === 'recognizing text' && typeof m.progress === 'number') {
             setProgress(Math.round(m.progress * 100));
@@ -162,14 +185,23 @@ export default function BillOCR({ onClose, onExtracted }) {
       });
       const { data } = await worker.recognize(file);
       await worker.terminate();
+      worker = null;
       setRawText(data.text);
       const p = heuristicParseBill(data.text);
       setParsed(p);
       setStatus('done');
     } catch (err) {
       console.error('OCR failed:', err);
-      toast('OCR failed — the image may be too blurry. Try a sharper photo.', 'error');
+      // Give the user the actual reason instead of a generic "try again"
+      // that doesn't help them diagnose network / worker / core issues.
+      const msg = (err && err.message) ? err.message : String(err);
+      let hint = 'Try a sharper photo or check your network.';
+      if (/fetch|network|Failed to fetch|CDN/i.test(msg)) hint = 'Network fetch failed — OCR needs to download the language model (~2MB) on first use. Check your connection.';
+      else if (/worker/i.test(msg)) hint = 'Tesseract worker failed to load. Try refreshing the page (Ctrl+F5) to fetch a clean bundle.';
+      else if (/blob|image|corrupt/i.test(msg)) hint = 'Could not decode the image. Try a JPG or PNG (max 8MB).';
+      toast(`OCR failed: ${msg.slice(0, 100)}${msg.length > 100 ? '…' : ''}. ${hint}`, 'error', 10000);
       setStatus('error');
+      if (worker) { try { await worker.terminate(); } catch { /* ignore */ } }
     }
   };
 

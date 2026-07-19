@@ -1151,6 +1151,48 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .product-suggestion-name { font-weight: 500; color: var(--text); }
 .product-suggestion-meta { font-size: 0.72rem; color: var(--text-secondary); }
 
+/* ========= Print media: strip everything except the invoice preview =========
+   v1.10.29 — reported: "thermal print me kuch error ho raha hai" with a
+   screenshot showing the browser's print preview printing the WHOLE app
+   (sidebar, menu, toolbar, editor pane) instead of just the invoice.
+   Root cause: directPrint() for thermal calls window.print() which prints
+   the visible viewport. Without an @media print rule, browsers include
+   everything.
+   Fix: hide the entire page in print media, unhide only #invoice-preview,
+   position it at 0,0 with no margins, kill any preview-scaler transform
+   that would shrink it. Works for thermal (window.print) and for anyone
+   who hits Ctrl+P on the app in general. */
+/* v1.10.29 — scoped with :has() so Ctrl+P on Dashboard / Clients / Reports
+   (any view without #invoice-preview in the DOM) still gets the browser's
+   default print behaviour instead of a blank page. :has() is supported in
+   every Chromium 105+, Safari 15.4+, Firefox 121+ browser — safe for our
+   PWA target. */
+@media print {
+  body:has(#invoice-preview) * { visibility: hidden !important; }
+  body:has(#invoice-preview) #invoice-preview,
+  body:has(#invoice-preview) #invoice-preview * { visibility: visible !important; }
+  body:has(#invoice-preview) #invoice-preview {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  body:has(#invoice-preview) .preview-scaler {
+    transform: none !important;
+  }
+  @page {
+    margin: 0;
+    size: auto;
+  }
+}
+
 /* ========= Professional Invoice Preview ========= */
 .invoice-preview-container {
   background: white;

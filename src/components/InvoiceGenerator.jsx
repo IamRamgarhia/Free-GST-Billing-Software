@@ -995,11 +995,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   }, []);
 
   const selectProduct = useCallback((itemId, product) => {
+    // v1.10.29 — Prefer sellingPrice for sales invoices (falls back to
+    // legacy `rate` for pre-v1.10.29 products).
+    const salePrice = product.sellingPrice ?? product.rate ?? 0;
     setItems(prev => prev.map(item => item.id === itemId ? {
       ...item,
       name: product.name,
       hsn: product.hsn || '',
-      rate: product.rate || 0,
+      rate: salePrice,
       unit: product.unit || item.unit || 'Nos',
       taxPercent: product.taxPercent ?? (countryTaxRates[countryTaxRates.length - 2] ?? 18),
       productId: product.id,
@@ -2180,8 +2183,26 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const shareWhatsApp = () => {
     const phone = client?.phone ? client.phone.replace(/\D/g, '') : '';
-    const amount = formatCurrency(items.reduce((s, i) => s + (i.quantity * i.rate), 0));
-    const msg = `*Invoice: ${details.invoiceNumber}*\nClient: ${client?.name || ''}\nAmount: ${amount}\nDate: ${details.invoiceDate}`;
+    // v1.10.29 — reported: "when i use whatsapp button it is sending
+    // subtotal amount". Cause: this used `items.reduce((s, i) => s +
+    // (i.quantity * i.rate), 0)` — that's the pre-tax subtotal, not the
+    // invoice total. Now uses totals.total (post-tax, post-discount, with
+    // round-off + TCS + invoice-level discount all applied) — the same
+    // number that appears on the PDF and gets saved as bill.totalAmount.
+    const cur = invoiceOptions.currency || 'INR';
+    const total = formatCurrency(Number(totals.total) || 0, cur);
+    const subtotal = formatCurrency(Number(totals.subtotal) || 0, cur);
+    const dateStr = details.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const businessName = profile?.businessName || '';
+    const lines = [
+      `*Invoice: ${details.invoiceNumber}*`,
+      `Date: ${dateStr}`,
+      `Client: ${client?.name || ''}`,
+      `Subtotal: ${subtotal}`,
+      `*Total: ${total}*`,
+    ];
+    if (businessName) lines.push('', `— ${businessName}`);
+    const msg = lines.join('\n');
     const encoded = encodeURIComponent(msg);
     const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
     // v1.10.12 — open in a new tab so the invoice form isn't lost.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import DOMPurify from 'dompurify';
-import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize } from '../utils';
+import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount } from '../utils';
 import { getPrintSettings, getLabel } from '../utils/printSettings';
 
 const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
@@ -836,8 +836,16 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         <tbody>
           {items.map((item, index) => {
             const lineAmount = item.quantity * item.rate;
-            const discount = item.discount || 0;
-            const grossAfterDiscount = lineAmount - discount;
+            // v1.10.29 — reported: Unit-base and Price-With-Tax discounts
+            // showed the wrong per-line tax breakdown while the totals bar
+            // showed the correct number. Root cause: per-line render used
+            // `item.discount` (raw value) instead of `resolveLineDiscount`
+            // which respects discountType + discountBase. computeInvoiceTotals
+            // (used by the totals bar) already routed through resolveLineDiscount,
+            // so totals and per-line were computed with different discount
+            // values → GST mismatch inside a single PDF. Now both paths agree.
+            const discount = resolveLineDiscount(item);
+            const grossAfterDiscount = Math.max(0, lineAmount - discount);
             const taxRate = item.taxPercent || 0;
             const isTaxInclusive = totals.taxInclusive;
             const afterDiscount = isTaxInclusive && showGST ? grossAfterDiscount / (1 + taxRate / 100) : grossAfterDiscount;
