@@ -1127,7 +1127,17 @@ export const createEmptyAccount = (label = 'New account') => ({
   id: newAccountId(),
   label,
   bankName: '',
+  // v1.10.37 — Reported: bank account name often differs from the trading
+  // name (proprietor's personal name for sole proprietorships, HUF name,
+  // abbreviated Pvt Ltd name, etc.). Client NEFT/RTGS transfers fail with
+  // "beneficiary name mismatch" when the name doesn't match exactly.
+  // Optional — falls back to profile.businessName on the PDF render.
+  accountHolderName: '',
   accountNumber: '',
+  // v1.10.37 — Optional. NEFT/RTGS doesn't strictly need this but corporate
+  // finance teams often categorize by type, and wholesale users routinely
+  // use CC/OD accounts. 'savings' | 'current' | 'cc' | 'od' | ''.
+  accountType: '',
   ifsc: '',
   swift: '',
   upiId: '',

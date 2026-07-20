@@ -666,8 +666,20 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         {showBankDetails && (account?.bankName || profile?.bankName) && (
           <div style={{ padding: secPad, fontSize: '0.9em', fontWeight: baseWeight, ...dashLine }}>
             <div style={{ fontWeight: strongWeight, textAlign: 'center', marginBottom: 3 }}>{cap('BANK DETAILS')}</div>
+            {/* v1.10.37 — Account holder name on thermal too, ONLY if
+                the user explicitly filled it (differs from business
+                name). Skip when blank so the compact 48/72mm receipt
+                doesn't grow a line for a value that would be redundant
+                with the business name already printed at the top. */}
+            {account?.accountHolderName && account.accountHolderName.trim() && (
+              <div>{cap(account.accountHolderName)}</div>
+            )}
             <div>{cap(account?.bankName || profile?.bankName)}</div>
-            {(account?.accountNumber || profile?.accountNumber) && <div>{cap('A/c: ' + (account?.accountNumber || profile?.accountNumber))}</div>}
+            {(account?.accountNumber || profile?.accountNumber) && (
+              <div>{cap('A/c: ' + (account?.accountNumber || profile?.accountNumber))}{
+                account?.accountType ? ' · ' + cap(({ savings: 'Sav', current: 'Cur', cc: 'CC', od: 'OD', nre: 'NRE', nro: 'NRO' })[account.accountType] || account.accountType) : ''
+              }</div>
+            )}
             {(account?.ifsc || profile?.ifsc) && <div>{cap('IFSC: ' + (account?.ifsc || profile?.ifsc))}</div>}
           </div>
         )}
@@ -1117,8 +1129,29 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                 </p>
               )}
               <div className="inv-footer-details">
+                {/* v1.10.37 — Account Holder Name renders FIRST (above
+                    Bank) because clients doing NEFT/RTGS need it for
+                    beneficiary lookup — printing it prominently
+                    prevents the "name mismatch" payment failures
+                    reported by users. Falls back to businessName when
+                    the field is blank so existing accounts render the
+                    same as before. */}
+                {(account?.accountHolderName || profile?.businessName) && (
+                  <p><span className="inv-detail-label">A/C Name:</span> {account?.accountHolderName || profile.businessName}</p>
+                )}
                 <p><span className="inv-detail-label">Bank:</span> {account?.bankName || profile.bankName}</p>
-                <p><span className="inv-detail-label">A/C No:</span> {account?.accountNumber || profile.accountNumber}</p>
+                <p><span className="inv-detail-label">A/C No:</span> {account?.accountNumber || profile.accountNumber}
+                  {/* v1.10.37 — Account type appended inline next to
+                      the number so it doesn't add a whole extra row on
+                      the PDF. Uses the human label for CC/OD which
+                      won't parse well as an abbreviation to non-banking
+                      readers. */}
+                  {account?.accountType && (
+                    <span style={{ marginLeft: '0.4rem', fontSize: '0.85em', color: '#64748b' }}>
+                      · {({ savings: 'Savings', current: 'Current', cc: 'Cash Credit', od: 'Overdraft', nre: 'NRE', nro: 'NRO' })[account.accountType] || account.accountType}
+                    </span>
+                  )}
+                </p>
                 {(account?.ifsc || profile.ifsc) && <p><span className="inv-detail-label">{sellerCC.bankLabel || 'IFSC'}:</span> {account?.ifsc || profile.ifsc}</p>}
                 {(account?.swift || profile.swift) && <p><span className="inv-detail-label">SWIFT/BIC:</span> {account?.swift || profile.swift}</p>}
                 {profile.pan && isIndia && <p><span className="inv-detail-label">PAN:</span> {profile.pan}</p>}

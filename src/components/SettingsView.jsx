@@ -1103,10 +1103,36 @@ export default function SettingsView({ onSaved }) {
                           onChange={e => setEditingAccount(a => ({ ...a, label: e.target.value }))}
                           placeholder="e.g. HDFC Current — 1234" />
                       </div>
+                      {/* v1.10.37 — Account Holder Name + Account Type
+                          added. Reported: clients get "beneficiary name
+                          mismatch" errors on NEFT/RTGS when the account
+                          name differs from the trading name (common for
+                          proprietorships, HUFs, abbreviated Pvt Ltd
+                          names). Both fields are optional and print on
+                          the invoice PDF when filled. */}
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label className="form-label">Account Holder Name <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.72rem' }}>(name printed on the cheque / registered with the bank)</span></label>
+                        <input type="text" className="form-input" value={editingAccount.accountHolderName || ''}
+                          onChange={e => setEditingAccount(a => ({ ...a, accountHolderName: e.target.value }))}
+                          placeholder={`Leave blank to use "${profile.businessName || 'Business Name'}"`} />
+                      </div>
                       <div className="form-group">
                         <label className="form-label">Bank Name</label>
                         <input type="text" className="form-input" value={editingAccount.bankName}
                           onChange={e => setEditingAccount(a => ({ ...a, bankName: e.target.value }))} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Account Type <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.72rem' }}>(optional)</span></label>
+                        <select className="form-input" value={editingAccount.accountType || ''}
+                          onChange={e => setEditingAccount(a => ({ ...a, accountType: e.target.value }))}>
+                          <option value="">— Not specified —</option>
+                          <option value="savings">Savings Account</option>
+                          <option value="current">Current Account</option>
+                          <option value="cc">Cash Credit (CC)</option>
+                          <option value="od">Overdraft (OD)</option>
+                          <option value="nre">NRE Account</option>
+                          <option value="nro">NRO Account</option>
+                        </select>
                       </div>
                       <div className="form-group">
                         <label className="form-label">Account Number {!isIndia && '/ IBAN'}</label>
