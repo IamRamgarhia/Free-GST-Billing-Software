@@ -4,6 +4,7 @@ import HelpButton from './HelpButton';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
+import PageHeader from './PageHeader';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 
@@ -920,26 +921,24 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">Overview of your invoices</p>
-          </div>
-          <HelpButton title="Dashboard — how to use">
-            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
-              <li><strong>New Invoice</strong> — start a fresh tax invoice / proforma / credit note / bill of supply / delivery challan.</li>
-              <li><strong>Filter row</strong> — search by client name, invoice #, or GSTIN; filter by type / status / financial year / date range.</li>
-              <li><strong>Row actions</strong> — Edit opens the invoice; MessageCircle sends via WhatsApp; Mail opens your email client; Record Payment logs a receipt; Trash soft-deletes for 30 days.</li>
-              <li><strong>WhatsApp share — mobile vs. desktop:</strong> on Android / iPhone the PDF attaches automatically via the OS share sheet (works with WhatsApp, Signal, Telegram, anywhere). On desktop, browsers block sending files to WhatsApp Web for security — we fall back to a text-only message with all invoice details. To send the PDF from desktop: click Download, then drag the file into WhatsApp Web.</li>
-              <li><strong>Bulk actions</strong> — select rows to export as one PDF or delete in a batch.</li>
-              <li><strong>Overdue banner</strong> — click it to jump to overdue invoices with one tap.</li>
-              <li><strong>Low-stock alert</strong> — appears when any product is at or below your threshold (Settings → Stock alert).</li>
-            </ul>
-          </HelpButton>
-        </div>
+      <PageHeader
+        icon="📊"
+        title="Dashboard"
+        subtitle="Overview of your invoices"
+        meta={`${bills.length} invoice${bills.length === 1 ? '' : 's'}`}>
+        <HelpButton title="Dashboard — how to use">
+          <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+            <li><strong>New Invoice</strong> — start a fresh tax invoice / proforma / credit note / bill of supply / delivery challan.</li>
+            <li><strong>Filter row</strong> — search by client name, invoice #, or GSTIN; filter by type / status / financial year / date range.</li>
+            <li><strong>Row actions</strong> — Edit opens the invoice; MessageCircle sends via WhatsApp; Mail opens your email client; Record Payment logs a receipt; Trash soft-deletes for 30 days.</li>
+            <li><strong>WhatsApp share — mobile vs. desktop:</strong> on Android / iPhone the PDF attaches automatically via the OS share sheet (works with WhatsApp, Signal, Telegram, anywhere). On desktop, browsers block sending files to WhatsApp Web for security — we fall back to a text-only message with all invoice details. To send the PDF from desktop: click Download, then drag the file into WhatsApp Web.</li>
+            <li><strong>Bulk actions</strong> — select rows to export as one PDF or delete in a batch.</li>
+            <li><strong>Overdue banner</strong> — click it to jump to overdue invoices with one tap.</li>
+            <li><strong>Low-stock alert</strong> — appears when any product is at or below your threshold (Settings → Stock alert).</li>
+          </ul>
+        </HelpButton>
         <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> New Invoice</button>
-      </div>
+      </PageHeader>
 
       {overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}

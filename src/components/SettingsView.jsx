@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules, getStockAlertSettings, saveStockAlertSettings } from '../store';
+import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules, getStockAlertSettings, saveStockAlertSettings, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
 import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId } from '../utils';
-import { Save, Upload, Download, Plus, Trash2, Edit3, Image, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw, Save as SaveIcon } from 'lucide-react';
+// v1.10.36 — lucide's `Image` icon was imported as `Image`, which
+// SHADOWED the browser's `HTMLImageElement` constructor. Reported:
+// "Uncaught TypeError: et is not a constructor at onChange" on logo
+// upload — the minified `et` was our imported React component, and
+// `new Image()` inside handleImageUpload was trying to construct a
+// React icon. Aliased to `ImageIcon` so `new Image()` resolves to
+// the browser primitive again.
+import { Save, Upload, Download, Plus, Trash2, Edit3, Image as ImageIcon, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw, Save as SaveIcon } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
@@ -10,12 +17,57 @@ import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
 import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill } from '../store';
 
+// v1.10.36 — Section order for the jump-nav pill bar. Keeping this at
+// module scope so the scroll-spy effect below can reference it without
+// re-computing on every render.
+const JUMP_NAV_SECTIONS = [
+  ['section-company',  'Company'],
+  ['section-profiles', 'Profiles'],
+  ['section-terms',    'Terms'],
+  ['section-print',    'Print & PDF'],
+  ['section-modules',  'Features'],
+  ['section-stock',    'Stock'],
+  ['section-region',   'Region'],
+  ['section-backups',  'Backups'],
+  ['section-cloud',    'Google Drive'],
+  ['section-data',     'Import/Export'],
+  ['section-updates',  'Updates'],
+];
+
 export default function SettingsView({ onSaved }) {
   const [profile, setProfile] = useState({
     businessName: '', address: '', state: '', gstin: '', pan: '',
     email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
     logo: '', logoHeight: 48, signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
   });
+  // v1.10.36 — Scroll-spy: which section is currently in the viewport,
+  // so the corresponding pill lights up as the user scrolls. Cheap
+  // IntersectionObserver — a single observer watching all 11 sections;
+  // fires when any crosses the top-of-viewport band.
+  const [activeSection, setActiveSection] = useState(JUMP_NAV_SECTIONS[0][0]);
+  useEffect(() => {
+    const els = JUMP_NAV_SECTIONS
+      .map(([id]) => document.getElementById(id))
+      .filter(Boolean);
+    if (!els.length) return;
+    const io = new IntersectionObserver((entries) => {
+      // Multiple sections may be in view at once. Pick the top-most
+      // one that's still intersecting so the highlight tracks the
+      // section the user is actually reading.
+      const visible = entries
+        .filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (visible?.target?.id) setActiveSection(visible.target.id);
+    }, {
+      // Fires when a section enters the top 40% band — feels natural
+      // while scrolling because the section header is usually the
+      // trigger point (not the entire panel).
+      rootMargin: '-10% 0px -50% 0px',
+      threshold: 0.01,
+    });
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  }, []);
   const [saving, setSaving] = useState(false);
   const [termsTemplates, setTermsTemplates] = useState([]);
   const [editingTemplate, setEditingTemplate] = useState(null);
@@ -193,33 +245,56 @@ export default function SettingsView({ onSaved }) {
 
   const handleImageUpload = (field, e) => {
     const file = e.target.files?.[0];
+    // v1.10.36 — Reset the input so re-selecting the SAME file re-fires
+    // onChange. Without this, if a user's upload silently failed once
+    // (browser can't decode HEIC etc.) they had to pick a DIFFERENT file
+    // to try again; picking the same file was a no-op.
+    try { e.target.value = ''; } catch { /* ignore */ }
     if (!file) return;
-    // P2 #34 — MIME + dimension guards. accept="image/*" in the input is
-    // trivially bypassable; a HEIC or WebP too large silently blows PDF
-    // rendering + file size. Downscale via canvas keeps quality reasonable.
-    const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
-    if (!ALLOWED_MIME.includes(file.type)) {
-      toast('Only PNG, JPEG, WebP, or SVG images are supported', 'warning');
+
+    // v1.10.36 — Reported "not able to set logo it show nothing".
+    // Previous strict MIME whitelist (png/jpeg/webp/svg) silently
+    // rejected HEIC/HEIF (iPhone default), GIF, BMP, TIFF with a
+    // one-line toast users often missed. Now: accept anything the
+    // browser can decode. The <img>.onerror fallback catches truly
+    // undecodable files with a clearer message. Non-image files are
+    // still caught by the .type prefix guard.
+    if (!file.type.startsWith('image/') && file.type !== '') {
+      toast(`This doesn't look like an image (type: ${file.type || 'unknown'}). Try a PNG or JPEG.`, 'warning', 6000);
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast('Image is over 2MB — please compress first (tinypng.com works well)', 'warning');
+    // Size ceiling relaxed to 5MB (server body limit) so a phone photo
+    // doesn't hit the arbitrary 2MB gate before downscaling gets to run.
+    if (file.size > 5 * 1024 * 1024) {
+      toast(`Image is ${(file.size / 1024 / 1024).toFixed(1)}MB — over the 5MB cap. Try compressing at tinypng.com.`, 'warning', 6000);
       return;
     }
-    // SVGs are vector — no need to downscale, just embed as-is
-    if (file.type === 'image/svg+xml') {
+
+    // SVGs are vector — embed as-is (no canvas needed).
+    if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) {
       const reader = new FileReader();
-      reader.onload = (ev) => setProfile(prev => ({ ...prev, [field]: ev.target.result }));
+      reader.onload = (ev) => {
+        setProfile(prev => ({ ...prev, [field]: ev.target.result }));
+        toast(`${field === 'logo' ? 'Logo' : 'Signature'} uploaded — click Save Profile to keep it.`, 'success', 4000);
+      };
+      reader.onerror = () => toast('Could not read the SVG file.', 'error');
       reader.readAsDataURL(file);
       return;
     }
+
     // Raster: load into an Image, downscale to max 1024px on the longer edge
+    // v1.10.36 — Explicit `window.Image` so a future import (e.g. lucide's
+    // `Image` icon) can't shadow the browser primitive again.
     const url = URL.createObjectURL(file);
-    const img = new Image();
+    const img = new window.Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
       const MAX = 1024;
       let { width, height } = img;
+      if (!width || !height) {
+        toast(`Image has zero dimensions — cannot use as logo.`, 'error');
+        return;
+      }
       if (width > MAX || height > MAX) {
         const ratio = MAX / Math.max(width, height);
         width = Math.round(width * ratio);
@@ -229,11 +304,26 @@ export default function SettingsView({ onSaved }) {
       canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
+      // Fill white for JPEG so transparent PNGs don't come out with black
+      // backgrounds on printers that can't render alpha.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.92);
+      // Keep PNG for images that had alpha (so signature on transparent
+      // stays transparent when placed on invoice), JPEG otherwise.
+      const preservesAlpha = /png|webp|svg/i.test(file.type) && field !== 'logo';
+      const dataUrl = canvas.toDataURL(preservesAlpha ? 'image/png' : 'image/jpeg', 0.92);
       setProfile(prev => ({ ...prev, [field]: dataUrl }));
+      toast(`${field === 'logo' ? 'Logo' : 'Signature'} uploaded — click Save Profile to keep it.`, 'success', 4000);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); toast('Could not decode that image', 'error'); };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      // v1.10.36 — better error message. Common cause of the silent
+      // "logo not showing" report on iOS: user uploads a HEIC file from
+      // Photos, Chrome/desktop Safari can't decode it, we ended up here
+      // with a generic error. Now the toast names likely fixes.
+      toast(`Could not decode this image (type: ${file.type || 'unknown'}). If it's a HEIC from iPhone, share it as JPEG — in Photos: Share → Copy Photo → Files → paste, or set Camera Format = "Most Compatible".`, 'error', 10000);
+    };
     img.src = url;
   };
 
@@ -253,6 +343,16 @@ export default function SettingsView({ onSaved }) {
       // signature. Users who consciously want to hide the logo can still
       // uncheck it in the Customize panel — this fix only rescues the
       // silent-fail case.
+      //
+      // v1.10.36 — Reported again: "not able to set logo it show nothing
+      // after saving". Root cause of the recurrence: v1.10.16 only wrote
+      // to localStorage, but InvoiceGenerator fetches display options
+      // from the SERVER on mount (see line ~631) and merges those over
+      // the localStorage value. So a stale server-side `showLogo:false`
+      // kept overriding the local override. Fix: PUSH the updated
+      // display options to the server too — one API call keeps both
+      // stores in sync. Non-blocking (.catch()) so a slow server
+      // doesn't delay the "Profile saved" toast.
       if (profile.logo || profile.signature) {
         try {
           const raw = localStorage.getItem('freegstbill_invoiceOptions');
@@ -260,6 +360,13 @@ export default function SettingsView({ onSaved }) {
           if (profile.logo) opts.showLogo = true;
           if (profile.signature) opts.showSignature = true;
           localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify(opts));
+          // Also sync to server so InvoiceGenerator's mount-load doesn't
+          // overwrite our fix with a stale server-side value.
+          try {
+            const serverOpts = await getInvoiceDisplayOptions().catch(() => null);
+            const merged = { ...(serverOpts || {}), ...opts };
+            saveInvoiceDisplayOptions(merged).catch(() => { /* non-blocking */ });
+          } catch { /* server unreachable — localStorage still updated */ }
         } catch { /* localStorage full or blocked — skip */ }
       }
       if (onSaved) onSaved(profile);
@@ -508,11 +615,35 @@ export default function SettingsView({ onSaved }) {
 
   return (
     <div className="settings-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Settings</h1>
-            <p className="page-subtitle">Business profile, branding, integrations & data</p>
+      {/* v1.10.36 — Header lifted with a soft primary-accent gradient
+           card, gear glyph in a rounded badge for visual identity, and
+           a subtle count chip showing how many sections there are so
+           the user has a scale expectation before diving in. */}
+      <div className="page-header" style={{
+        padding: '1.1rem 1.35rem',
+        background: 'linear-gradient(135deg, color-mix(in oklab, var(--primary) 12%, var(--card-bg)), var(--card-bg))',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        marginBottom: '1.25rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{
+            width: 44, height: 44,
+            borderRadius: 12,
+            background: 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 70%, #000))',
+            color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.15rem',
+            boxShadow: '0 6px 18px color-mix(in oklab, var(--primary) 35%, transparent)',
+          }}>⚙</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 className="page-title" style={{ margin: 0 }}>Settings</h1>
+            <p className="page-subtitle" style={{ margin: '0.15rem 0 0' }}>
+              Business profile, branding, integrations & data
+              <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.5rem', borderRadius: 999, background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginLeft: '0.55rem', fontWeight: 600 }}>
+                {JUMP_NAV_SECTIONS.length} sections
+              </span>
+            </p>
           </div>
           <HelpButton title="Settings — how to use">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
@@ -529,46 +660,189 @@ export default function SettingsView({ onSaved }) {
         </div>
       </div>
 
+      {/* v1.10.36 — Jump-nav pill bar with scroll-spy. Sticky at the
+           top of the panel, backdrop-blur so content beneath still
+           reads through, and the pill matching the currently-scrolled
+           section lights up. Chips are keyboard-focusable and use
+           smooth-scroll to their `id="section-*"` anchors.
+           v1.10.37 — Single-line horizontal scroll (was flex-wrap:
+           wrap breaking to two lines on narrow viewports). Reported:
+           "should look good not in two lines maybe you can fit in 1
+           line". Now: nowrap + overflow-x auto, thin custom
+           scrollbar, edge-fade masks so users know there's more. */}
+      <nav className="settings-jumpnav" aria-label="Settings sections" style={{
+        position: 'sticky', top: 0, zIndex: 20,
+        background: 'color-mix(in oklab, var(--card-bg) 82%, transparent)',
+        backdropFilter: 'saturate(1.5) blur(12px)',
+        WebkitBackdropFilter: 'saturate(1.5) blur(12px)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        padding: '0.55rem 0.75rem',
+        marginBottom: '1.25rem',
+        display: 'flex', gap: '0.35rem', flexWrap: 'nowrap',
+        alignItems: 'center',
+        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+        overflowX: 'auto',
+        scrollbarWidth: 'thin',
+        WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%)',
+        maskImage: 'linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%)',
+      }}>
+        <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '0.35rem' }}>Jump to</span>
+        {JUMP_NAV_SECTIONS.map(([id, label]) => {
+          const active = activeSection === id;
+          return (
+            <a key={id} href={`#${id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                const el = document.getElementById(id);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              style={{
+                fontSize: '0.76rem',
+                fontWeight: active ? 700 : 600,
+                padding: '0.38rem 0.8rem',
+                borderRadius: 999,
+                background: active
+                  ? 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 82%, #000))'
+                  : 'var(--bg-secondary)',
+                color: active ? '#fff' : 'var(--text)',
+                textDecoration: 'none',
+                border: active ? '1px solid transparent' : '1px solid var(--border)',
+                transition: 'all 0.18s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: active ? '0 4px 12px color-mix(in oklab, var(--primary) 40%, transparent)' : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = 'var(--primary-light, rgba(30,64,175,0.08))';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = 'var(--bg-secondary)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }
+              }}>
+              {label}
+            </a>
+          );
+        })}
+      </nav>
+
+      {/* v1.10.37 — Flex-column wrapper for visual reordering. Each
+           section keeps its DOM position (safe for the anchor IDs +
+           scroll-spy IntersectionObserver + tab order for the primary
+           actions) but the CSS `order:` on each section root controls
+           the on-screen sequence. Reported: "if you click on first
+           Company it goes down then if you click on Profiles comes up
+           — should be sorted in a way the pages". Now the on-screen
+           order matches the jump-nav pill order exactly.
+           Target: Company → Profiles → Terms → Print & PDF → Features
+           → Stock → Region → Backups → Google Drive → Import/Export
+           → Updates. */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+
       {/* ---- Stock Alerts ---- */}
-      <div className="glass-panel p-6 mb-6">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+      {/* v1.10.36 — Redesign: prior layout had an awkward grid with the
+           threshold input crammed next to inline "Common picks: 0, 3,
+           5, 10" text — hard to scan, hard to click. Now: master toggle
+           + one big Threshold row with clickable preset chips ABOVE the
+           input so users can pick a common value in one click, then a
+           number field for fine-tuning. Save button gets a subtle live
+           status text next to it. */}
+      <div id="section-stock" className="glass-panel p-6 mb-6" style={{ order: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.9rem', marginBottom: '0.9rem' }}>
+          <div style={{
+            width: 40, height: 40, flexShrink: 0,
+            borderRadius: 10,
+            background: 'color-mix(in oklab, #f59e0b 18%, transparent)',
+            color: '#d97706',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.15rem',
+          }}>🔔</div>
           <div>
             <h3 className="section-title" style={{ marginTop: 0, marginBottom: '0.25rem' }}>Low-stock alerts</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-              Controls the 🔔 sidebar badge and the Dashboard low-stock list. The Inventory page colour-codes products against this threshold too.
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+              Powers the 🔔 sidebar badge and the Dashboard low-stock list. The Inventory page colour-codes products against this threshold too.
             </p>
           </div>
         </div>
 
-        <div style={{ marginTop: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.85rem 1rem', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+        {/* Master toggle row */}
+        <div style={{
+          padding: '0.75rem 0.9rem',
+          background: 'var(--bg-secondary)',
+          borderRadius: 8,
+          display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+          marginBottom: stockAlerts.enabled ? '0.85rem' : 0,
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600 }}>
             <input type="checkbox" checked={!!stockAlerts.enabled}
               onChange={e => setStockAlerts(prev => ({ ...prev, enabled: e.target.checked }))}
-              style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
-            <strong>Show low-stock alerts</strong>
+              style={{ width: 18, height: 18, accentColor: 'var(--primary)' }} />
+            Show low-stock alerts
           </label>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1, minWidth: 200 }}>
             {stockAlerts.enabled
               ? 'Notifications fire when a product\'s stock falls to or below the threshold.'
               : 'Alerts are silenced. Inventory still tracks stock; it just doesn\'t nag you.'}
           </span>
-
-          <label style={{ fontSize: '0.85rem', fontWeight: 600, opacity: stockAlerts.enabled ? 1 : 0.5 }}>
-            Threshold
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input type="number" min="0" max="9999" step="1"
-              disabled={!stockAlerts.enabled}
-              className="form-input" style={{ width: '90px' }}
-              value={stockAlerts.threshold}
-              onChange={e => setStockAlerts(prev => ({ ...prev, threshold: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Alert when stock ≤ this number. Common picks: <code>0</code> (only when fully out), <code>3</code>, <code>5</code> (default), <code>10</code>.
-            </span>
-          </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
+        {/* Threshold — chip presets + fine-tune input, only shown when enabled */}
+        {stockAlerts.enabled && (
+          <div style={{ marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.55rem' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Threshold</label>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Alert when stock ≤ <strong style={{ color: 'var(--text)' }}>{stockAlerts.threshold}</strong>
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {[
+                { val: 0, label: '0', hint: 'Only when fully out' },
+                { val: 3, label: '3', hint: 'Very tight' },
+                { val: 5, label: '5', hint: 'Recommended' },
+                { val: 10, label: '10', hint: 'Loose' },
+              ].map(p => {
+                const active = stockAlerts.threshold === p.val;
+                return (
+                  <button key={p.val} type="button"
+                    onClick={() => setStockAlerts(prev => ({ ...prev, threshold: p.val }))}
+                    title={p.hint}
+                    style={{
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: 999,
+                      background: active
+                        ? 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 82%, #000))'
+                        : 'var(--bg-secondary)',
+                      color: active ? '#fff' : 'var(--text)',
+                      border: active ? '1px solid transparent' : '1px solid var(--border)',
+                      fontSize: '0.85rem', fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      minWidth: 44,
+                      boxShadow: active ? '0 4px 10px color-mix(in oklab, var(--primary) 35%, transparent)' : 'none',
+                    }}>
+                    {p.label}
+                    <span style={{ display: 'block', fontSize: '0.6rem', fontWeight: 500, opacity: 0.85, marginTop: 1 }}>{p.hint}</span>
+                  </button>
+                );
+              })}
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>or</span>
+              <input type="number" min="0" max="9999" step="1"
+                className="form-input" style={{ width: 90 }}
+                value={stockAlerts.threshold}
+                onChange={e => setStockAlerts(prev => ({ ...prev, threshold: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            Changes take effect after saving
+          </span>
           <button type="button" className="btn btn-primary"
             disabled={stockAlertsSaving}
             onClick={async () => {
@@ -585,13 +859,13 @@ export default function SettingsView({ onSaved }) {
       </div>
 
       {/* ---- Thermal Printer Settings ---- */}
-      <PrintSettings />
+      <div id="section-print" style={{ order: 4 }}><PrintSettings /></div>
 
       {/* v1.9.5 — Backup Management + Trash Bin */}
-      <BackupAndTrashPanel />
+      <div id="section-backups" style={{ order: 8 }}><BackupAndTrashPanel /></div>
 
       {/* ---- Modules / Features ---- */}
-      <div className="glass-panel p-6 mb-6">
+      <div id="section-modules" className="glass-panel p-6 mb-6" style={{ order: 5 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h3 className="section-title" style={{ marginTop: 0, marginBottom: '0.25rem' }}>Modules</h3>
@@ -634,7 +908,7 @@ export default function SettingsView({ onSaved }) {
       </div>
 
       {/* ---- Region Preference ---- */}
-      <div className="glass-panel p-6 mb-6">
+      <div id="section-region" className="glass-panel p-6 mb-6" style={{ order: 7 }}>
         <h3 className="section-title" style={{ marginTop: 0 }}>Region Preference</h3>
         <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.85rem' }}>
           Choose how the app behaves. You can change this any time without losing data.
@@ -658,7 +932,7 @@ export default function SettingsView({ onSaved }) {
       </div>
 
       {/* ---- Business Profile ---- */}
-      <form onSubmit={handleSave} className="glass-panel p-6 mb-6" ref={companyFormRef}>
+      <form id="section-company" onSubmit={handleSave} className="glass-panel p-6 mb-6" ref={companyFormRef} style={{ order: 1 }}>
         <h3 className="section-title">Company Details</h3>
         {(() => {
           const cc = getCountryConfig(profile.country);
@@ -920,52 +1194,70 @@ export default function SettingsView({ onSaved }) {
               ))}
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Brand Prefix</label>
-            <input type="text" className="form-input" value={invNumSettings.brandPrefix}
-              onChange={e => handleInvNumChange('brandPrefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-              placeholder="e.g. ACME, BK (leave empty for INV/EST/CN)" maxLength={10} />
-            <p className="field-hint">Your brand name or abbreviation. Leave empty to use default type prefix (INV, EST, CN, BOS).</p>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Separator</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {['/', '-', '#'].map(sep => (
-                <button key={sep} type="button"
-                  className={`type-chip ${invNumSettings.separator === sep ? 'type-chip-active' : ''}`}
-                  style={{ minWidth: 44, fontFamily: 'monospace', fontWeight: 700 }}
-                  onClick={() => handleInvNumChange('separator', sep)}>
-                  {sep}
-                </button>
-              ))}
-            </div>
-          </div>
-          {invNumSettings.format !== 'random' && (
-            <>
-              <div className="form-group">
-                <label className="form-label">Include Financial Year</label>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 4 }}>
-                  <button type="button"
-                    className={`type-chip ${invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
-                    onClick={() => handleInvNumChange('showFinYear', true)}>Yes (2026-27)</button>
-                  <button type="button"
-                    className={`type-chip ${!invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
-                    onClick={() => handleInvNumChange('showFinYear', false)}>No</button>
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Number Padding</label>
-                <select className="form-input" value={invNumSettings.padDigits}
-                  onChange={e => handleInvNumChange('padDigits', Number(e.target.value))}>
-                  <option value={3}>3 digits (001)</option>
-                  <option value={4}>4 digits (0001)</option>
-                  <option value={5}>5 digits (00001)</option>
-                  <option value={6}>6 digits (000001)</option>
-                </select>
-              </div>
-            </>
-          )}
         </div>
+
+        {/* v1.10.36 — Progressive disclosure. Prior UI showed 5 fields
+             unconditionally (format + prefix + separator + fin-year +
+             padding). For 95% of users the branded-sequential + `/` +
+             4-digit + fin-year default is fine — most never need to
+             touch these. Wrapped in <details> so the form loads clean
+             and users open the drawer only if they want custom prefix
+             (e.g. their brand initials) or different padding. */}
+        <details style={{ marginTop: '0.5rem', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
+          <summary style={{ padding: '0.65rem 0.85rem', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            ⚙ Customize prefix, separator & padding
+            <span style={{ fontSize: '0.7rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.3rem' }}>
+              (defaults are fine for most businesses)
+            </span>
+          </summary>
+          <div className="grid grid-cols-2 gap-4" style={{ padding: '0.75rem 0.85rem 0.85rem' }}>
+            <div className="form-group">
+              <label className="form-label">Brand Prefix</label>
+              <input type="text" className="form-input" value={invNumSettings.brandPrefix}
+                onChange={e => handleInvNumChange('brandPrefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                placeholder="e.g. ACME, BK (leave empty for INV/EST/CN)" maxLength={10} />
+              <p className="field-hint">Your brand name or abbreviation. Leave empty to use default type prefix (INV, EST, CN, BOS).</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Separator</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {['/', '-', '#'].map(sep => (
+                  <button key={sep} type="button"
+                    className={`type-chip ${invNumSettings.separator === sep ? 'type-chip-active' : ''}`}
+                    style={{ minWidth: 44, fontFamily: 'monospace', fontWeight: 700 }}
+                    onClick={() => handleInvNumChange('separator', sep)}>
+                    {sep}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {invNumSettings.format !== 'random' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Include Financial Year</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 4 }}>
+                    <button type="button"
+                      className={`type-chip ${invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
+                      onClick={() => handleInvNumChange('showFinYear', true)}>Yes (2026-27)</button>
+                    <button type="button"
+                      className={`type-chip ${!invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
+                      onClick={() => handleInvNumChange('showFinYear', false)}>No</button>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Number Padding</label>
+                  <select className="form-input" value={invNumSettings.padDigits}
+                    onChange={e => handleInvNumChange('padDigits', Number(e.target.value))}>
+                    <option value={3}>3 digits (001)</option>
+                    <option value={4}>4 digits (0001)</option>
+                    <option value={5}>5 digits (00001)</option>
+                    <option value={6}>6 digits (000001)</option>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+        </details>
         <div className="mt-4 flex justify-end">
           <button type="button" className="btn btn-primary" onClick={handleSaveInvNumSettings} disabled={invNumSaving}>
             <Save size={16} /> {invNumSaving ? 'Saving...' : 'Save Number Format'}
@@ -997,7 +1289,7 @@ export default function SettingsView({ onSaved }) {
                 </div>
               ) : (
                 <button type="button" className="upload-btn" onClick={() => logoInputRef.current?.click()}>
-                  <Image size={20} /><span>Upload Logo</span><span className="upload-hint">PNG or JPG, square or wide (max 500KB)</span>
+                  <ImageIcon size={20} /><span>Upload Logo</span><span className="upload-hint">PNG or JPG, square or wide (max 500KB)</span>
                 </button>
               )}
               <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('logo', e)} />
@@ -1028,8 +1320,65 @@ export default function SettingsView({ onSaved }) {
         </div>
       </form>
 
+      {/* ---- Multi-Business Profiles ---- */}
+      {/* v1.10.36 — Moved from ~line 1300 (was 500+ lines below the
+           Company Details form) to sit immediately after it. Natural
+           flow: fill Company Details → Save as Profile → see it in the
+           switcher below. Prior placement forced users to scroll past
+           9 sections to find the switcher. */}
+      <div id="section-profiles" className="glass-panel p-6 mb-6" style={{ order: 2 }}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="section-title" style={{ margin: 0 }}>Business Profiles</h3>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary" onClick={handleAddNewProfile}>
+              <Plus size={16} /> Add New Profile
+            </button>
+            <button type="button" className="btn btn-primary" onClick={handleSaveAsProfile}>
+              <Building2 size={16} /> Save as Profile
+            </button>
+          </div>
+        </div>
+        <p className="page-subtitle mb-4">
+          Save multiple business profiles and switch between them instantly. Switching auto-saves your current profile first.
+        </p>
+        {businessProfiles.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+            No saved profiles yet. Fill in your business details above and click "Save as Profile".
+          </p>
+        ) : (
+          <div className="template-list">
+            {businessProfiles.map(bp => {
+              const isActive = bp.businessName?.trim().toLowerCase() === profile.businessName?.trim().toLowerCase();
+              return (
+              <div key={bp.id} className="template-card" style={isActive ? { borderColor: 'var(--primary)', borderWidth: '2px' } : {}}>
+                <div className="template-card-header">
+                  <div>
+                    <strong>{bp.businessName}</strong>
+                    {isActive && <span style={{ fontSize: '0.68rem', background: 'var(--primary)', color: '#fff', borderRadius: '4px', padding: '0.1rem 0.4rem', marginLeft: '0.5rem' }}>Active</span>}
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                      {bp.state}{bp.gstin ? ` | ${bp.gstin}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                      onClick={() => handleLoadProfile(bp)} disabled={isActive}>
+                      {isActive ? 'Current' : 'Switch'}
+                    </button>
+                    <button className="icon-btn icon-btn-red" onClick={() => handleDeleteProfile(bp.id)} title="Delete">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                {bp.address && <p className="template-card-preview">{bp.address}</p>}
+              </div>
+            );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* ---- Cloud Backup ---- */}
-      <div className="glass-panel p-6 mb-6">
+      <div id="section-cloud" className="glass-panel p-6 mb-6" style={{ order: 9 }}>
         <h3 className="section-title">Cloud Backup (Google Drive)</h3>
         <p className="page-subtitle mb-4">
           Auto-sync your invoices to Google Drive — no coding or API setup needed.
@@ -1104,7 +1453,7 @@ export default function SettingsView({ onSaved }) {
       </div>
 
       {/* ---- Terms Templates ---- */}
-      <div className="glass-panel p-6 mb-6">
+      <div id="section-terms" className="glass-panel p-6 mb-6" style={{ order: 3 }}>
         <div className="flex justify-between items-center mb-4">
           <h3 className="section-title" style={{ margin: 0 }}>Terms & Conditions Templates</h3>
           <button type="button" className="btn btn-secondary" onClick={() => setEditingTemplate({ id: '', name: '', content: '' })}>
@@ -1178,60 +1527,13 @@ export default function SettingsView({ onSaved }) {
         )}
       </div>
 
-      {/* ---- Multi-Business Profiles ---- */}
-      <div className="glass-panel p-6 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="section-title" style={{ margin: 0 }}>Business Profiles</h3>
-          <div className="flex gap-2">
-            <button type="button" className="btn btn-secondary" onClick={handleAddNewProfile}>
-              <Plus size={16} /> Add New Profile
-            </button>
-            <button type="button" className="btn btn-primary" onClick={handleSaveAsProfile}>
-              <Building2 size={16} /> Save as Profile
-            </button>
-          </div>
-        </div>
-        <p className="page-subtitle mb-4">
-          Save multiple business profiles and switch between them instantly. Switching auto-saves your current profile first.
-        </p>
-        {businessProfiles.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-            No saved profiles yet. Fill in your business details above and click "Save as Profile".
-          </p>
-        ) : (
-          <div className="template-list">
-            {businessProfiles.map(bp => {
-              const isActive = bp.businessName?.trim().toLowerCase() === profile.businessName?.trim().toLowerCase();
-              return (
-              <div key={bp.id} className="template-card" style={isActive ? { borderColor: 'var(--primary)', borderWidth: '2px' } : {}}>
-                <div className="template-card-header">
-                  <div>
-                    <strong>{bp.businessName}</strong>
-                    {isActive && <span style={{ fontSize: '0.68rem', background: 'var(--primary)', color: '#fff', borderRadius: '4px', padding: '0.1rem 0.4rem', marginLeft: '0.5rem' }}>Active</span>}
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                      {bp.state}{bp.gstin ? ` | ${bp.gstin}` : ''}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="btn btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
-                      onClick={() => handleLoadProfile(bp)} disabled={isActive}>
-                      {isActive ? 'Current' : 'Switch'}
-                    </button>
-                    <button className="icon-btn icon-btn-red" onClick={() => handleDeleteProfile(bp.id)} title="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-                {bp.address && <p className="template-card-preview">{bp.address}</p>}
-              </div>
-            );
-            })}
-          </div>
-        )}
-      </div>
+      {/* v1.10.36 — Multi-Business Profiles block relocated above,
+           immediately after the Company Details form. Placeholder here
+           kept as a comment so a code search for "Multi-Business
+           Profiles" still lands somewhere sensible. */}
 
-      {/* ---- Data Management ---- */}
-      <div className="glass-panel p-6 mb-6">
+      {/* ---- App Updates ---- */}
+      <div id="section-updates" className="glass-panel p-6 mb-6" style={{ order: 11 }}>
         <h3 className="section-title">App Updates</h3>
         <p className="page-subtitle mb-4">Check if a newer version is available.</p>
         <div className="flex gap-4 items-center">
@@ -1272,7 +1574,7 @@ export default function SettingsView({ onSaved }) {
         )}
       </div>
 
-      <div className="glass-panel p-6">
+      <div id="section-data" className="glass-panel p-6 mb-6" style={{ order: 10 }}>
         <h3 className="section-title">Data Management</h3>
 
         {/* Privacy notice — uses the global .notice .notice-info utility so dark/light look identical to every other info card. */}
@@ -1343,6 +1645,11 @@ export default function SettingsView({ onSaved }) {
           </div>
         </div>
       )}
+
+      {/* v1.10.37 — end of flex-column reorder wrapper (opened after the
+           jump-nav). Modal below stays outside so its z-index isn't
+           captured by the flex context. */}
+      </div>
 
       {/* ----------------------- Import modal ----------------------- */}
       {showImportModal && importInspection && (

@@ -7,7 +7,7 @@ import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, 
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
-import ThermalPreviewModal from './ThermalPreviewModal';
+import PrintPreviewModal from './PrintPreviewModal';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
@@ -204,34 +204,110 @@ const PDF_STYLES = [
 //
 // Perf win: typing "Widget" (6 chars) in row 1 of an invoice with 20
 // items used to trigger 20 × 6 = 120 row re-renders. Now: 6 (just row 1).
+// v1.10.37 — Sub-component: the Description input + product-suggestion
+// dropdown, with keyboard navigation. Extracted so LineItem stays lean
+// and the local `activeIdx` state doesn't cause other row fields to
+// re-render on every arrow-key press.
+function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, onSetProductSearch, currency }) {
+  const [activeIdx, setActiveIdx] = useState(-1);
+  // Reset the highlighted suggestion when the query changes so ArrowDown
+  // starts from the top rather than continuing a stale index.
+  useEffect(() => { setActiveIdx(-1); }, [item.name, suggestions.length]);
+  const commit = (idx) => {
+    const pick = suggestions[idx] ?? suggestions[0];
+    if (pick) onSelectProduct(item.id, pick);
+  };
+  const handleKey = (e) => {
+    if (!suggestions.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIdx(i => (i + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx(i => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === 'Enter') {
+      // Only intercept Enter if the user has actively navigated to a
+      // suggestion. Otherwise fall through so the row's "last-row add"
+      // shortcut can fire. Prevents double-fire on the last row.
+      if (activeIdx >= 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        commit(activeIdx);
+      }
+    } else if (e.key === 'Escape') {
+      onSetProductSearch({ itemId: null, query: '' });
+    }
+  };
+  return (
+    <>
+      <input type="text" className="form-input" value={item.name}
+        onChange={(e) => onFieldChange(item.id, 'name', e.target.value)}
+        onBlur={() => setTimeout(() => onSetProductSearch({ itemId: null, query: '' }), 200)}
+        onKeyDown={handleKey}
+        autoComplete="off" />
+      {suggestions.length > 0 && (
+        <div className="product-suggestions" role="listbox">
+          {suggestions.map((p, i) => (
+            <div key={p.id} className="product-suggestion-item"
+              role="option"
+              aria-selected={i === activeIdx}
+              onMouseEnter={() => setActiveIdx(i)}
+              onMouseDown={() => onSelectProduct(item.id, p)}
+              style={i === activeIdx ? { background: 'var(--primary-light, rgba(30,64,175,0.12))' } : undefined}>
+              <span className="product-suggestion-name">{p.name}</span>
+              <span className="product-suggestion-meta">
+                {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? formatCurrency(p.rate, currency || 'INR') : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 const LineItem = memo(function LineItem({
   item, invoiceOptions, taxInclusive, showGST, taxLabel,
   units, countryTaxRates, filterUnitsByMode, invoiceMode,
   currency, profileCountry, suggestions,
   onFieldChange, onSelectProduct, onSetProductSearch,
   onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
+  isLastRow, onAddRow,
 }) {
+  // v1.10.37 — Keyboard shortcut: Enter on any input inside the LAST
+  // row adds a new row. Muscle-memory for POS users — reported: "if
+  // user hits Enter on last item field the natural expectation is a
+  // new blank row". Excludes Shift+Enter (soft newline in text
+  // fields) and only fires on isLastRow to avoid Enter-mashing on
+  // middle rows creating trailing empty rows.
+  const handleRowKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || !isLastRow) return;
+    // Only fire when the input has SOME meaningful content in the
+    // row, so an accidental Enter on a completely blank row doesn't
+    // spawn a new blank row.
+    const hasContent = (item.name && item.name.trim()) || Number(item.rate) > 0 || Number(item.quantity) > 0;
+    if (!hasContent) return;
+    e.preventDefault();
+    onAddRow?.();
+  };
   return (
-    <div className="line-item-row" data-item-id={item.id}>
+    <div className="line-item-row" data-item-id={item.id} onKeyDown={handleRowKeyDown}>
       <div className="line-item-field" style={{ flex: 2.5, position: 'relative' }}>
         <label className="form-label">Description</label>
-        <input type="text" className="form-input" value={item.name}
-          onChange={(e) => onFieldChange(item.id, 'name', e.target.value)}
-          onBlur={() => setTimeout(() => onSetProductSearch({ itemId: null, query: '' }), 200)}
-          autoComplete="off" />
-        {suggestions.length > 0 && (
-          <div className="product-suggestions">
-            {suggestions.map(p => (
-              <div key={p.id} className="product-suggestion-item"
-                onMouseDown={() => onSelectProduct(item.id, p)}>
-                <span className="product-suggestion-name">{p.name}</span>
-                <span className="product-suggestion-meta">
-                  {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? formatCurrency(p.rate, currency || 'INR') : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* v1.10.37 — Keyboard nav on product suggestions. Reported:
+            "20 invoices/day is slow because product picker forces the
+            mouse." Now: ArrowDown / ArrowUp cycles suggestions, Enter
+            commits the highlighted one (or the first if none is
+            highlighted). Escape closes the dropdown. Highlighted index
+            resets when the query changes. */}
+        <SuggestingInput
+          item={item}
+          suggestions={suggestions}
+          onFieldChange={onFieldChange}
+          onSelectProduct={onSelectProduct}
+          onSetProductSearch={onSetProductSearch}
+          currency={currency}
+        />
       </div>
       {invoiceOptions.showHSN && (
         <div className="line-item-field" style={{ flex: 1, position: 'relative' }}>
@@ -513,6 +589,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [extraSections, setExtraSections] = useState(draft?.extraSections || []);
   const [savedClients, setSavedClients] = useState([]);
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+  // v1.10.37 — Keyboard nav on client picker. Arrow keys cycle,
+  // Enter commits, Escape closes. -1 = no highlight yet.
+  const [clientPickerIdx, setClientPickerIdx] = useState(-1);
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [modalClient, setModalClient] = useState(null);
@@ -535,8 +614,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     } catch { return draft?.invoiceOptions || { ...DEFAULT_OPTIONS }; }
   });
   const [showOptions, setShowOptions] = useState(false);
-  // v1.10.34 — Thermal receipt preview modal state. See directPrint below.
-  const [showThermalPreview, setShowThermalPreview] = useState(false);
+  // v1.10.36 — Portal-based print preview modal state. Only opens for
+  // thermal receipts; A4 users hit Print → OS dialog directly since the
+  // OS dialog already shows a preview. See directPrint + executePrint.
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const printRef = useRef(null);
   const draftInitialized = useRef(!!draft);
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
@@ -650,10 +731,19 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }).catch(() => {});
   }, []);
 
-  // Auto-save draft to sessionStorage
+  // v1.10.37 — Debounced sessionStorage draft save. Previously the
+  // effect ran on EVERY keystroke, stringifying the entire form (20+
+  // fields including rich-text terms and 30-item lines) on each key.
+  // On a low-end Android POS this was measurable jank. 400ms trailing
+  // debounce = same crash-safety (the browser will flush pending
+  // timers on beforeunload) with 40× fewer JSON.stringify calls
+  // during a typing burst.
   useEffect(() => {
-    const draftData = { invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, selectedTermsId, invoiceOptions, taxInclusive };
-    sessionStorage.setItem('gst_invoiceDraft', JSON.stringify(draftData));
+    const t = setTimeout(() => {
+      const draftData = { invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, selectedTermsId, invoiceOptions, taxInclusive };
+      try { sessionStorage.setItem('gst_invoiceDraft', JSON.stringify(draftData)); } catch { /* private mode / quota exceeded — skip */ }
+    }, 400);
+    return () => clearTimeout(t);
   }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, selectedTermsId, invoiceOptions, taxInclusive]);
 
   // Mark initialized after first render cycle so auto-save doesn't trigger on load
@@ -2232,42 +2322,58 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
   };
 
-  const directPrint = async () => {
+  // v1.10.36 — Print pipeline split into two functions:
+  //   1. `executePrint` — the actual work (buildPDF → printViaIframe).
+  //      This is the SAME code path that was working in v1.10.34 and
+  //      after the v1.10.35 → v1.10.36 revert. Guaranteed reliable.
+  //   2. `directPrint` — user-facing Print button click handler. For
+  //      thermal invoices, opens the PrintPreviewModal first so the
+  //      user sees exactly what will print before it goes. For A4/sheet,
+  //      calls executePrint directly because the OS print dialog
+  //      already shows a full page preview.
+  //
+  // The modal DOES NOT re-render or re-serialize anything for printing
+  // — its Print button just calls executePrint, which uses the parent's
+  // existing on-screen `printRef`. Both the modal's <InvoicePreview>
+  // and the printed output come from the SAME component with the SAME
+  // props → bit-for-bit identical. Zero CSS drift risk (this was the
+  // v1.10.35 bug — a re-serialized iframe DOM diverged from the on-
+  // screen render because of dropped cross-origin fonts + max-width
+  // caps beating inline widths). See PrintPreviewModal.jsx for details.
+  const executePrint = async () => {
     if (!printRef.current) return;
-    // v1.10.34 — Thermal now opens a dedicated preview modal instead
-    // of the buildPDF → iframe path. Reasons:
-    //   - buildPDF rasterizes text via html2canvas → JPEG, losing
-    //     glyph sharpness at small font sizes on 203dpi thermal
-    //     printers.
-    //   - The compact modal doubles as a preview — user sees exactly
-    //     what will print, then clicks Print. Matches the POS-app UX
-    //     the user shared as a reference ("preview like this").
-    //   - The modal's Print button uses raw HTML in a hidden iframe
-    //     with @page: size widthMm auto → Chrome sends VECTOR text
-    //     to the driver. Text stays crisp at any DPI. See
-    //     ThermalPreviewModal.jsx for details.
-    // A4 / sheet paper still use the existing buildPDF path.
-    if (isThermalPaper()) {
-      setShowThermalPreview(true);
-      return;
-    }
     setSaving(true);
     try {
       await withPreviewOnScreen(async () => {
-      try {
-        const pdf = await buildPDF();
-        const blob = pdf.output('blob');
-        printViaIframe(blob);
-      } catch (err) {
-        console.error('A4 print failed', err);
-        toast('Print failed — try Download PDF instead', 'error');
-      }
-      }); // end withPreviewOnScreen
-    } catch (e) {
+        try {
+          const pdf = await buildPDF();
+          const blob = pdf.output('blob');
+          printViaIframe(blob);
+        } catch (err) {
+          console.error('Print failed', err);
+          toast('Print failed — try Download PDF instead', 'error');
+        }
+      });
+    } catch {
       toast('Print failed — try Download PDF instead', 'error');
     } finally {
       setSaving(false);
     }
+  };
+
+  const directPrint = async () => {
+    if (!printRef.current) return;
+    if (isThermalPaper()) {
+      // Thermal → show the preview modal. Actual print fires from the
+      // modal's Print button via executePrint. User can Cancel there
+      // if the preview looks wrong.
+      setShowPrintPreview(true);
+      return;
+    }
+    // A4 / A5 / Letter / Legal — go straight to print. Chrome's own
+    // dialog already shows a page-accurate preview, no in-app modal
+    // needed for these.
+    await executePrint();
   };
 
   const generatePDF = async () => {
@@ -2375,18 +2481,98 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <li><strong>Auto-save</strong> — every 2s once the invoice is meaningful (client + at least one item). Back button is safe if you haven't touched anything.</li>
             </ul>
           </HelpButton>
-          <span style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 4,
-            color: autoSaveStatus === 'saving' ? 'var(--text-muted)'
-                 : autoSaveStatus === 'saved' ? '#059669'
-                 : isMeaningfulInvoice() ? '#94a3b8' : '#cbd5e1' }}>
-            {autoSaveStatus === 'saving' && <><Loader size={13} className="spin" /> Saving...</>}
-            {autoSaveStatus === 'saved' && <><Check size={13} /> All changes saved</>}
-            {autoSaveStatus === 'idle' && !isMeaningfulInvoice() && <span title="Add a client name and at least one item to start saving">Draft only — not saved yet</span>}
-          </span>
+          {/* v1.10.37 — Auto-save status pill. Reported: prior plain
+              grey text next to Back button looked unstyled. Now it's a
+              proper chip with a coloured dot indicator that matches
+              state (blue-pulse saving, green saved, amber draft) and
+              CLICKS to focus the first missing field on the draft
+              state so users can fix what's blocking auto-save. */}
+          {(() => {
+            const saving = autoSaveStatus === 'saving';
+            const saved = autoSaveStatus === 'saved';
+            const isDraft = autoSaveStatus === 'idle' && !isMeaningfulInvoice();
+            const color = saving ? '#3b82f6' : saved ? '#059669' : isDraft ? '#d97706' : '#94a3b8';
+            const bg = saving ? 'color-mix(in oklab, #3b82f6 12%, transparent)'
+              : saved ? 'color-mix(in oklab, #059669 12%, transparent)'
+              : isDraft ? 'color-mix(in oklab, #d97706 12%, transparent)'
+              : 'var(--bg-secondary)';
+            const label = saving ? 'Saving…'
+              : saved ? 'All changes saved'
+              : isDraft ? 'Draft — click to complete'
+              : 'Ready';
+            const onClick = () => {
+              if (!isDraft) return;
+              // Focus the first missing input to accelerate the "make
+              // it saveable" path. Client name first (most common
+              // missing field), then the first line item description.
+              if (!client?.name?.trim()) {
+                clientNameRef.current?.focus();
+                clientNameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+              }
+              const emptyRow = document.querySelector('.line-item-row input.form-input:placeholder-shown, .line-item-row input.form-input[value=""]');
+              if (emptyRow) {
+                emptyRow.focus();
+                emptyRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            };
+            return (
+              <button type="button" onClick={onClick} disabled={!isDraft}
+                title={isDraft ? 'Click to focus the first missing field' : label}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: '0.75rem', fontWeight: 600,
+                  padding: '0.35rem 0.7rem',
+                  borderRadius: 999,
+                  background: bg,
+                  border: `1px solid color-mix(in oklab, ${color} 22%, var(--border))`,
+                  color: color,
+                  cursor: isDraft ? 'pointer' : 'default',
+                }}>
+                {saving && <Loader size={12} className="spin" />}
+                {saved && <Check size={12} />}
+                {!saving && !saved && (
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: color,
+                    boxShadow: isDraft ? `0 0 0 3px color-mix(in oklab, ${color} 18%, transparent)` : 'none',
+                  }} />
+                )}
+                {label}
+              </button>
+            );
+          })()}
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-primary" onClick={generatePDF} disabled={saving}>
-            <Download size={18} /> {saving ? 'Generating...' : 'Download PDF'}
+          {/* v1.10.37 — Explicit Save button. Reported: "invoice page
+              needs a Save button". Previously only Download PDF was
+              the primary action, forcing users who wanted to save
+              without downloading to know Ctrl+S. Now: Save is the
+              PRIMARY action, Download PDF is secondary. Save-only
+              also fires the same "save to Saved Invoices/ folder"
+              + auto-print + Drive sync side effects that generatePDF
+              does — minus the PDF file. */}
+          <button className="btn btn-primary" onClick={async () => {
+            try {
+              setSaving(true);
+              await saveInvoiceToDB();
+              clearDraft();
+              toast('Invoice saved', 'success');
+            } catch (err) {
+              if (err?.status !== 409) {  // 409 already handled by retry inside saveInvoiceToDB
+                console.error('Save failed', err);
+                toast('Save failed — try again', 'error');
+              }
+            } finally {
+              setSaving(false);
+            }
+          }} disabled={saving}
+          title="Save the invoice without downloading (Ctrl+S)">
+            <Check size={18} /> {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button className="btn btn-secondary" onClick={generatePDF} disabled={saving}
+            title="Save + download the PDF">
+            <Download size={18} /> {saving ? 'Generating...' : 'Save & Download'}
           </button>
           <button className="btn btn-secondary" onClick={directPrint} disabled={saving}
             title={
@@ -3038,8 +3224,33 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                       setClient({ ...client, name: e.target.value });
                       setSelectedClientId(null);
                       setShowClientSuggestions(true);
+                      setClientPickerIdx(-1);
                     }}
                     onFocus={() => { if (savedClients.length > 0) setShowClientSuggestions(true); }}
+                    onKeyDown={(e) => {
+                      // v1.10.37 — Arrow keys / Enter / Escape on the client
+                      // picker. Reported: "20 invoices/day forces mouse on
+                      // the client autocomplete." Now: keyboard-only path.
+                      if (!showClientSuggestions || !filteredClients.length) return;
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setClientPickerIdx(i => (i + 1) % filteredClients.length);
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setClientPickerIdx(i => (i <= 0 ? filteredClients.length - 1 : i - 1));
+                      } else if (e.key === 'Enter') {
+                        // Only intercept Enter when the user has actually
+                        // arrow-nav'd to a suggestion; otherwise let Enter
+                        // fall through to the form for the "Add new client"
+                        // path via openAddClientModal.
+                        if (clientPickerIdx >= 0 && filteredClients[clientPickerIdx]) {
+                          e.preventDefault();
+                          selectSavedClient(filteredClients[clientPickerIdx]);
+                        }
+                      } else if (e.key === 'Escape') {
+                        setShowClientSuggestions(false);
+                      }
+                    }}
                     placeholder="Type client name to search or add new" autoComplete="off" />
                   {selectedClientId && (
                     <button type="button" className="btn-client-edit" onClick={() => openEditClientModal(savedClients.find(c => c.id === selectedClientId))} title="Edit saved client">
@@ -3049,9 +3260,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 </div>
                 {showClientSuggestions && savedClients.length > 0 && (
                   <div className="client-suggestions" ref={clientSuggestionsRef}>
-                    {filteredClients.length > 0 && filteredClients.map(cli => (
-                      <div key={cli.id} className="client-suggestion-row">
-                        <button type="button" className="client-suggestion-item" onClick={() => selectSavedClient(cli)}>
+                    {filteredClients.length > 0 && filteredClients.map((cli, i) => (
+                      <div key={cli.id} className="client-suggestion-row"
+                        style={i === clientPickerIdx ? { background: 'var(--primary-light, rgba(30,64,175,0.12))' } : undefined}>
+                        <button type="button" className="client-suggestion-item"
+                          onMouseEnter={() => setClientPickerIdx(i)}
+                          onClick={() => selectSavedClient(cli)}>
                           <div className="client-suggestion-main">
                             <strong>{cli.name}</strong>
                             {(cli.city || cli.address) && <small className="client-suggestion-addr">{cli.city || cli.address.substring(0, 30)}{!cli.city && cli.address.length > 30 ? '...' : ''}</small>}
@@ -3244,7 +3458,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 </label>
               )}
             </div>
-            {items.map((item) => (
+            {items.map((item, idx) => (
               <LineItem
                 key={item.id}
                 item={item}
@@ -3266,6 +3480,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 onRemoveCustomUnit={handleRemoveCustomUnit}
                 onRemove={removeItem}
                 clampNonNeg={clampNonNeg}
+                isLastRow={idx === items.length - 1}
+                onAddRow={addItem}
               />
             ))}
             <button className="btn btn-secondary mt-2" onClick={addItem}><Plus size={18} /> Add Item</button>
@@ -3294,7 +3510,42 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
           {/* Terms */}
           <div className="glass-panel p-6 mb-6">
-            <h3 className="section-title">Terms & Conditions</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <h3 className="section-title" style={{ margin: 0 }}>Terms & Conditions</h3>
+              {/* v1.10.37 — Terms rendering mode picker. Reported: PDF was
+                  showing terms as compact all-caps run-together block —
+                  users wanted an option for normal formatted output too.
+                  Compact = tiny 0.6rem, honours global allCaps, saves
+                  paper on invoices where terms are boilerplate.
+                  Formatted = 0.78rem, mixed case, list styles preserved,
+                  reads like a document paragraph. */}
+              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>PDF layout</span>
+                {[
+                  { id: 'compact', label: 'Compact', hint: 'Tiny footer text — saves paper' },
+                  { id: 'formatted', label: 'Formatted', hint: 'Larger readable paragraphs' },
+                ].map(mode => {
+                  const active = (invoiceOptions.termsFormatMode || 'compact') === mode.id;
+                  return (
+                    <button key={mode.id} type="button"
+                      onClick={() => setInvoiceOptions(prev => ({ ...prev, termsFormatMode: mode.id }))}
+                      title={mode.hint}
+                      style={{
+                        fontSize: '0.72rem', fontWeight: 600,
+                        padding: '0.28rem 0.65rem', borderRadius: 999,
+                        background: active
+                          ? 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 82%, #000))'
+                          : 'var(--bg-secondary)',
+                        color: active ? '#fff' : 'var(--text)',
+                        border: active ? '1px solid transparent' : '1px solid var(--border)',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}>
+                      {mode.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: termsTemplates.length > 0 ? '1fr 1fr' : '1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Insert preset (by business type)</label>
@@ -3418,27 +3669,58 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         <div ref={previewPaneRef} className="preview-pane" style={previewCollapsed
           ? { position: 'absolute', left: '-99999px', top: 0, width: '794px', pointerEvents: 'none', opacity: 0 }
           : undefined}>
-          <div className="preview-pane-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>PDF Preview — This is how your invoice will look</span>
-            {/* v1.9.1 — preview zoom controls. Persist choice per-session so
-                a large preview stays large as user navigates between bills. */}
+          {/* v1.10.37 — Preview label + zoom control bar redesign.
+              Reported: prior label was a plain span with tiny black
+              zoom buttons squeezed on the right — visually unfinished.
+              Now: single-line pill bar with a preview icon + short
+              label, a proper segmented zoom cluster (− / % / +) and
+              a dedicated Fit button, all styled consistently with
+              the rest of the panel's design language. */}
+          <div className="preview-pane-label" style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '0.55rem 0.85rem',
+            background: 'var(--card-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 999,
+            marginBottom: '0.5rem',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+            gap: '0.75rem',
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.85rem' }}>👁</span>
+              Live preview
+            </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <button type="button" className="btn btn-secondary" title="Zoom out"
-                style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', minWidth: 24 }}
-                onClick={() => setPreviewZoom(z => Math.max(50, z - 10))}>−</button>
-              <span style={{ fontSize: '0.72rem', minWidth: 36, textAlign: 'center', fontWeight: 600 }}>{previewZoom}%</span>
-              <button type="button" className="btn btn-secondary" title="Zoom in"
-                style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', minWidth: 24 }}
-                onClick={() => setPreviewZoom(z => Math.min(200, z + 10))}>+</button>
+              {/* Segmented zoom cluster — three cells welded into one pill */}
+              <div style={{
+                display: 'inline-flex', alignItems: 'center',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}>
+                <button type="button" title="Zoom out (Ctrl+−)"
+                  onClick={() => setPreviewZoom(z => Math.max(50, z - 10))}
+                  style={{ padding: '0.25rem 0.7rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>−</button>
+                <span style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)', minWidth: 42, textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>{previewZoom}%</span>
+                <button type="button" title="Zoom in (Ctrl+=)"
+                  onClick={() => setPreviewZoom(z => Math.min(200, z + 10))}
+                  style={{ padding: '0.25rem 0.7rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>+</button>
+              </div>
               {/* v1.10.33 — REAL fit-to-width. Prior code was
-                  setPreviewZoom(100), which just set 100%, not "fit". On
-                  narrow viewports the preview overflowed; on wide ones it
-                  looked tiny. Now measures the pane's content width and
-                  the preview's natural width (A4 = 794px @ 96dpi) and
-                  scales so the preview fills without overflow. */}
-              <button type="button" className="btn btn-secondary" title="Fit to preview width"
-                style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}
-                onClick={handleFitToWidth}>Fit</button>
+                  setPreviewZoom(100), which just set 100%, not "fit". */}
+              <button type="button" title="Fit preview to the pane width"
+                onClick={handleFitToWidth}
+                style={{
+                  padding: '0.28rem 0.75rem',
+                  border: '1px solid var(--primary)',
+                  background: 'var(--primary-light, rgba(30,64,175,0.08))',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.72rem', fontWeight: 700,
+                  borderRadius: 999,
+                  letterSpacing: '0.02em',
+                }}>Fit</button>
             </span>
           </div>
           <div className="preview-scaler" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top left' }}>
@@ -3449,12 +3731,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         </div>
       </div>
 
-      {/* v1.10.34 — Thermal receipt preview modal. Opens when the user
-          clicks Print on a thermal-sized invoice. Modal shows the receipt
-          live, click Print inside to send vector HTML to the printer. */}
-      <ThermalPreviewModal
-        isOpen={showThermalPreview}
-        onClose={() => setShowThermalPreview(false)}
+      {/* v1.10.36 — Portal print preview modal for thermal invoices.
+          Renders the SAME <InvoicePreview> component with the SAME
+          props as the on-screen preview → identical output. The Print
+          button calls executePrint which uses the parent's printRef
+          (the on-screen preview), so what the user sees IS what the
+          printer receives. See PrintPreviewModal.jsx for the "why not
+          re-serialize" rationale. */}
+      <PrintPreviewModal
+        isOpen={showPrintPreview}
+        onClose={() => setShowPrintPreview(false)}
+        onPrint={executePrint}
+        onDownloadPdf={generatePDF}
         profile={profile}
         client={client}
         details={details}
@@ -3465,7 +3753,6 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         customNotes={customNotes}
         extraSections={extraSections}
         invoiceOptions={invoiceOptions}
-        onDownloadPdf={generatePDF}
       />
 
       {/* P2 #32 — 3-option leave modal. Replaces the previous confusing

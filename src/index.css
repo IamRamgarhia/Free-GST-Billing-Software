@@ -581,23 +581,47 @@ body {
 }
 
 /* ========= Page Headers ========= */
+/* v1.10.37 — All page headers get the treatment introduced in the
+   Settings redesign: soft primary-accent gradient card, rounded 12px
+   corners, subtle border. Reported: "I like the heading you gave into
+   Settings — I want you to do in all the pages, that looks better."
+   By upgrading the shared class instead of each file, every page
+   (Dashboard, Clients, Inventory, GST Returns, Income Tax, Reports,
+   Purchase Bills, Recurring Invoices, Expenses, Receipts, User Guide,
+   Settings) inherits the same visual identity automatically. Right-
+   side action slot is preserved via the existing justify-content:
+   space-between + align-items: center. */
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1.1rem 1.35rem;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 12%, var(--card-bg)), var(--card-bg));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
 }
 
 .page-title {
-  font-size: 1.75rem;
+  font-size: 1.55rem;
   font-weight: 700;
   letter-spacing: -0.025em;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.2rem;
+  line-height: 1.15;
 }
 
 .page-subtitle {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  margin: 0;
+}
+/* Fallback for dark mode — some browsers render color-mix() with
+   `oklab` slightly differently; the fallback ensures the gradient
+   still reads correctly. */
+[data-theme="dark"] .page-header {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), var(--card-bg));
 }
 
 .section-title {
@@ -758,7 +782,12 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    for every column at natural width while still preventing infinite
    stretch on ultra-wide displays. */
 .dashboard-container { max-width: 1400px; margin: 0 auto; width: 100%; }
-.settings-container { max-width: 800px; margin: 0 auto; width: 100%; }
+/* v1.10.37 — Widened 800 → 1100px. Reported: "settings page could
+   be widened so nav pills fit on one line". 11-chip jump-nav needs
+   ~950px to render without horizontal scroll, so 1100 gives comfortable
+   margin. Existing form grids inside were already `grid-cols-2` and
+   scale naturally. */
+.settings-container { max-width: 1100px; margin: 0 auto; width: 100%; }
 
 .stats-grid {
   display: grid;
@@ -968,6 +997,30 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   flex: 1;
   min-height: 0;
   gap: 2rem;
+}
+/* v1.10.37 — Mobile breakpoint. Reported: "editor + preview both
+   shrink to ~180px on 375px phone — line-item rows need 700px min".
+   At ≤ 900px, stack vertically and hide the preview pane by default
+   (Focus mode toggle can re-show it). Line items keep the .line-item-row
+   layout which is already flex-wrappable, so each row gracefully
+   breaks into multiple lines on narrow viewports. */
+@media (max-width: 900px) {
+  .split-view {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .preview-pane {
+    display: none;
+  }
+  .split-view-focus .preview-pane {
+    /* When user explicitly toggles focus OFF (preview-collapsed=false)
+       on mobile, we still respect that and show the preview below the
+       editor. */
+    display: flex;
+  }
+  .editor-pane {
+    padding-right: 0;
+  }
 }
 /* v1.10.22 — focus mode: preview pane is display:none, editor takes the
    full width and its max-width relaxes so line-item rows have room to
@@ -1889,34 +1942,26 @@ a:focus-visible {
    feature is working in market". Previously hidden due to width
    concerns; a 32×32mm QR fits comfortably on 48mm-printable 58mm rolls
    as long as we cap its size. */
-/* v1.10.33 — Thermal QR + logo caps. Prior rules targeted `.qr-block img`,
-   `.upi-qr`, `canvas`, and `.invoice-header-*` — but the thermal branch
-   renders the QR as a plain `<img class="thermal-qr">` (no wrapper,
-   NOT a canvas) and the logo as `<img class="thermal-logo">` outside any
-   `.invoice-header-*` container. So every prior selector was dead
-   code. Now the caps sit on the actual className. Per-paper caps are
-   ceilings; the inline width from InvoicePreview (derived from
-   paperCfg.widthMm) is usually smaller and already ~50% of printable
-   width — the CSS ceiling is a hard defence against a stale
-   inline-style that could overflow. */
-.paper-thermal .thermal-qr {
-  max-width: 90px; max-height: 90px; margin: 0 auto;
-  display: block;
-}
-.paper-thermal-58 .thermal-qr { max-width: 70px; max-height: 70px; }
-.paper-thermal-76 .thermal-qr { max-width: 90px; max-height: 90px; }
-.paper-thermal-80 .thermal-qr { max-width: 100px; max-height: 100px; }
-.paper-thermal-112 .thermal-qr { max-width: 140px; max-height: 140px; }
-.paper-thermal-custom .thermal-qr { max-width: 80px; max-height: 80px; }
-
+/* v1.10.36 — Reverted to the pre-v1.10.33 CSS. Reported (Hinglish):
+   "qr small ho gaya hai ... phele jaisa kar dijiye just custom me
+   problem tha". The v1.10.33 max-width caps here were smaller than
+   InvoicePreview's inline widths (thermal58 got 70px cap vs the
+   inline 90px, thermal80 got 100px cap vs inline 90px), and since
+   `max-width` wins over inline width, the QR shrank on every roll.
+   The historical behaviour (no CSS cap, inline width from qrSizePx
+   drives everything) is restored — only the custom-thermal case
+   keeps a defence-in-depth cap for < 100mm rolls where the inline
+   fallback might overshoot the paper edge.
+   .thermal-qr / .thermal-logo classNames stay so a future targeted
+   fix has real selectors to hook. */
+.paper-thermal .thermal-qr,
 .paper-thermal .thermal-logo {
-  max-height: 45px; max-width: 60%;
-  object-fit: contain;
-  margin-bottom: 4px;
+  margin: 0 auto;
   display: block;
 }
-.paper-thermal-58 .thermal-logo { max-height: 30px; }
-.paper-thermal-custom .thermal-logo { max-height: 32px; }
+.paper-thermal-custom .thermal-qr {
+  max-width: 60%;  /* 60% of the paper width — cheap safety net */
+}
 /* Hide multi-column grid layouts on thermal — stack everything. */
 .paper-thermal .grid,
 .paper-thermal [class*="grid-"] {
@@ -2189,6 +2234,25 @@ a:focus-visible {
   line-height: 1.5;
   margin: 0;
 }
+
+/* v1.10.37 — "Formatted" mode overrides. Reported: current "compact"
+   render was small + uppercase-inherited + hard to read on the PDF.
+   Users who want terms customers actually read pick termsFormatMode:
+   'formatted' — this class overrides to a mixed-case, readable
+   0.78rem layout with proper paragraph spacing. */
+.inv-terms.inv-terms-formatted {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #334155;
+  text-transform: none;         /* beat the container's allCaps cascade */
+  letter-spacing: 0;
+}
+.inv-terms.inv-terms-formatted p { margin: 0 0 0.5rem; }
+.inv-terms.inv-terms-formatted p:last-child { margin-bottom: 0; }
+.inv-terms.inv-terms-formatted ol,
+.inv-terms.inv-terms-formatted ul { margin: 0.3rem 0 0.5rem 1.35rem; padding: 0; }
+.inv-terms.inv-terms-formatted li { margin-bottom: 0.28rem; line-height: 1.5; }
+[data-theme="dark"] .inv-terms.inv-terms-formatted { color: #cbd5e1 !important; }
 
 /* Extra sections (additional pages) */
 .inv-extra-page {

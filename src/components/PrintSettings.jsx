@@ -17,38 +17,54 @@ import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampl
 // family / weight / spacing / all-caps / header alignment / content
 // toggles all apply to both, so switching preset visibly changes the
 // thermal preview too.
+// v1.10.36 — Design presets rewrite. Reported: "current ones are not
+// good at all". Prior set had 9 designs with ~3 near-duplicate pairs
+// (Modern/Enterprise/IT Services all used pdfTemplate:'modern' with
+// tiny palette tweaks — hard to tell apart from the swatch bar), a
+// yellow-on-navy Corporate that looked dated, and no real editorial
+// or brand-forward direction. Refreshed to 8 SHARPLY DIFFERENT designs
+// with intentional palettes drawn from modern invoice design references
+// (Stripe, Vercel, Linear, Ramp, boutique retail, editorial press).
+//
+// Each preset keeps the same `id` where the ID slot mapped to a
+// pdfTemplate the codebase already renders — no template code changes,
+// only palette + typographic pairing shifts. That way users with
+// activePresetId already in localStorage continue to see something
+// active, and any per-invoice pdfStyle overrides keep working.
+//
+// The `mockup` array on each preset drives the new mini-preview render
+// (see the DESIGN_PRESETS.map(...) block below) — a proper little
+// invoice thumbnail instead of the old 3-color strip.
 const DESIGN_PRESETS = [
   {
     id: 'modern',
-    name: 'Modern',
-    icon: '💎',
-    description: 'Sans font, blue accents. Clean, tech-startup feel.',
+    name: 'Aurora',
+    icon: '✦',
+    description: 'Cool slate + electric blue. Modern SaaS invoice.',
+    tag: 'Freelancers · Tech',
     settings: {
-      // PDF
       pdfTemplate: 'modern',
       userColorsEnabled: true,
-      pdfPrimaryText: '#0f172a', pdfMutedText: '#334155',
-      pdfAccent: '#1e40af', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#eef2ff', pdfDividerColor: '#cbd5e1',
-      // Thermal — sans, bold, comfortable, mixed case (modern feel)
+      pdfPrimaryText: '#0f172a', pdfMutedText: '#64748b',
+      pdfAccent: '#2563eb', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#f8fafc', pdfDividerColor: '#e2e8f0',
       fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
       lineSpacing: 'normal', allCaps: false,
-      headerAlign: 'center', headerCaps: true, contrast: 'high',
+      headerAlign: 'left', headerCaps: true, contrast: 'high',
     },
   },
   {
     id: 'classic',
-    name: 'Classic',
-    icon: '📜',
-    description: 'Mono font, ALL CAPS. Traditional SMART BAZAAR receipt style.',
+    name: 'Editorial',
+    icon: '❋',
+    description: 'Deep charcoal on warm ivory. Newspaper-authority feel.',
+    tag: 'Law · Consulting',
     settings: {
-      // PDF
       pdfTemplate: 'classic',
       userColorsEnabled: true,
-      pdfPrimaryText: '#000000', pdfMutedText: '#333333',
-      pdfAccent: '#000000', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#ffffff', pdfDividerColor: '#000000',
-      // Thermal — mono ultra-bold ALL CAPS (max legibility, classic look)
+      pdfPrimaryText: '#1c1917', pdfMutedText: '#78716c',
+      pdfAccent: '#1c1917', pdfAccentText: '#f5f5f4',
+      pdfHeaderBg: '#f5f5f4', pdfDividerColor: '#d6d3d1',
       fontFamily: 'mono', fontWeight: 'ultra', fontSize: 'medium',
       lineSpacing: 'compact', allCaps: true,
       headerAlign: 'center', headerCaps: true, contrast: 'ultra',
@@ -56,17 +72,16 @@ const DESIGN_PRESETS = [
   },
   {
     id: 'corporate',
-    name: 'Corporate',
-    icon: '🏢',
-    description: 'Sans + gold. Bold headers, comfortable spacing.',
+    name: 'Executive',
+    icon: '◆',
+    description: 'Deep navy + soft champagne. Boardroom serious.',
+    tag: 'Enterprise · B2B',
     settings: {
-      // PDF
       pdfTemplate: 'corporate',
       userColorsEnabled: true,
-      pdfPrimaryText: '#0b1e3f', pdfMutedText: '#334155',
-      pdfAccent: '#0b1e3f', pdfAccentText: '#f5c542',
-      pdfHeaderBg: '#f1f5f9', pdfDividerColor: '#0b1e3f',
-      // Thermal — sans, bold, comfortable, header caps only
+      pdfPrimaryText: '#0c1e3d', pdfMutedText: '#475569',
+      pdfAccent: '#0c1e3d', pdfAccentText: '#e8dcc4',
+      pdfHeaderBg: '#f4f2ed', pdfDividerColor: '#c4b896',
       fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
       lineSpacing: 'comfortable', allCaps: false,
       headerAlign: 'center', headerCaps: true, contrast: 'high',
@@ -74,17 +89,16 @@ const DESIGN_PRESETS = [
   },
   {
     id: 'minimalist',
-    name: 'Minimalist',
-    icon: '⚪',
-    description: 'Ultra clean. Airy spacing, no bold clutter.',
+    name: 'Whisper',
+    icon: '○',
+    description: 'Off-white, single hairline, zero clutter.',
+    tag: 'Designers · Studios',
     settings: {
-      // PDF
       pdfTemplate: 'minimalist',
       userColorsEnabled: true,
-      pdfPrimaryText: '#111111', pdfMutedText: '#666666',
-      pdfAccent: '#111111', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#ffffff', pdfDividerColor: '#dddddd',
-      // Thermal — sans, normal weight, comfortable, left header, no caps
+      pdfPrimaryText: '#171717', pdfMutedText: '#a3a3a3',
+      pdfAccent: '#171717', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#fafafa', pdfDividerColor: '#e5e5e5',
       fontFamily: 'sans', fontWeight: 'normal', fontSize: 'medium',
       lineSpacing: 'comfortable', allCaps: false,
       headerAlign: 'left', headerCaps: false, contrast: 'normal',
@@ -92,17 +106,16 @@ const DESIGN_PRESETS = [
   },
   {
     id: 'colorful',
-    name: 'Colorful',
-    icon: '🎨',
-    description: 'Warm orange. Retail / cafe / boutique feel.',
+    name: 'Sunset',
+    icon: '❉',
+    description: 'Warm terracotta on cream. Boutique, cafe, salon.',
+    tag: 'Retail · Cafe',
     settings: {
-      // PDF
       pdfTemplate: 'modern',
       userColorsEnabled: true,
-      pdfPrimaryText: '#1a1a1a', pdfMutedText: '#4a4a4a',
+      pdfPrimaryText: '#7c2d12', pdfMutedText: '#9a3412',
       pdfAccent: '#ea580c', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#fff7ed', pdfDividerColor: '#fdba74',
-      // Thermal — sans bold, normal spacing, show tagline for friendly touch
+      pdfHeaderBg: '#fef3ec', pdfDividerColor: '#fdba74',
       fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
       lineSpacing: 'normal', allCaps: false,
       headerAlign: 'center', headerCaps: true, contrast: 'high',
@@ -111,40 +124,36 @@ const DESIGN_PRESETS = [
   },
   {
     id: 'minimal',
-    name: 'Compact',
-    icon: '📄',
-    description: 'Mono ALL CAPS, tight rows. Max lines per receipt.',
+    name: 'Monoline',
+    icon: '⌘',
+    description: 'Editorial mono, dense rows, developer aesthetic.',
+    tag: 'Dev · Agency',
     settings: {
-      // PDF
       pdfTemplate: 'minimal',
       userColorsEnabled: true,
-      pdfPrimaryText: '#0f172a', pdfMutedText: '#475569',
-      pdfAccent: '#0f172a', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#f8fafc', pdfDividerColor: '#94a3b8',
+      pdfPrimaryText: '#0a0a0a', pdfMutedText: '#525252',
+      pdfAccent: '#16a34a', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#ffffff', pdfDividerColor: '#0a0a0a',
       pdfFontScale: 0.9,
-      // Thermal — mono ultra-bold, small compact ALL CAPS (max density)
       fontFamily: 'mono', fontWeight: 'ultra', fontSize: 'small',
       lineSpacing: 'compact', allCaps: true,
-      headerAlign: 'center', headerCaps: true, contrast: 'ultra',
+      headerAlign: 'left', headerCaps: true, contrast: 'ultra',
       showRateLine: false,
     },
   },
-  // v1.9.11 — three new presets modeled on reference invoices user
-  // shared (Amazon / LTIMindtree / Nike style). Same PDF template
-  // machinery — just distinctive color + typography combos.
   {
     id: 'enterprise',
-    name: 'Enterprise',
-    icon: '🛒',
-    description: 'Bold blue header, prominent branding. E-commerce feel.',
+    name: 'Nordic',
+    icon: '❄',
+    description: 'Cool teal on frosted white. Calm, professional.',
+    tag: 'SaaS · Studios',
     settings: {
       pdfTemplate: 'modern',
       userColorsEnabled: true,
-      pdfPrimaryText: '#0f172a', pdfMutedText: '#1e293b',
-      pdfAccent: '#0284c7', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#ffffff', pdfDividerColor: '#0284c7',
+      pdfPrimaryText: '#134e4a', pdfMutedText: '#0f766e',
+      pdfAccent: '#0d9488', pdfAccentText: '#ffffff',
+      pdfHeaderBg: '#f0fdfa', pdfDividerColor: '#99f6e4',
       pdfDarkenOnPrint: true,
-      // Thermal — sans bold clean
       fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
       lineSpacing: 'normal', allCaps: false,
       headerAlign: 'left', headerCaps: true, contrast: 'high',
@@ -152,38 +161,20 @@ const DESIGN_PRESETS = [
     },
   },
   {
-    id: 'itservices',
-    name: 'IT Services',
-    icon: '💻',
-    description: 'Navy heading, highlighted total box. Consulting look.',
-    settings: {
-      pdfTemplate: 'corporate',
-      userColorsEnabled: true,
-      pdfPrimaryText: '#0f172a', pdfMutedText: '#1e293b',
-      pdfAccent: '#1e3a8a', pdfAccentText: '#ffffff',
-      pdfHeaderBg: '#eff6ff', pdfDividerColor: '#1e3a8a',
-      pdfDarkenOnPrint: true,
-      // Thermal — sans bold comfortable
-      fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
-      lineSpacing: 'comfortable', allCaps: false,
-      headerAlign: 'left', headerCaps: true, contrast: 'high',
-    },
-  },
-  {
     id: 'retail',
-    name: 'Retail Brand',
-    icon: '👟',
-    description: 'Logo-first, clean rows with HSN column. Brand-forward.',
+    name: 'Bold Retail',
+    icon: '▲',
+    description: 'Aggressive black + red pop. Fashion, sports, street.',
+    tag: 'Fashion · Sports',
     settings: {
       pdfTemplate: 'minimalist',
       userColorsEnabled: true,
-      pdfPrimaryText: '#0a0a0a', pdfMutedText: '#262626',
-      pdfAccent: '#0a0a0a', pdfAccentText: '#ffffff',
+      pdfPrimaryText: '#0a0a0a', pdfMutedText: '#404040',
+      pdfAccent: '#dc2626', pdfAccentText: '#ffffff',
       pdfHeaderBg: '#ffffff', pdfDividerColor: '#0a0a0a',
       pdfDarkenOnPrint: true,
-      // Thermal — sans bold normal
       fontFamily: 'sans', fontWeight: 'bold', fontSize: 'medium',
-      lineSpacing: 'normal', allCaps: false,
+      lineSpacing: 'normal', allCaps: true,
       headerAlign: 'left', headerCaps: true, contrast: 'high',
       showHSN: true,
     },
@@ -219,6 +210,37 @@ export default function PrintSettings() {
     setSettings(next);
     savePrintSettings(next);
   };
+
+  // v1.10.36 — Business-type awareness for "Recommended for" tags AND
+  // for actually HIDING options that are irrelevant to the active
+  // business type. Reported: "if I have selected freelance why it is
+  // still showing me retails or other option — thermal etc should also
+  // hide according to business type."
+  //
+  // Two helpers:
+  //   isRecommendedForActive([...]) → shows a ★ badge on the option.
+  //   isVisibleFor([...])           → returns true if the option should
+  //                                   render AT ALL. Any option not
+  //                                   listed here is always visible.
+  //
+  // Empty activeBiz (user hasn't picked a preset yet) shows everything
+  // — no premature hiding.
+  const activeBiz = settings.activeBusinessPresetId || '';
+  const isRecommendedForActive = (recommendedList) => {
+    if (!activeBiz) return false;
+    return recommendedList.includes(activeBiz);
+  };
+  const isVisibleFor = (relevantList) => {
+    if (!activeBiz) return true;              // no preset → show everything
+    return relevantList.includes(activeBiz);  // preset picked → only show if listed
+  };
+  // Reusable "hidden by business type" note so users understand WHY an
+  // option isn't there when their picked preset doesn't need it.
+  const HIDDEN_HINT = activeBiz ? (
+    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+      Some options are hidden because they don't apply to your "{BUSINESS_PRESETS[activeBiz]?.label}" workflow. Change or clear the business type above to see everything.
+    </span>
+  ) : null;
 
   const reset = () => {
     setSettings({ ...DEFAULT_PRINT_SETTINGS });
@@ -377,6 +399,79 @@ export default function PrintSettings() {
       }}>
         <div className="print-settings-body" style={{ minWidth: 0 }}>
 
+      {/* v1.10.36 — Business-type preset was buried below 25 other
+           sections at line ~883. It's actually the FIRST decision a user
+           should make — picking Retail / Restaurant / Freelancer / etc.
+           auto-configures 15+ downstream settings AND (per this update)
+           gates recommended/relevant options in the rest of the panel.
+           So it comes first now. Also tracks `activeBusinessPresetId` so
+           downstream sections can conditionally show "Recommended for
+           your business" tags without asking the user again. */}
+      <div style={{
+        padding: '0.85rem 1rem',
+        background: 'linear-gradient(135deg, var(--primary-light, rgba(30,64,175,0.06)), var(--card))',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        marginBottom: '1rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '0.9rem' }}>⚡ Business type <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>picks 15+ settings that match your workflow</span></strong>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Pick this first. Every setting below is still editable.</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
+          {Object.entries(BUSINESS_PRESETS).map(([key, preset]) => {
+            const active = settings.activeBusinessPresetId === key;
+            return (
+              <button key={key} type="button"
+                onClick={async () => {
+                  if (!await confirmAction({
+                    title: `Apply "${preset.label}" preset?`,
+                    message: `This will overwrite ${Object.keys(preset.patch).length} print settings on top of your current setup. You can undo by picking "Reset defaults".`,
+                    confirmLabel: 'Apply preset',
+                    tone: 'warning',
+                  })) return;
+                  const next = { ...applyBusinessPreset(settings, key), activeBusinessPresetId: key };
+                  setSettings(next);
+                  savePrintSettings(next);
+                  toast(`Applied "${preset.label}" preset`, 'success');
+                }}
+                style={{
+                  padding: '0.65rem 0.7rem',
+                  border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: active ? 'var(--primary-light, rgba(30,64,175,0.08))' : 'var(--card)',
+                  cursor: 'pointer', textAlign: 'left',
+                  display: 'flex', flexDirection: 'column', gap: '3px',
+                  transition: 'all 0.15s',
+                }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                  <strong style={{ fontSize: '0.82rem' }}>{preset.label}</strong>
+                  {active && <span style={{ fontSize: '0.62rem', color: 'var(--primary)', fontWeight: 700 }}>ACTIVE</span>}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{preset.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* v1.10.36 — Info banner shown when a business preset is active,
+           explaining that some options are hidden as irrelevant to the
+           picked workflow. Users can un-pick the preset to see the full
+           menu. */}
+      {HIDDEN_HINT && (
+        <div style={{ padding: '0.55rem 0.85rem', background: 'var(--primary-light, rgba(30,64,175,0.06))', border: '1px solid var(--border)', borderRadius: 8, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.85rem' }}>ℹ</span>
+          {HIDDEN_HINT}
+          <button type="button" className="btn btn-secondary"
+            style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', marginLeft: 'auto' }}
+            onClick={() => set({ activeBusinessPresetId: '' })}
+            title="Clear business type to see every option regardless of relevance">
+            Show all options
+          </button>
+        </div>
+      )}
+
       {/* v1.9.9 — Design preset picker. One-click starting point; every
            setting below still fully editable. Shows a filled swatch strip
            so the user can eyeball the vibe before committing. */}
@@ -388,16 +483,29 @@ export default function PrintSettings() {
         marginBottom: '1rem',
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '0.9rem' }}>🎨 Choose a design <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>affects PDF + Thermal</span></strong>
+          <strong style={{ fontSize: '0.9rem' }}>🎨 Visual style <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>colours + typography for PDF & thermal</span></strong>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Click a design to start. Edit anything below.</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
           {DESIGN_PRESETS.map(preset => {
             // v1.9.13 — Multiple presets share the same pdfTemplate value
             // (e.g. Modern, Colorful, and Enterprise all use pdfTemplate:
             // 'modern'). Comparing on pdfTemplate lit up all of them at
             // once. Track a distinct activePresetId instead.
             const active = settings.activePresetId === preset.id;
+            // v1.10.36 — Mini-invoice mockup instead of the old 3-color
+            // bar. Uses the actual palette + font family the preset would
+            // apply, so users can eyeball the vibe (header band, business
+            // name in accent/primary, body rows in muted, total pill) in
+            // the preset's own colour language before clicking. Font
+            // family switches between mono + sans matching the preset so
+            // Editorial and Monoline read like receipts, Aurora + Nordic
+            // read like SaaS invoices.
+            const s = preset.settings;
+            const isMono = s.fontFamily === 'mono';
+            const mockupFont = isMono
+              ? '"Courier New", ui-monospace, monospace'
+              : 'system-ui, -apple-system, "Segoe UI", sans-serif';
             return (
               <button
                 key={preset.id}
@@ -408,34 +516,98 @@ export default function PrintSettings() {
                   toast(`Applied "${preset.name}" design — every setting still editable below`, 'success');
                 }}
                 style={{
-                  padding: '0.6rem 0.5rem',
+                  padding: 0,
                   border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  borderRadius: 8,
-                  background: active ? 'var(--primary-light, rgba(30,64,175,0.08))' : 'var(--card)',
+                  borderRadius: 10,
+                  background: active ? 'var(--primary-light, rgba(30,64,175,0.06))' : 'var(--card)',
                   cursor: 'pointer',
                   textAlign: 'left',
-                  display: 'flex', flexDirection: 'column', gap: '0.35rem',
-                  transition: 'all 0.15s',
+                  overflow: 'hidden',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
+                  boxShadow: active ? '0 4px 14px rgba(30,64,175,0.15)' : '0 1px 3px rgba(0,0,0,0.04)',
                 }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                 title={preset.description}
               >
-                {/* Mini color-swatch preview strip */}
-                <div style={{ display: 'flex', gap: 3, height: 22, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  <div style={{ flex: 2, background: preset.settings.pdfHeaderBg || '#f8fafc' }} />
-                  <div style={{ flex: 1.5, background: preset.settings.pdfAccent || '#1e40af' }} />
-                  <div style={{ flex: 1, background: preset.settings.pdfPrimaryText || '#0f172a' }} />
+                {/* Mini invoice mockup — actual palette + font family */}
+                <div style={{
+                  height: 110,
+                  background: s.pdfHeaderBg || '#ffffff',
+                  padding: '10px 12px',
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                  fontFamily: mockupFont,
+                  borderBottom: `1px solid ${s.pdfDividerColor || '#e5e5e5'}`,
+                }}>
+                  {/* Header row: business name + INVOICE label */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      color: s.pdfPrimaryText || '#0f172a',
+                      letterSpacing: s.allCaps || s.headerCaps ? '0.05em' : '0',
+                      textTransform: (s.allCaps || s.headerCaps) ? 'uppercase' : 'none',
+                    }}>BUSINESS</span>
+                    <span style={{
+                      fontSize: 8, fontWeight: 700,
+                      color: s.pdfAccent || '#1e40af',
+                      letterSpacing: '0.08em',
+                    }}>INVOICE</span>
+                  </div>
+                  {/* Accent divider */}
+                  <div style={{ height: 2, background: s.pdfAccent || '#1e40af', width: '35%' }} />
+                  {/* Body rows */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ height: 4, background: s.pdfMutedText || '#94a3b8', width: '55%', borderRadius: 1, opacity: 0.6 }} />
+                      <div style={{ height: 4, background: s.pdfMutedText || '#94a3b8', width: '18%', borderRadius: 1, opacity: 0.6 }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ height: 4, background: s.pdfMutedText || '#94a3b8', width: '45%', borderRadius: 1, opacity: 0.4 }} />
+                      <div style={{ height: 4, background: s.pdfMutedText || '#94a3b8', width: '15%', borderRadius: 1, opacity: 0.4 }} />
+                    </div>
+                  </div>
+                  {/* Total pill — accent bg + accentText for legibility */}
+                  <div style={{
+                    marginTop: 'auto', alignSelf: 'flex-end',
+                    background: s.pdfAccent || '#1e40af',
+                    color: s.pdfAccentText || '#ffffff',
+                    fontSize: 8, fontWeight: 700,
+                    padding: '2px 8px', borderRadius: 3,
+                    letterSpacing: '0.04em',
+                  }}>TOTAL ₹1,250</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>{preset.icon} {preset.name}</span>
-                  {active && <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 700 }}>ACTIVE</span>}
+
+                {/* Label + tag row */}
+                <div style={{ padding: '0.55rem 0.75rem', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                      <span style={{ marginRight: 5, opacity: 0.7 }}>{preset.icon}</span>
+                      {preset.name}
+                    </span>
+                    {active && <span style={{ fontSize: '0.6rem', color: 'var(--primary)', fontWeight: 700, letterSpacing: '0.04em' }}>ACTIVE</span>}
+                  </div>
+                  {preset.tag && (
+                    <span style={{
+                      fontSize: '0.6rem', color: 'var(--text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600,
+                    }}>{preset.tag}</span>
+                  )}
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{preset.description}</span>
                 </div>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{preset.description}</span>
               </button>
             );
           })}
         </div>
       </div>
 
+      {/* v1.10.36 — Reported: "if I have selected freelance why it is
+           still showing me retails or other option ... thermal etc
+           should also hide according to business type". This entire
+           thermal-typography/layout/content/footer block is hidden for
+           A4-first businesses (freelancer / service / manufacturer /
+           wholesale). Retail + restaurant see it. When no biz preset is
+           picked, everyone sees it. */}
+      {isVisibleFor(['retail_shop', 'restaurant']) ? (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         {/* TYPOGRAPHY — thermal-only since v1.10.9 */}
         <SettingGroup title="Typography (Thermal receipts)">
@@ -476,11 +648,15 @@ export default function PrintSettings() {
               ['center', 'Center (default)'],
               ['left', 'Left-aligned'],
             ]} />
-          <SelectRow label="Print contrast" value={settings.contrast} onChange={v => set({ contrast: v })}
+          {/* v1.10.36 — renamed from "Print contrast" — the internal
+              `contrast` label + normal/high/ultra options were jargon.
+              Users think of thermal fade as "darkness", not "contrast",
+              so the label + option names now match the mental model. */}
+          <SelectRow label="Thermal ink darkness" value={settings.contrast} onChange={v => set({ contrast: v })}
             options={[
-              ['normal', 'Normal'],
-              ['high', 'High (recommended for old printers)'],
-              ['ultra', 'Ultra — darkest'],
+              ['normal', 'Standard'],
+              ['high', 'Dark (recommended for older printers)'],
+              ['ultra', 'Extra-dark (max)'],
             ]}
             hint="Applies grayscale + contrast filter to logo / QR so faded prints come out darker." />
           <ToggleRow label="Force ALL CAPS in header" value={settings.headerCaps} onChange={v => set({ headerCaps: v })}
@@ -524,6 +700,13 @@ export default function PrintSettings() {
           )}
         </SettingGroup>
       </div>
+      ) : (
+        /* v1.10.36 — Thermal block hidden for non-thermal presets.
+           Show a subtle note so the user knows it's not missing. */
+        <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          🖨 Thermal receipt settings (font, cut mark, feed lines, contrast) are hidden — the <strong>{BUSINESS_PRESETS[activeBiz]?.label}</strong> preset uses A4/A5 PDFs. Switch business type above if you also print thermal receipts.
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* PDF & UNIVERSAL PRINT FEATURES (v1.9.0) */}
@@ -545,32 +728,53 @@ export default function PrintSettings() {
           </SettingGroup>
 
           {/* WATERMARK */}
+          {/* v1.10.36 — Merged custom-watermark controls (previously in
+              their own section ~450 lines below) into this master group.
+              Prior split had users toggling on "Use custom text" in one
+              place without realising the master "Show watermark" needed
+              to be on in the other place. See the deleted duplicate
+              section further down + the "warning banner" the v1.10.10
+              comment described. */}
           <SettingGroup title="Watermark">
             <ToggleRow label="Show watermark" value={settings.watermarkEnabled} onChange={v => set({ watermarkEnabled: v })}
               hint="Big diagonal stamp across the PDF (e.g. PAID / DUPLICATE / DRAFT)." />
             {settings.watermarkEnabled && (
               <>
-                <SelectRow label="Watermark text" value={settings.watermarkText} onChange={v => set({ watermarkText: v })}
-                  options={[
-                    ['PAID', 'PAID'], ['DUPLICATE', 'DUPLICATE'], ['DRAFT', 'DRAFT'],
-                    ['OVERDUE', 'OVERDUE'], ['COPY', 'COPY'], ['ORIGINAL', 'ORIGINAL'],
-                    ['CANCELLED', 'CANCELLED'], ['REPRINT', 'REPRINT'],
-                  ]} />
+                <ToggleRow label="Use custom text instead of preset" value={settings.watermarkUseCustomText}
+                  onChange={v => set({ watermarkUseCustomText: v })}
+                  hint="Type your own text below (e.g. 'FOR INTERNAL USE'). Turn off to use the PAID/DUPLICATE/etc. preset picker." />
+                {settings.watermarkUseCustomText ? (
+                  <TextRow label="Custom watermark text" value={settings.watermarkCustomText}
+                    onChange={v => set({ watermarkCustomText: v })}
+                    placeholder="e.g. FOR INTERNAL USE" />
+                ) : (
+                  <SelectRow label="Watermark text" value={settings.watermarkText} onChange={v => set({ watermarkText: v })}
+                    options={[
+                      ['PAID', 'PAID'], ['DUPLICATE', 'DUPLICATE'], ['DRAFT', 'DRAFT'],
+                      ['OVERDUE', 'OVERDUE'], ['COPY', 'COPY'], ['ORIGINAL', 'ORIGINAL'],
+                      ['CANCELLED', 'CANCELLED'], ['REPRINT', 'REPRINT'],
+                    ]} />
+                )}
                 <SelectRow label="Opacity" value={String(settings.watermarkOpacity)} onChange={v => set({ watermarkOpacity: parseInt(v, 10) })}
                   options={[['5', 'Very faint (5%)'], ['10', 'Faint (10%)'], ['15', 'Medium (15%)'], ['25', 'Strong (25%)'], ['40', 'Very strong (40%)']]} />
               </>
             )}
           </SettingGroup>
 
-          {/* MULTI-COPY */}
+          {/* MULTI-COPY — v1.10.36: goods-invoice-only businesses (whole-
+              sale, manufacturer) see this. Freelancer / service / retail
+              typically don't need GST Rule 48 multi-copy print. */}
+          {isVisibleFor(['wholesale', 'manufacturer']) && (
           <SettingGroup title="Multi-copy (GST rule 48)">
             <ToggleRow label="Print multiple copies with labels" value={settings.multiCopyEnabled} onChange={v => set({ multiCopyEnabled: v })}
+              tag={isRecommendedForActive(['wholesale', 'manufacturer']) ? 'Recommended for your business' : null}
               hint="Prints your invoice N times with corner labels (ORIGINAL FOR RECIPIENT / DUPLICATE FOR TRANSPORTER / etc.). GST rule 48 requires 3 copies for goods, 2 for services." />
             {settings.multiCopyEnabled && (
               <SelectRow label="Number of copies" value={String(settings.multiCopyCount)} onChange={v => set({ multiCopyCount: parseInt(v, 10) })}
                 options={[['2', '2 (Original + Duplicate — services)'], ['3', '3 (Original + Duplicate + Triplicate — goods)']]} />
             )}
           </SettingGroup>
+          )}
 
           {/* PAGE NUMBERS + HEADER */}
           <SettingGroup title="Multi-page invoices">
@@ -596,6 +800,7 @@ export default function PrintSettings() {
           {/* BARCODE + QR */}
           <SettingGroup title="Verification codes">
             <ToggleRow label="Invoice number as QR" value={settings.invoiceQrEnabled} onChange={v => set({ invoiceQrEnabled: v })}
+              tag={isRecommendedForActive(['manufacturer', 'wholesale']) ? 'Recommended for your business' : null}
               hint="Prints a QR of the invoice number (or verification URL if set below) in the bottom-right corner." />
             {settings.invoiceQrEnabled && (
               <TextRow label="Verification URL (optional)" value={settings.invoiceQrUrl} onChange={v => set({ invoiceQrUrl: v })}
@@ -606,9 +811,14 @@ export default function PrintSettings() {
               hint="Prints the invoice number in large monospace at the bottom-left for warehouse scanning / filing." />
           </SettingGroup>
 
-          {/* FEEDBACK QR */}
+          {/* FEEDBACK QR — v1.10.36: consumer-facing "how was your
+              service" QR only meaningful for retail counters and
+              restaurants. Freelancer / service / wholesale / manufacturer
+              don't send this to their B2B clients. */}
+          {isVisibleFor(['retail_shop', 'restaurant']) && (
           <SettingGroup title="Customer feedback QR">
             <ToggleRow label="Feedback / review QR" value={settings.feedbackQrEnabled} onChange={v => set({ feedbackQrEnabled: v })}
+              tag={isRecommendedForActive(['retail_shop', 'restaurant']) ? 'Recommended for your business' : null}
               hint="Adds a QR at the bottom-left of the PDF that opens a URL — Google Reviews, feedback form, WhatsApp chat, anything you want." />
             {settings.feedbackQrEnabled && (
               <>
@@ -619,6 +829,7 @@ export default function PrintSettings() {
               </>
             )}
           </SettingGroup>
+          )}
 
           {/* DIGITAL SIGNATURE */}
           <SettingGroup title="Digital signature">
@@ -681,6 +892,7 @@ export default function PrintSettings() {
               hint="Shrinks the header, billing block, and Place-of-Supply spacing so the items table starts higher up. Best when your invoices routinely spill to page 2 because of large headers." />
             <ToggleRow label="Thermal buffer-safe mode (for old / low-memory receipt printers)"
               value={settings.thermalBufferSafe} onChange={v => set({ thermalBufferSafe: v })}
+              tag={isRecommendedForActive(['retail_shop', 'restaurant']) ? 'Recommended for your business' : null}
               hint="Uses grayscale, drops render scale for thermal captures, and lowers JPEG quality. Helps ₹800–₹2000 thermal printers with small internal buffers avoid stuck B/W print jobs." />
           </SettingGroup>
 
@@ -708,11 +920,16 @@ export default function PrintSettings() {
             ))}
           </SettingGroup>
 
-          {/* REPRINT INDICATOR */}
+          {/* REPRINT INDICATOR — v1.10.36: POS-reprint counter only
+              meaningful for retail counters (customer wants a duplicate
+              of yesterday's bill). B2B invoicing rarely reprints. */}
+          {isVisibleFor(['retail_shop', 'restaurant']) && (
           <SettingGroup title="Reprint tracking">
             <ToggleRow label="Show REPRINT badge on reprints" value={settings.reprintLabelEnabled} onChange={v => set({ reprintLabelEnabled: v })}
+              tag={isRecommendedForActive(['retail_shop', 'restaurant']) ? 'Recommended for your business' : null}
               hint="Automatic red badge in the top-left of the PDF when an invoice has been printed before. Tracks how many times each bill was printed." />
           </SettingGroup>
+          )}
 
           {/* PRINT QUALITY */}
           <SettingGroup title="PDF quality vs file size">
@@ -725,9 +942,14 @@ export default function PrintSettings() {
               hint="Draft = ~50% smaller PDFs, fine for emailing. HD = crisper text at 100% zoom, larger file, better for physical archive." />
           </SettingGroup>
 
-          {/* DUAL CURRENCY (foreign clients) */}
+          {/* DUAL CURRENCY (foreign clients) — v1.10.36: only relevant
+              for freelancer / service businesses billing foreign clients
+              in INR + USD/EUR/GBP. Retail/restaurant/wholesale/manuf
+              are domestic-only in the vast majority of cases. */}
+          {isVisibleFor(['freelancer', 'service']) && (
           <SettingGroup title="Dual currency display">
             <ToggleRow label="Show foreign-currency equivalent" value={settings.dualCurrencyEnabled} onChange={v => set({ dualCurrencyEnabled: v })}
+              tag={isRecommendedForActive(['freelancer', 'service']) ? 'Recommended for your business' : null}
               hint="For INR invoices to foreign clients, shows the total in a second currency next to the ₹ amount. Uses YOUR manually set rate — no live conversion." />
             {settings.dualCurrencyEnabled && (
               <>
@@ -746,6 +968,7 @@ export default function PrintSettings() {
               </>
             )}
           </SettingGroup>
+          )}
 
           {/* COMPANY LETTERHEAD */}
           <SettingGroup title="Company letterhead">
@@ -879,36 +1102,11 @@ export default function PrintSettings() {
       {/* v1.9.3 — Full user control: 14 new dynamic sections */}
       {/* ============================================================ */}
 
-      {/* -- BUSINESS TYPE PRESETS -- */}
-      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
-          ⚡ Business type presets — one-click configuration
-        </h4>
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
-          Applies 15+ recommended settings for your business type. You can still customise anything afterwards.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
-          {Object.entries(BUSINESS_PRESETS).map(([key, preset]) => (
-            <button key={key} type="button" className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.6rem', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', gap: '3px' }}
-              onClick={async () => {
-                if (!await confirmAction({
-                  title: `Apply "${preset.label}" preset?`,
-                  message: `This will overwrite ${Object.keys(preset.patch).length} print settings on top of your current setup. You can undo by picking "Reset to defaults".`,
-                  confirmLabel: 'Apply preset',
-                  tone: 'warning',
-                })) return;
-                const next = applyBusinessPreset(settings, key);
-                setSettings(next);
-                savePrintSettings(next);
-                toast(`Applied "${preset.label}" preset`, 'success');
-              }}>
-              <strong>{preset.label}</strong>
-              <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>{preset.hint}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* v1.10.36 — DELETED the duplicate business-type-preset block that
+           lived here. Was rendering the same picker twice — once buried
+           way down, once (as of v1.10.36) hoisted to the top of the
+           panel where it belongs. Moved above the Visual style picker
+           to establish a "first pick your business, then style" order. */}
 
       {/* -- SECTION LABELS (multi-language + custom text) -- */}
       <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
@@ -939,8 +1137,10 @@ export default function PrintSettings() {
             placeholder={LABEL_PRESETS[settings.labelLanguage]?.terms || LABEL_PRESETS.en.terms} />
           <TextRow label='"NOTES" label' value={settings.labelNotes} onChange={v => set({ labelNotes: v })}
             placeholder={LABEL_PRESETS[settings.labelLanguage]?.notes || LABEL_PRESETS.en.notes} />
-          <TextRow label='"Authorized Signatory" text' value={settings.labelAuthorizedSignatory} onChange={v => set({ labelAuthorizedSignatory: v })}
-            placeholder={LABEL_PRESETS[settings.labelLanguage]?.authorizedSignatory || LABEL_PRESETS.en.authorizedSignatory} />
+          {/* v1.10.36 — Removed "Authorized Signatory" override row.
+              InvoicePreview.jsx never calls getLabel(_, 'authorizedSignatory')
+              — the signature block uses a hardcoded label. Row was
+              silently doing nothing when users typed in it. */}
         </div>
       </div>
 
@@ -986,35 +1186,12 @@ export default function PrintSettings() {
           hint="Affects both A4/A5 PDFs and the on-screen preview." />
       </div>
 
-      {/* -- CUSTOM WATERMARK TEXT -- */}
-      <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
-          💧 Custom watermark text
-        </h4>
-        {/* v1.10.10 — reported "custom watermark text not working". Root
-             cause: this section only writes `watermarkUseCustomText` +
-             `watermarkCustomText`, but the master `watermarkEnabled`
-             toggle lives in a DIFFERENT section above. Users toggled
-             the custom text here without turning the master on and got
-             silence. Now: turning on Custom text auto-enables the
-             master, and if the master is off we show a warning here
-             instead of silently accepting the choice. */}
-        {!settings.watermarkEnabled && settings.watermarkUseCustomText && (
-          <div style={{ padding: '0.5rem 0.75rem', background: 'var(--warn-bg)', border: '1px solid var(--warn-border)', color: 'var(--warn-text)', borderRadius: 6, fontSize: '0.78rem', marginBottom: '0.6rem' }}>
-            ⚠ The master "Show watermark" toggle is OFF. Turning it on now so your custom text actually renders on invoices.
-            <button type="button" className="btn btn-primary" style={{ marginLeft: '0.5rem', fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-              onClick={() => set({ watermarkEnabled: true })}>Turn on now</button>
-          </div>
-        )}
-        <ToggleRow label="Use custom text (overrides preset)" value={settings.watermarkUseCustomText}
-          onChange={v => set(v ? { watermarkUseCustomText: v, watermarkEnabled: true } : { watermarkUseCustomText: v })}
-          hint="When enabled, the text below replaces the PAID/DUPLICATE/etc. preset picker. Automatically turns on the master 'Show watermark' toggle too." />
-        {settings.watermarkUseCustomText && (
-          <TextRow label="Watermark text" value={settings.watermarkCustomText} onChange={v => set({ watermarkCustomText: v })}
-            placeholder="e.g. CONFIDENTIAL · SAMPLE · PROOF ONLY · YOUR-COMPANY-NAME"
-            hint="Any text you want. Automatically uppercased." />
-        )}
-      </div>
+      {/* v1.10.36 — DELETED the duplicate "Custom watermark text"
+           section. Its two controls (watermarkUseCustomText + custom
+           text input) are now inside the master Watermark SettingGroup
+           above, gated by `watermarkEnabled` so users can't turn on
+           custom text without also turning on the master toggle. Kills
+           the cross-panel bug the v1.10.10 comment referenced. */}
 
       {/* -- CUSTOM TAX RATES -- */}
       <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
@@ -1199,13 +1376,24 @@ function SettingGroup({ title, children }) {
   );
 }
 
-function ToggleRow({ label, value, onChange, hint }) {
+// v1.10.36 — ToggleRow gained an optional `tag` prop for the
+// "Recommended for retail" / "Recommended for wholesale" etc. badges.
+// Kept optional so unrelated toggles render exactly as before.
+function ToggleRow({ label, value, onChange, hint, tag }) {
   return (
     <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem' }}>
       <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)}
         style={{ marginTop: 2, accentColor: 'var(--primary)' }} />
       <span style={{ flex: 1 }}>
         <span style={{ fontWeight: 600 }}>{label}</span>
+        {tag && <span style={{
+          display: 'inline-block', marginLeft: 6,
+          fontSize: '0.6rem', fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+          padding: '1px 6px', borderRadius: 999,
+          background: 'var(--primary-light, rgba(30,64,175,0.1))',
+          color: 'var(--primary)',
+        }}>★ {tag}</span>}
         {hint && <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{hint}</span>}
       </span>
     </label>

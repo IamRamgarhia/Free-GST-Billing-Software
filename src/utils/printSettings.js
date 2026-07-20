@@ -82,6 +82,17 @@ export const DEFAULT_PRINT_SETTINGS = {
   // -- T&C on separate page --
   termsSeparatePage: false,  // put terms + notes on their own page 2
 
+  // v1.10.37 — T&C rendering mode. Reported: PDF was showing terms as
+  // a compact all-caps run-together block that was hard to read.
+  // Now:
+  //   'compact'   → historical behaviour: tiny 0.6rem font, honours the
+  //                 global allCaps setting. Saves paper on multi-item
+  //                 invoices where terms are just legal boilerplate.
+  //   'formatted' → 0.78rem readable font, line breaks preserved,
+  //                 mixed case regardless of allCaps. For terms users
+  //                 actually want customers to read.
+  termsFormatMode: 'compact',
+
   // -- Feedback / Review QR --
   feedbackQrEnabled: false,
   feedbackQrUrl: '',         // Google Reviews / feedback form / any URL
@@ -160,16 +171,18 @@ export const DEFAULT_PRINT_SETTINGS = {
   // Users can override any individual label without picking a language preset.
   labelLanguage: 'en',           // 'en' | 'hi' | 'ta' | 'mr' | 'bn' | 'custom'
   labelBillTo: '',               // '' → use language preset; anything else → override
-  labelShipTo: '',
   labelPlaceOfSupply: '',
   labelAmountInWords: '',
   labelBankDetails: '',
   labelTerms: '',
   labelNotes: '',
-  labelAuthorizedSignatory: '',
-  labelSubtotal: '',
-  labelTotal: '',
-  labelInvoice: '',              // "TAX INVOICE" title
+  // v1.10.36 — Removed labelShipTo / labelAuthorizedSignatory /
+  // labelSubtotal / labelTotal / labelInvoice. All five were declared
+  // as overridable label fields, but grep-verified they were never
+  // consumed — InvoicePreview.jsx calls getLabel() only for billTo,
+  // placeOfSupply, amountInWords, bankDetails, terms, notes. The
+  // dead ones just added noise to every localStorage payload and
+  // gave users controls that did nothing when they tried to rename.
 
   // -- Layout density --
   rowDensity: 'normal',          // 'compact' | 'normal' | 'comfortable'
@@ -190,17 +203,11 @@ export const DEFAULT_PRINT_SETTINGS = {
   // Additive to the built-in list. User adds/removes via UI.
   customTaxRates: [],            // [0.1, 0.25, 3, 7.5] etc.
 
-  // -- Custom invoice extra fields --
-  // v1.10.5 — NOT YET WIRED. Setting exists so a future consumer can
-  // add it without a data migration; UI in PrintSettings was removed
-  // (was configurable but never rendered on the invoice, per audit M25).
-  customInvoiceFields: [],
-
-  // -- Column widths (items table, sheet PDFs) --
-  // v1.10.5 — NOT YET WIRED. See customInvoiceFields note above.
-  columnWidths: {
-    item: 35, hsn: 10, qty: 8, rate: 15, tax: 12, amount: 20,
-  },
+  // v1.10.36 — Removed customInvoiceFields[] and columnWidths{}.
+  // Both had "NOT YET WIRED" comments dating to v1.10.5, and nine
+  // months later they still aren't consumed anywhere. Kept the door
+  // open too long — deleting to trim every user's localStorage payload
+  // and prevent settings-migration false positives.
 
   // -- Saved custom PDF templates --
   // Each saved template snapshot is a full settings object under a user-given
@@ -258,12 +265,9 @@ export const DEFAULT_PRINT_SETTINGS = {
   // them here. Users get a bell-badge count; clicking opens the affected
   // bill's WhatsApp share prefilled with a reminder message.
   reminderEnabled: true,             // consumed by notification bell (overdue count)
-  // v1.10.5 — the three below are NOT YET WIRED. Setting shape kept so
-  // a future notification-send integration doesn't need a data migration;
-  // UI in PrintSettings was removed per audit M25.
-  reminderDaysBeforeDue: 3,
-  reminderDaysAfterOverdue: [1, 7, 14, 30],
-  reminderTemplate: 'Hi {client}, this is a friendly reminder about invoice {invoice_number} for {amount} dated {invoice_date}. Kindly make the payment at your earliest convenience. Thank you!',
+  // v1.10.36 — Removed reminderDaysBeforeDue / reminderDaysAfterOverdue /
+  // reminderTemplate. All three had "NOT YET WIRED" comments from
+  // v1.10.5 and nine months later still aren't consumed anywhere.
 };
 
 export function getPrintSettings() {

@@ -4,7 +4,14 @@ import DOMPurify from 'dompurify';
 import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount } from '../utils';
 import { getPrintSettings, getLabel } from '../utils/printSettings';
 
-const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {} }, ref) => {
+// v1.10.36 — Optional `previewOnly` prop suppresses the internal
+// `id="invoice-preview"`. The parent's on-screen preview keeps the id
+// (needed by the @media print CSS rules in index.css:1258 for the
+// A4 window.print fallback path); the PrintPreviewModal's *second*
+// instance renders with previewOnly=true so it doesn't create a
+// duplicate id on the page — HTML-invalid + could confuse getElementById
+// lookups.
+const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {}, previewOnly = false }, ref) => {
   // Interstate detection must match InvoiceGenerator.jsx — it honours
   // details.placeOfSupply (POS override) and client.isSEZ (SEZ supplies
   // are always interstate regardless of physical state). Without this
@@ -487,16 +494,20 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     return (
       <div
         className={`invoice-preview-container ${paperCfg.cssClass} paper-thermal`}
-        ref={ref} id="invoice-preview" style={rootStyle}>
+        ref={ref} {...(previewOnly ? {} : { id: 'invoice-preview' })} style={rootStyle}>
         {/* ================= HEADER ================= */}
         <div style={{ padding: '8px 4px 6px', textAlign: headerAlign, ...dashLine, color: '#000' }}>
           {showLogo && profile?.logo && (
-            /* v1.10.33 — On very narrow rolls (thermal58 / custom <
-               60mm) even a 45px logo eats vertical space that could hold
-               a line of item text. Cap at 40% of paper width so the
-               logo scales down on narrower rolls without disappearing. */
+            /* v1.10.36 — Reverted the v1.10.33 formula
+               `Math.min(45, widthMm * 3.78 * 0.4)` which shrank the
+               logo on standard 58/80mm rolls (thermal80 → 45px cap
+               vs the historical 45px, thermal58 → 40px). The historical
+               45px cap worked on every preset roll. Custom-thermal is
+               the only case where the logo can overshoot a narrow roll,
+               and the .paper-thermal-custom CSS handles that via
+               max-width. */
             <img src={profile.logo} alt="" className="thermal-logo"
-              style={{ maxHeight: Math.min(45, Math.round(paperCfg.widthMm * 3.78 * 0.4)), marginBottom: 4, filter: contrastFilter }} />
+              style={{ maxHeight: 45, marginBottom: 4, filter: contrastFilter }} />
           )}
           <div style={{ fontWeight: strongWeight, fontSize: '1.15em', letterSpacing: '0.02em' }}>
             {(headerCaps || allCaps) ? (profile?.businessName || '').toUpperCase() : (profile?.businessName || '')}
@@ -668,20 +679,21 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
              on 58mm the QR is smaller (auto via qrSizePx below) to fit
              the 48mm printable width. */}
         {opt('showUPI') && qrDataUrl && (() => {
-          // v1.10.33 — QR size cap now derived from actual paper width,
-          // not a hardcoded "90px if isNarrow" bucket. Prior code capped
-          // 90px on anything < 80mm; on a 40mm custom roll that was
-          // 23.8mm (60% of the printable area) — QR blew past the paper
-          // edge on the physical printer. The v1.10.33 CSS rules that
-          // "fixed" this (.paper-thermal-58 canvas, .paper-thermal-
-          // custom canvas etc.) never matched because the thermal branch
-          // renders the QR as a plain <img>, not a <canvas>, and without
-          // any qr-block wrapper. Now the cap sits inline where it
-          // actually applies: max ~50% of printable width, giving room
-          // for the "Scan to pay via UPI" label below.
-          // Math: 1mm ≈ 3.78 px at 96dpi. 0.5 factor → half the width.
-          const capPx = Math.round(paperCfg.widthMm * 3.78 * 0.5);
-          const size = Math.min(qrSizePx, capPx);
+          // v1.10.36 — Reverted to the pre-v1.10.33 QR sizing.
+          // Reported (Hinglish): "qr small ho gaya hai ... phele jaisa
+          // kar dijiye just custom me problem tha". The 50%-of-width
+          // formula introduced in v1.10.33 was too aggressive on
+          // standard rolls (thermal58/76/80 all shrank), and users had
+          // already tuned qrSizePx via the thermalQrSize picker
+          // (small=60/medium=90/large=120px). The ONLY roll that needed
+          // a defensive cap was the custom sub-100mm case — on a 40mm
+          // custom roll the fixed 90px QR spilled off the paper edge.
+          // Now: keep the historical behaviour on every preset roll,
+          // apply the width-based cap ONLY when paperSize === 'custom'.
+          const isCustomThermal = paperCfg.cssClass === 'paper-thermal-custom';
+          const size = isCustomThermal
+            ? Math.min(qrSizePx, Math.round(paperCfg.widthMm * 3.78 * 0.55))
+            : (isNarrow ? Math.min(qrSizePx, 90) : qrSizePx);
           return (
           <div style={{ padding: secPad, textAlign: 'center', ...dashLine }}>
             <img src={qrDataUrl} alt="UPI QR" className="thermal-qr"
@@ -763,6 +775,14 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   const pdfFontWeightCss = !isThermal ? (PDF_FONT_WEIGHT[_ps_final.fontWeight] || 400) : undefined;
   const pdfCapsOn = !isThermal && _ps_final.allCaps === true;
 
+  // v1.10.37 — Terms & Notes rendering mode. Per-invoice option.termsFormatMode
+  // wins over the global printSettings.termsFormatMode. Falls back to
+  // 'compact' (historical) so old invoices keep the same PDF pixel-for-pixel.
+  // The class then gates in-css whether terms honour the container's
+  // allCaps / 0.6rem cascade OR override to a mixed-case 0.78rem layout.
+  const termsFormatMode = options.termsFormatMode || _ps_final.termsFormatMode || 'compact';
+  const termsClassMod = termsFormatMode === 'formatted' ? 'inv-terms-formatted' : '';
+
   const finalContainerStyle = {
     ...containerStyle,
     ...(letterheadOn ? {
@@ -796,7 +816,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       data-user-colors={_ps_final.userColorsEnabled ? '1' : '0'}
       data-row-density={_ps_final.rowDensity || 'normal'}
       data-header-compact={_ps_final.headerCompact ? '1' : '0'}
-      ref={ref} id="invoice-preview" style={finalContainerStyle}>
+      ref={ref} {...(previewOnly ? {} : { id: 'invoice-preview' })} style={finalContainerStyle}>
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'classic' && renderClassicHeader()}
@@ -1124,7 +1144,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             return showTerms && hasTerms ? (
               <div className="inv-footer-block">
                 <h4 className="inv-section-label">{getLabel(_ps_labels, 'terms')}</h4>
-                <div className="inv-terms inv-rich" dangerouslySetInnerHTML={{ __html: termsHtml }} />
+                <div className={`inv-terms inv-rich ${termsClassMod}`} dangerouslySetInnerHTML={{ __html: termsHtml }} />
               </div>
             ) : null;
           })()}
@@ -1134,7 +1154,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             return showNotes && hasNotes ? (
               <div className="inv-footer-block">
                 <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
-                <div className="inv-terms inv-rich" dangerouslySetInnerHTML={{ __html: notesHtml }} />
+                <div className={`inv-terms inv-rich ${termsClassMod}`} dangerouslySetInnerHTML={{ __html: notesHtml }} />
               </div>
             ) : null;
           })()}
@@ -1150,7 +1170,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               return showTerms && hasTerms ? (
                 <div className="inv-footer-block">
                   <h4 className="inv-section-label">{getLabel(_ps_labels, 'terms')}</h4>
-                  <div className="inv-terms inv-rich" dangerouslySetInnerHTML={{ __html: termsHtml }} />
+                  <div className={`inv-terms inv-rich ${termsClassMod}`} dangerouslySetInnerHTML={{ __html: termsHtml }} />
                 </div>
               ) : null;
             })()}
@@ -1160,7 +1180,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               return showNotes && hasNotes ? (
                 <div className="inv-footer-block" style={{ marginTop: '2rem' }}>
                   <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
-                  <div className="inv-terms inv-rich" dangerouslySetInnerHTML={{ __html: notesHtml }} />
+                  <div className={`inv-terms inv-rich ${termsClassMod}`} dangerouslySetInnerHTML={{ __html: notesHtml }} />
                 </div>
               ) : null;
             })()}
