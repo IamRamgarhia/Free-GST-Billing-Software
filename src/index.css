@@ -2174,25 +2174,39 @@ a:focus-visible {
 
 .inv-total-row span:last-child { font-weight: 500; color: #1e293b; }
 
+/* v1.10.38 — TOTAL DUE row gains a proper visual anchor. Prior look
+   was just a top-border + slightly larger amount — subtotal / IGST /
+   TOTAL sat as three equal-weight rows and the eye had no cue where
+   to land. Now: a subtle accent-tinted background bar wraps the row,
+   the label upsizes to 1rem, the amount to 1.4rem. Modern style stays
+   as-is (already had a solid accent pill). */
 .inv-total-final {
   margin-top: 0.5rem;
-  padding-top: 0.75rem;
-  border-top: 2px solid #1e293b;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--pdf-accent, #1e40af) 8%, transparent);
+  border-top: 2px solid var(--pdf-accent, #1e293b);
 }
 
 .inv-total-final span:first-child {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #0f172a;
+  letter-spacing: 0.01em;
 }
 
 .inv-total-final span:last-child {
   font-weight: 800;
-  font-size: 1.25rem;
-  color: #1e40af;
+  font-size: 1.4rem;
+  color: var(--pdf-accent, #1e40af);
+  letter-spacing: -0.01em;
 }
 
-.inv-total-modern { border-top: none; }
+.inv-total-modern {
+  border-top: none;
+  background: unset;  /* modern style provides its own solid accent pill */
+  padding: 0.6rem 0.75rem;
+}
 .inv-total-modern span:first-child,
 .inv-total-modern span:last-child { color: #fff; }
 
@@ -2210,8 +2224,31 @@ a:focus-visible {
 
 .inv-footer-left { flex: 1; }
 
-.inv-footer-block { margin-bottom: 0.75rem; }
+/* v1.10.38 — Match Bill-To visual treatment for the footer blocks
+   (Bank Details, Terms & Conditions, Notes, Exchange Rate). Prior
+   look had Bill-To sitting inside a soft-grey border box while these
+   blocks floated as plain paragraphs — visually inconsistent. Now
+   they share the same subtle container so the page reads as a set of
+   uniform sections. Kept the padding conservative (0.7rem) so the
+   PDF doesn't inflate vertically and existing multi-page cuts still
+   land where they used to. */
+.inv-footer-block {
+  margin-bottom: 0.6rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+}
 .inv-footer-block:last-child { margin-bottom: 0; }
+[data-theme="dark"] .inv-footer-block { background: #f8fafc !important; border-color: #e2e8f0 !important; }
+/* Minimal PDF style keeps the airy no-border look — the design's
+   whole personality is negative space, containers would fight it. */
+.template-minimal .inv-footer-block,
+.template-minimalist .inv-footer-block {
+  background: transparent;
+  border: none;
+  padding: 0.3rem 0;
+}
 
 .inv-footer-details {
   font-size: 0.8rem;

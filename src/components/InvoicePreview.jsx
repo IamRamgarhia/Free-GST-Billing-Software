@@ -790,9 +790,17 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // v1.10.37 — Terms & Notes rendering mode. Per-invoice option.termsFormatMode
   // wins over the global printSettings.termsFormatMode. Falls back to
   // 'compact' (historical) so old invoices keep the same PDF pixel-for-pixel.
-  // The class then gates in-css whether terms honour the container's
-  // allCaps / 0.6rem cascade OR override to a mixed-case 0.78rem layout.
-  const termsFormatMode = options.termsFormatMode || _ps_final.termsFormatMode || 'compact';
+  //
+  // v1.10.38 — Smart default. If no explicit choice was made AND the
+  // invoice is services-only (freelancers / consultants / dev shops
+  // typically have B2B clients who actually read the terms), default
+  // to 'formatted'. Goods invoices stay on 'compact' because their
+  // terms are usually retail boilerplate the client never reads.
+  // Explicit user choice at either the per-invoice or global level
+  // always wins over this heuristic.
+  const explicitMode = options.termsFormatMode || _ps_final.termsFormatMode;
+  const isServicesInvoice = (options.invoiceMode || 'goods') === 'services';
+  const termsFormatMode = explicitMode || (isServicesInvoice ? 'formatted' : 'compact');
   const termsClassMod = termsFormatMode === 'formatted' ? 'inv-terms-formatted' : '';
 
   const finalContainerStyle = {
