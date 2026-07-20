@@ -213,9 +213,21 @@ export function computeInvoiceTotals(opts) {
     const cessPct = finiteNonNeg(item.cessPercent);
     const gross = qty * rate;
     const afterDisc = Math.max(0, gross - disc);
-    const taxable = (taxInclusive && taxPct > 0) ? afterDisc / (1 + taxPct / 100) : afterDisc;
-    const tax = r2(taxable * taxPct / 100);
-    const cess = showGST ? r2(taxable * cessPct / 100) : 0;
+    // v1.10.39 — Reported: clicking "Bill of Supply (No GST)" doesn't
+    // remove GST from the total. Root cause: prior code computed
+    // `taxable = afterDisc / (1 + taxPct / 100)` when tax-inclusive
+    // AND `tax = taxable * taxPct / 100` UNCONDITIONALLY. Only `cess`
+    // was gated on showGST. Result: switching to Bill of Supply left
+    // line-level tax computed → summed into taxTotal → added to
+    // igst/cgst/sgst → grand total inflated by the tax the invoice
+    // type says isn't applicable. Now: showGST=false zeros the tax
+    // AND treats the invoice as always tax-exclusive (taxable = full
+    // afterDisc value), which is what a Bill of Supply / Delivery
+    // Challan actually is.
+    const applyTax = !!showGST;
+    const taxable = (applyTax && taxInclusive && taxPct > 0) ? afterDisc / (1 + taxPct / 100) : afterDisc;
+    const tax = applyTax ? r2(taxable * taxPct / 100) : 0;
+    const cess = applyTax ? r2(taxable * cessPct / 100) : 0;
     return { qty, rate, disc, taxPct, cessPct, gross, afterDisc, taxable: r2(taxable), tax, cess };
   });
 
