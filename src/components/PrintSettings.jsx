@@ -894,6 +894,15 @@ export default function PrintSettings() {
               value={settings.thermalBufferSafe} onChange={v => set({ thermalBufferSafe: v })}
               tag={isRecommendedForActive(['retail_shop', 'restaurant']) ? 'Recommended for your business' : null}
               hint="Uses grayscale, drops render scale for thermal captures, and lowers JPEG quality. Helps ₹800–₹2000 thermal printers with small internal buffers avoid stuck B/W print jobs." />
+            {/* v1.10.42 — Thermal delivery mode (Direct HTML vs PDF). */}
+            <SelectRow label="Thermal print method"
+              value={settings.thermalPrintMode || 'direct'}
+              onChange={v => set({ thermalPrintMode: v })}
+              options={[
+                ['direct', 'Direct HTML — sharper, faster (recommended)'],
+                ['pdf',    'Via PDF — safer fallback for finicky printers'],
+              ]}
+              hint="Direct sends invoice text as vector to the printer — 203-dpi thermal renders it sharply. If your printer or browser mis-handles the direct path, switch to Via PDF for the pre-v1.10.42 raster behaviour." />
           </SettingGroup>
 
           {/* PER-TYPE INVOICE PREFIX OVERRIDES (v1.10.10) */}

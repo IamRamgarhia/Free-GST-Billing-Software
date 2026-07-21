@@ -2321,6 +2321,100 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
   };
 
+  // v1.10.42 — Vector-HTML thermal print (revived from v1.10.35). Clones
+  // the on-screen invoice-preview element + the document's stylesheets
+  // into a hidden iframe, sets @page: size WIDTHmm auto, and calls
+  // iframe.contentWindow.print(). Text stays VECTOR all the way to the
+  // printer driver — 203-dpi thermal rasterises at native resolution
+  // → sharp glyphs regardless of font size, smaller print jobs, faster
+  // buffer fill on cheap thermal printers with tiny buffers.
+  //
+  // This is what the v1.10.35 ThermalPreviewModal was doing before the
+  // v1.10.36 revert. We lost it there because custom paper widths + a
+  // separate modal-hosted <InvoicePreview> instance introduced CSS drift
+  // vs the on-screen render. This revival uses the parent's existing
+  // on-screen `printRef` (same DOM the user is seeing), avoiding that
+  // drift class entirely.
+  //
+  // Returns true on success, false if the browser blocked programmatic
+  // iframe print (rare — chrome/edge/safari all allow it from a user-
+  // gesture click, which is our only caller). The false case lets the
+  // caller fall back to the PDF path without a toast on the user.
+  const printThermalViaHtml = async () => {
+    if (!printRef.current) return false;
+    const receipt = printRef.current.querySelector('#invoice-preview') || printRef.current;
+    if (!receipt) return false;
+
+    const paperCfg = getPaperSize(invoiceOptions.paperSize, invoiceOptions);
+    const widthMm = paperCfg.widthMm || 80;
+
+    // Collect the document's CSS text so the iframe renders identically.
+    // Cross-origin stylesheets (Google Fonts, etc.) throw on cssRules
+    // access — skip those; thermal renders fine with system fonts.
+    const collectStyles = () => {
+      const parts = [];
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          const rules = sheet.cssRules;
+          if (!rules) continue;
+          for (const rule of Array.from(rules)) parts.push(rule.cssText);
+        } catch { /* cross-origin, skip */ }
+      }
+      return parts.join('\n');
+    };
+
+    const doc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Print Receipt</title>
+  <style>
+    @page { size: ${widthMm}mm auto; margin: 0; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+    #invoice-preview {
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      color: #000 !important;
+      min-height: 0 !important;
+    }
+    ${collectStyles()}
+  </style>
+</head>
+<body>${receipt.outerHTML}</body>
+</html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-99999px;top:0;width:0;height:0;border:0;';
+    iframe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(iframe);
+
+    try {
+      await new Promise((resolve) => {
+        iframe.onload = resolve;
+        iframe.srcdoc = doc;
+      });
+      // Wait for images (logo, QR) inside the iframe. 3s safety per image.
+      const imgs = iframe.contentDocument?.querySelectorAll('img') || [];
+      await Promise.all(Array.from(imgs).map(img => (
+        img.complete
+          ? Promise.resolve()
+          : new Promise(r => { img.onload = r; img.onerror = r; setTimeout(r, 3000); })
+      )));
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      // Give the driver ~8s to grab the buffer before we tear down.
+      setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 8000);
+      return true;
+    } catch (err) {
+      console.warn('Direct thermal print failed, will fall back to PDF:', err);
+      try { iframe.remove(); } catch { /* ignore */ }
+      return false;
+    }
+  };
+
   // v1.10.3 — Thermal receipts (58mm / 80mm rolls) no longer go through
   // html2canvas → JPEG → jsPDF. That path was 100× the CPU/memory of
   // what's needed for a text-only receipt. Now: for thermal paper sizes
@@ -2399,6 +2493,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     try {
       await withPreviewOnScreen(async () => {
         try {
+          // v1.10.42 — Thermal + user hasn't opted out of direct print?
+          // Try the vector-HTML path first. If the browser blocks it
+          // (returned false), silently fall through to the PDF path so
+          // the user still gets a print — no surfaced error required.
+          if (isThermalPaper() && (getPrintSettings().thermalPrintMode || 'direct') === 'direct') {
+            const ok = await printThermalViaHtml();
+            if (ok) return;
+          }
           const pdf = await buildPDF();
           const blob = pdf.output('blob');
           printViaIframe(blob);

@@ -256,6 +256,26 @@ export const DEFAULT_PRINT_SETTINGS = {
   // existing users don't see their invoices unexpectedly restyled.
   headerCompact: false,
 
+  // v1.10.42 — Thermal print delivery mode. Reported (session-follow-up
+  // to the v1.10.36 revert): "phir se laiye — direct print without
+  // creating PDF wala".
+  //   'direct' → invoice HTML is written into a hidden iframe with an
+  //              @page size matching the roll width and printed via
+  //              window.print(). Text stays VECTOR all the way to the
+  //              driver → 203-dpi thermal rasterises at native resolution
+  //              → sharp glyphs, small print jobs, fast buffer fill.
+  //              This is what the v1.10.35 vector-HTML path did; we
+  //              lost it in v1.10.36's revert.
+  //   'pdf'    → invoice is rendered with html2canvas → JPEG → jsPDF,
+  //              then the PDF is printed via iframe. Safer fallback when
+  //              a printer / browser combo mis-handles CSS @page on the
+  //              iframe path. This is the current (post-v1.10.36)
+  //              behaviour, and remains the default for A4/A5/Letter.
+  // Direct is the default because vector-to-thermal is measurably
+  // sharper for the 95% of users on standard 58/80mm rolls; anyone hit
+  // by an edge case can flip to 'pdf' without a code change.
+  thermalPrintMode: 'direct',   // 'direct' | 'pdf'
+
   // v1.10.11 — Thermal buffer-safe mode. Old thermal printers with
   // small internal buffers (< 128 KB is common on ₹800-₹2000 units)
   // get stuck when the browser sends a colour or high-DPI receipt.
