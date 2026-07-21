@@ -16,6 +16,13 @@
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
   --primary-light: rgba(37, 99, 235, 0.08);
+  /* v1.10.40 — RGB channels of --primary for rgba() composition.
+     html2canvas (which rasterizes the invoice for the PDF) does NOT
+     support color-mix(in oklab, …) — reported as "Attempting to parse
+     an unsupported color function oklab" on Save & Download. So all
+     dynamic tints that used to be color-mix now use rgba(var(--primary-rgb), α). */
+  --primary-rgb: 37, 99, 235;
+  --primary-darker: #1e3a8a;
   --bg: #f0f2f5;
   --bg-primary: #f0f2f5;
   --bg-secondary: #f8fafc;       /* card / inset surface — light grey on light, dark slate on dark */
@@ -52,6 +59,8 @@
   --primary: #3b82f6;
   --primary-hover: #2563eb;
   --primary-light: rgba(59, 130, 246, 0.12);
+  --primary-rgb: 59, 130, 246;
+  --primary-darker: #1e3a8a;
   --bg: #0f172a;
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;       /* card / inset surface in dark mode */
@@ -598,7 +607,7 @@ body {
   gap: 1rem;
   flex-wrap: wrap;
   padding: 1.1rem 1.35rem;
-  background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 12%, var(--card-bg)), var(--card-bg));
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), var(--card-bg));
   border: 1px solid var(--border);
   border-radius: 12px;
   margin-bottom: 1.5rem;
@@ -2184,7 +2193,7 @@ a:focus-visible {
   margin-top: 0.5rem;
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
-  background: color-mix(in oklab, var(--pdf-accent, #1e40af) 8%, transparent);
+  background: rgba(var(--pdf-accent-rgb, 30, 64, 175), 0.08);
   border-top: 2px solid var(--pdf-accent, #1e293b);
 }
 

@@ -17,7 +17,7 @@ export default function PageHeader({ icon, title, subtitle, meta, children }) {
   return (
     <div className="page-header" style={{
       padding: '1.1rem 1.35rem',
-      background: 'linear-gradient(135deg, color-mix(in oklab, var(--primary) 12%, var(--card-bg)), var(--card-bg))',
+      background: 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), var(--card-bg))',
       border: '1px solid var(--border)',
       borderRadius: 12,
       marginBottom: '1.25rem',
@@ -27,11 +27,11 @@ export default function PageHeader({ icon, title, subtitle, meta, children }) {
           <div style={{
             width: 44, height: 44,
             borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 70%, #000))',
+            background: 'linear-gradient(135deg, var(--primary), var(--primary-darker))',
             color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '1.15rem',
-            boxShadow: '0 6px 18px color-mix(in oklab, var(--primary) 35%, transparent)',
+            boxShadow: '0 6px 18px rgba(var(--primary-rgb), 0.35)',
             flexShrink: 0,
           }}>{icon}</div>
         )}

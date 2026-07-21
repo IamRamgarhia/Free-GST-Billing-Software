@@ -621,7 +621,7 @@ export default function SettingsView({ onSaved }) {
            the user has a scale expectation before diving in. */}
       <div className="page-header" style={{
         padding: '1.1rem 1.35rem',
-        background: 'linear-gradient(135deg, color-mix(in oklab, var(--primary) 12%, var(--card-bg)), var(--card-bg))',
+        background: 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), var(--card-bg))',
         border: '1px solid var(--border)',
         borderRadius: 12,
         marginBottom: '1.25rem',
@@ -630,11 +630,11 @@ export default function SettingsView({ onSaved }) {
           <div style={{
             width: 44, height: 44,
             borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 70%, #000))',
+            background: 'linear-gradient(135deg, var(--primary), var(--primary-darker))',
             color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '1.15rem',
-            boxShadow: '0 6px 18px color-mix(in oklab, var(--primary) 35%, transparent)',
+            boxShadow: '0 6px 18px rgba(var(--primary-rgb), 0.35)',
           }}>⚙</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h1 className="page-title" style={{ margin: 0 }}>Settings</h1>
@@ -672,7 +672,7 @@ export default function SettingsView({ onSaved }) {
            scrollbar, edge-fade masks so users know there's more. */}
       <nav className="settings-jumpnav" aria-label="Settings sections" style={{
         position: 'sticky', top: 0, zIndex: 20,
-        background: 'color-mix(in oklab, var(--card-bg) 82%, transparent)',
+        background: 'rgba(var(--card-bg-rgb, 255, 255, 255), 0.82)',
         backdropFilter: 'saturate(1.5) blur(12px)',
         WebkitBackdropFilter: 'saturate(1.5) blur(12px)',
         border: '1px solid var(--border)',
@@ -703,14 +703,14 @@ export default function SettingsView({ onSaved }) {
                 padding: '0.38rem 0.8rem',
                 borderRadius: 999,
                 background: active
-                  ? 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 82%, #000))'
+                  ? 'linear-gradient(135deg, var(--primary), var(--primary-darker))'
                   : 'var(--bg-secondary)',
                 color: active ? '#fff' : 'var(--text)',
                 textDecoration: 'none',
                 border: active ? '1px solid transparent' : '1px solid var(--border)',
                 transition: 'all 0.18s ease',
                 whiteSpace: 'nowrap',
-                boxShadow: active ? '0 4px 12px color-mix(in oklab, var(--primary) 40%, transparent)' : 'none',
+                boxShadow: active ? '0 4px 12px rgba(var(--primary-rgb), 0.4)' : 'none',
               }}
               onMouseEnter={(e) => {
                 if (!active) {
@@ -756,7 +756,7 @@ export default function SettingsView({ onSaved }) {
           <div style={{
             width: 40, height: 40, flexShrink: 0,
             borderRadius: 10,
-            background: 'color-mix(in oklab, #f59e0b 18%, transparent)',
+            background: 'rgba(245, 158, 11, 0.18)',
             color: '#d97706',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '1.15rem',
@@ -815,7 +815,7 @@ export default function SettingsView({ onSaved }) {
                       padding: '0.45rem 0.85rem',
                       borderRadius: 999,
                       background: active
-                        ? 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 82%, #000))'
+                        ? 'linear-gradient(135deg, var(--primary), var(--primary-darker))'
                         : 'var(--bg-secondary)',
                       color: active ? '#fff' : 'var(--text)',
                       border: active ? '1px solid transparent' : '1px solid var(--border)',
@@ -823,7 +823,7 @@ export default function SettingsView({ onSaved }) {
                       cursor: 'pointer',
                       transition: 'all 0.15s',
                       minWidth: 44,
-                      boxShadow: active ? '0 4px 10px color-mix(in oklab, var(--primary) 35%, transparent)' : 'none',
+                      boxShadow: active ? '0 4px 10px rgba(var(--primary-rgb), 0.35)' : 'none',
                     }}>
                     {p.label}
                     <span style={{ display: 'block', fontSize: '0.6rem', fontWeight: 500, opacity: 0.85, marginTop: 1 }}>{p.hint}</span>

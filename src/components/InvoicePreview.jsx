@@ -814,14 +814,26 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     // v1.9.2 — CSS custom properties for user-controlled colours. Only
     // applied when userColorsEnabled = true (data attribute gates the CSS).
     // Each var falls back to a template default if the user doesn't set it.
-    ...(_ps_final.userColorsEnabled ? {
-      '--pdf-primary-text': _ps_final.pdfPrimaryText || '#0f172a',
-      '--pdf-muted-text':   _ps_final.pdfMutedText   || '#334155',
-      '--pdf-accent':       _ps_final.pdfAccent      || '#1e40af',
-      '--pdf-accent-text':  _ps_final.pdfAccentText  || '#ffffff',
-      '--pdf-header-bg':    _ps_final.pdfHeaderBg    || '#f8fafc',
-      '--pdf-divider':      _ps_final.pdfDividerColor|| '#334155',
-    } : {}),
+    ...(_ps_final.userColorsEnabled ? (() => {
+      const accent = _ps_final.pdfAccent || '#1e40af';
+      // v1.10.40 — Also compute an RGB channel string so CSS rules can
+      // build rgba(var(--pdf-accent-rgb), α) tints. Was using
+      // color-mix(in oklab, …) but html2canvas doesn't parse it and
+      // fails on Save & Download with "unsupported color function oklab".
+      const hex = accent.startsWith('#') ? accent.slice(1) : '';
+      const rgb = hex.length === 6
+        ? `${parseInt(hex.slice(0,2),16)}, ${parseInt(hex.slice(2,4),16)}, ${parseInt(hex.slice(4,6),16)}`
+        : '30, 64, 175';  // fallback to default blue
+      return {
+        '--pdf-primary-text': _ps_final.pdfPrimaryText || '#0f172a',
+        '--pdf-muted-text':   _ps_final.pdfMutedText   || '#334155',
+        '--pdf-accent':       accent,
+        '--pdf-accent-rgb':   rgb,
+        '--pdf-accent-text':  _ps_final.pdfAccentText  || '#ffffff',
+        '--pdf-header-bg':    _ps_final.pdfHeaderBg    || '#f8fafc',
+        '--pdf-divider':      _ps_final.pdfDividerColor|| '#334155',
+      };
+    })() : {}),
     // v1.9.14/1.10.9 — inline typography. pdfFontSizeCss already folds
     // in the pdfFontScale multiplier (see the compute above).
     ...(pdfFontFamilyCss ? { fontFamily: pdfFontFamilyCss } : {}),

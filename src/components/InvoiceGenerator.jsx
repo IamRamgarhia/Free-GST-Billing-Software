@@ -2492,9 +2492,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             const saved = autoSaveStatus === 'saved';
             const isDraft = autoSaveStatus === 'idle' && !isMeaningfulInvoice();
             const color = saving ? '#3b82f6' : saved ? '#059669' : isDraft ? '#d97706' : '#94a3b8';
-            const bg = saving ? 'color-mix(in oklab, #3b82f6 12%, transparent)'
-              : saved ? 'color-mix(in oklab, #059669 12%, transparent)'
-              : isDraft ? 'color-mix(in oklab, #d97706 12%, transparent)'
+            const bg = saving ? 'rgba(59, 130, 246, 0.12)'
+              : saved ? 'rgba(5, 150, 105, 0.12)'
+              : isDraft ? 'rgba(217, 119, 6, 0.12)'
               : 'var(--bg-secondary)';
             const label = saving ? 'Saving…'
               : saved ? 'All changes saved'
@@ -2525,7 +2525,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   padding: '0.35rem 0.7rem',
                   borderRadius: 999,
                   background: bg,
-                  border: `1px solid color-mix(in oklab, ${color} 22%, var(--border))`,
+                  border: `1px solid ${color}55`,
                   color: color,
                   cursor: isDraft ? 'pointer' : 'default',
                 }}>
@@ -2535,7 +2535,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   <span style={{
                     width: 8, height: 8, borderRadius: '50%',
                     background: color,
-                    boxShadow: isDraft ? `0 0 0 3px color-mix(in oklab, ${color} 18%, transparent)` : 'none',
+                    boxShadow: isDraft ? `0 0 0 3px ${color}33` : 'none',
                   }} />
                 )}
                 {label}
@@ -3534,7 +3534,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                         fontSize: '0.72rem', fontWeight: 600,
                         padding: '0.28rem 0.65rem', borderRadius: 999,
                         background: active
-                          ? 'linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 82%, #000))'
+                          ? 'linear-gradient(135deg, var(--primary), var(--primary-darker))'
                           : 'var(--bg-secondary)',
                         color: active ? '#fff' : 'var(--text)',
                         border: active ? '1px solid transparent' : '1px solid var(--border)',
