@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt } from '../store';
+import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
 import PageHeader from './PageHeader';
@@ -198,6 +198,78 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
     try {
       const data = await getAllBills();
       const today = new Date().toISOString().split('T')[0];
+
+      // v1.10.41 — Orphaned-payment reconciliation. Reported: user
+      // recorded a payment in an older version — the receipt file
+      // exists on disk (Receipts page shows it) but the bill's
+      // paidAmount stayed at 0 and Dashboard showed the invoice as
+      // Overdue with PAID = "—". Root cause was cross-file data
+      // drift: receipts persist in data/receipts/*.json with a
+      // billId reference; bills persist in data/bills/*.json with
+      // their own payments[] array. If a save regression or stale
+      // editingBill overwrite ever emptied the bill's payments,
+      // the receipt survived but the linkage was lost.
+      //
+      // Reconciliation: for every receipt with a bill reference,
+      // check if the bill's payments array contains a matching
+      // entry (by receiptNo or by amount+date+mode). If not, merge
+      // it back and re-save the bill. Runs once per Dashboard mount,
+      // catches this whole class of orphaned-payment bugs
+      // retroactively, and silently no-ops in the healthy case.
+      let reconciled = 0;
+      try {
+        const receipts = await getAllReceipts().catch(() => []);
+        const receiptsByBillKey = new Map();
+        for (const r of receipts) {
+          const key = r.billId || r.againstInvoice;
+          if (!key) continue;
+          if (!receiptsByBillKey.has(key)) receiptsByBillKey.set(key, []);
+          receiptsByBillKey.get(key).push(r);
+        }
+        const reconcileWrites = [];
+        for (const bill of data) {
+          const rcpts = receiptsByBillKey.get(bill.id) || receiptsByBillKey.get(bill.invoiceNumber) || [];
+          if (!rcpts.length) continue;
+          const currentPayments = Array.isArray(bill.payments) ? bill.payments : [];
+          const missing = rcpts.filter(r => {
+            // Match by receiptNo (post-v1.10.10 payments store the receipt no),
+            // OR by amount+date signature for pre-v1.10.10 payments.
+            return !currentPayments.some(p =>
+              (r.receiptNo && p.receiptNo === r.receiptNo)
+              || (Math.abs((Number(p.amount) || 0) - (Number(r.amount) || 0)) < 0.005
+                  && p.date === r.date
+                  && (p.mode || '').toLowerCase() === (r.paymentMode || '').toLowerCase().replace(' ', '-'))
+            );
+          });
+          if (!missing.length) continue;
+          const modeMap = { 'Bank Transfer': 'bank-transfer', 'UPI': 'upi', 'Cash': 'cash', 'Cheque': 'cheque', 'Card': 'card', 'Other': 'other' };
+          const merged = [...currentPayments, ...missing.map(r => ({
+            id: r.id || ('pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+            amount: Number(r.amount) || 0,
+            date: r.date,
+            mode: modeMap[r.paymentMode] || (r.paymentMode || 'other').toLowerCase().replace(' ', '-'),
+            note: r.note || (r.receiptNo ? `Reconciled from receipt ${r.receiptNo}` : 'Reconciled from orphaned receipt'),
+            recordedAt: r.recordedAt || new Date().toISOString(),
+            receiptNo: r.receiptNo,
+          }))];
+          const totalPaid = merged.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+          const billTotal = Number(bill.totalAmount) || 0;
+          const nextStatus = totalPaid >= billTotal && billTotal > 0
+            ? 'paid'
+            : (totalPaid > 0 ? 'partial' : 'unpaid');
+          // Mutate the in-memory bill so setBills(data) below shows the
+          // reconciled value immediately; also queue the server write.
+          bill.payments = merged;
+          bill.paidAmount = totalPaid;
+          bill.status = nextStatus;
+          reconciled += missing.length;
+          reconcileWrites.push(saveBill(bill, { overwrite: true }).catch(() => null));
+        }
+        if (reconcileWrites.length) await Promise.allSettled(reconcileWrites);
+      } catch { /* non-fatal — worst case, user still sees orphaned state */ }
+      if (reconciled > 0) {
+        toast(`Reconciled ${reconciled} orphaned payment${reconciled === 1 ? '' : 's'} against ${reconciled === 1 ? 'its' : 'their'} invoice${reconciled === 1 ? '' : 's'}`, 'success', 6000);
+      }
 
       // Auto-detect overdue: if due date passed and not paid, mark as overdue.
       // Previously this did sequential `await saveBill(bill)` inside a for-loop,

@@ -1418,12 +1418,52 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ? planCreditApplication(client.name, allBillsForCredit, creditToApply, finalInvoiceNumber)
       : null;
 
+    // v1.10.41 — Payment-preservation guard. Reported: user recorded
+    // a payment on the Dashboard while an editor tab still had the
+    // pre-payment `editingBill` cached; when the editor was later
+    // saved (e.g. printed, marked, or manually saved), the stale
+    // editingBill.payments overwrote the server copy and the
+    // payment vanished from the invoice while the receipt file
+    // survived on disk. Fix: for edits, fetch the latest server
+    // bill first and union any payments (by receiptNo, or by
+    // amount+date+mode fingerprint for older records) that
+    // aren't already in editingBill's copy. Non-fatal on network
+    // error — worst case reverts to old behaviour, and the
+    // Dashboard reconciliation pass catches it on next load.
     const seedPayments = editingBill?.payments ? [...editingBill.payments] : [];
+    if (editingBill?.id) {
+      try {
+        const serverBills = await getAllBills();
+        const fresh = serverBills.find(b => b.id === editingBill.id);
+        const freshPayments = Array.isArray(fresh?.payments) ? fresh.payments : [];
+        for (const fp of freshPayments) {
+          const dup = seedPayments.some(p =>
+            (fp.receiptNo && p.receiptNo === fp.receiptNo)
+            || (fp.id && p.id === fp.id)
+            || (Math.abs((Number(p.amount) || 0) - (Number(fp.amount) || 0)) < 0.005
+                && p.date === fp.date
+                && (p.mode || '') === (fp.mode || ''))
+          );
+          if (!dup) seedPayments.push(fp);
+        }
+      } catch { /* non-fatal — reconciliation pass will catch it */ }
+    }
     if (creditPlan?.targetEntry) seedPayments.push(creditPlan.targetEntry);
     const seedPaidAmount = seedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    const seedStatus = editingBill?.status
-      || (seedPaidAmount >= (Number(totals.total) || 0) - 0.005 ? 'paid'
-          : (seedPaidAmount > 0.005 ? 'partial' : 'unpaid'));
+    // v1.10.41 — Recompute status from the merged paid amount rather
+    // than trusting editingBill.status. If a payment was recorded on
+    // Dashboard while the editor was open (see comment above), that
+    // stale status would still say 'unpaid' and this save would
+    // downgrade a fully-paid invoice.
+    const billTotalForStatus = Number(totals.total) || 0;
+    const computedStatus = seedPaidAmount >= billTotalForStatus - 0.005 && billTotalForStatus > 0
+      ? 'paid'
+      : (seedPaidAmount > 0.005 ? 'partial' : 'unpaid');
+    // Preserve 'overdue' when nothing is paid — otherwise trust the
+    // freshly computed status.
+    const seedStatus = (computedStatus === 'unpaid' && editingBill?.status === 'overdue')
+      ? 'overdue'
+      : computedStatus;
 
     const bill = {
       id: finalInvoiceNumber,
@@ -2103,18 +2143,31 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     // ----- Reprint indicator (automatic when this bill has been printed before) -----
+    // v1.10.41 — Reported: "REPRINT · Copy #2" badge was overlapping the
+    // business logo in the top-left of the PDF. Root cause: badge was
+    // pinned at x=4, y=4 which is exactly where every template's logo
+    // sits. Two fixes:
+    //   1. Move the badge to the TOP-RIGHT corner (pageWidth - w - 4)
+    //      so it never fights the logo for space.
+    //   2. Default reprintLabelEnabled = false (see printSettings.js) so
+    //      users don't get the surprise stamp on every second download.
+    //      Only retail/restaurant users who genuinely need POS reprint
+    //      tracking will turn it on — the Print Settings toggle is
+    //      already gated to those business types.
     if (!isThermalPdf && ps.reprintLabelEnabled && Number(editingBill?.printedCount) > 0) {
       const label = `REPRINT · Copy #${(Number(editingBill.printedCount) || 0) + 1}`;
       const finalPages = pdf.getNumberOfPages();
+      const pageWidthMm = pdf.internal.pageSize.getWidth();
       for (let p = 1; p <= finalPages; p++) {
         pdf.setPage(p);
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(8);
         pdf.setTextColor(220, 38, 38);
         const w = pdf.getTextWidth(label) + 4;
+        const x = pageWidthMm - w - 4;  // top-right corner
         pdf.setDrawColor(220, 38, 38);
-        pdf.rect(4, 4, w, 6, 'S');
-        pdf.text(label, 6, 8);
+        pdf.rect(x, 4, w, 6, 'S');
+        pdf.text(label, x + 2, 8);
         pdf.setTextColor(0);
       }
     }

@@ -99,8 +99,16 @@ export const DEFAULT_PRINT_SETTINGS = {
   feedbackQrLabel: 'Rate us · Give feedback',
 
   // -- Reprint indicator (automatic) --
-  reprintLabelEnabled: true, // when true, a "REPRINT · Copy #N" badge appears on any invoice
-                             // whose printedCount > 0 (based on bill.printedCount field)
+  // v1.10.41 — Default flipped from true to false. Reported: user was
+  // surprised by "REPRINT · Copy #2" stamp appearing on their invoice's
+  // top-left, overlapping the logo, the second time they downloaded it.
+  // Freelancer / services / manufacturing users have no need for POS
+  // reprint tracking — it's a retail-counter feature (customer asks for
+  // a duplicate bill). The Print Settings toggle is already gated to
+  // retail/restaurant business presets (v1.10.36) so those users can
+  // opt in; every other user gets the badge OFF unless they turn it on.
+  reprintLabelEnabled: false, // when true, a "REPRINT · Copy #N" badge appears on any invoice
+                              // whose printedCount > 0 (based on bill.printedCount field)
 
   // ============================================================
   // v1.9.1 additions — all dynamic (on/off toggles)
