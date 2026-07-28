@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#quick-start--installation)
-[![Version](https://img.shields.io/badge/Version-1.6.1-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![Version](https://img.shields.io/badge/Version-1.10.42-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](#install-as-a-desktop-app-pwa)
 [![GitHub Stars](https://img.shields.io/github/stars/IamRamgarhia/Free-GST-Billing-Software?style=social)](https://github.com/IamRamgarhia/Free-GST-Billing-Software)
 [![Countries](https://img.shields.io/badge/Countries-22-blue.svg)](#key-features)
@@ -16,24 +16,25 @@
 
 Your data never leaves your computer. No cloud. No signup. No tracking. No limits. Open-source and offline-first.
 
-[Download Now](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [Try in Browser](#-try-it-now-in-your-browser) &nbsp;|&nbsp; [Screenshots](#screenshots) &nbsp;|&nbsp; [5-Minute Quick Start](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;|&nbsp; [Request Feature](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 
 </div>
 
 ---
 
-## 🚀 Try it now in your browser
+## ⚡ Install in 60 Seconds (Windows one-click)
 
-Want to see what it looks like before downloading? Two zero-install options:
+The fastest way to get billing on your PC — no coding, no cloud, no signup.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/IamRamgarhia/Free-GST-Billing-Software)
-&nbsp;
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/IamRamgarhia/Free-GST-Billing-Software)
+```
+1. Download → https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip
+2. Right-click the ZIP → Extract All → pick a folder you'll remember
+3. Double-click  Install FreeGSTBill.bat
+```
 
-- **StackBlitz** — full app runs in your browser via WebContainers (Node + Express + React all simulated in-page). ~30 seconds to boot. Your sandbox is private — nothing leaves your tab. Data resets when you close the tab.
-- **GitHub Codespaces** — cloud dev environment with the project pre-loaded. Click *Run* on `npm start` and the forwarded port opens the live app. Requires GitHub login. Free 60 hours/month per personal account.
+The installer auto-installs Node.js if missing, sets up the app, and opens it at **http://localhost:47371** — a **Desktop shortcut** and **Start-Menu entry** are created for you. From then on, just click the shortcut.
 
-> ⚠️ **Both are demos.** For real day-to-day billing use the local install (Quick Start below). Your business data deserves to live on your own machine, not in a browser sandbox or a cloud VM. The whole point of this software is that.
+> **Mac / Linux user?** Jump to [Option 2 → Developer Setup](#option-2-developer-setup) below — one `npm install && npm start` and you're done.
 
 ---
 
@@ -53,7 +54,7 @@ Want to see what it looks like before downloading? Two zero-install options:
 
 ## 📑 Table of Contents
 
-- [Try it now in your browser](#-try-it-now-in-your-browser) — *zero-install demo*
+- [Install in 60 Seconds](#-install-in-60-seconds-windows-one-click) — *Windows one-click*
 - [Why Choose Free GST Billing Software?](#why-choose-free-gst-billing-software)
 - [Your First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) — *start here if you're new*
 - [Key Features](#key-features)
@@ -232,7 +233,23 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 
 ## Key Features
 
-> 🆕 **New in v1.10** (highlighted with 🆕 throughout): DOM-level multi-page pagination · GST Rule 48 multi-copy for multi-page invoices · **UTGST bucket** (Chandigarh/Ladakh/A&N/Lakshadweep/DN&DD) · TCS 206C(1H) on receipt-including-GST per CBDT Circular 17/2020 · ₹50L per-counterparty TDS/TCS threshold · **Payment Receipt with view/edit/delete history** · **9 one-click design presets** (Modern / Classic / Corporate / Minimalist / Colorful / Compact / Enterprise / IT Services / Retail Brand) · **Print & PDF split-view live preview** · Print margins · PDF Font Family + Font Scale · Multi-language section labels · Setup wizard with 6 business presets · Automatic daily backup + Trash bin · Notification bell · Ctrl+K command palette · Bulk export with progress & cancel · CORS lockdown · Route lazy-loading (main bundle -46%)
+> 🆕 **What's new (v1.10.30 → v1.10.42, shipped 2026)**
+>
+> - **Direct-HTML vector thermal print** (v1.10.42) — 58/80mm receipts skip the raster PDF path and go straight to the printer as vector text. Sharp glyphs on 203-dpi thermal heads, smaller print jobs. User-toggle to switch back to Via-PDF for finicky printers.
+> - **Payment / receipt reconciliation** (v1.10.41) — Dashboard auto-heals any orphaned receipts against their invoice; stale-editor saves can no longer wipe a payment recorded in another tab.
+> - **REPRINT badge polish** (v1.10.41) — moved to top-right so it never overlaps the logo; default OFF for freelancers/services (retail/POS can opt in).
+> - **Bill of Supply / Delivery Challan** (v1.10.39) — the "no GST" invoice types now correctly remove GST from the invoice total.
+> - **PDF colour crash fix** (v1.10.40) — swapped `color-mix(in oklab, …)` for `rgba()`; PDF Save & Download works on every browser again.
+> - **Invoice PDF polish** (v1.10.38) — accent-tinted TOTAL DUE anchor, footer-block containers matching Bill To, smart Terms format default (services → formatted, goods → compact).
+> - **Payment Accounts — Account Holder Name + Account Type** (v1.10.37) — invoices now show whose name is on the bank and whether it's Savings/Current.
+> - **Portal print preview + settings redesign + business-type gating** (v1.10.36) — split-view collapses to one column on mobile, sections gated by business preset (freelancer no longer sees thermal-only options), reusable page-header card across every screen.
+> - **Vector-HTML thermal preview + OCR line items** (v1.10.35) — OCR now extracts HSN / qty / rate / tax% per line and fuzzy-matches your saved product catalogue.
+> - **In-app ConfirmModal + PromptModal** (v1.10.34) — every native browser confirm/prompt replaced with a theme-aware in-app modal.
+> - **Complete 4-mode discount system** (v1.10.25) — Net / Unit / Price-with-Tax + invoice-level Total discount.
+> - **Client credit balance** (v1.10.24) — overpayments carry forward and apply to the next bill automatically.
+> - **Focus mode + Ctrl+K command palette + Notification bell** (through v1.10.36) — keyboard-first workflow for POS speed.
+>
+> Full history: [CHANGELOG.md](./CHANGELOG.md). Earlier v1.10 milestones (UTGST bucket, GST Rule 48 multi-copy, 9 design presets, print margins, multi-language labels, daily backup + Trash bin, transactional restore) remain — see the feature tables below.
 
 ### :receipt: Invoicing & Billing
 
@@ -353,41 +370,39 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 
 ### Prerequisites
 
-- **Node.js 18+** (only needed for developer setup)
-- **Windows 10/11** (recommended — includes one-click installer)
+- **Windows 10/11** for the one-click installer, **OR** **Node.js 18+** for macOS / Linux
+- ~50 MB free disk space
+- No internet after install (except for optional Google Drive backup / update check)
 
-### Option 1: Windows Installer (Recommended — No Coding Needed)
+### Option 1: Windows One-Click Installer (recommended — no terminal, no commands)
 
-1. **Download** the ZIP from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) or [click here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip)
-2. **Extract** the folder anywhere on your computer
+1. **Download the ZIP** → [click here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) or grab the latest from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+2. **Extract** it anywhere (e.g. `Documents\FreeGSTBill`)
 3. **Double-click** `Install FreeGSTBill.bat`
-4. The app opens automatically in your browser at **http://localhost:47371**
+4. The app opens at **http://localhost:47371** — a **Desktop shortcut** and **Start-Menu entry** are created for you
 
-> **That's it.** No terminal. No commands. The app starts automatically when you turn on your PC.
-> A desktop shortcut and Start Menu entry are created for you.
+That's it. The installer auto-installs Node.js if you don't have it. From then on, click the Desktop shortcut to launch. Use `Stop FreeGSTBill.bat` to shut the server down and `Update FreeGSTBill.bat` to pull the latest release without losing your data.
 
-> **Why port 47371?** It's in the unassigned IANA range, well above the 3000-range that every Node / React / Vite / Express dev server fights over. If something on your machine somehow already owns 47371, the server auto-scans up to find a free port and writes the chosen one to `data/port.txt` — the Start.bat launcher always opens whichever URL is correct, so you never need to remember a number. Always use the Desktop shortcut.
+> **Why port 47371?** IANA-unassigned range, well above the 3000-range that every dev server fights over. If it's ever busy, the server auto-scans upward and writes the chosen port to `data/port.txt` — the Start launcher always opens the right URL. Always use the Desktop shortcut.
 
-### Option 2: Developer Setup
+### Option 2: macOS / Linux (Developer Setup)
 
 ```bash
 git clone https://github.com/IamRamgarhia/Free-GST-Billing-Software.git
 cd Free-GST-Billing-Software
 npm install
-
-# Windows
-npm run dev:win
-
-# macOS / Linux
-npm run dev
+npm start                # production build + serve on http://localhost:47371
 ```
 
-Dev server: `http://localhost:5173` | API: `http://localhost:47371`
+For live-reload development:
 
-**Production build:**
 ```bash
-npm run build && npm start
+npm run dev              # dev server on http://localhost:5173 · API on http://localhost:47371
 ```
+
+### Option 3: Install as a Desktop App (any OS)
+
+Once the server is running, open the URL in Chrome / Edge / Brave and click **Install** in the address bar. The app gets its own window, icon, and jump-list — see [Install as a Desktop App (PWA)](#install-as-a-desktop-app-pwa) below.
 
 ## Install as a Desktop App (PWA)
 
@@ -459,31 +474,40 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ## Roadmap
 
-### :white_check_mark: Recently Delivered (v1.3 → v1.4.1)
+### :white_check_mark: Recently Delivered (v1.10 series — 2026)
 
-- [x] **GSTR-2A / GSTR-2B Reconciliation** — import 2B JSON, match purchases, flag mismatches (v1.4.0)
-- [x] **GSTR-1 + GSTR-3B JSON exports** — direct upload to GSTN offline tool (v1.4.0–1.4.1)
-- [x] **Multi-GSTIN support** — multi-business profile switcher (v1.2.0)
-- [x] **TDS / TCS on invoices** + per-quarter Form 26Q / 27EQ-ready CSV reports (v1.4.0–1.4.1)
-- [x] **Per-line unit of measurement** with custom units — *thanks Apurba!* (v1.3.0)
-- [x] **Country-aware tax labels** (VAT / SST / MwSt / TVA / PPN) for 22 countries (v1.3.0)
-- [x] **Region Preference** toggle (India / International / Both) (v1.3.0)
-- [x] **Round-off line**, **currency exchange-rate snapshot** (v1.3.0)
-- [x] **Modules page** — disable feature groups you don't use (v1.4.0)
-- [x] **Granular PDF field control** — toggle every field per section (v1.4.0)
-- [x] **Rich-text Terms & Notes** + 13 India business-type T&C presets — partial fulfilment of "Industry-specific templates" (v1.4.0)
-- [x] **Granular backup/restore** with Google Drive option (v1.4.1)
-- [x] **Searchable in-app User Guide** with downloadable PDF (v1.4.1)
-- [x] **GST compliance fixes** — placeOfSupply override, E-Way Bill schema, GSTIN regex, taxInclusive math, SEZ flag (v1.3.0)
+- [x] **Direct-HTML vector thermal print with PDF fallback toggle** (v1.10.42)
+- [x] **Payment/receipt reconciliation** — orphaned receipts auto-heal on Dashboard load (v1.10.41)
+- [x] **REPRINT badge** repositioned + default OFF for non-retail (v1.10.41)
+- [x] **PDF Save & Download crash fix** — swapped `color-mix(oklab)` for `rgba()` (v1.10.40)
+- [x] **Bill of Supply / Delivery Challan** correctly remove GST from invoice total (v1.10.39)
+- [x] **Invoice PDF polish** — accent TOTAL DUE anchor, footer containers, smart Terms default (v1.10.38)
+- [x] **Payment Accounts — Account Holder Name + Account Type** on bank block (v1.10.37)
+- [x] **Portal print preview + settings redesign + business-type gating** (v1.10.36)
+- [x] **Vector-HTML thermal preview + OCR line items with catalog fuzzy-match** (v1.10.35)
+- [x] **In-app ConfirmModal + PromptModal** — every native browser confirm/prompt replaced (v1.10.34)
+- [x] **Thermal print rewrite + CSP fix + OCR offline bundling** (v1.10.33)
+- [x] **Complete 4-mode discount system** — Net / Unit / Price-with-Tax + invoice-level Total (v1.10.25)
+- [x] **Client credit balance** — overpayment carries forward and applies to next bill (v1.10.24)
+- [x] **Focus mode + Ctrl+K command palette + Notification bell** — POS-speed keyboard flow
+- [x] **DOM-level pagination + GST Rule 48 multi-copy** — page breaks respect row boundaries
+- [x] **UTGST bucket** for Chandigarh / Ladakh / A&N / Lakshadweep / DN&DD (Chapter II compliance)
+- [x] **TCS 206C(1H) on receipt-including-GST** per CBDT Circular 17/2020 + ₹50L threshold
+- [x] **9 one-click design presets** + full user-configurable PDF colours + font scale
+- [x] **Multi-language section labels** — English / Hindi / Tamil / Marathi / Bengali
+- [x] **Automatic daily backup + Trash bin** + transactional restore (rollback on error)
+- [x] **Bulk PDF export** with progress + cancel
+- [x] **Income Tax (ITR)** computation — old/new regime, 234B/C interest, surcharge cap
+- [x] **Setup wizard** with 6 business-type presets
 
-### :rocket: Coming Soon (Next Release — v1.5.x)
+### :rocket: Coming Soon
 
 - [ ] **Bank Statement Import** + ITR Filing Summary PDF *(see [docs/TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md))*
-- [ ] **Tally XML export + Tally-format ledger import** — every Indian CA's tool
+- [ ] **Tally XML export + Tally-format ledger import**
 - [ ] **Recurring invoices: scheduled auto-generate + email/WhatsApp dispatch**
-- [ ] WhatsApp Business API integration — send invoices directly via WhatsApp
-- [ ] POS / Thermal printer billing mode
-- [ ] Barcode scanning for products (PWA camera)
+- [ ] **WhatsApp Business API integration** — one-click invoice send (currently opens WA Web with pre-filled text)
+- [ ] **Barcode scanning for products** (PWA camera)
+- [ ] **E-Invoicing (IRN)** — Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr)*
 
 ### :calendar: Planned Features
 
@@ -618,11 +642,13 @@ You can also contribute by:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create a project
 2. Enable the **Google Drive API**
 3. Create an **OAuth 2.0 Client ID** (Web application) under Credentials
-4. Add origin: `http://localhost:5173`
-5. Copy the Client ID into **Settings** in the app
+4. Add authorized JavaScript origins:
+   - `http://localhost:47371` (production install)
+   - `http://localhost:5173` (developer mode, optional)
+5. Copy the Client ID into **Settings → Cloud Backup** in the app
 6. Click **Connect Google Drive** and authorize
 
-PDFs will auto-upload to your Google Drive after every download.
+PDFs and JSON backups will auto-upload to your own Google Drive after every download.
 
 ---
 
@@ -688,7 +714,7 @@ Updates only refresh the app code and dependencies. Your `data/` folder (invoice
 Not yet — the PWA installs as a desktop app today. A native Android app is on the v2.x roadmap.
 
 ### Can I import data from Tally / Vyapar / Excel?
-Currently CSV import is supported for products. Direct Tally XML import is on the v1.7 roadmap. Free-form Excel import requires manual mapping today.
+CSV import is supported today for clients and products. Direct Tally XML import is on the Coming Soon roadmap. Free-form Excel import requires manual mapping today.
 
 ---
 
@@ -715,9 +741,9 @@ This project is licensed under the [MIT License](LICENSE) — free to use, modif
 
 ---
 
-**Free GST Billing Software** by [DiceCodes](mailto:Contact@dicecodes.com) · MIT Licensed · v1.6.1
+**Free GST Billing Software** by [DiceCodes](mailto:Contact@dicecodes.com) · MIT Licensed · v1.10.42
 
-<sub>Free GST billing software India · GSTR-1 GSTR-3B filing software · Free invoice generator with GST · GSTR-2B reconciliation tool · TDS Form 26Q TCS Form 27EQ software · Offline billing software · No subscription billing app · GST invoice software for small business · Free billing app India · GST compliant invoice maker · Self-file GST returns software · Open source billing software India · Free alternative to Tally Vyapar Zoho ClearTax myBillBook · HSN SAC code invoice generator · CGST SGST IGST calculator · E-way bill software free · Credit note debit note software · Multi-currency invoice India · USD EUR GBP AED invoice generator · Reverse charge mechanism invoice · Composition scheme invoice · Bill of supply generator · Delivery challan software · UPI QR invoice maker · Recurring invoice software · PWA invoicing</sub>
+<sub>Free GST billing software India · Free GST invoice software for small business · Open source GST billing software · Free alternative to Tally Prime Vyapar Zoho Books ClearTax myBillBook Marg ERP · No subscription invoice software · Offline billing software India · GSTR-1 GSTR-3B filing software free · GSTR-2B reconciliation tool free · TDS Form 26Q TCS Form 27EQ software · Section 194Q 206C(1H) TCS calculator with ₹50 lakh threshold · UTGST invoice software · CGST SGST IGST auto calculator · E-way bill JSON generator free · HSN SAC code invoice generator · Bill of Supply generator · Delivery Challan software · Credit Note Debit Note software · Proforma invoice estimate software · Composition scheme invoice · UPI QR invoice maker · Thermal receipt printer software 58mm 80mm · Direct vector thermal print software · POS billing software free India · Retail shop kirana billing software · Restaurant cafe billing software · Freelancer consultant invoice software India · Multi-currency invoice generator (USD EUR GBP AED SGD AUD JPY) 22 countries · Country-aware VAT SST MwSt TVA PPN tax labels · Recurring invoice software · Payment receipt voucher software · Bulk PDF invoice export · Google Drive backup billing software · Automatic daily backup + Trash bin · Multi-business multi-GSTIN switcher · Multi-language invoice Hindi Tamil Marathi Bengali · Dark mode PWA billing app · Rich-text Terms & Conditions with 13 India presets · OCR bill scan tesseract · Ctrl+K command palette · Split-view live PDF preview · Income Tax (ITR) computation old vs new regime 234B 234C · Client credit balance carry-forward · Watermark DUPLICATE DRAFT PDF · Rule 48 multi-copy (Original Duplicate Triplicate) · WhatsApp share invoice PDF · Self-file GST return software · GST invoice software without subscription · No signup no login billing software · Vyapar alternative open source · Tally alternative free · Zoho Books alternative · ClearTax alternative · myBillBook alternative · Marg ERP alternative · Made in India</sub>
 
 Made in India 🇮🇳 · [DiceCodes](https://dicecodes.com)
 
