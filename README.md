@@ -16,7 +16,7 @@
 
 Your data never leaves your computer. No cloud. No signup. No tracking. No limits. Open-source and offline-first.
 
-[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [☁ Run Online (Vercel / Supabase / Railway)](./docs/DEPLOY_ONLINE.md) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 
 </div>
 
@@ -35,6 +35,8 @@ The fastest way to get billing on your PC — no coding, no cloud, no signup.
 The installer auto-installs Node.js if missing, sets up the app, and opens it at **http://localhost:47371** — a **Desktop shortcut** and **Start-Menu entry** are created for you. From then on, just click the shortcut.
 
 > **Mac / Linux user?** Jump to [Option 2 → Developer Setup](#option-2-developer-setup) below — one `npm install && npm start` and you're done.
+
+> **☁ Want to run it online instead (access from multiple devices)?** See the full **[Online Deployment Guide → docs/DEPLOY_ONLINE.md](./docs/DEPLOY_ONLINE.md)** — four paths compared (Railway lift-and-shift, Vercel + Supabase serverless, own VPS, free Cloudflare Tunnel) with costs, trade-offs, SQL schema, and code snippets. Read the trade-offs first — the local install is still the right answer for ~95% of users.
 
 ---
 
@@ -55,6 +57,7 @@ The installer auto-installs Node.js if missing, sets up the app, and opens it at
 ## 📑 Table of Contents
 
 - [Install in 60 Seconds](#-install-in-60-seconds-windows-one-click) — *Windows one-click*
+- [☁ Run Online (Vercel + Supabase, Railway, VPS, Cloudflare Tunnel)](./docs/DEPLOY_ONLINE.md) — *for multi-device / team access*
 - [Why Choose Free GST Billing Software?](#why-choose-free-gst-billing-software)
 - [Your First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) — *start here if you're new*
 - [Key Features](#key-features)
