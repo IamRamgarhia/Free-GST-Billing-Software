@@ -404,6 +404,12 @@ npm run dev              # dev server on http://localhost:5173 · API on http://
 
 Once the server is running, open the URL in Chrome / Edge / Brave and click **Install** in the address bar. The app gets its own window, icon, and jump-list — see [Install as a Desktop App (PWA)](#install-as-a-desktop-app-pwa) below.
 
+### Option 4: Deploy online (advanced — Vercel + Supabase, Railway, VPS, Cloudflare Tunnel)
+
+For solo users who want access from multiple devices, or small teams sharing invoices across a shop and an accountant's laptop — **[docs/DEPLOY_ONLINE.md](./docs/DEPLOY_ONLINE.md)** walks through four honest paths (Railway lift-and-shift, Vercel + Supabase serverless, own VPS, free Cloudflare Tunnel) with costs, trade-offs, and code snippets.
+
+> **Read the trade-offs first.** Going online means your business data lives on someone else's server — the local install exists precisely to avoid that. For most users the local install is still the right answer.
+
 ## Install as a Desktop App (PWA)
 
 Free GST Billing Software is a **Progressive Web App** — once installed, it gets its own icon, its own window, and behaves exactly like a regular Windows / macOS / Linux app. No browser chrome, no localhost URL visible to the user.
@@ -552,6 +558,7 @@ See **[CHANGELOG.md](./CHANGELOG.md)** for a detailed history of every release.
 The deep-dive material lives in **[docs/](./docs/)**:
 
 - **[docs/USER_GUIDE.md](./docs/USER_GUIDE.md)** — plain-language handbook for end users (Quick Start → Daily Use → Backup → Migration → FAQ → Troubleshooting). Also available **inside the app** as a searchable view with one-click PDF export.
+- **[docs/DEPLOY_ONLINE.md](./docs/DEPLOY_ONLINE.md)** — deploy the app online (Vercel + Supabase, Railway lift-and-shift, own VPS, free Cloudflare Tunnel). Four paths with honest trade-offs, costs, and code snippets. Read this only if you have a specific reason to move off the local install.
 - **[docs/COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md)** — gap analysis vs ERPNext / Akaunting / Invoice Ninja / Crater + Tally / Vyapar / Zoho Books / ClearTax / Marg, with the prioritised post-1.4 roadmap.
 - **[docs/TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md)** — three-tier proposal for the v1.5.x Income Tax Helper (bank-statement CSV import + ITR Filing Summary PDF + optional ITR-4 JSON).
 
