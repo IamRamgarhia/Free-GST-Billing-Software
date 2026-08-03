@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.43] — 2026-08-03
+
+**GSTR-1 / GSTR-3B JSON — portal validation errors fixed. Six changes.**
+
+Reported: uploading our GSTR JSON files to gst.gov.in triggered "Error
+in JSON structure validation" (RET191106) and per-invoice RET191xxx
+codes. Root causes traced against the offline utility schema and the
+published error-code list.
+
+### Fixed — GSTR-1 root schema fields (missing → portal rejected the whole file)
+
+Added four root-level fields the offline utility validates BEFORE any
+per-row check. Their absence was the #1 cause of "Invalid JSON
+structure" reports.
+
+- **`version: "GST3.1.6"`** — current GSTR-1 offline utility (v3.x).
+- **`hash: "hash"`** — reference placeholder; the portal computes the
+  real hash on receipt.
+- **`gt`** — aggregate turnover of the previous FY (Number; can be 0
+  and edited on the portal during filing, but the field must be
+  present).
+- **`cur_gt`** — turnover in the current FY up to the previous month
+  (same treatment as `gt`).
+
+Both `gt` and `cur_gt` are populated from two new profile fields
+(`prevFYTurnover`, `currentFYTurnover`) added under Settings → Company
+Details → GSTR filing details. Empty → 0.
+
+### Fixed — GSTR-3B root schema fields
+
+Same fix pattern for GSTR-3B — `version: "GST3.0.4"` and `hash: "hash"`
+were missing. Portal was rejecting before any per-section check.
+
+### Fixed — HSN summary rejected `hsn_sc: 'N/A'`
+
+Since Jan 2025 GSTR-1 Table 12 is mandatory and the portal enforces
+numeric HSN codes. Items with no HSN (or the string `'N/A'`) are now
+DROPPED from `hsn.data` before serialisation instead of poisoning the
+whole summary. The user gets a warning toast telling them how many
+items were dropped and to fix the source products.
+
+### Added — Pre-flight validation blocks the two portal-hard-fail cases
+
+`validateGSTR1()` runs BEFORE we build the JSON and aborts with a
+clear in-app error if any of these are violated:
+
+1. **Invoice number rules (RET191115)** — invoice numbers must be
+   ≤16 chars and use only `[A-Za-z0-9-/]`. Any offender lists the
+   first three by number in the toast so users know exactly what to
+   rename.
+2. **Non-standard tax rate (RET191175)** — allowed slabs are
+   `{0, 0.25, 3, 5, 12, 18, 28}`. Custom rates set in Print Settings →
+   customTaxRates work in-app but the portal rejects them; the toast
+   lists which rate(s) are the problem and how many items use them.
+
+Warnings-only (export proceeds):
+
+3. **Missing HSN** — count of items dropped from Table 12.
+4. **HSN too short for AATO band** — < 4 digits (or < 6 digits if
+   AATO > ₹5 Cr flag is on).
+
+### Added — AATO band toggle drives HSN digit-length gate
+
+New checkbox under Settings → Company Details → GSTR filing details:
+"Aggregate turnover (AATO) is above ₹5 crore". Flipping it raises the
+HSN digit minimum from 4 to 6 in the validation pass — matching the
+CBIC rule for AATO-based HSN reporting on Table 12.
+
+### Confirmed — thermal print already end-to-end HTML (v1.10.42)
+
+Reported alongside the GSTR ask: "themal print system jo direct kar
+raha tha without creating pdf phir se laiye". Verified during this
+audit that the v1.10.42 path is already the direct-HTML iframe route
+for thermal 58/80mm, and PrintPreviewModal renders `<InvoicePreview>`
+as pure React HTML (no raster). Users on old localStorage state can
+flip Print Settings → Thermal print method → "Direct HTML" if the
+setting is stuck on the previous default. No code change needed here.
+
+---
+
 ## [1.10.30] — 2026-07-14
 
 **Five fixes from the follow-up feedback.**

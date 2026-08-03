@@ -1038,7 +1038,18 @@ export default function GSTReturns() {
       ],
     };
 
-    const gstr3b = { gstin, ret_period, sup_details, itc_elg, inward_sup };
+    // v1.10.43 — GSTR-3B root schema fields required by the offline
+    // utility. Same fix pattern as GSTR-1 above: version + hash gate
+    // the entire file, and were previously missing → portal rejected
+    // with "Error in JSON structure validation" before any per-section
+    // check ran. `"hash": "hash"` is the reference placeholder; the
+    // portal computes the real hash on receipt.
+    const gstr3b = {
+      gstin, ret_period,
+      version: 'GST3.0.4',
+      hash: 'hash',
+      sup_details, itc_elg, inward_sup,
+    };
     const blob = new Blob([JSON.stringify(gstr3b, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `GSTR3B_${gstin || 'export'}_${ret_period}.json`; a.click();
@@ -1046,9 +1057,95 @@ export default function GSTReturns() {
     toast('GSTR-3B JSON exported — upload to GST portal offline tool', 'success');
   };
 
+  // v1.10.43 — GSTR portal validation pre-flight. Reported: users
+  // uploading our JSON to gst.gov.in were hitting "Error in JSON
+  // structure validation" and per-invoice RET191xxx codes with no
+  // in-app warning. Root causes traced against the offline utility
+  // schema + published error-code list (RET191106 / RET191113 / …):
+  //   - Missing root fields `version` / `hash` / `gt` / `cur_gt`
+  //     (portal rejects the whole file before per-row checks)
+  //   - Invoice number rules (RET191115): ≤16 chars, only [A-Za-z0-9-/]
+  //   - Non-standard tax rate (RET191175): allowed {0, 0.25, 3, 5, 12,
+  //     18, 28} only — the app permits customTaxRates for internal use
+  //     but portal rejects them
+  //   - HSN summary rules (Jan-2025 Table 12 mandatory):
+  //       * items with no HSN cannot appear in hsn.data (was 'N/A' →
+  //         regex fail on portal)
+  //       * min HSN digit length gated by AATO (≤5Cr → 4-digit, >5Cr
+  //         → 6-digit), user-selectable in profile (`aatoBand`).
+  //
+  // This function returns { blocked, warnings } so callers can decide
+  // whether to abort (`blocked` non-empty) or just toast (`warnings`).
+  const GST_STANDARD_RATES = [0, 0.25, 3, 5, 12, 18, 28];
+  const INUM_REGEX = /^[A-Za-z0-9\-/]{1,16}$/;
+  const validateGSTR1 = (bills) => {
+    const blocked = [];
+    const warnings = [];
+    const aatoAbove5Cr = !!profile.aatoAbove5Cr;
+    const minHsnDigits = aatoAbove5Cr ? 6 : 4;
+
+    // Invoice number rules (RET191115) — portal rejects the whole file
+    // if any inum is >16 chars or has disallowed chars. Collect the
+    // offenders so the user can fix them in the source invoice.
+    const badInums = bills.filter(b => !INUM_REGEX.test(b.invoiceNumber || ''));
+    if (badInums.length > 0) {
+      blocked.push(`${badInums.length} invoice number(s) violate portal rules (≤16 chars, only letters, digits, "-" or "/"). First: ${badInums.slice(0, 3).map(b => b.invoiceNumber).join(', ')}`);
+    }
+
+    // Tax rate rules (RET191175). Custom rates set in Print Settings →
+    // customTaxRates work in-app but the portal has a fixed slab list.
+    const badRates = new Set();
+    let badRateItemCount = 0;
+    bills.forEach(bill => {
+      (bill.data?.items || []).forEach(item => {
+        const rate = Number(item.taxPercent) || 0;
+        if (!GST_STANDARD_RATES.includes(rate)) {
+          badRates.add(rate);
+          badRateItemCount += 1;
+        }
+      });
+    });
+    if (badRateItemCount > 0) {
+      blocked.push(`${badRateItemCount} item(s) use non-standard tax rate(s) [${Array.from(badRates).sort().join(', ')}%]. Portal accepts only ${GST_STANDARD_RATES.join(', ')}%.`);
+    }
+
+    // HSN min-digit gate (Table 12 mandatory since Jan-2025). We only
+    // WARN here — we still filter the offenders out of hsn.data below
+    // so the file uploads. This lets users move forward while nudging
+    // them to fix the source products.
+    let missingHsnItemCount = 0;
+    let shortHsnItemCount = 0;
+    bills.forEach(bill => {
+      (bill.data?.items || []).forEach(item => {
+        const hsn = String(item.hsn || '').trim();
+        if (!hsn || hsn === 'N/A') missingHsnItemCount += 1;
+        else if (hsn.replace(/\D/g, '').length < minHsnDigits) shortHsnItemCount += 1;
+      });
+    });
+    if (missingHsnItemCount > 0) {
+      warnings.push(`${missingHsnItemCount} item(s) have no HSN — dropped from HSN summary. GSTR-1 Table 12 requires an HSN per item.`);
+    }
+    if (shortHsnItemCount > 0) {
+      warnings.push(`${shortHsnItemCount} item(s) have HSN shorter than ${minHsnDigits} digits (required for ${aatoAbove5Cr ? '>' : '≤'}₹5 Cr AATO). Portal may reject.`);
+    }
+
+    return { blocked, warnings };
+  };
+
   // ========== GSTR-1 JSON Export ==========
   const exportGSTR1JSON = () => {
     if (filteredBills.length === 0) { toast('No invoices to export', 'warning'); return; }
+
+    // v1.10.43 — Pre-flight validation. Abort with a clear message if
+    // any BLOCKING rule is broken (bad invoice number, non-standard
+    // rate). Show warnings but proceed for merely lossy issues
+    // (missing HSN → dropped from summary).
+    const { blocked, warnings } = validateGSTR1(filteredBills);
+    if (blocked.length > 0) {
+      toast(`GSTR-1 export blocked — fix these first: ${blocked.join(' · ')}`, 'error', 12000);
+      return;
+    }
+
     const gstin = profile.gstin || '';
     const fp = filterMode === 'month'
       ? String(parseInt(monthFilter) + 1).padStart(2, '0') + yearFilter
@@ -1168,7 +1265,14 @@ export default function GSTReturns() {
       const { items } = bill.data;
       const isInter = billIsInterstate(bill);
       (items || []).forEach(item => {
-        const hsn = item.hsn || ''; const rate = item.taxPercent || 0; const key = `${hsn}_${rate}`;
+        // v1.10.43 — HSN Table 12 rule: portal rejects `hsn_sc: 'N/A'`
+        // or empty. Silently DROP items with no HSN so the file uploads;
+        // the pre-flight warning already told the user how many were
+        // dropped and to fix the source products.
+        const hsnRaw = String(item.hsn || '').trim();
+        if (!hsnRaw || hsnRaw === 'N/A') return;
+        const hsn = hsnRaw;
+        const rate = item.taxPercent || 0; const key = `${hsn}_${rate}`;
         const uqc = getUnitUQC(item.unit);
         if (uqc === 'OTH' && item.unit) unknownUnitCount += 1;
         if (!hsnJsonMap[key]) hsnJsonMap[key] = { hsn_sc: hsn, desc: item.name || '', uqc, qty: 0, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
@@ -1181,8 +1285,30 @@ export default function GSTReturns() {
 
     const docDet = Object.entries(docSummary).map(([, d], i) => ({ doc_num: i + 1, docs: [{ num: 1, from: d.from, to: d.to, totnum: d.total, cancel: 0, net_issue: d.total }] }));
 
+    // v1.10.43 — Aggregate turnover fields required by portal.
+    // `gt`     = aggregate turnover of the PREVIOUS FY (typically
+    //            entered on the portal, but the JSON must carry the
+    //            field even if 0 — omission trips schema validation).
+    // `cur_gt` = turnover in the CURRENT FY up to the previous month.
+    // Both accept `0` and can be overridden inline on the portal
+    // during filing, so we ship them zero-filled to satisfy the
+    // schema without asking the user for numbers they'd re-enter
+    // anyway. Users on aggregate turnover > 5 Cr can flip
+    // profile.aatoAbove5Cr (also drives HSN digit-length gate).
+    const gt = Number(profile?.prevFYTurnover) || 0;
+    const cur_gt = Number(profile?.currentFYTurnover) || 0;
+
     const gstr1 = {
-      gstin, fp,
+      // v1.10.43 — Root schema fields the offline utility validates
+      // BEFORE any per-row check. Omission was our #1 cause of "Error
+      // in JSON structure validation" (RET191106) reports.
+      //   version: current GSTR-1 offline utility (v3.x series).
+      //   hash:    placeholder string; the portal computes the real
+      //            hash on receipt. `"hash"` is the reference value
+      //            every published sample uses.
+      gstin, fp, gt, cur_gt,
+      version: 'GST3.1.6',
+      hash: 'hash',
       b2b: Object.values(b2bMap), b2cs: b2csArr,
       ...(Object.keys(b2clMap).length > 0 ? { b2cl: Object.values(b2clMap) } : {}),
       ...(Object.keys(cdnrMap).length > 0 ? { cdnr: Object.values(cdnrMap) } : {}),
@@ -1194,11 +1320,16 @@ export default function GSTReturns() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `GSTR1_${gstin || 'export'}_${fp}.json`; a.click();
     URL.revokeObjectURL(url);
+
+    // Collect any lossy warnings (from pre-flight + UQC fallback) into
+    // a single toast so the user knows what to fix at source without
+    // hitting the portal.
+    const postWarnings = [...warnings];
     if (unknownUnitCount > 0) {
-      // Unknown / custom units fall through to UQC 'OTH' in the GSTR-1 HSN summary.
-      // The portal accepts OTH but it's lossy — warn the user so they can map their
-      // custom unit to a standard UQC if they care.
-      toast(`GSTR-1 JSON exported. ⚠ ${unknownUnitCount} item(s) used a custom unit and were exported as UQC 'OTH'.`, 'warning');
+      postWarnings.push(`${unknownUnitCount} item(s) used a custom unit and were exported as UQC 'OTH'.`);
+    }
+    if (postWarnings.length > 0) {
+      toast(`GSTR-1 JSON exported. ⚠ ${postWarnings.join(' · ')}`, 'warning', 10000);
     } else {
       toast('GSTR-1 JSON exported — upload to GST portal offline tool', 'success');
     }

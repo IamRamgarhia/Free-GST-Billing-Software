@@ -996,6 +996,45 @@ export default function SettingsView({ onSaved }) {
                 <label className="form-label">Phone</label>
                 <input type="text" name="phone" className="form-input" value={profile.phone} onChange={handleChange} />
               </div>
+              {/* v1.10.43 — GST-specific fields: AATO band + turnover
+                  numbers. Drive the GSTR-1 export's HSN digit-length
+                  gate + the gt/cur_gt root fields the offline utility
+                  requires. India-only. */}
+              {(profile.country || 'India') === 'India' && (
+                <div className="form-group full-width" style={{ background: 'var(--bg-secondary)', padding: '0.85rem 1rem', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <label className="form-label" style={{ marginBottom: 6 }}>GSTR filing details (used only for GSTR-1 / GSTR-3B JSON export)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 8 }}>
+                    <input type="checkbox" id="aato-above-5cr" name="aatoAbove5Cr"
+                      checked={!!profile.aatoAbove5Cr}
+                      onChange={(e) => setProfile(p => ({ ...p, aatoAbove5Cr: e.target.checked }))} />
+                    <label htmlFor="aato-above-5cr" style={{ fontSize: '0.82rem', margin: 0 }}>
+                      Aggregate turnover (AATO) is <strong>above ₹5 crore</strong>
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>
+                    Drives HSN reporting rule — <strong>{profile.aatoAbove5Cr ? '6-digit HSN' : '4-digit HSN'}</strong> minimum on every item. Since Jan 2025 the portal blocks GSTR-1 if any HSN falls short.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.72rem' }}>Previous FY aggregate turnover (₹) — sets JSON <code>gt</code></label>
+                      <input type="number" min="0" step="1" name="prevFYTurnover" className="form-input"
+                        value={profile.prevFYTurnover ?? ''}
+                        onChange={handleChange}
+                        placeholder="e.g. 5000000" />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.72rem' }}>Current FY turnover so far (₹) — sets JSON <code>cur_gt</code></label>
+                      <input type="number" min="0" step="1" name="currentFYTurnover" className="form-input"
+                        value={profile.currentFYTurnover ?? ''}
+                        onChange={handleChange}
+                        placeholder="e.g. 1200000" />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.5rem 0 0' }}>
+                    Both are optional (default 0). The portal lets you edit these while filing — you're just avoiding a schema-validation reject on upload.
+                  </p>
+                </div>
+              )}
             </div>
           );
         })()}
