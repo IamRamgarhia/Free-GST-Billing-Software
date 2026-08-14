@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.44] — 2026-08-15
+
+**One-file launcher per OS + in-app Control Panel.**
+
+Reported: "user should only see one file in the root folder…
+double-click and it just runs… should install if not installed,
+run server, create Desktop shortcut… HTML file with buttons…
+must work on Windows AND Mac too."
+
+Delivered — release ZIP now has ONE visible file at the root (the
+launcher for the user's OS) and everything else in a hidden
+`_system/` folder. All post-install actions moved into an in-app
+Control Panel so the user never has to touch the folder again.
+
+### Added — three platform launchers under `release-templates/`
+
+- **`Free GST Billing.hta`** (Windows) — real HTML app opened by
+  `mshta.exe`. Detects install state (Node? deps? corrupt install?)
+  and renders only the buttons that make sense right now — one
+  "Install Node & App" button when nothing's installed, or a grid
+  of "Open App / Update / Backup / Restore / Move / Stop" once
+  everything's ready. DOM API used throughout instead of innerHTML
+  strings to avoid HTA-quirky escaping bugs.
+- **`Free GST Billing.command`** (macOS) — Finder double-click opens
+  Terminal, walks the user through Node install if missing (points
+  at Homebrew + official pkg), then runs npm install and starts
+  the server. Opens `/control-panel` in the default browser.
+- **`Free GST Billing.sh`** (Linux) — same shape as `.command` with
+  Debian / Fedora / Arch / nvm install instructions when Node is
+  missing.
+
+### Added — platform scripts under `release-templates/_system-scripts/`
+
+- Windows PowerShell: `install-windows.ps1`, `start-windows.ps1`,
+  `update-windows.ps1`, `backup-windows.ps1`, `restore-windows.ps1`,
+  `move-windows.ps1`, `stop-windows.ps1`
+- Unix bash: `install-unix.sh`, `start-unix.sh`, `backup-unix.sh`
+
+Every script is idempotent — safe to re-run any time. `update` and
+`restore` snapshot the current `data/` folder to
+`~/Documents/FreeGSTBill Backups/pre-*-<timestamp>.zip` FIRST so a
+partial failure can be rolled back without data loss.
+
+### Added — in-app Control Panel (`/api/control-panel/*` + React view)
+
+- New sidebar link **⚙ Control Panel** (next to Settings) opens a
+  dashboard with cards for: Update Software, Backup Data, Restore
+  Backup, Move to Another PC, Open Data Folder, Open Backups
+  Folder, Stop Server.
+- Each card hits an Express endpoint that shells out to the
+  platform-appropriate script. Live stdout/stderr from the script
+  is shown back to the user in a collapsible details block.
+- Graceful degradation: if the app is running from a dev clone
+  (npm start, no launcher scripts present), the Control Panel
+  shows a clear "Launcher scripts not detected" notice with the
+  reason and points at Settings → Backup & Restore as the
+  fallback.
+- `GET /api/control-panel/status` reports platform / Node version
+  / data folder size / port / launcher type so the panel header
+  card is populated.
+
+### Added — `scripts/build-release-zip.mjs`
+
+Assembles the pretty download ZIP from the developer-friendly repo
+layout. Copies launchers to the root of a staging folder, copies
+app source + `dist/` build + platform scripts into `_system/`,
+creates an empty `data/` folder, and zips the whole thing into
+`release-build/Free-GST-Billing-v<VERSION>.zip`. Refuses to run
+if `dist/` is missing (forces the user to `npm run build` first).
+
+### Backward compatibility
+
+- Existing users with the old install (root-level `Install
+  FreeGSTBill.bat`, `Update FreeGSTBill.bat`, etc.) are UNAFFECTED.
+  Every legacy .bat file stays where it is. The new launcher path
+  is opt-in for future downloads.
+- The new Control Panel gracefully handles the "no launcher
+  scripts present" case, so existing users can see the panel and
+  see WHY buttons are disabled — with a suggestion to move to the
+  new release ZIP.
+- No changes to `server.js` behaviour that affect existing routes;
+  Control Panel endpoints are additive, mounted before the SPA
+  catch-all so they take precedence over the wildcard.
+
+### Repo tree change (developers)
+
+- New folder `release-templates/` (Windows HTA + Mac .command +
+  Linux .sh + `_system-scripts/`).
+- New file `scripts/build-release-zip.mjs`.
+- New file `src/components/ControlPanel.jsx`.
+- No files moved or removed. Everything is additive.
+
+---
+
 ## [1.10.43] — 2026-08-03
 
 **GSTR-1 / GSTR-3B JSON — portal validation errors fixed. Six changes.**

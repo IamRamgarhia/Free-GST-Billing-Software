@@ -22,19 +22,26 @@ Your data never leaves your computer. No cloud. No signup. No tracking. No limit
 
 ---
 
-## ⚡ Install in 60 Seconds (Windows one-click)
+## ⚡ Install in 60 Seconds — one launcher per platform
 
-The fastest way to get billing on your PC — no coding, no cloud, no signup.
+**As of v1.10.44**, the download ZIP has **one clean file** at the root (the launcher for your OS) and everything else tucked into a hidden `_system/` folder. Extract the ZIP, double-click the launcher, done.
 
 ```
-1. Download → https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip
+1. Download the release ZIP → https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest
 2. Right-click the ZIP → Extract All → pick a folder you'll remember
-3. Double-click  Install FreeGSTBill.bat
+3. Double-click the launcher for your OS:
+       Windows:  🚀 Free GST Billing.hta     (opens a real UI with buttons)
+       macOS:    🚀 Free GST Billing.command (opens Terminal)
+       Linux:    🚀 Free GST Billing.sh      (opens Terminal — chmod +x first if needed)
 ```
 
-The installer auto-installs Node.js if missing, sets up the app, and opens it at **http://localhost:47371** — a **Desktop shortcut** and **Start-Menu entry** are created for you. From then on, just click the shortcut.
+The launcher:
+- Detects if Node.js is installed; installs it on Windows automatically if missing
+- Runs `npm install` inside `_system/` (one-time, ~2 min)
+- Creates a **Desktop shortcut** + **Start-Menu entry** so you never open the folder again
+- Starts the server and opens your browser at **http://localhost:47371**
 
-> **Mac / Linux user?** Jump to [Option 2 → Developer Setup](#option-2-developer-setup) below — one `npm install && npm start` and you're done.
+From then on, click the Desktop shortcut. To update / backup / restore / move to another PC / stop the server — use the new in-app **⚙ Control Panel** in the sidebar. No batch files, no CMD windows.
 
 > **☁ Want to run it online instead (access from multiple devices)?** See the full **[Online Deployment Guide → docs/DEPLOY_ONLINE.md](./docs/DEPLOY_ONLINE.md)** — four paths compared (Railway lift-and-shift, Vercel + Supabase serverless, own VPS, free Cloudflare Tunnel) with costs, trade-offs, SQL schema, and code snippets. Read the trade-offs first — the local install is still the right answer for ~95% of users.
 

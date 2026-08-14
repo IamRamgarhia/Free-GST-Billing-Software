@@ -835,6 +835,129 @@ app.get('/api/check-update', async (req, res) => {
   }
 });
 
+// ============================================================
+// v1.10.44 — In-app Control Panel API
+// Powers /control-panel in the app. Each endpoint shells out to
+// a platform-appropriate script under `_system-scripts/` (when
+// the app is installed via the HTA launcher release ZIP) or the
+// equivalent .bat / .sh in the dev repo root as a fallback.
+// ============================================================
+import { spawn } from 'child_process';
+
+const isWindows = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+
+// Where the launcher scripts live. In a release-ZIP install the app
+// is under `_system/` so `..` gets us to the launcher's script dir;
+// in dev the same relative path lands us at `release-templates/_system-scripts/`
+// which also holds them. If neither exists we degrade gracefully —
+// the Control Panel just shows the buttons as disabled.
+const CONTROL_SCRIPT_CANDIDATES = [
+  path.join(__dirname, '_system-scripts'),         // shipped ZIP layout
+  path.join(__dirname, 'release-templates', '_system-scripts'), // dev repo
+  path.join(__dirname, '..', '_system-scripts'),   // sibling to root when app is under _system/
+];
+const controlScriptDir = CONTROL_SCRIPT_CANDIDATES.find(p => {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}) || null;
+
+function pickScript(name) {
+  if (!controlScriptDir) return null;
+  const suffix = isWindows ? '-windows.ps1' : '-unix.sh';
+  const p = path.join(controlScriptDir, name + suffix);
+  return fs.existsSync(p) ? p : null;
+}
+
+function runControlScript(scriptPath) {
+  return new Promise((resolve) => {
+    if (!scriptPath) { resolve({ ok: false, error: 'Script not found for this platform' }); return; }
+    const [cmd, args] = isWindows
+      ? ['powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]]
+      : ['bash', [scriptPath]];
+    let out = '', err = '';
+    try {
+      const child = spawn(cmd, args, { detached: false, windowsHide: false });
+      child.stdout?.on('data', d => { out += d.toString(); });
+      child.stderr?.on('data', d => { err += d.toString(); });
+      child.on('error', e => resolve({ ok: false, error: e.message }));
+      child.on('exit', code => resolve({ ok: code === 0, exitCode: code, stdout: out.slice(-4000), stderr: err.slice(-2000) }));
+    } catch (e) {
+      resolve({ ok: false, error: e.message });
+    }
+  });
+}
+
+app.get('/api/control-panel/status', (req, res) => {
+  const dataSize = (() => {
+    try {
+      let total = 0;
+      const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) walk(p);
+          else { try { total += fs.statSync(p).size; } catch { /* ignore */ } }
+        }
+      };
+      if (fs.existsSync(DATA_DIR)) walk(DATA_DIR);
+      return total;
+    } catch { return 0; }
+  })();
+  // Port is bound in startServer() below; read it back from the socket
+  // address at request time rather than relying on a module-level const
+  // that doesn't exist. Falls back to the persisted preference for the
+  // edge case where the request arrives before activeServer is set.
+  let activePort = STARTING_PORT;
+  try {
+    const addr = activeServer && activeServer.address();
+    if (addr && typeof addr === 'object' && addr.port) activePort = addr.port;
+  } catch { /* keep fallback */ }
+  res.json({
+    platform: process.platform,
+    node: process.version,
+    controlScriptsAvailable: !!controlScriptDir,
+    dataFolder: DATA_DIR,
+    dataSizeBytes: dataSize,
+    port: activePort,
+    launcherType: controlScriptDir ? (isWindows ? 'hta' : (isMac ? 'command' : 'sh')) : 'none',
+  });
+});
+
+app.post('/api/control-panel/backup', async (req, res) => {
+  const script = pickScript('backup');
+  const result = await runControlScript(script);
+  res.json(result);
+});
+
+app.post('/api/control-panel/open-data-folder', (req, res) => {
+  try {
+    if (isWindows) spawn('explorer.exe', [DATA_DIR], { detached: true }).unref();
+    else if (isMac) spawn('open', [DATA_DIR], { detached: true }).unref();
+    else spawn('xdg-open', [DATA_DIR], { detached: true }).unref();
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/control-panel/open-backups-folder', (req, res) => {
+  const backupsHome = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'FreeGSTBill Backups');
+  try {
+    if (!fs.existsSync(backupsHome)) fs.mkdirSync(backupsHome, { recursive: true });
+    if (isWindows) spawn('explorer.exe', [backupsHome], { detached: true }).unref();
+    else if (isMac) spawn('open', [backupsHome], { detached: true }).unref();
+    else spawn('xdg-open', [backupsHome], { detached: true }).unref();
+    res.json({ ok: true, path: backupsHome });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/control-panel/launch-script', async (req, res) => {
+  // Whitelisted script actions the Control Panel exposes.
+  const allowed = new Set(['update', 'restore', 'move', 'stop']);
+  const action = String(req.body?.action || '');
+  if (!allowed.has(action)) { res.status(400).json({ ok: false, error: 'Unknown action' }); return; }
+  const script = pickScript(action);
+  const result = await runControlScript(script);
+  res.json(result);
+});
+
 // ========================
 // Serve production build
 // ========================

@@ -1,29 +1,15 @@
-# Default: let Git auto-detect line endings on text files.
-* text=auto
+# Shell / macOS launchers MUST have LF endings, otherwise they fail
+# with "bad interpreter: /usr/bin/env^M" on macOS and Linux when
+# extracted from a Windows-created ZIP.
+*.sh          text eol=lf
+*.command     text eol=lf
+*.bash        text eol=lf
 
-# Windows-only files MUST be CRLF, otherwise cmd.exe refuses to run them.
-*.bat text eol=crlf
-*.cmd text eol=crlf
-*.ps1 text eol=crlf
-*.vbs text eol=crlf
+# PowerShell scripts and .bat files can be either but Windows tools
+# prefer CRLF — keep them Windows-native.
+*.ps1         text eol=crlf
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
 
-# Cross-platform Node sources stay LF.
-*.js   text eol=lf
-*.jsx  text eol=lf
-*.ts   text eol=lf
-*.tsx  text eol=lf
-*.json text eol=lf
-*.css  text eol=lf
-*.html text eol=lf
-*.md   text eol=lf
-*.yml  text eol=lf
-*.yaml text eol=lf
-
-# Treat as binary (no diff, no eol conversion).
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.ico binary
-*.pdf binary
-*.zip binary
+# HTA runs via mshta.exe on Windows — CRLF is fine.
+*.hta         text eol=crlf

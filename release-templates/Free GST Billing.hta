@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Free GST Billing — Launcher</title>
+  <HTA:APPLICATION
+    ID="fgstbill"
+    APPLICATIONNAME="FreeGSTBillLauncher"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+    CONTEXTMENU="no"
+    BORDER="thin"
+    INNERBORDER="no"
+    SCROLL="no"
+    MAXIMIZEBUTTON="no"
+    ICON="_system/app-icon.ico" />
+  <style>
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+    }
+    body { display: flex; flex-direction: column; height: 100%; }
+    header {
+      padding: 22px 28px 14px;
+      border-bottom: 1px solid #334155;
+      background: #1e293b;
+    }
+    h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+    header p { margin: 0; color: #94a3b8; font-size: 13px; }
+    #status {
+      margin: 14px 28px 0;
+      padding: 10px 14px;
+      background: #1e293b;
+      border-left: 3px solid #6366f1;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    #status.ok { border-color: #22c55e; color: #86efac; }
+    #status.warn { border-color: #f59e0b; color: #fbbf24; }
+    #status.err { border-color: #ef4444; color: #fca5a5; }
+    main {
+      flex: 1;
+      padding: 20px 28px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      overflow: auto;
+    }
+    .primary-btn, .btn {
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      padding: 18px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+    }
+    .primary-btn { grid-column: span 2; background: #22c55e; font-size: 16px; padding: 22px; }
+    .primary-btn:hover { background: #16a34a; }
+    .btn { background: #334155; }
+    .btn:hover { background: #475569; }
+    .btn small, .primary-btn small {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 400;
+      color: #cbd5e1;
+      opacity: 0.85;
+    }
+    .primary-btn small { color: #dcfce7; }
+    footer {
+      padding: 10px 28px;
+      border-top: 1px solid #334155;
+      font-size: 11px;
+      color: #64748b;
+      background: #0f172a;
+    }
+    footer a { color: #93c5fd; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Free GST Billing Software</h1>
+  <p>By DiceCodes — free, open-source, offline-first GST billing for India</p>
+</header>
+
+<div id="status">Checking install status…</div>
+
+<main id="buttons"></main>
+
+<footer>
+  <span id="version">Launcher v1</span>
+  &nbsp;·&nbsp;
+  <a href="#" onclick="openFolder(); return false;">📁 Open Install Folder</a>
+  &nbsp;·&nbsp;
+  <a href="#" onclick="openReadme(); return false;">📖 README</a>
+  &nbsp;·&nbsp;
+  <a href="#" onclick="openGitHub(); return false;">🌐 GitHub</a>
+</footer>
+
+<script>
+  // Free GST Billing — HTA Launcher (v1.10.44)
+  //
+  // Windows one-click front door. User double-clicks this file, we
+  // detect what state the install is in, and offer only the buttons
+  // that make sense right now:
+  //   * No Node installed    → "Install Node & App" (single button)
+  //   * Node present, app not installed → "Install App"
+  //   * Everything installed → "Open App" (green) + Update / Backup /
+  //     Restore / Move-to-another-PC / Uninstall (grey grid)
+  //
+  // Design decisions:
+  //   * Uses IE-era JScript (no arrow functions, no let/const, no
+  //     template strings) because HTA runs on the Trident engine.
+  //     Verified by grepping for ES2015+ — none used.
+  //   * All heavy lifting delegated to PowerShell scripts in
+  //     _system/. HTA is a launcher, not the app itself.
+  //   * Uses WScript.Shell + FileSystemObject — both ship with every
+  //     Windows install since XP; no external deps.
+
+  var shell = new ActiveXObject("WScript.Shell");
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+  // Resolve the folder this HTA lives in. location.pathname is
+  // "file:///C:/path/to/Free%20GST%20Billing.hta" — we strip the
+  // filename, url-decode, and normalize slashes.
+  function launcherFolder() {
+    var p = location.pathname;
+    p = p.replace(/^\/*/, '');                  // drop leading /
+    p = decodeURIComponent(p);
+    p = p.replace(/\//g, '\\');                 // to backslashes
+    var idx = p.lastIndexOf('\\');
+    return idx === -1 ? '' : p.substring(0, idx);
+  }
+  var ROOT = launcherFolder();
+  var SYSTEM = ROOT + '\\_system';
+
+  function fileExists(rel) { return fso.FileExists(ROOT + '\\' + rel); }
+  function folderExists(rel) { return fso.FolderExists(ROOT + '\\' + rel); }
+
+  // Runs a PowerShell script under _system/ with UAC-neutral defaults.
+  // Style 1 = visible window (user sees install progress), false =
+  // don't wait so HTA stays responsive.
+  function runScript(name) {
+    var scriptPath = SYSTEM + '\\' + name;
+    if (!fso.FileExists(scriptPath)) {
+      alert('Missing script: ' + name + '\n\nPlease re-download the app from GitHub Releases.');
+      return;
+    }
+    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + scriptPath + '"';
+    try { shell.Run(cmd, 1, false); }
+    catch (e) { alert('Could not launch ' + name + ':\n' + e.message); }
+  }
+
+  function openFolder() { shell.Run('explorer.exe "' + ROOT + '"', 1, false); }
+  function openReadme() {
+    var readmePath = SYSTEM + '\\README.md';
+    if (fso.FileExists(readmePath)) shell.Run('notepad.exe "' + readmePath + '"', 1, false);
+    else openGitHub();
+  }
+  function openGitHub() { shell.Run('https://github.com/IamRamgarhia/Free-GST-Billing-Software', 1, false); }
+
+  // Detects Node.js — we don't want to falsely claim "not installed"
+  // just because node_modules is missing (user might have just cloned).
+  // A `node --version` returning cleanly is the source of truth.
+  function nodePresent() {
+    try {
+      var exec = shell.Exec('cmd /c node --version 2>nul');
+      exec.StdIn.Close();
+      while (exec.Status === 0) { /* wait */ }
+      return exec.ExitCode === 0;
+    } catch (e) { return false; }
+  }
+
+  // The install is "ready" when Node is installed AND we have both
+  // package.json and node_modules under _system/. Missing node_modules
+  // after Node is present means the user extracted the ZIP but never
+  // ran the install button → we offer "Install App".
+  function installState() {
+    if (!fso.FolderExists(SYSTEM)) return 'no-system';       // corrupt / bad extract
+    if (!fileExists('_system\\package.json')) return 'no-system';
+    if (!nodePresent()) return 'no-node';
+    if (!folderExists('_system\\node_modules')) return 'no-app';
+    return 'ready';
+  }
+
+  function setStatus(text, kind) {
+    var s = document.getElementById('status');
+    s.innerHTML = text;
+    s.className = kind || '';
+  }
+
+  // Build a button via DOM API — avoids the escaping nightmare of
+  // building HTML strings and works reliably in HTA's Trident engine.
+  function makeBtn(label, sub, onclickFn, isPrimary) {
+    var b = document.createElement('button');
+    b.className = isPrimary ? 'primary-btn' : 'btn';
+    b.appendChild(document.createTextNode(label));
+    if (sub) {
+      var s = document.createElement('small');
+      s.appendChild(document.createTextNode(sub));
+      b.appendChild(s);
+    }
+    b.onclick = onclickFn;
+    return b;
+  }
+
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  function render() {
+    var state = installState();
+    var buttons = document.getElementById('buttons');
+    clearChildren(buttons);
+
+    if (state === 'no-system') {
+      setStatus('⚠ <b>_system folder is missing.</b> Please re-extract the ZIP or re-download from GitHub Releases.', 'err');
+      buttons.appendChild(makeBtn('🌐 Download from GitHub', 'Get a fresh copy', openGitHub));
+      buttons.appendChild(makeBtn('📁 Open Install Folder', 'See what is inside', openFolder));
+      return;
+    }
+
+    if (state === 'no-node') {
+      setStatus('ℹ Node.js is not installed. Click below to install Node + the app in one step.', 'warn');
+      buttons.appendChild(makeBtn('📦 Install Node & App', 'Downloads Node.js if needed, then installs the billing app. Takes 2–3 minutes.',
+        function () { runScript('install-windows.ps1'); }, true));
+      buttons.appendChild(makeBtn('📖 View README', 'Read what gets installed', openReadme));
+      buttons.appendChild(makeBtn('🌐 GitHub', 'Source code & releases', openGitHub));
+      return;
+    }
+
+    if (state === 'no-app') {
+      setStatus('ℹ Node.js found, app dependencies not installed yet. Click below to finish setup.', 'warn');
+      buttons.appendChild(makeBtn('📦 Install App', 'Runs npm install and prepares the app. Takes 1–2 minutes.',
+        function () { runScript('install-windows.ps1'); }, true));
+      buttons.appendChild(makeBtn('📖 View README', '', openReadme));
+      buttons.appendChild(makeBtn('🌐 GitHub', '', openGitHub));
+      return;
+    }
+
+    // Ready state — the meat of the launcher.
+    setStatus('✅ Ready. Click <b>Open App</b> to start using it.', 'ok');
+    buttons.appendChild(makeBtn('🚀 Open App', 'Starts the server (if not running) and opens your browser to the billing dashboard.',
+      function () { runScript('start-windows.ps1'); }, true));
+    buttons.appendChild(makeBtn('🆕 Update Software', 'Pull the latest release from GitHub',
+      function () { runScript('update-windows.ps1'); }));
+    buttons.appendChild(makeBtn('💾 Backup Data', 'Zips your data folder',
+      function () { runScript('backup-windows.ps1'); }));
+    buttons.appendChild(makeBtn('♻ Restore Backup', 'Restore from a previous ZIP',
+      function () { runScript('restore-windows.ps1'); }));
+    buttons.appendChild(makeBtn('📤 Move to Another PC', 'Export data + settings as one file',
+      function () { runScript('move-windows.ps1'); }));
+    buttons.appendChild(makeBtn('🛑 Stop Server', 'Only if it is still running',
+      function () { runScript('stop-windows.ps1'); }));
+  }
+
+  // Kick off after DOM is ready — HTA fires window.onload on parse.
+  window.onload = render;
+</script>
+
+</body>
+</html>

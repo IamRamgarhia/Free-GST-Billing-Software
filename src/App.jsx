@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients } from './store';
 import { isModuleEnabled, getUpcomingFilings } from './utils';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
@@ -33,6 +33,7 @@ const GSTReturns = lazy(() => import('./components/GSTReturns'));
 const IncomeTax = lazy(() => import('./components/IncomeTax'));
 const PurchaseBills = lazy(() => import('./components/PurchaseBills'));
 const UserGuideView = lazy(() => import('./components/UserGuideView'));
+const ControlPanel = lazy(() => import('./components/ControlPanel'));
 import { getPrintSettings } from './utils/printSettings';
 
 // v1.10.4 — Lightweight Suspense fallback shown while a lazy view
@@ -760,6 +761,13 @@ function App() {
               {darkMode ? 'Light Mode' : 'Dark Mode'}
             </button>
             <button
+              className={`nav-btn ${currentView === 'controlpanel' ? 'nav-btn-active' : ''}`}
+              onClick={() => setCurrentView('controlpanel')}
+              title="Update, backup, restore, move to another PC"
+            >
+              <HardDrive size={18} /> Control Panel
+            </button>
+            <button
               className={`nav-btn ${currentView === 'settings' ? 'nav-btn-active' : ''}`}
               onClick={() => setCurrentView('settings')}
               style={updateBannerVisible ? { position: 'relative' } : undefined}
@@ -836,6 +844,9 @@ function App() {
         )}
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />
+        )}
+        {currentView === 'controlpanel' && (
+          <ControlPanel />
         )}
         </Suspense>
       </div>
