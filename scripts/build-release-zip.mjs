@@ -77,27 +77,38 @@ if (existsSync(scriptsSrc)) {
   }
 }
 
-// --- Copy application source + build into _system/ ---
-console.log('  → Copying app source + build into _system/…');
+// --- Copy application build + runtime deps into _system/ ---
+// v1.10.44.1 — Ship only what the RUNTIME needs. Previously we
+// also copied `public/` (Vite source assets, ~15 MB of Tesseract
+// WASM) and `src/` (React source), doubling the ZIP size because
+// `dist/` already contains everything from `public/` (Vite copies
+// it during build). Users don't need the source — they have
+// dist/ (built app) + server.js + package.json. Postinstall
+// regenerates public/tesseract/ from node_modules on first
+// install if anything else needs it.
+console.log('  → Copying app build + runtime files into _system/…');
 const includeAtSystem = [
   'package.json',
   'package-lock.json',
   'server.js',
-  'vite.config.js',
-  'index.html',
   'README.md',
   'LICENSE',
   'CHANGELOG.md',
-  '.gitignore',
 ];
 for (const f of includeAtSystem) {
   const src = join(REPO_ROOT, f);
   if (existsSync(src)) copyFileSync(src, join(SYSTEM, f));
 }
-copyDirRecursive(join(REPO_ROOT, 'src'), join(SYSTEM, 'src'));
 copyDirRecursive(join(REPO_ROOT, 'dist'), join(SYSTEM, 'dist'));
-copyDirRecursive(join(REPO_ROOT, 'scripts'), join(SYSTEM, 'scripts'));
-copyDirRecursive(join(REPO_ROOT, 'public'), join(SYSTEM, 'public'));
+// Only ship the scripts that postinstall / release-time need — not the
+// dev-only helpers (tax-test, discount-modes-test, generate-icons,
+// build-release-zip). Keeps ZIP lean and reduces attack surface.
+const runtimeScripts = ['bundle-tesseract-assets.mjs'];
+mkdirSync(join(SYSTEM, 'scripts'), { recursive: true });
+for (const s of runtimeScripts) {
+  const src = join(REPO_ROOT, 'scripts', s);
+  if (existsSync(src)) copyFileSync(src, join(SYSTEM, 'scripts', s));
+}
 
 // --- Create empty data folder so first-run doesn't need to mkdir ---
 mkdirSync(join(SYSTEM, 'data'), { recursive: true });
