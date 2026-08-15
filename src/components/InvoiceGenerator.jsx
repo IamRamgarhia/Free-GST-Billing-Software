@@ -1901,10 +1901,32 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const pdfScale = isFinite(rawScale) && rawScale > 0
       ? Math.max(0.5, Math.min(1.4, rawScale))
       : 1.0;
-    const availWidth = Math.max(20, pdfWidth - mLeft - mRight);
-    const availHeight = Math.max(20, pdfPageHeight - mTop - mBottom);
-    const contentWidth = availWidth * pdfScale;
-    const contentHeight = availHeight * pdfScale;
+    // v1.10.45 — Reserve vertical space for page-2+ header band and the
+    // page-number footer band, so content never overlaps them.
+    // Reported: business name "Hem E..." collided with the "TERMS &
+    // CONDITIONS" heading on page 2 of a multi-page invoice because
+    // contentYOffset was `mTop` (usually 0) on every page while the
+    // header was drawn at Y=6mm. Now: shrink the multi-page content
+    // area by the header + footer bands and shift the image down on
+    // page 2+ to sit BELOW the header. Single-page invoices are
+    // unaffected — page-header + footer aren't drawn on page 1.
+    //
+    // 14mm ≈ 9pt bold text (2mm cap) + 2mm gap + 2mm underline offset
+    //         + 8mm safety pad (glyph descenders + page-scale slop).
+    //  9mm ≈ 8pt footer text at Y = pageHeight - 4mm + safety pad above.
+    const isHeaderOn = !isThermalPdf && !!printSettings.pageHeaderEnabled;
+    const isFooterOn = !isThermalPdf && !!printSettings.pageNumbersEnabled;
+    const pageHeaderReserve = isHeaderOn ? 14 : 0;
+    const pageFooterReserve = isFooterOn ? 9  : 0;
+
+    const availWidth  = Math.max(20, pdfWidth      - mLeft - mRight);
+    // "Full" = single-page availability (no reserve — page 1 has no header/footer bands).
+    // "Multi" = per-page availability during pagination (reserves both bands).
+    const availHeightFull  = Math.max(20, pdfPageHeight - mTop - mBottom);
+    const availHeightMulti = Math.max(20, availHeightFull - pageHeaderReserve - pageFooterReserve);
+    const contentWidth        = availWidth        * pdfScale;
+    const contentHeightFull   = availHeightFull   * pdfScale;
+    const contentHeightMulti  = availHeightMulti  * pdfScale;
     // Centre the scaled invoice inside the available margin box so
     // shrunk PDFs don't hug the left edge.
     const contentXOffset = mLeft + (availWidth - contentWidth) / 2;
@@ -1913,10 +1935,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // so aspect ratio stays correct after margins are applied.
     const scaledImgHeight = (mainCanvas.height * contentWidth) / mainCanvas.width;
 
-    if (scaledImgHeight <= contentHeight + 2) {
-      // Single-page fits — no cropping needed.
+    if (scaledImgHeight <= contentHeightFull + 2) {
+      // Single-page fits — no cropping needed. Page 1 has no header/footer
+      // bands so we can use the full page height (no v1.10.45 reserve).
       const mainImg = mainCanvas.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
-      const finalH = Math.min(scaledImgHeight, contentHeight);
+      const finalH = Math.min(scaledImgHeight, contentHeightFull);
       // v1.10.33 — Thermal receipts: replace the padded 72×297mm page
       // with one exactly tall enough for the actual receipt content.
       // Prior behaviour: a 40-line receipt on thermal80 produced a PDF
@@ -1956,7 +1979,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // v1.10.9 — was pdfPageHeight * (mainCanvas.width / pdfWidth). Now
       // uses contentHeight (page - top - bottom margins) so page breaks
       // respect the margin band.
-      const pdfPageHeightCanvasPx = contentHeight * (mainCanvas.width / contentWidth);
+      // v1.10.45 — uses contentHeightMulti so page splits also
+      // reserve room for the header/footer bands drawn on page 2+.
+      const pdfPageHeightCanvasPx = contentHeightMulti * (mainCanvas.width / contentWidth);
 
       // 3. Walk the canvas top-to-bottom, allocating pages. For each
       //    page: find the largest boundary ≤ naive end, but > current
@@ -1989,6 +2014,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
       // 4. For each page, crop mainCanvas → temp canvas → data URL → PDF.
       // v1.10.9 — margins; v1.10.10 — pdfFontScale via centred placement.
+      // v1.10.45 — page 2+ shifts down by pageHeaderReserve so the
+      // business-name header drawn later never overlaps the invoice.
       for (let i = 0; i < pageSplits.length; i++) {
         const { start, end } = pageSplits[i];
         const cropHeight = end - start;
@@ -2003,22 +2030,30 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         const pageImg = tmp.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
         const pageMmHeight = (cropHeight * contentWidth) / mainCanvas.width;
         if (i > 0) pdf.addPage();
-        pdf.addImage(pageImg, imgFormat, contentXOffset, contentYOffset, contentWidth, pageMmHeight, undefined, 'MEDIUM');
-        pageRecipes.push({ img: pageImg, y: contentYOffset, h: pageMmHeight, x: contentXOffset, w: contentWidth });
+        const yForThisPage = contentYOffset + (i > 0 ? pageHeaderReserve : 0);
+        pdf.addImage(pageImg, imgFormat, contentXOffset, yForThisPage, contentWidth, pageMmHeight, undefined, 'MEDIUM');
+        pageRecipes.push({ img: pageImg, y: yForThisPage, h: pageMmHeight, x: contentXOffset, w: contentWidth });
       }
     }
 
     // Capture each extra section as a separate PDF page (also recipe-tracked).
+    // v1.10.45 — Extra pages are always page 2+ so they must reserve room
+    // for the header/footer bands too. Otherwise attached rich-text pages
+    // hit the same "business name overlaps content" bug as multi-page
+    // splits. yOffset shifts the image below the header band; the max
+    // height clamps to the reduced available area.
+    const extraYOffset = pageHeaderReserve;
+    const extraMaxH = Math.max(20, pdfPageHeight - extraYOffset - pageFooterReserve);
     for (const pageEl of extraPages) {
       const c = await html2canvas(pageEl, {
         ...captureOptions(pageEl),
         onclone: (cd) => { cd.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; }); }
       });
       const extraImg = c.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
-      const extraH = Math.min((c.height * pdfWidth) / c.width, pdfPageHeight);
+      const extraH = Math.min((c.height * pdfWidth) / c.width, extraMaxH);
       pdf.addPage();
-      pdf.addImage(extraImg, imgFormat, 0, 0, pdfWidth, extraH, undefined, 'MEDIUM');
-      pageRecipes.push({ img: extraImg, y: 0, h: extraH });
+      pdf.addImage(extraImg, imgFormat, 0, extraYOffset, pdfWidth, extraH, undefined, 'MEDIUM');
+      pageRecipes.push({ img: extraImg, y: extraYOffset, h: extraH });
     }
 
     // v1.10.3 — scalerEl restoration moved to outer buildPDF's `finally`
