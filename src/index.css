@@ -417,6 +417,26 @@ body {
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255,255,255,0.06);
+  /* v1.10.46 — Reported in issue #20: "no scroll option in menu bar".
+     On 1366×768 laptops the sidebar has 14+ nav items (Dashboard, New
+     Invoice, Clients, Products, Expenses, Purchases, Recurring,
+     Receipts, Reports, GST Returns, Income Tax, User Guide, Dark Mode,
+     Control Panel, Settings) which exceeds the viewport height. Prior
+     CSS had no overflow rule so bottom items got clipped invisibly.
+     Now: sidebar scrolls internally, brand stays at top. */
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
 }
 
 .sidebar-brand {

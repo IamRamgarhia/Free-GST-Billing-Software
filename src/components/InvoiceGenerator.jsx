@@ -1730,6 +1730,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const __buildPDFInner = async (printSettings) => {
 
+    // v1.10.46 — Hoisted from line ~2133 to fix the v1.10.45 regression
+    // where `isHeaderOn` / `isFooterOn` (introduced in v1.10.45 for the
+    // page-2+ header/footer reserves) referenced this constant BEFORE
+    // its declaration → Temporal Dead Zone ReferenceError → every
+    // buildPDF() call threw → both `Print` and `Save & Download PDF`
+    // buttons silently failed with the generic "Print failed" /
+    // "Failed to generate PDF" toasts (reported in issue #20). Every
+    // subsequent guard in this function that already referenced
+    // isThermalPdf keeps working — this is a pure hoist.
+    const isThermalPdf = getPaperSize(invoiceOptions.paperSize, invoiceOptions).kind === 'thermal';
+
     // PDF quality / size trade-off:
     //   - `compress: true` deflate-compresses PDF streams (incl. embedded images).
     //     Adds ~50-150ms but typically shrinks output by 15-30%.
@@ -2126,11 +2137,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // continuous receipt roll, (c) invoice QR / feedback QR crowd out
     // the actual print on 58mm rolls. All post-processing steps below
     // are skipped when the paper is thermal.
-    // v1.10.33 — Same fix as isThermalPaper below. `.startsWith('thermal')`
-    // missed the `custom` preset at sub-100mm widths, so a Custom 76mm
-    // PDF got the sheet-only watermark / page numbers / QR overlays that
+    // v1.10.33 note: isThermalPdf is now hoisted to the top of
+    // __buildPDFInner (see v1.10.46 comment). Original rationale
+    // for the check: `.startsWith('thermal')` missed the `custom`
+    // preset at sub-100mm widths, so a Custom 76mm PDF got the
+    // sheet-only watermark / page numbers / QR overlays that
     // don't belong on a thermal roll.
-    const isThermalPdf = getPaperSize(invoiceOptions.paperSize, invoiceOptions).kind === 'thermal';
 
     // ----- Watermark overlay -----
     // v1.10.12 — Cleaned up the preset ↔ custom decision:
@@ -3913,7 +3925,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 }}>Fit</button>
             </span>
           </div>
-          <div className="preview-scaler" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top left' }}>
+          {/* v1.10.46 — Thermal receipts (58/80mm) are much narrower
+              than the preview pane. With transform-origin: top-left,
+              the scaled invoice hugged the left edge and left a huge
+              white column to the right (reported in issue #20). For
+              thermal we now use top-center so the receipt sits
+              centered in the pane; sheet formats keep top-left so
+              their full width lands aligned with the pane. */}
+          <div className="preview-scaler" style={{
+            transform: `scale(${previewZoom / 100})`,
+            transformOrigin: isThermalPaper() ? 'top center' : 'top left',
+          }}>
             <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
               items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
               customNotes={customNotes} extraSections={extraSections} options={invoiceOptions} />
