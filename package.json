@@ -93,7 +93,7 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.13",
     "express": "^5.2.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
