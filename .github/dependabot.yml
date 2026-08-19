@@ -1,0 +1,44 @@
+# Dependabot version updates.
+#
+# Adapted from the config proposed in #21 / #23 by @venkateshpabbati.
+#
+# Why the grouping below: this project ships a desktop app as a ZIP, so a
+# dependency bump means cutting a release and asking every user to update.
+# Ungrouped weekly updates would mean a stream of single-package PRs. The
+# groups keep routine churn to a couple of PRs a week, while security
+# updates stay ungrouped so they are never queued behind a version bump.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      # Non-breaking updates land as one PR.
+      production-minor-patch:
+        applies-to: version-updates
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-minor-patch:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    ignore:
+      # Majors get reviewed by hand — jspdf and html2canvas majors have
+      # broken PDF output before, and tesseract.js majors change the OCR
+      # worker/asset layout that scripts/bundle-tesseract-assets.mjs
+      # depends on.
+      - dependency-name: "jspdf"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "html2canvas"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tesseract.js"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"

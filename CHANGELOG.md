@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.49] — 2026-08-19
+
+**Security update — two vulnerable libraries replaced.**
+
+No feature changes. This closes a **critical** advisory in the PDF library
+and a **moderate** one in the HTML sanitiser. Both ship inside the app, so
+updating is the only way to get the fix.
+
+### How to update
+
+**Current version:** 1.10.48 → **New version:** 1.10.49
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.49.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Security — jspdf 4.2.0 → 4.2.1 (critical)
+
+Reported by **@anupamme** in #22.
+
+- [GHSA-7x6v-j9x4-qf24](https://github.com/advisories/GHSA-7x6v-j9x4-qf24)
+  — PDF Object Injection via FreeText color. CVSS **8.1**, affects `<=4.2.0`.
+- jsPDF HTML Injection in New Window paths.
+
+jspdf renders every invoice PDF, so the upgrade was verified rather than
+assumed: rebuilt and re-run through the Firefox PDF suite. Output came to
+**452,567 bytes against a 452,551-byte baseline** — a 16-byte delta that
+is only the invoice number. No regression.
+
+### Security — dompurify 3.3.3 → 3.4.14 (moderate)
+
+Found while reviewing the above; not in any PR. dompurify sanitises the
+rich-text **Terms & Conditions** field, so this was a live XSS surface for
+anyone pasting formatted text from elsewhere. Advisories reached
+`<=3.4.12`.
+
+**Production-dependency advisories are now zero** (previously one critical
+and one moderate).
+
+### Added — `.github/dependabot.yml`
+
+Adapted from #21 / #23 by **@venkateshpabbati**, with grouping added:
+minor/patch updates land as one PR per week instead of a stream of
+single-package PRs, and `jspdf`, `html2canvas` and `tesseract.js` majors
+are held for manual review — those have broken PDF output and the OCR
+asset layout before.
+
+Security updates are deliberately left ungrouped so they are never queued
+behind a routine version bump.
+
+### Added — `SECURITY.md`
+
+A real one, replacing the unedited GitHub template proposed in #21 / #23.
+It states what is actually true of this app: offline-first, loopback-only
+server, local data. Scope is written around that threat model — invoice
+field XSS, CSP bypasses, updater and backup flaws are in scope;
+`devDependencies` are out, since `npm run release:zip` ships runtime
+dependencies only.
+
+It also asks reporters to **name their browser**, because several real
+bugs here have reproduced only in Firefox (see ERR-004 and ERR-007 in
+`docs/KNOWN_ERRORS.md`).
+
+---
+
 ## [1.10.48] — 2026-08-19
 
 **PDFs were saving unstyled, and the live preview was clipped on smaller
