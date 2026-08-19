@@ -159,6 +159,170 @@ misleading; it is a permissions problem, not a scope problem.
 
 ---
 
+## ERR-004 — CSP `frame-src` blocked the print iframe
+
+**Version:** fixed in v1.10.48
+**Reported by:** @sangwanmail-eng (console screenshot, Firefox)
+
+**Symptom**
+
+```
+Content-Security-Policy: The page's settings blocked the loading of a
+resource (frame-src) at blob:http://localhost:47371/993b6dbb-... because
+it violates the following directive: "frame-src https://accounts.google.com"
+```
+
+Print and Save-as-PDF silently did nothing.
+
+**Cause**
+
+`printViaIframe()` does `URL.createObjectURL(blob)` → `frame.src = url`,
+but the CSP `frame-src` allowed only `https://accounts.google.com`. The
+iframe was blocked outright.
+
+Why it went unnoticed to v1.10.46: **Firefox enforces `frame-src` against
+`blob:` strictly; Chrome has been laxer with blob-URL frames.** Testing
+only in Chrome hides this entire class of bug.
+
+**Rule**
+
+> Every CSP directive that a `blob:` URL can be fetched under must list
+> `blob:` explicitly. Today: `worker-src` (Tesseract), `img-src`,
+> `frame-src` (PDF print). A directive with an explicit value does **not**
+> inherit `default-src`.
+
+**Guard:** none automated. When adding any `createObjectURL` usage, check
+which CSP directive governs the sink and confirm it lists `blob:`.
+
+**Test in Firefox, not just Chrome** — see also ERR-005.
+
+---
+
+## ERR-005 — `transform: scale()` does not shrink the layout box
+
+**Version:** fixed in v1.10.48
+**Reported by:** @sangwanmail-eng
+
+**Symptom:** "live preview show full when browser zoom on 50%" — at normal
+zoom the invoice preview was clipped on the **left**, and no amount of
+scrolling reached it.
+
+**Cause**
+
+`.preview-scaler` used `transform: scale(z)`. Transforms change what is
+painted, never the element's layout box, so the preview kept reserving
+`.invoice-preview-container`'s hard `width: 210mm` (≈794px) at every zoom
+level. Two things then compounded:
+
+1. On a pane narrower than 794px the sheet overflowed horizontally.
+2. `.preview-pane` used `align-items: center`. **Centring an overflowing
+   child in a scroll container pushes its leading edge into negative
+   scroll space, which is unreachable.** Hence the left side was gone for
+   good, not merely off-screen.
+
+Dropping the browser to 50% zoom "fixed" it only because that doubles the
+viewport in CSS pixels, clearing the 794px threshold.
+
+**This is why it did not reproduce for the maintainer:** the bug is a pure
+function of preview-pane width. Invisible on a wide monitor, guaranteed on
+a 1366px laptop.
+
+**Rule**
+
+> When scaling with `transform`, an ancestor must reserve
+> `natural size × scale`, or the layout will not match what is painted.
+> In a scroll container use `align-items: safe center`, never bare
+> `center` — `safe` degrades to start-alignment on overflow instead of
+> hiding the leading edge.
+
+**Guard:** none automated. **Check new layout work at 1366×768**, not only
+at your monitor's width.
+
+---
+
+## ERR-006 — Missing custom paper width silently becomes 80mm thermal
+
+**Version:** fixed in v1.10.48
+
+**Symptom (suspected):** "live preview show normal template, but pdf save
+as thermal printer."
+
+**Cause**
+
+`getPaperSize()` reads a missing `customPaperWidth` as `80`, and
+`kind = w < 100 ? 'thermal' : 'sheet'` — so absent width means **thermal**.
+Meanwhile the client-preference writer saved only `preferredPaperSize`,
+not the dimensions. A client stored on `custom` therefore came back as
+`custom` *with no width* → silently an 80mm receipt.
+
+**Rule**
+
+> A setting whose meaning depends on companion fields must persist those
+> fields together. Never let a missing dimension fall through to a default
+> that changes the **kind** of output.
+
+**Guard:** none automated.
+
+**Status:** the code defect is real and fixed, but it is **probably not**
+what the reporter hit — see ERR-007, which reproduces their symptom
+exactly. Keep this fix; treat ERR-007 as the real cause.
+
+---
+
+## ERR-007 — CSP `'self'` does not resolve inside an `about:blank` iframe, so PDFs rendered unstyled
+
+**Version:** fixed in v1.10.48
+**Reported by:** @sangwanmail-eng — "live preview show normal template, but
+pdf save as thermal printer"
+
+**Symptom:** the on-screen preview looks correct, but the saved PDF comes
+out as cramped plain text in a narrow column with no colours, borders or
+table rules. It *reads* as a thermal receipt. **It is not thermal — it is
+the invoice with no CSS.**
+
+**Cause**
+
+`html2canvas` clones the invoice into an **`about:blank` iframe** before
+rasterising it (confirmed by instrumenting `document.createElement`: one
+iframe, empty `src`, no `srcdoc`). Firefox inherits the parent CSP into
+that iframe but resolves `'self'` against `about:blank`'s **null origin**,
+so `'self'` matches nothing and the app's own stylesheet is refused:
+
+```
+Content-Security-Policy: blocked a style (style-src-elem) at
+http://localhost:47415/assets/index-*.css ... violates the following
+directive: "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"
+```
+
+**Chrome resolves `'self'` to the inherited origin, so it never fails
+there.** This is the second bug in one report caused by Chrome-only
+testing (see ERR-004).
+
+**Rule**
+
+> Do not rely on `'self'` for resources that a *cloned or inherited*
+> document will request — `about:blank`, `srcdoc` and `blob:` documents
+> may carry a null origin where `'self'` matches nothing. Name the real
+> origin. `connect-src` already lists `http://localhost:*` for a
+> comparable reason.
+
+**Guard:** none automated.
+
+**How it was proved** (repeat this for any "renders differently in the PDF"
+report — file size is a reliable proxy for lost styling):
+
+| | PDF bytes | CSP violations |
+| --- | --- | --- |
+| before fix, CSP present | 421,048 | 1 |
+| before fix, CSP stripped | 452,389 | 0 |
+| after fix, CSP present | 452,551 | 0 |
+| after fix, CSP stripped | 452,173 | 0 |
+
+A 31 KB gap that closes to noise once fixed. Strip the CSP meta with a
+Playwright `route` interception to get the baseline.
+
+---
+
 <!--
 Adding an entry? Copy this skeleton.
 

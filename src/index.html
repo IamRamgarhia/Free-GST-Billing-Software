@@ -25,16 +25,34 @@
         - worker-src 'self' blob: → tesseract creates its worker from a
           blob URL. Without an explicit worker-src, it falls back to
           script-src (which excludes blob:) and blocks the worker.
+        - style-src http://localhost:* → html2canvas clones the invoice
+          into an ABOUT:BLANK iframe before rasterising it. Firefox
+          inherits the CSP into that iframe but resolves 'self' against
+          about:blank's NULL origin, so 'self' matches nothing and the
+          app's own stylesheet is refused — the PDF then renders
+          UNSTYLED. Chrome resolves 'self' to the inherited origin, which
+          is why this never showed up in Chrome testing. Naming the real
+          origin sidesteps the 'self' resolution entirely; connect-src
+          already lists http://localhost:* for a comparable reason.
+          Reported as "pdf save as thermal printer" — it was not thermal,
+          it was an invoice with no CSS.
+        - frame-src 'self' blob: → Print and Save-as-PDF render the
+          generated PDF into a hidden iframe via createObjectURL (see
+          printViaIframe in InvoiceGenerator.jsx and the same pattern in
+          PrintSettings.jsx). Without blob: here the iframe is blocked
+          outright and Print silently does nothing. Reported on Firefox,
+          which enforces frame-src against blob: strictly; Chrome was
+          laxer, which is why this survived to v1.10.46 unnoticed.
     -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src  'self' 'wasm-unsafe-eval' https://accounts.google.com https://apis.google.com;
       worker-src  'self' blob:;
-      style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
+      style-src   'self' 'unsafe-inline' http://localhost:* https://fonts.googleapis.com;
       font-src    'self' https://fonts.gstatic.com data:;
       img-src     'self' data: blob: https://*.googleusercontent.com;
       connect-src 'self' http://localhost:* https://accounts.google.com https://www.googleapis.com https://api.github.com https://nodejs.org https://raw.githubusercontent.com;
-      frame-src   https://accounts.google.com;
+      frame-src   'self' blob: https://accounts.google.com;
       object-src  'none';
       base-uri    'self';
     " />

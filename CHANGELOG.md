@@ -7,6 +7,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.48] — 2026-08-19
+
+**PDFs were saving unstyled, and the live preview was clipped on smaller
+screens.**
+
+Reported (GitHub, @sangwanmail-eng): *"still live preview not working
+properly, live preview show full when browser zoom on 50%. live preview
+show normal template, but pdf save as thermal printer."*
+
+Both turned out to be real, and both were invisible on the maintainer's
+machine — one needs Firefox, the other needs a screen narrower than about
+1400px. Details below.
+
+### How to update
+
+**Current version:** 1.10.47 → **New version:** 1.10.48
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.48.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed — "PDF saves as thermal printer" (it was not thermal, it was unstyled)
+
+`html2canvas` clones the invoice into an **`about:blank` iframe** before
+rasterising it. Firefox inherits the page's CSP into that iframe but
+resolves `'self'` against `about:blank`'s **null origin** — so `'self'`
+matched nothing and the app's own stylesheet was refused:
+
+```
+blocked a style (style-src-elem) at /assets/index-*.css
+  ... violates: "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"
+```
+
+The PDF therefore rendered with **no CSS** — plain text in a narrow
+column, which looks exactly like a thermal receipt. Chrome resolves
+`'self'` to the inherited origin, so it never failed there.
+
+`style-src` now names the real origin (`http://localhost:*`) instead of
+relying on `'self'`, matching what `connect-src` already did.
+
+Measured in Firefox, same invoice: PDF was **421,048 bytes with one CSP
+violation**; it is now **452,551 bytes with zero**, matching a
+CSP-stripped control render byte-for-byte within noise.
+
+### Fixed — Print and Save-as-PDF blocked outright
+
+`frame-src` allowed only `https://accounts.google.com`, but the print path
+renders the PDF into a hidden iframe from a `blob:` URL. Firefox blocked
+the iframe; Chrome was laxer. `frame-src` now allows `'self' blob:`.
+
+### Fixed — live preview clipped, and unreachable by scrolling
+
+Two causes compounding:
+
+- `transform: scale()` shrinks what is *painted* but never the element's
+  layout box, so the preview kept reserving its full 210mm (≈794px) width
+  at every zoom level.
+- The preview pane used `align-items: center`. Centring an overflowing
+  child in a scroll container pushes its leading edge into negative scroll
+  space, **where no scrollbar can reach it** — so the left side of the
+  invoice was gone for good, not merely off-screen.
+
+Dropping the browser to 50% zoom appeared to "fix" it only because that
+doubles the viewport in CSS pixels, clearing the 794px threshold.
+
+Now a wrapper reserves `natural × zoom` so layout tracks what is painted,
+and the pane uses `align-items: safe center`, which falls back to
+start-alignment on overflow.
+
+Measured in Firefox at 1366×768, A4 preview in a 493px pane: **150px were
+unreachable, now 0**. The **Fit** button now genuinely fits — the pane
+went from requiring horizontal scrolling to none.
+
+This also replaces the v1.10.46 `transform-origin: top center` thermal
+hack, which centred the paint but left the layout box at full sheet width.
+
+### Fixed — custom paper size silently becoming an 80mm receipt
+
+`getPaperSize()` reads a missing `customPaperWidth` as 80mm, whose kind is
+`thermal`. The client-preference writer saved only `preferredPaperSize`,
+never the dimensions — so a client stored on **Custom** came back as
+Custom *with no width*, and quietly turned the invoice into a receipt.
+Dimensions are now persisted and restored with the paper size.
+
+### Added — release documentation
+
+- `docs/RELEASE_CHECKLIST.md` — every user-facing release note must carry
+  a **How to update** section, in both the changelog and the GitHub
+  Release body. This entry is the first to follow it.
+- `docs/KNOWN_ERRORS.md` — ERR-004 through ERR-007 record these with the
+  rule and the testing gap that let each one through. Two of the four were
+  Chrome-only-testing blind spots; both now say so explicitly.
+
+---
+
 ## [1.10.47] — 2026-08-19
 
 **Hotfix: every Windows maintenance script failed to run.**
@@ -53,12 +169,29 @@ Four scripts were broken, not just the updater:
 `.ps1`/`.bat` before staging and **fails the release build** with the
 offending `file:line` if a non-ASCII character is reintroduced.
 
-### Upgrade note
+### How to update
 
-v1.10.46 users **cannot use the in-app Update button** — the updater is
-the thing that is broken. Download this release's ZIP manually once;
-in-app updates work again from v1.10.47 onward. Your `data/` folder is
-untouched by a manual reinstall.
+**Current version:** 1.10.46 → **New version:** 1.10.47
+
+> ⚠️ **The Update button cannot fix this one** — the updater is itself the
+> broken component. Please download the ZIP manually, this one time.
+
+1. Download `Free-GST-Billing-v1.10.47.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/tag/v1.10.47).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+In-app updates work normally from v1.10.47 onward.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
 
 ---
 
