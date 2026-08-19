@@ -3,14 +3,14 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 :: ===============================================================
-:: Free GST Billing Software — Launcher
+:: Free GST Billing Software - Launcher
 :: ---------------------------------------------------------------
 :: Behaviour:
-::   1. If not installed → run Install.bat
-::   2. If app build is missing → build it
-::   3. If server is already running → open the URL
-::   4. Otherwise → start the server, wait for it, then open the URL
-::   5. If anything fails → fall back to the visual Control Panel
+::   1. If not installed -> run Install.bat
+::   2. If app build is missing -> build it
+::   3. If server is already running -> open the URL
+::   4. Otherwise -> start the server, wait for it, then open the URL
+::   5. If anything fails -> fall back to the visual Control Panel
 ::      (index.html) so the user always sees something useful,
 ::      never a black window that closed silently.
 :: ===============================================================
@@ -39,7 +39,7 @@ if not exist "dist\index.html" (
     call npm run build --silent 2>nul
 )
 
-:: Step 3: Port discovery — read whatever's saved, probe it
+:: Step 3: Port discovery - read whatever's saved, probe it
 set "PORT=47371"
 if exist "data\port.txt" set /p PORT=<data\port.txt
 curl -s -o nul -w "" http://localhost:%PORT%/api/meta/test >nul 2>nul
@@ -69,7 +69,7 @@ if exist "data\port.txt" set /p PORT=<data\port.txt
 curl -s -o nul -w "" http://localhost:!PORT!/api/meta/test >nul 2>nul
 if !errorlevel! neq 0 goto waitloop
 
-:: Server is up — open the app in default browser
+:: Server is up - open the app in default browser
 if exist "data\port.txt" set /p PORT=<data\port.txt
 start "" http://localhost:!PORT!/
 exit /b 0

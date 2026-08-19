@@ -102,7 +102,7 @@ if %errorlevel% neq 0 (
     )
 
     :: Fallback: open the official Node.js download page in the user's browser.
-    :: We deliberately don't auto-download the MSI here — antivirus heuristics often
+    :: We deliberately don't auto-download the MSI here - antivirus heuristics often
     :: flag .bat files that fetch and run executables. Letting the user grab the
     :: signed MSI from nodejs.org themselves is safer AND less scary for non-tech
     :: users than seeing a SmartScreen prompt for an MSI in their %TEMP% folder.
@@ -172,7 +172,7 @@ echo  [4/5] Creating shortcuts...
 
 set "TARGET_PATH=%~dp0Start FreeGSTBill.bat"
 
-:: Desktop shortcut — points at index.html (the new control panel)
+:: Desktop shortcut - points at index.html (the new control panel)
 :: rather than Start FreeGSTBill.bat directly. Reason: the .bat fails
 :: silently for some users (hidden PowerShell issues, port collisions,
 :: etc.) and they get no feedback. The launcher page checks server
@@ -196,21 +196,21 @@ set "TEMP_VBS=%TEMP%\create_shortcut.vbs"
     echo Set desktopShortcut = WshShell.CreateShortcut("%DESKTOP_SHORTCUT%"^)
     echo desktopShortcut.TargetPath = "%LAUNCHER_PATH%"
     echo desktopShortcut.WorkingDirectory = "%~dp0"
-    echo desktopShortcut.Description = "Free GST Billing Software — Control Panel (start/stop/open)"
+    echo desktopShortcut.Description = "Free GST Billing Software - Control Panel (start/stop/open)"
     echo desktopShortcut.WindowStyle = 1
     echo desktopShortcut.Save
     echo.
     echo Set startShortcut = WshShell.CreateShortcut("%STARTMENU_SHORTCUT%"^)
     echo startShortcut.TargetPath = "%LAUNCHER_PATH%"
     echo startShortcut.WorkingDirectory = "%~dp0"
-    echo startShortcut.Description = "Free GST Billing Software — Control Panel"
+    echo startShortcut.Description = "Free GST Billing Software - Control Panel"
     echo startShortcut.WindowStyle = 1
     echo startShortcut.Save
     echo.
     echo Set quickShortcut = WshShell.CreateShortcut("%STARTMENU_LAUNCHER%"^)
     echo quickShortcut.TargetPath = "%TARGET_PATH%"
     echo quickShortcut.WorkingDirectory = "%~dp0"
-    echo quickShortcut.Description = "Free GST Billing Software — start server and open app directly"
+    echo quickShortcut.Description = "Free GST Billing Software - start server and open app directly"
     echo quickShortcut.WindowStyle = 1
     echo quickShortcut.Save
 ) > "%TEMP_VBS%"

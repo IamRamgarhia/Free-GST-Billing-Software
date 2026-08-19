@@ -1,12 +1,12 @@
-# Free GST Billing — Windows start-server + open-browser.
+# Free GST Billing - Windows start-server + open-browser.
 #
 # Invoked by the HTA launcher's "Open App" button and by the
-# Desktop shortcut. Idempotent — safe to click multiple times.
+# Desktop shortcut. Idempotent - safe to click multiple times.
 # If the server is already running on our chosen port, we just
 # open the browser without spawning a duplicate node.exe.
 
 $ErrorActionPreference = 'Continue'
-$Host.UI.RawUI.WindowTitle = 'Free GST Billing — Server'
+$Host.UI.RawUI.WindowTitle = 'Free GST Billing - Server'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SystemDir = $ScriptDir
@@ -29,13 +29,13 @@ function TestServerUp {
 }
 
 if (TestServerUp -p $port) {
-  Write-Host "  Server already running on port $port — opening browser…"
+  Write-Host "  Server already running on port $port - opening browser..."
   Start-Process "http://localhost:$port/"
   exit 0
 }
 
-# Not running → spawn it detached so the CMD window can close.
-Write-Host "  Starting server on port $port…"
+# Not running -> spawn it detached so the CMD window can close.
+Write-Host "  Starting server on port $port..."
 Push-Location $SystemDir
 Start-Process -FilePath 'node.exe' -ArgumentList 'server.js' -WindowStyle Hidden
 Pop-Location
