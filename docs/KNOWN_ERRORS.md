@@ -107,6 +107,58 @@ eye when editing the launcher.
 
 ---
 
+## ERR-003 — Uploading a new ZIP onto an old release tag
+
+**Version:** affected v1.10.45 and v1.10.46 · corrected at v1.10.47
+
+**Symptom:** the Releases page showed `Free-GST-Billing-v1.10.46.zip`
+attached to a release titled **v1.10.44**, with mismatched dates (asset
+"13 hours ago", source code "4 days ago"). No v1.10.45 or v1.10.46
+release ever existed.
+
+**Cause:** new builds were uploaded as assets onto the existing v1.10.44
+release instead of cutting a new tagged release.
+
+Two real consequences:
+
+1. The in-app updater reads
+   `GET /repos/.../releases/latest` and shows the user `tag_name`. That
+   returned `v1.10.44` no matter which build was actually attached, so
+   every user was told the wrong version number.
+2. Anyone landing on the old release page downloads whatever ZIP is
+   pinned there — which is how a build that was already known-broken
+   stayed publicly downloadable after the fix shipped.
+
+**Rule**
+
+> Every shipped build gets its **own** tagged release matching
+> `package.json`. Never re-upload an asset onto a previous tag.
+
+```
+npm run release:zip
+gh release create v<VERSION> "release-build/Free-GST-Billing-v<VERSION>.zip" --target main
+```
+
+Then confirm what the updater will actually see:
+
+```
+gh api repos/IamRamgarhia/Free-GST-Billing-Software/releases/latest \
+  --jq '{tag: .tag_name, asset: .assets[0].name}'
+```
+
+The tag and the asset filename must both match the new version.
+
+**Guard:** none — this is release procedure, not code. Run the
+verification command above after every publish.
+
+**Also:** `gh` may have more than one account in its keyring. If
+`gh release create` fails with *"workflow scope may be required"*, the
+active account is probably the wrong one — check `gh auth status` and
+`gh auth switch -h github.com -u IamRamgarhia`. The error message is
+misleading; it is a permissions problem, not a scope problem.
+
+---
+
 <!--
 Adding an entry? Copy this skeleton.
 
