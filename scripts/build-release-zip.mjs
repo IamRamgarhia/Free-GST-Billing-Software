@@ -71,11 +71,42 @@ for (const f of readdirSync(templates)) {
 // --- Copy _system-scripts contents INTO _system/ (flattened, no subfolder) ---
 console.log('  → Copying platform scripts into _system/…');
 const scriptsSrc = join(templates, '_system-scripts');
+
+// Windows PowerShell 5.1 reads a BOM-less .ps1 using the machine's ANSI
+// codepage, not UTF-8. A UTF-8 arrow or em dash then decodes into a curly
+// quote, and PowerShell treats curly quotes as real string delimiters -- so
+// the string terminates mid-line and the whole script dies with "The string
+// is missing the terminator". That shipped in v1.10.46 and broke Update,
+// Backup, Move and Start for every user. Keep these scripts pure ASCII; it
+// is the only encoding every codepage agrees on.
+function assertAsciiOnly(dir, files) {
+  const offenders = [];
+  for (const f of files) {
+    if (!/\.(ps1|bat|cmd)$/i.test(f)) continue;
+    readFileSync(join(dir, f), 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        const hit = line.match(/[^\x00-\x7F]/g);
+        if (hit) offenders.push(`    ${f}:${i + 1}  ${[...new Set(hit)].join(' ')}`);
+      });
+  }
+  if (offenders.length) {
+    console.error('\n  x Non-ASCII characters found in Windows scripts:');
+    console.error(offenders.join('\n'));
+    console.error('\n    These break PowerShell 5.1 parsing. Use ASCII instead:');
+    console.error('    "-" for em dash, "..." for ellipsis, "->" for arrow.\n');
+    process.exit(1);
+  }
+}
+
 if (existsSync(scriptsSrc)) {
-  for (const f of readdirSync(scriptsSrc)) {
+  const scriptFiles = readdirSync(scriptsSrc);
+  assertAsciiOnly(scriptsSrc, scriptFiles);
+  for (const f of scriptFiles) {
     copyFileSync(join(scriptsSrc, f), join(SYSTEM, f));
   }
 }
+assertAsciiOnly(REPO_ROOT, readdirSync(REPO_ROOT));
 
 // --- Copy application build + runtime deps into _system/ ---
 // v1.10.44.1 — Ship only what the RUNTIME needs. Previously we
