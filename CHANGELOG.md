@@ -64,6 +64,42 @@ weekly, at most 3 open PRs, **no automated major-version PRs at all**, and
 `eslint-plugin-react-refresh` minors held too (0.x treats minor as
 breaking, so 0.4 → 0.5 is a breaking change filed as "minor").
 
+### Fixed — `vite-plugin-pwa` was a production dependency
+
+It sits in `dependencies` but is used **only** in `vite.config.js`, at
+build time. Because the installer runs `npm install --omit=dev`, that one
+misplaced line dragged the whole Vite toolchain onto every user's machine:
+`esbuild`, `postcss`, `nanoid`, `picomatch`, `@babel/core`. Users get a
+prebuilt `dist/` and never run Vite, so none of it was ever executed.
+
+Moved to `devDependencies`. Flagged packages in the **shipped** tree went
+from **8 to 3** on that change alone — five of them existed purely because
+of the misplacement.
+
+### Fixed — remaining shipped advisories (Express transitives)
+
+The last three were real: `path-to-regexp` (**high**), `qs` (moderate) and
+`body-parser` (low), reached through Express — which genuinely does run on
+user machines. Express itself was already current at 5.2.1, so these were
+resolved as nested updates: `path-to-regexp` 8.4.2, `qs` 6.15.3,
+`body-parser` 2.3.0.
+
+`path-to-regexp` is Express's router, so this was verified rather than
+assumed — server boots, `/api/bills`, `/api/clients`, `/api/products` and
+`/api/profiles` all return 200, the SPA route returns 200 and an unknown
+path still 404s.
+
+**`npm audit --omit=dev` — the tree users actually install — is now zero
+across every severity.**
+
+> ⚠️ **Correction to v1.10.49.** That entry claimed "production-dependency
+> advisories are now zero". **That was wrong.** The check behind it matched
+> only *direct* dependencies by name and silently skipped every transitive
+> one, so it reported zero while eight packages were flagged in the shipped
+> tree. The correct command is `npm audit --omit=dev`, which mirrors what
+> the installer does. The jspdf and dompurify fixes in v1.10.49 were real
+> and remain correct; only the "zero" claim was overstated.
+
 ### Fixed — Dependabot alerts were switched off
 
 Found while triaging the above, and the most important item here:
@@ -145,8 +181,14 @@ rich-text **Terms & Conditions** field, so this was a live XSS surface for
 anyone pasting formatted text from elsewhere. Advisories reached
 `<=3.4.12`.
 
-**Production-dependency advisories are now zero** (previously one critical
-and one moderate).
+Both were genuine and the fixes are correct.
+
+> **Correction (added later):** this entry originally claimed
+> "production-dependency advisories are now zero". That was wrong — the
+> check behind it matched only *direct* dependencies and skipped every
+> transitive one. Eight packages were still flagged in the shipped tree.
+> See the Unreleased section above, where that is properly resolved and
+> verified with `npm audit --omit=dev`.
 
 ### Added — `.github/dependabot.yml`
 
