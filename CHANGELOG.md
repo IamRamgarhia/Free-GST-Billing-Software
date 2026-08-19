@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+Maintenance only. **Deliberately not cut as a release** — see the note at
+the end.
+
+### Changed — routine dependency updates
+
+Reviewed and tested from Dependabot #24 / #25:
+
+- `react` / `react-dom` 19.2.0 → **19.2.8** (ships to users)
+- `vite-plugin-pwa` 1.2.0 → **1.3.0**
+- `@types/react` 19.2.7 → 19.2.18, `@types/react-dom` 19.2.3 → 19.2.4 (dev)
+
+### Security — vite 7.3.1 → 7.3.6 (dev only)
+
+Closes a **high** severity advisory set against the Vite dev server (path
+traversal in optimized-deps `.map` handling, `server.fs.deny` bypasses,
+arbitrary file read over the dev-server WebSocket).
+
+**No user is affected.** Vite is a `devDependency` and the installer runs
+`npm install --omit=dev`, so it has never been on a user's machine. This
+protects the maintainer's own dev server, which is why it is worth doing
+but not worth a release.
+
+### Held back — `eslint-plugin-react-hooks` 7.1.1
+
+Dependabot offered this in #25. **Not taken**, and the reason is worth
+recording.
+
+7.1.1 enables the React Compiler rule set. On unchanged code it takes
+`InvoiceGenerator.jsx` from **5 errors to 16** — 11 new errors, none of
+which are live bugs:
+
+- *"Cannot access variable before it is declared"* ×2 — `saveInvoiceToDB`
+  and `generatePDF` referenced inside deferred callbacks (`setTimeout`, a
+  keydown handler). Both resolve fine by the time the callback fires.
+- *"Cannot call impure function during render"* — `Date.now()` in a
+  non-lazy `useState` initializer. Re-evaluates every render, result
+  discarded after the first. Wasteful, not broken.
+- The rest are `setState`-in-effect and dependency-list shape warnings.
+
+Taking the bump would mean carrying 11 permanent errors, which makes
+`npm run lint` useless as a signal. Held at 7.0.1 and added to
+`dependabot.yml`'s ignore list logic via the majors rule.
+
+Worth revisiting deliberately: the *"before it is declared"* rule catches
+the exact class of bug that broke Print and Save-as-PDF in v1.10.46 (a
+constant referenced ahead of its declaration → TDZ ReferenceError). It is
+currently reporting safe instances, but it would have caught the real one.
+
+### Changed — `.github/dependabot.yml` retuned
+
+The first run filed five PRs in three minutes. Now: **monthly** instead of
+weekly, at most 3 open PRs, **no automated major-version PRs at all**, and
+`eslint-plugin-react-refresh` minors held too (0.x treats minor as
+breaking, so 0.4 → 0.5 is a breaking change filed as "minor").
+
+### Fixed — Dependabot alerts were switched off
+
+Found while triaging the above, and the most important item here:
+
+```
+vulnerability alerts:      DISABLED
+automated security fixes:  DISABLED
+```
+
+The noisy half was on and the valuable half was off. **This is why the
+critical jspdf advisory sat in a shipped release until an outside
+contributor happened to file #22** — GitHub knew about it; the repo was
+not configured to say so. Both are now enabled.
+
+### Why no release
+
+`react` 19.2.8 is the only change here that reaches a user, and it is a
+patch-level update with no fix they are waiting on. Everything else is
+dev-only. Users install by hand, so a release has a real cost for them —
+v1.10.49 went out the same day. This rides along with the next release
+that has something a user actually needs.
+
+---
+
 ## [1.10.49] — 2026-08-19
 
 **Security update — two vulnerable libraries replaced.**
