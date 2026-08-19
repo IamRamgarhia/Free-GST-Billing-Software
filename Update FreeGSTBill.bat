@@ -118,7 +118,7 @@ echo  ========================================================
 echo.
 echo     Update Complete!
 echo.
-echo     Updated: %CURRENT_VER% → %NEW_VER%
+echo     Updated: %CURRENT_VER% -> %NEW_VER%
 echo.
 echo     Your data is safe and untouched.
 echo     Starting Free GST Billing Software...

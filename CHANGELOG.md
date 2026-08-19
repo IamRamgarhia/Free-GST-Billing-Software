@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.47] — 2026-08-19
+
+**Hotfix: every Windows maintenance script failed to run.**
+
+Reported (GitHub issue, @sangwanmail-eng): clicking **Update** produced
+`Unexpected token ')' in expression or statement` and
+`The string is missing the terminator: '` at `update-windows.ps1:104`.
+
+### Root cause
+
+The `.ps1` files were saved as UTF-8 **without a BOM**. Windows
+PowerShell 5.1 decodes a BOM-less script using the machine's ANSI
+codepage (cp1252), not UTF-8 — so `→` (`E2 86 92`) became `â†'` and
+`—` (`E2 80 94`) became `â€"`. PowerShell treats those curly quotes as
+genuine string delimiters, so the string terminated mid-line.
+
+This is a **parse-time** failure, so nothing in the script ran at all —
+the update never started, it did not partially apply.
+
+### Fixed
+
+Four scripts were broken, not just the updater:
+
+| Script | Failed at |
+| --- | --- |
+| `update-windows.ps1` | line 104 — Update |
+| `start-windows.ps1` | line 56 — Start Server |
+| `backup-windows.ps1` | line 36 — Backup |
+| `move-windows.ps1` | line 40 — Move to Another PC |
+
+- All seven `_system-scripts/*.ps1` converted to **pure ASCII**
+  (`—`→`-`, `…`→`...`, `→`→`->`, `✅`→`[OK]`). ASCII is the only
+  encoding every Windows codepage agrees on, so this is immune to
+  both BOM handling and the user's locale.
+- Root `.bat` launchers ASCII-ified too — they were printing mojibake
+  under the cp437/cp850 OEM codepage (cosmetic, not fatal).
+- `Free GST Billing.hta` declared no charset, so the launcher UI was
+  being decoded with the system codepage. Added
+  `<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />`.
+
+### Added — regression guard
+
+`scripts/build-release-zip.mjs` now runs `assertAsciiOnly()` over every
+`.ps1`/`.bat` before staging and **fails the release build** with the
+offending `file:line` if a non-ASCII character is reintroduced.
+
+### Upgrade note
+
+v1.10.46 users **cannot use the in-app Update button** — the updater is
+the thing that is broken. Download this release's ZIP manually once;
+in-app updates work again from v1.10.47 onward. Your `data/` folder is
+untouched by a manual reinstall.
+
+---
+
 ## [1.10.44] — 2026-08-15
 
 **One-file launcher per OS + in-app Control Panel.**
