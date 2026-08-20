@@ -28,6 +28,11 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     || !!client?.isSEZ
     || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
     || (businessState && clientState && businessState !== clientState);
+  const getPlainTextFromHtml = (html) => {
+    if (!html) return '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return (doc.body?.textContent || '').trim();
+  };
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
   // Seller's country drives tax label (GST / VAT / SST / MwSt etc.) and bank label.
   const sellerCC = getCountryConfig(profile?.country);
@@ -1203,7 +1208,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           })()}
           {!_ps.termsSeparatePage && (() => {
             const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
-            const hasNotes = notesHtml && notesHtml.replace(/<[^>]*>/g, '').trim();
+            const hasNotes = getPlainTextFromHtml(notesHtml);
             return showNotes && hasNotes ? (
               <div className="inv-footer-block">
                 <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
@@ -1219,7 +1224,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <div data-pdf-page="terms" style={{ padding: '2rem', pageBreakBefore: 'always', breakBefore: 'page' }}>
             {(() => {
               const termsHtml = customTerms ? DOMPurify.sanitize(customTerms) : '';
-              const hasTerms = termsHtml && termsHtml.replace(/<[^>]*>/g, '').trim();
+              const hasTerms = getPlainTextFromHtml(termsHtml);
               return showTerms && hasTerms ? (
                 <div className="inv-footer-block">
                   <h4 className="inv-section-label">{getLabel(_ps_labels, 'terms')}</h4>
@@ -1229,7 +1234,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             })()}
             {(() => {
               const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
-              const hasNotes = notesHtml && notesHtml.replace(/<[^>]*>/g, '').trim();
+              const hasNotes = getPlainTextFromHtml(notesHtml);
               return showNotes && hasNotes ? (
                 <div className="inv-footer-block" style={{ marginTop: '2rem' }}>
                   <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
