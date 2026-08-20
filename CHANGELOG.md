@@ -7,6 +7,331 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+Maintenance only. **Deliberately not cut as a release** — see the note at
+the end.
+
+### Changed — routine dependency updates
+
+Reviewed and tested from Dependabot #24 / #25:
+
+- `react` / `react-dom` 19.2.0 → **19.2.8** (ships to users)
+- `vite-plugin-pwa` 1.2.0 → **1.3.0**
+- `@types/react` 19.2.7 → 19.2.18, `@types/react-dom` 19.2.3 → 19.2.4 (dev)
+
+### Security — vite 7.3.1 → 7.3.6 (dev only)
+
+Closes a **high** severity advisory set against the Vite dev server (path
+traversal in optimized-deps `.map` handling, `server.fs.deny` bypasses,
+arbitrary file read over the dev-server WebSocket).
+
+**No user is affected.** Vite is a `devDependency` and the installer runs
+`npm install --omit=dev`, so it has never been on a user's machine. This
+protects the maintainer's own dev server, which is why it is worth doing
+but not worth a release.
+
+### Held back — `eslint-plugin-react-hooks` 7.1.1
+
+Dependabot offered this in #25. **Not taken**, and the reason is worth
+recording.
+
+7.1.1 enables the React Compiler rule set. On unchanged code it takes
+`InvoiceGenerator.jsx` from **5 errors to 16** — 11 new errors, none of
+which are live bugs:
+
+- *"Cannot access variable before it is declared"* ×2 — `saveInvoiceToDB`
+  and `generatePDF` referenced inside deferred callbacks (`setTimeout`, a
+  keydown handler). Both resolve fine by the time the callback fires.
+- *"Cannot call impure function during render"* — `Date.now()` in a
+  non-lazy `useState` initializer. Re-evaluates every render, result
+  discarded after the first. Wasteful, not broken.
+- The rest are `setState`-in-effect and dependency-list shape warnings.
+
+Taking the bump would mean carrying 11 permanent errors, which makes
+`npm run lint` useless as a signal. Held at 7.0.1 and added to
+`dependabot.yml`'s ignore list logic via the majors rule.
+
+Worth revisiting deliberately: the *"before it is declared"* rule catches
+the exact class of bug that broke Print and Save-as-PDF in v1.10.46 (a
+constant referenced ahead of its declaration → TDZ ReferenceError). It is
+currently reporting safe instances, but it would have caught the real one.
+
+### Changed — `.github/dependabot.yml` retuned
+
+The first run filed five PRs in three minutes. Now: **monthly** instead of
+weekly, at most 3 open PRs, **no automated major-version PRs at all**, and
+`eslint-plugin-react-refresh` minors held too (0.x treats minor as
+breaking, so 0.4 → 0.5 is a breaking change filed as "minor").
+
+### Fixed — `vite-plugin-pwa` was a production dependency
+
+It sits in `dependencies` but is used **only** in `vite.config.js`, at
+build time. Because the installer runs `npm install --omit=dev`, that one
+misplaced line dragged the whole Vite toolchain onto every user's machine:
+`esbuild`, `postcss`, `nanoid`, `picomatch`, `@babel/core`. Users get a
+prebuilt `dist/` and never run Vite, so none of it was ever executed.
+
+Moved to `devDependencies`. Flagged packages in the **shipped** tree went
+from **8 to 3** on that change alone — five of them existed purely because
+of the misplacement.
+
+### Fixed — remaining shipped advisories (Express transitives)
+
+The last three were real: `path-to-regexp` (**high**), `qs` (moderate) and
+`body-parser` (low), reached through Express — which genuinely does run on
+user machines. Express itself was already current at 5.2.1, so these were
+resolved as nested updates: `path-to-regexp` 8.4.2, `qs` 6.15.3,
+`body-parser` 2.3.0.
+
+`path-to-regexp` is Express's router, so this was verified rather than
+assumed — server boots, `/api/bills`, `/api/clients`, `/api/products` and
+`/api/profiles` all return 200, the SPA route returns 200 and an unknown
+path still 404s.
+
+**`npm audit --omit=dev` — the tree users actually install — is now zero
+across every severity.**
+
+> ⚠️ **Correction to v1.10.49.** That entry claimed "production-dependency
+> advisories are now zero". **That was wrong.** The check behind it matched
+> only *direct* dependencies by name and silently skipped every transitive
+> one, so it reported zero while eight packages were flagged in the shipped
+> tree. The correct command is `npm audit --omit=dev`, which mirrors what
+> the installer does. The jspdf and dompurify fixes in v1.10.49 were real
+> and remain correct; only the "zero" claim was overstated.
+
+### Fixed — Dependabot alerts were switched off
+
+Found while triaging the above, and the most important item here:
+
+```
+vulnerability alerts:      DISABLED
+automated security fixes:  DISABLED
+```
+
+The noisy half was on and the valuable half was off. **This is why the
+critical jspdf advisory sat in a shipped release until an outside
+contributor happened to file #22** — GitHub knew about it; the repo was
+not configured to say so. Both are now enabled.
+
+### Why no release
+
+`react` 19.2.8 is the only change here that reaches a user, and it is a
+patch-level update with no fix they are waiting on. Everything else is
+dev-only. Users install by hand, so a release has a real cost for them —
+v1.10.49 went out the same day. This rides along with the next release
+that has something a user actually needs.
+
+---
+
+## [1.10.49] — 2026-08-19
+
+**Security update — two vulnerable libraries replaced.**
+
+No feature changes. This closes a **critical** advisory in the PDF library
+and a **moderate** one in the HTML sanitiser. Both ship inside the app, so
+updating is the only way to get the fix.
+
+### How to update
+
+**Current version:** 1.10.48 → **New version:** 1.10.49
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.49.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Security — jspdf 4.2.0 → 4.2.1 (critical)
+
+Reported by **@anupamme** in #22.
+
+- [GHSA-7x6v-j9x4-qf24](https://github.com/advisories/GHSA-7x6v-j9x4-qf24)
+  — PDF Object Injection via FreeText color. CVSS **8.1**, affects `<=4.2.0`.
+- jsPDF HTML Injection in New Window paths.
+
+jspdf renders every invoice PDF, so the upgrade was verified rather than
+assumed: rebuilt and re-run through the Firefox PDF suite. Output came to
+**452,567 bytes against a 452,551-byte baseline** — a 16-byte delta that
+is only the invoice number. No regression.
+
+### Security — dompurify 3.3.3 → 3.4.14 (moderate)
+
+Found while reviewing the above; not in any PR. dompurify sanitises the
+rich-text **Terms & Conditions** field, so this was a live XSS surface for
+anyone pasting formatted text from elsewhere. Advisories reached
+`<=3.4.12`.
+
+Both were genuine and the fixes are correct.
+
+> **Correction (added later):** this entry originally claimed
+> "production-dependency advisories are now zero". That was wrong — the
+> check behind it matched only *direct* dependencies and skipped every
+> transitive one. Eight packages were still flagged in the shipped tree.
+> See the Unreleased section above, where that is properly resolved and
+> verified with `npm audit --omit=dev`.
+
+### Added — `.github/dependabot.yml`
+
+Adapted from #21 / #23 by **@venkateshpabbati**, with grouping added:
+minor/patch updates land as one PR per week instead of a stream of
+single-package PRs, and `jspdf`, `html2canvas` and `tesseract.js` majors
+are held for manual review — those have broken PDF output and the OCR
+asset layout before.
+
+Security updates are deliberately left ungrouped so they are never queued
+behind a routine version bump.
+
+### Added — `SECURITY.md`
+
+A real one, replacing the unedited GitHub template proposed in #21 / #23.
+It states what is actually true of this app: offline-first, loopback-only
+server, local data. Scope is written around that threat model — invoice
+field XSS, CSP bypasses, updater and backup flaws are in scope;
+`devDependencies` are out, since `npm run release:zip` ships runtime
+dependencies only.
+
+It also asks reporters to **name their browser**, because several real
+bugs here have reproduced only in Firefox (see ERR-004 and ERR-007 in
+`docs/KNOWN_ERRORS.md`).
+
+---
+
+## [1.10.48] — 2026-08-19
+
+**PDFs were saving unstyled, and the live preview was clipped on smaller
+screens.**
+
+Reported (GitHub, @sangwanmail-eng): *"still live preview not working
+properly, live preview show full when browser zoom on 50%. live preview
+show normal template, but pdf save as thermal printer."*
+
+Both turned out to be real, and both were invisible on the maintainer's
+machine — one needs Firefox, the other needs a screen narrower than about
+1400px. Details below.
+
+### How to update
+
+**Current version:** 1.10.47 → **New version:** 1.10.48
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.48.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed — "PDF saves as thermal printer" (it was not thermal, it was unstyled)
+
+`html2canvas` clones the invoice into an **`about:blank` iframe** before
+rasterising it. Firefox inherits the page's CSP into that iframe but
+resolves `'self'` against `about:blank`'s **null origin** — so `'self'`
+matched nothing and the app's own stylesheet was refused:
+
+```
+blocked a style (style-src-elem) at /assets/index-*.css
+  ... violates: "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"
+```
+
+The PDF therefore rendered with **no CSS** — plain text in a narrow
+column, which looks exactly like a thermal receipt. Chrome resolves
+`'self'` to the inherited origin, so it never failed there.
+
+`style-src` now names the real origin (`http://localhost:*`) instead of
+relying on `'self'`, matching what `connect-src` already did.
+
+Measured in Firefox, same invoice: PDF was **421,048 bytes with one CSP
+violation**; it is now **452,551 bytes with zero**, matching a
+CSP-stripped control render byte-for-byte within noise.
+
+### Fixed — Print and Save-as-PDF blocked outright
+
+`frame-src` allowed only `https://accounts.google.com`, but the print path
+renders the PDF into a hidden iframe from a `blob:` URL. Firefox blocked
+the iframe; Chrome was laxer. `frame-src` now allows `'self' blob:`.
+
+### Fixed — live preview clipped, and unreachable by scrolling
+
+Two causes compounding:
+
+- `transform: scale()` shrinks what is *painted* but never the element's
+  layout box, so the preview kept reserving its full 210mm (≈794px) width
+  at every zoom level.
+- The preview pane used `align-items: center`. Centring an overflowing
+  child in a scroll container pushes its leading edge into negative scroll
+  space, **where no scrollbar can reach it** — so the left side of the
+  invoice was gone for good, not merely off-screen.
+
+Dropping the browser to 50% zoom appeared to "fix" it only because that
+doubles the viewport in CSS pixels, clearing the 794px threshold.
+
+Now a wrapper reserves `natural × zoom` so layout tracks what is painted,
+and the pane uses `align-items: safe center`, which falls back to
+start-alignment on overflow.
+
+Measured in Firefox at 1366×768, A4 preview in a 493px pane: **150px were
+unreachable, now 0**. The **Fit** button now genuinely fits — the pane
+went from requiring horizontal scrolling to none.
+
+This also replaces the v1.10.46 `transform-origin: top center` thermal
+hack, which centred the paint but left the layout box at full sheet width.
+
+### Fixed — custom paper size silently becoming an 80mm receipt
+
+`getPaperSize()` reads a missing `customPaperWidth` as 80mm, whose kind is
+`thermal`. The client-preference writer saved only `preferredPaperSize`,
+never the dimensions — so a client stored on **Custom** came back as
+Custom *with no width*, and quietly turned the invoice into a receipt.
+Dimensions are now persisted and restored with the paper size.
+
+### Added — release documentation
+
+- `docs/RELEASE_CHECKLIST.md` — every user-facing release note must carry
+  a **How to update** section, in both the changelog and the GitHub
+  Release body. This entry is the first to follow it.
+- `docs/KNOWN_ERRORS.md` — ERR-004 through ERR-007 record these with the
+  rule and the testing gap that let each one through. Two of the four were
+  Chrome-only-testing blind spots; both now say so explicitly.
+
+---
+
 ## [1.10.47] — 2026-08-19
 
 **Hotfix: every Windows maintenance script failed to run.**
@@ -53,12 +378,29 @@ Four scripts were broken, not just the updater:
 `.ps1`/`.bat` before staging and **fails the release build** with the
 offending `file:line` if a non-ASCII character is reintroduced.
 
-### Upgrade note
+### How to update
 
-v1.10.46 users **cannot use the in-app Update button** — the updater is
-the thing that is broken. Download this release's ZIP manually once;
-in-app updates work again from v1.10.47 onward. Your `data/` folder is
-untouched by a manual reinstall.
+**Current version:** 1.10.46 → **New version:** 1.10.47
+
+> ⚠️ **The Update button cannot fix this one** — the updater is itself the
+> broken component. Please download the ZIP manually, this one time.
+
+1. Download `Free-GST-Billing-v1.10.47.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/tag/v1.10.47).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+In-app updates work normally from v1.10.47 onward.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
 
 ---
 
