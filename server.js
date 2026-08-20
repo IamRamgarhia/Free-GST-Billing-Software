@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 // v1.10.0 — `cors` package no longer imported. The CORS-lockdown
 // middleware below is intentionally custom + strict (localhost only)
 // where `cors()` echoed `*` for every origin.
@@ -1169,7 +1170,12 @@ app.post('/api/backups/now', (req, res) => {
 // ---- Trash bin (soft delete for invoices) ---------------------------------
 ensureDir(BILL_TRASH_DIR);
 
-app.get('/api/trash', (req, res) => {
+const trashRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60
+});
+
+app.get('/api/trash', trashRateLimiter, (req, res) => {
   try {
     ensureDir(BILL_TRASH_DIR);
     const files = fs.readdirSync(BILL_TRASH_DIR)
@@ -1187,7 +1193,7 @@ app.get('/api/trash', (req, res) => {
   } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
-app.post('/api/trash/:id/restore', (req, res) => {
+app.post('/api/trash/:id/restore', trashRateLimiter, (req, res) => {
   try {
     const fname = safeFileName(req.params.id) + '.json';
     const trashPath = path.join(BILL_TRASH_DIR, fname);
@@ -1198,7 +1204,7 @@ app.post('/api/trash/:id/restore', (req, res) => {
   } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
-app.delete('/api/trash/:id', (req, res) => {
+app.delete('/api/trash/:id', trashRateLimiter, (req, res) => {
   try {
     const fname = safeFileName(req.params.id) + '.json';
     const trashPath = path.join(BILL_TRASH_DIR, fname);
