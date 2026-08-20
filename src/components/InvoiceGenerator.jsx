@@ -3812,7 +3812,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     // Users iterating through 3 presets to compare shouldn't
                     // see 3 confirm dialogs. Ask once per session; subsequent
                     // presets swap silently until they close the tab.
-                    if (customTerms && customTerms.replace(/<[^>]*>/g, '').trim()) {
+                    const sanitizedTerms = DOMPurify.sanitize(customTerms || '', { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+                    const termsText = new DOMParser().parseFromString(sanitizedTerms, 'text/html').body.textContent?.trim() || '';
+                    if (termsText) {
                       const skipConfirm = sessionStorage.getItem('gst_termsPresetConfirmed') === '1';
                       if (!skipConfirm) {
                         const proceed = await confirmAction({
