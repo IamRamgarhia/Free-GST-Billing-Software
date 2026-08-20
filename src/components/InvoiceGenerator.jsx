@@ -619,6 +619,38 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // OS dialog already shows a preview. See directPrint + executePrint.
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const printRef = useRef(null);
+  // v1.10.48 — reported: "live preview show full when browser zoom on 50%".
+  // `transform: scale()` shrinks what is PAINTED but never the element's
+  // layout box, so the preview kept reserving its full natural width
+  // (.invoice-preview-container is a hard `width: 210mm` ≈ 794px) at every
+  // zoom level. On a pane narrower than that the sheet overflowed
+  // horizontally, and because .preview-pane centres its children the LEFT
+  // overflow scrolled out of reach entirely — the user saw a permanently
+  // clipped invoice. Dropping the browser to 50% zoom "fixed" it only
+  // because it doubles the viewport in CSS px, clearing 794px. That makes
+  // this bug purely a function of pane width, so it is invisible on wide
+  // monitors and reproduces every time on a 1366px laptop.
+  //
+  // Fix: measure the preview's natural size and reserve exactly
+  // natural × zoom on a wrapper element, so the layout box tracks what is
+  // actually painted. The container's width is intrinsic (mm, not %), so
+  // sizing an ancestor cannot feed back into it — no observer loop.
+  const [previewNatural, setPreviewNatural] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = printRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => setPreviewNatural((prev) => (
+      prev.w === el.offsetWidth && prev.h === el.offsetHeight
+        ? prev
+        : { w: el.offsetWidth, h: el.offsetHeight }
+    ));
+    // No explicit first call: observe() delivers an initial callback with
+    // the current size, so the mount measurement comes for free without a
+    // synchronous setState in the effect body.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [previewCollapsed]);
   const draftInitialized = useRef(!!draft);
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
   const autoSaveTimer = useRef(null);
@@ -1286,6 +1318,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         // they picked a client). Now falls back to prev.paperSize so
         // globally-persisted choice sticks until the user changes it.
         paperSize: cli.preferredPaperSize || prev.paperSize || 'a4',
+        // v1.10.48 — Custom paper carries its dimensions in SEPARATE
+        // fields, and prior code restored only `preferredPaperSize`. So a
+        // client saved on 'custom' came back as 'custom' with no width —
+        // and getPaperSize() defaults a missing custom width to 80mm,
+        // whose `kind` is 'thermal'. Net effect: selecting that client
+        // silently turned the invoice into an 80mm receipt. Restore the
+        // dimensions with the size, falling back to the current values
+        // rather than to getPaperSize's thermal default.
+        customPaperWidth: cli.preferredCustomPaperWidth || prev.customPaperWidth || 80,
+        customPaperHeight: cli.preferredCustomPaperHeight || prev.customPaperHeight || 297,
         currency: cli.preferredCurrency || prev.currency || 'INR',
         // v1.10.5 — client-level auto-print override (see original comment).
         clientAutoPrint: !!cli.autoPrint,
@@ -1536,13 +1578,23 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         if (cli) {
           const nextPaperSize = invoiceOptions.paperSize || 'a4';
           const nextCurrency = invoiceOptions.currency || 'INR';
+          // v1.10.48 — Persist the custom dimensions too. Saving only the
+          // paper-size KEY meant 'custom' round-tripped without its width,
+          // and getPaperSize() reads a missing custom width as 80mm, i.e.
+          // thermal. See the restore side in handleSelectClient.
+          const nextCustomW = invoiceOptions.customPaperWidth || 80;
+          const nextCustomH = invoiceOptions.customPaperHeight || 297;
           const changed = cli.preferredPaperSize !== nextPaperSize
-            || cli.preferredCurrency !== nextCurrency;
+            || cli.preferredCurrency !== nextCurrency
+            || cli.preferredCustomPaperWidth !== nextCustomW
+            || cli.preferredCustomPaperHeight !== nextCustomH;
           if (changed) {
             const updatedClient = {
               ...cli,
               preferredPaperSize: nextPaperSize,
               preferredCurrency: nextCurrency,
+              preferredCustomPaperWidth: nextCustomW,
+              preferredCustomPaperHeight: nextCustomH,
             };
             saveClient(updatedClient).then(() => {
               // Refresh the in-memory clients list so subsequent
@@ -3760,7 +3812,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     // Users iterating through 3 presets to compare shouldn't
                     // see 3 confirm dialogs. Ask once per session; subsequent
                     // presets swap silently until they close the tab.
-                    if (customTerms && customTerms.replace(/<[^>]*>/g, '').trim()) {
+                    const sanitizedTerms = DOMPurify.sanitize(customTerms || '', { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+                    const termsText = new DOMParser().parseFromString(sanitizedTerms, 'text/html').body.textContent?.trim() || '';
+                    if (termsText) {
                       const skipConfirm = sessionStorage.getItem('gst_termsPresetConfirmed') === '1';
                       if (!skipConfirm) {
                         const proceed = await confirmAction({
@@ -3925,20 +3979,28 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 }}>Fit</button>
             </span>
           </div>
-          {/* v1.10.46 — Thermal receipts (58/80mm) are much narrower
-              than the preview pane. With transform-origin: top-left,
-              the scaled invoice hugged the left edge and left a huge
-              white column to the right (reported in issue #20). For
-              thermal we now use top-center so the receipt sits
-              centered in the pane; sheet formats keep top-left so
-              their full width lands aligned with the pane. */}
-          <div className="preview-scaler" style={{
-            transform: `scale(${previewZoom / 100})`,
-            transformOrigin: isThermalPaper() ? 'top center' : 'top left',
-          }}>
-            <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
-              items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
-              customNotes={customNotes} extraSections={extraSections} options={invoiceOptions} />
+          {/* v1.10.48 — The frame reserves the SCALED size (natural × zoom)
+              so the pane's layout matches what is painted. See the
+              previewNatural measurement above for why.
+
+              This also subsumes the v1.10.46 thermal-centering hack: that
+              used `transform-origin: top center` to stop a 58/80mm receipt
+              hugging the left edge, which worked visually but left the
+              layout box at full sheet width. Now the frame is exactly the
+              receipt's scaled width and .preview-pane centres it, so
+              thermal and sheet both land correctly with one origin. */}
+          <div className="preview-scaler-frame" style={previewNatural.w ? {
+            width: previewNatural.w * (previewZoom / 100),
+            height: previewNatural.h * (previewZoom / 100),
+          } : undefined}>
+            <div className="preview-scaler" style={{
+              transform: `scale(${previewZoom / 100})`,
+              transformOrigin: 'top left',
+            }}>
+              <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
+                items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
+                customNotes={customNotes} extraSections={extraSections} options={invoiceOptions} />
+            </div>
           </div>
         </div>
       </div>

@@ -1067,15 +1067,29 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 
 .preview-pane {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   display: flex;
   flex-direction: column;
+  /* v1.10.48 — `safe center` centres the preview while it fits, but falls
+     back to start-alignment the moment it overflows. Plain `center` in a
+     scroll container pushes the leading edge into negative scroll space
+     where it can never be reached — that is what clipped the left side of
+     the invoice on narrow panes. The unprefixed `center` above stays as a
+     fallback for engines that do not know the `safe` keyword. */
   align-items: center;
+  align-items: safe center;
+}
+
+/* v1.10.48 — Reserves natural × zoom so the layout box matches the painted
+   size; `transform` alone never shrinks layout. Sized inline from the
+   measured preview. */
+.preview-scaler-frame {
+  flex: none;
 }
 
 .preview-scaler {
   transform: scale(0.82);
-  transform-origin: top center;
+  transform-origin: top left;
 }
 
 [data-theme="dark"] .invoice-preview-container {
@@ -1355,6 +1369,15 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   }
   body:has(#invoice-preview) .preview-scaler {
     transform: none !important;
+  }
+  /* v1.10.48 — The scaler now sits inside a frame carrying an inline
+     width/height of natural × zoom. #invoice-preview is absolutely
+     positioned here so the frame cannot clip it, but the frame would
+     still reserve a stale scaled box on the printed page. Release it
+     alongside the transform above. */
+  body:has(#invoice-preview) .preview-scaler-frame {
+    width: auto !important;
+    height: auto !important;
   }
   @page {
     margin: 0;

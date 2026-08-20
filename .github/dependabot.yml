@@ -1,15 +1,59 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
+# Dependabot configuration.
+#
+# Originally proposed in #21 / #23 by @venkateshpabbati; retuned in
+# v1.10.50 after the first run filed five PRs in three minutes.
+#
+# The guiding constraint: this project ships as a downloadable ZIP that
+# users install by hand. A dependency bump therefore costs a release AND
+# costs every user a manual update. That makes routine version chasing
+# expensive and genuinely urgent security fixes cheap by comparison, so
+# this config is deliberately lopsided towards the latter.
+#
+# IMPORTANT — what is NOT in this file:
+#   Dependabot SECURITY updates are configured in repo Settings
+#   (Settings > Code security), not here, and they IGNORE the schedule
+#   below. They fire as soon as an advisory is published for a dependency
+#   we actually use. Both "Dependabot alerts" and "Dependabot security
+#   updates" are enabled — that is the half that matters. It is also the
+#   half that was switched OFF when jspdf 4.2.0 shipped with a CVSS 8.1
+#   advisory and sat there until an outside contributor filed #22.
+#   If those ever get turned off, this file will not save us.
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/" 
+    directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      # Monthly, not weekly. Routine version updates are not urgent here;
+      # security updates bypass this schedule entirely (see above).
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+    groups:
+      # Everything routine arrives as at most two PRs a month.
+      production-minor-patch:
+        applies-to: version-updates
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-minor-patch:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    ignore:
+      # No automated major-version PRs at all. Majors are a deliberate
+      # decision — ESLint 10 drops config formats and rules, and
+      # @vitejs/plugin-react 6 touches the build. Reviewing those on
+      # Dependabot's timetable rather than our own is how a release gets
+      # broken. A security advisory on a major still comes through the
+      # security channel, which this does not block.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # 0.x packages treat MINOR as breaking (semver allows it), so
+      # eslint-plugin-react-refresh 0.4 -> 0.5 is a breaking change that
+      # Dependabot files as "minor". Review those by hand too.
+      - dependency-name: "eslint-plugin-react-refresh"
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
