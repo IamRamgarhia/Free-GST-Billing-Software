@@ -29,6 +29,13 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
     || (businessState && clientState && businessState !== clientState);
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
+
+  const hasVisibleTextFromHtml = (html) => {
+    if (!html) return false;
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const text = parsed.body?.textContent || '';
+    return text.trim().length > 0;
+  };
   // Seller's country drives tax label (GST / VAT / SST / MwSt etc.) and bank label.
   const sellerCC = getCountryConfig(profile?.country);
   const isIndia = (profile?.country || 'India') === 'India';
@@ -1203,7 +1210,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           })()}
           {!_ps.termsSeparatePage && (() => {
             const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
-            const hasNotes = notesHtml && notesHtml.replace(/<[^>]*>/g, '').trim();
+            const hasNotes = hasVisibleTextFromHtml(notesHtml);
             return showNotes && hasNotes ? (
               <div className="inv-footer-block">
                 <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
@@ -1219,7 +1226,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           <div data-pdf-page="terms" style={{ padding: '2rem', pageBreakBefore: 'always', breakBefore: 'page' }}>
             {(() => {
               const termsHtml = customTerms ? DOMPurify.sanitize(customTerms) : '';
-              const hasTerms = termsHtml && termsHtml.replace(/<[^>]*>/g, '').trim();
+              const hasTerms = hasVisibleTextFromHtml(termsHtml);
               return showTerms && hasTerms ? (
                 <div className="inv-footer-block">
                   <h4 className="inv-section-label">{getLabel(_ps_labels, 'terms')}</h4>
@@ -1229,7 +1236,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             })()}
             {(() => {
               const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
-              const hasNotes = notesHtml && notesHtml.replace(/<[^>]*>/g, '').trim();
+              const hasNotes = hasVisibleTextFromHtml(notesHtml);
               return showNotes && hasNotes ? (
                 <div className="inv-footer-block" style={{ marginTop: '2rem' }}>
                   <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>

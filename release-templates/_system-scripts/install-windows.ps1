@@ -1,13 +1,13 @@
-# Free GST Billing — Windows installer.
+# Free GST Billing - Windows installer.
 #
-# Invoked by the HTA launcher on first run. Idempotent — safe to
+# Invoked by the HTA launcher on first run. Idempotent - safe to
 # re-run any time. Installs Node.js if missing, runs npm install
 # inside _system/, and creates a Desktop shortcut pointing at the
 # HTA launcher so the user never has to open the extract folder
 # again.
 
 $ErrorActionPreference = 'Continue'
-$Host.UI.RawUI.WindowTitle = 'Free GST Billing — Installer'
+$Host.UI.RawUI.WindowTitle = 'Free GST Billing - Installer'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SystemDir = $ScriptDir
@@ -16,18 +16,18 @@ $LauncherHTA = Join-Path $RootDir 'Free GST Billing.hta'
 
 Write-Host ''
 Write-Host '  ============================================================'
-Write-Host '   Free GST Billing Software — Installer'
+Write-Host '   Free GST Billing Software - Installer'
 Write-Host '  ============================================================'
 Write-Host ''
 
 # --- Step 1: Node.js check ---
 $node = Get-Command node -ErrorAction SilentlyContinue
 if (-not $node) {
-  Write-Host '  Node.js not found — downloading the LTS installer…'
+  Write-Host '  Node.js not found - downloading the LTS installer...'
   $tmp = Join-Path $env:TEMP 'node-lts-x64.msi'
   try {
     Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.19.0/node-v20.19.0-x64.msi' -OutFile $tmp -UseBasicParsing
-    Write-Host '  Running Node.js installer (silent)…'
+    Write-Host '  Running Node.js installer (silent)...'
     Start-Process msiexec.exe -ArgumentList "/i `"$tmp`" /qn /norestart" -Wait
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
     # Refresh PATH so the current session picks up node.exe without a reboot.
@@ -42,7 +42,7 @@ if (-not $node) {
 
 # --- Step 2: npm install inside _system/ ---
 Write-Host ''
-Write-Host '  Installing app dependencies (npm install)…'
+Write-Host '  Installing app dependencies (npm install)...'
 Push-Location $SystemDir
 try {
   npm install --omit=dev --no-audit --no-fund --loglevel=error
@@ -58,7 +58,7 @@ Pop-Location
 
 # --- Step 3: Desktop shortcut ---
 Write-Host ''
-Write-Host '  Creating Desktop shortcut…'
+Write-Host '  Creating Desktop shortcut...'
 try {
   $desktop = [Environment]::GetFolderPath('Desktop')
   $shortcutPath = Join-Path $desktop 'Free GST Billing.lnk'
@@ -72,7 +72,7 @@ try {
   $sc.WorkingDirectory = $RootDir
   $iconPath = Join-Path $SystemDir 'app-icon.ico'
   if (Test-Path $iconPath) { $sc.IconLocation = $iconPath }
-  $sc.Description = 'Free GST Billing Software — open the launcher'
+  $sc.Description = 'Free GST Billing Software - open the launcher'
   $sc.Save()
   Write-Host "  Desktop shortcut created: $shortcutPath"
 } catch {
@@ -100,7 +100,7 @@ try {
 
 Write-Host ''
 Write-Host '  ============================================================'
-Write-Host '   ✅ Install complete!' -ForegroundColor Green
+Write-Host '   [OK] Install complete!' -ForegroundColor Green
 Write-Host '  ============================================================'
 Write-Host ''
 Write-Host '  What to do next:'
