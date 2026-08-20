@@ -1187,7 +1187,14 @@ app.get('/api/trash', (req, res) => {
   } catch (err) { errRes(res, 500, 'server-error', err); }
 });
 
+// Rate-limit restore calls to reduce filesystem abuse risk.
+let __lastTrashRestoreMs = 0;
 app.post('/api/trash/:id/restore', (req, res) => {
+  const now = Date.now();
+  if (now - __lastTrashRestoreMs < 1000) {
+    return errRes(res, 429, 'server-error');
+  }
+  __lastTrashRestoreMs = now;
   try {
     const fname = safeFileName(req.params.id) + '.json';
     const trashPath = path.join(BILL_TRASH_DIR, fname);
