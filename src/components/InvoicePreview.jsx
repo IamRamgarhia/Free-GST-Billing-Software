@@ -28,6 +28,11 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     || !!client?.isSEZ
     || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
     || (businessState && clientState && businessState !== clientState);
+  const getPlainTextFromHtml = (html) => {
+    if (!html) return '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return (doc.body?.textContent || '').trim();
+  };
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
 
   const hasVisibleTextFromHtml = (html) => {
