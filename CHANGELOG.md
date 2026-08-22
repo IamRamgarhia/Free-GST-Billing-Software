@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.51] — 2026-08-22
+
+**Fixed: a cleared Terms or Notes field still printed its heading.**
+
+Adapted from a fix proposed by **@venkateshpabbati** in #38.
+
+### How to update
+
+**Current version:** 1.10.50 → **New version:** 1.10.51
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.51.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed — empty Terms / Notes printed a stray heading
+
+If you typed Terms & Conditions and later cleared the field, the invoice
+kept printing the **Terms & Conditions** heading with nothing under it.
+Same for Notes.
+
+The emptiness check stripped HTML tags with a regular expression but left
+**entities encoded**. A rich-text editor leaves `<p>&nbsp;</p>` behind
+when you clear a field, and `&nbsp;` survived tag-stripping as a literal
+seven-character string — so the field read as non-empty.
+
+Now the HTML is parsed rather than pattern-stripped, which decodes
+entities; `String.trim()` treats the resulting non-breaking space as
+whitespace, so a cleared field correctly reads as empty. Parsing also
+handles markup a regex mis-reads, such as `<div title="a>b">`.
+
+Verified in Firefox — `<p>&nbsp;</p>` and `<p>&nbsp;&nbsp;</p>` now read
+as empty, while real content and the `title="a>b"` case still read as
+present.
+
+Applied in **five** places rather than the three in the original PR, and
+extracted to a single `htmlHasText()` helper in `utils.js` — the same
+regex idiom had been copy-pasted across `InvoicePreview.jsx` and
+`InvoiceGenerator.jsx`.
+
+To be clear about scope: this is an **emptiness check**, not a security
+boundary. Rendering already runs the HTML through DOMPurify and still
+does.
+
+### Not taken from #38 — rate limiting on the trash endpoints
+
+The same PR added `express-rate-limit` as a production dependency, capping
+three `/api/trash` routes at 60 requests per minute.
+
+Declined. The bundled server binds to `127.0.0.1` and serves exactly one
+person: the user, on their own machine. There is no remote caller to
+throttle, so this adds a dependency to every user's install — more to
+download, more supply-chain surface — to defend against the user clicking
+too fast. It could also break legitimate use: restoring a batch of
+invoices from the trash can exceed 60 actions in a minute.
+
+---
+
 ## [1.10.50] — 2026-08-22
 
 **Purchase bills remember your suppliers and items.**

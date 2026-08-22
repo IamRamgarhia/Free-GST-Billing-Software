@@ -929,6 +929,40 @@ export const PAPER_SIZES = {
 // Resolve a paper-size config, applying custom dimensions if this is the
 // "custom" preset. Callers can pass the invoiceOptions object as the
 // second argument to get width/height overrides applied.
+// v1.10.51 — Does this rich-text HTML contain any actual visible text?
+//
+// Adapted from a fix proposed by @venkateshpabbati in #38. The previous
+// idiom, duplicated in five places, was:
+//
+//     html.replace(/<[^>]*>/g, '').trim()
+//
+// which strips tags but leaves HTML ENTITIES encoded. So `<p>&nbsp;</p>`
+// — precisely what a rich-text editor leaves behind when the user clears
+// the field — survives as the literal string "&nbsp;" and reads as
+// non-empty. The invoice then printed a "Terms & Conditions" heading with
+// nothing underneath it.
+//
+// Parsing decodes entities, and String.trim() treats U+00A0 as
+// whitespace, so a cleared field correctly reads as empty. Parsing is
+// also robust against tag text the regex mis-handles, e.g.
+// `<div title="a>b">`.
+//
+// Note this is an EMPTINESS CHECK, not a sanitisation boundary — the
+// rendering path still runs the HTML through DOMPurify. Parsing with
+// DOMParser is inert: it builds a detached document that never executes
+// scripts or loads resources.
+export const htmlHasText = (html) => {
+  if (!html) return false;
+  try {
+    const doc = new DOMParser().parseFromString(String(html), 'text/html');
+    return (doc.body?.textContent || '').trim().length > 0;
+  } catch {
+    // Non-browser context (SSR, tests) — fall back to the old behaviour
+    // rather than reporting every field as empty.
+    return String(html).replace(/<[^>]*>/g, '').trim().length > 0;
+  }
+};
+
 export const getPaperSize = (key, options = {}) => {
   const base = PAPER_SIZES[key] || PAPER_SIZES.a4;
   if (base.kind !== 'custom') return base;
