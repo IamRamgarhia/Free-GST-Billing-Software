@@ -7,10 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.10.50] — 2026-08-22
 
-Maintenance only. **Deliberately not cut as a release** — see the note at
-the end.
+**Purchase bills remember your suppliers and items.**
+
+Reported (#39, @sangwanmail-eng): *"In add purchase option previous added
+supplier and item not shown. So all details need to be fill again, like
+supplier name, gst number, address, item name etc"*.
+
+### How to update
+
+**Current version:** 1.10.49 → **New version:** 1.10.50
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.50.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Added — supplier and item recall in Add Purchase Bill
+
+**Supplier Name** and each line item's **Name** now suggest what you have
+entered before, and filling one fills the rest:
+
+- Pick a supplier → **GSTIN**, **address** and the **inter-state** flag
+  come back automatically. The inter-state flag matters: it decides
+  whether ITC lands in the IGST column or CGST + SGST in GSTR-3B, and it
+  is a property of where the supplier is, so it is recalled with them.
+- Pick an item → **HSN**, **rate** and **tax %** (and cess, if any) come
+  back from the last time you bought it.
+- Suppliers and items you have never used are still free to type. The
+  suggestion list never blocks new entries.
+
+**Nothing you have already typed is ever overwritten.** Recall only fills
+fields left blank, so correcting a supplier's new GSTIN and then typing
+their name does not bring the old one back. Rate behaves the same way — a
+price you have already entered survives.
+
+Why this was worse than it looked: a mistyped GSTIN does not just cost
+retyping, it quietly breaks ITC reconciliation in GSTR-3B. Anyone entering
+a stack of bills from the same few vendors was hand-copying a 15-character
+GSTIN every time.
+
+**Implementation note:** purchase bills store supplier details inline
+rather than against a supplier master record, so the history is derived
+from the bills already loaded rather than by introducing a supplier table.
+That avoids a data migration and avoids a second place for the same
+details to drift out of sync. Newest bill wins, so the most recent
+spelling of a supplier is the one offered.
+
+Verified end-to-end in Firefox: seeded a bill, reopened the form,
+confirmed both suggestion lists populate, confirmed GSTIN + address + HSN
++ rate all recall correctly, confirmed an unknown supplier is still
+typeable, and confirmed a user-typed GSTIN survives typing a known
+supplier name.
 
 ### Changed — routine dependency updates
 
@@ -114,13 +183,12 @@ critical jspdf advisory sat in a shipped release until an outside
 contributor happened to file #22** — GitHub knew about it; the repo was
 not configured to say so. Both are now enabled.
 
-### Why no release
+### Note
 
-`react` 19.2.8 is the only change here that reaches a user, and it is a
-patch-level update with no fix they are waiting on. Everything else is
-dev-only. Users install by hand, so a release has a real cost for them —
-v1.10.49 went out the same day. This rides along with the next release
-that has something a user actually needs.
+The dependency work above was held back from a release of its own —
+`react` 19.2.8 was the only part reaching a user, and a hand-installed
+update is a real cost to ask for a patch nobody was waiting on. It ships
+here, alongside the supplier recall, which is something users do want.
 
 ---
 

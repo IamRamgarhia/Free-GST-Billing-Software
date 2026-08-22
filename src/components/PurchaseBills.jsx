@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, FileText, Eye } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct } from '../store';
@@ -460,7 +460,105 @@ export default function PurchaseBills() {
     }
   };
 
+  // v1.10.50 — reported (#39, @sangwanmail-eng): "In add purchase option
+  // previous added supplier and item not shown. So all details need to be
+  // fill again, like supplier name, gst number, address, item name etc".
+  //
+  // Purchase bills store supplier details INLINE (supplierName /
+  // supplierGstin / supplierAddress) rather than against a supplier master
+  // record, so unlike the invoice side — which has saved clients and
+  // product suggestions — there was nothing to recall and every bill meant
+  // retyping the GSTIN by hand. For someone entering a stack of bills from
+  // the same three or four vendors that is the bulk of the typing, and a
+  // mistyped GSTIN quietly breaks ITC reconciliation in GSTR-3B.
+  //
+  // Rather than introduce a supplier master (a migration, and a second
+  // place for the same data to drift), derive the history from the bills
+  // already loaded in `purchases`. Newest first, so the most recent
+  // spelling of a supplier wins.
+  const supplierHistory = useMemo(() => {
+    const seen = new Map();
+    for (const p of purchases) {
+      const name = (p.supplierName || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      // First wins: `purchases` arrives newest-first, so this keeps the
+      // most recent details for a supplier rather than the oldest.
+      if (!seen.has(key)) {
+        seen.set(key, {
+          name,
+          gstin: (p.supplierGstin || '').trim(),
+          address: (p.supplierAddress || '').trim(),
+          interstate: !!p.interstate,
+        });
+      }
+    }
+    return [...seen.values()];
+  }, [purchases]);
+
+  const itemHistory = useMemo(() => {
+    const seen = new Map();
+    for (const p of purchases) {
+      for (const it of (p.items || [])) {
+        const name = (it.name || '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (!seen.has(key)) {
+          seen.set(key, {
+            name,
+            hsn: (it.hsn || '').trim(),
+            rate: Number(it.rate) || 0,
+            taxPercent: Number(it.taxPercent) || 0,
+            cessPercent: Number(it.cessPercent) || 0,
+          });
+        }
+      }
+    }
+    return [...seen.values()];
+  }, [purchases]);
+
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  // Typing or picking a known supplier fills in the rest of their details.
+  //
+  // Deliberately only fills fields the user has left BLANK. Overwriting
+  // whatever they already typed would be worse than not helping — someone
+  // correcting a supplier's new GSTIN would watch the old one reappear as
+  // they finished typing the name.
+  const updateSupplierName = (value) => {
+    const match = supplierHistory.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
+    setForm(prev => {
+      const next = { ...prev, supplierName: value };
+      if (match) {
+        if (!(prev.supplierGstin || '').trim()) next.supplierGstin = match.gstin;
+        if (!(prev.supplierAddress || '').trim()) next.supplierAddress = match.address;
+        // Interstate drives CGST+SGST vs IGST, so recall it too — it is a
+        // property of where the supplier is, and getting it wrong routes
+        // ITC to the wrong GSTR-3B column.
+        next.interstate = match.interstate;
+      }
+      return next;
+    });
+  };
+
+  // Same idea for line items: recall HSN, rate and tax rates from the last
+  // time this item was purchased. Rate is filled only when still 0 so a
+  // price change the user has already typed is never clobbered.
+  const updateItemName = (index, value) => {
+    const match = itemHistory.find(i => i.name.toLowerCase() === value.trim().toLowerCase());
+    setForm(prev => {
+      const items = [...prev.items];
+      const cur = { ...items[index], name: value };
+      if (match) {
+        if (!(cur.hsn || '').trim()) cur.hsn = match.hsn;
+        if (!Number(cur.rate)) cur.rate = match.rate;
+        if (match.taxPercent) cur.taxPercent = match.taxPercent;
+        if (match.cessPercent) cur.cessPercent = match.cessPercent;
+      }
+      items[index] = cur;
+      return { ...prev, items };
+    });
+  };
 
   const updateItem = (index, field, value) => {
     setForm(prev => {
@@ -672,8 +770,20 @@ export default function PurchaseBills() {
               </div>
               <div className="form-group">
                 <label className="form-label">Supplier Name *</label>
+                {/* v1.10.50 (#39) — recall previously used suppliers. A native
+                    <datalist> rather than a custom dropdown: it is keyboard
+                    accessible for free, does not trap focus, and degrades to a
+                    plain text field, which matters because a supplier not yet
+                    in the history must still be typeable. */}
                 <input type="text" className="form-input" value={form.supplierName}
-                  onChange={e => updateField('supplierName', e.target.value)} placeholder="Vendor / Supplier name" />
+                  list="fgsb-supplier-history" autoComplete="off"
+                  onChange={e => updateSupplierName(e.target.value)}
+                  placeholder={supplierHistory.length ? 'Type or pick a previous supplier' : 'Vendor / Supplier name'} />
+                <datalist id="fgsb-supplier-history">
+                  {supplierHistory.map(s => (
+                    <option key={s.name} value={s.name}>{s.gstin ? `GSTIN ${s.gstin}` : ''}</option>
+                  ))}
+                </datalist>
               </div>
               <div className="form-group">
                 <label className="form-label">Supplier GSTIN</label>
@@ -714,12 +824,25 @@ export default function PurchaseBills() {
 
             {/* Items */}
             <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>Items</h4>
+            {/* Rendered once for all rows — a <datalist> is referenced by id,
+                so duplicating it per row would only bloat the DOM. */}
+            <datalist id="fgsb-item-history">
+              {itemHistory.map(i => (
+                <option key={i.name} value={i.name}>{i.hsn ? `HSN ${i.hsn}` : ''}</option>
+              ))}
+            </datalist>
             {form.items.map((item, idx) => (
               <div key={idx} data-focus-key={item._focusKey} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div className="form-group" style={{ flex: 2, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Name</label>}
+                  {/* v1.10.50 (#39) — recall previously purchased items along
+                      with their HSN, rate and tax rates. One shared datalist
+                      serves every row; the browser scopes suggestions to the
+                      focused input. */}
                   <input type="text" className="form-input" value={item.name}
-                    onChange={e => updateItem(idx, 'name', e.target.value)} placeholder="Item name" />
+                    list="fgsb-item-history" autoComplete="off"
+                    onChange={e => updateItemName(idx, e.target.value)}
+                    placeholder={itemHistory.length ? 'Type or pick a previous item' : 'Item name'} />
                 </div>
                 <div className="form-group" style={{ flex: 1, margin: 0 }}>
                   {idx === 0 && <label className="form-label">HSN</label>}
