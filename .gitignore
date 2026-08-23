@@ -37,3 +37,6 @@ public/tesseract/
 *.njsproj
 *.sln
 *.sw?
+
+# Session scratch from other agent tooling — not part of the project
+.zcode
