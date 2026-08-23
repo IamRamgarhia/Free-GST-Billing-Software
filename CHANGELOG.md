@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.53] - 2026-08-23
+
+**Two financial-year bugs that were silently producing wrong data.**
+
+Both found by a code audit, not by a user - which is the point: neither
+showed an error message. One mis-stamps invoice numbers for three months
+of every year; the other made the Income Tax screen quietly compute zero.
+
+### How to update
+
+**Current version:** 1.10.52 -> **New version:** 1.10.53
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all - your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.53.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches.
+
+### Fixed - invoice numbers carried the wrong financial year in Jan-Mar
+
+Invoice numbers with the financial year enabled used the **calendar**
+year. India's FY runs 1 April to 31 March, so an invoice raised on
+15 January 2027 belongs to FY 2026-27 but was numbered `.../2027-28/...`.
+
+Every invoice raised between 1 January and 31 March - three months of
+every year - carried the wrong FY, and that number is what gets reported
+in GSTR-1.
+
+| Invoice date | Before | Now |
+| --- | --- | --- |
+| 31 Dec 2026 | 2026-27 | 2026-27 |
+| 1 Jan 2027 | **2027-28** | 2026-27 |
+| 31 Mar 2027 | **2027-28** | 2026-27 |
+| 1 Apr 2027 | 2027-28 | 2027-28 |
+
+The correct April-boundary rule already existed twice in the codebase;
+`store.js` had simply reimplemented it wrongly. There is now one shared
+`getFinancialYearStart()` / `getFinancialYearLabel()` in `utils.js` that
+every caller uses, so it cannot drift apart again.
+
+**Nothing changes for anyone today** - between April and December the old
+and new logic agree. This lands before January, when they diverge.
+Invoice numbers already saved are left exactly as they are.
+
+### Fixed - Income Tax showed one year while calculating another
+
+The Income Tax screen declared its own `CURRENT_FY = '2024-25'`, which
+shadowed the tax engine's `'2025-26'`. The page was labelled FY 2024-25
+while every calculation ran on FY 2025-26 slabs.
+
+That constant also drives the business-income prefill, which filters bills
+by `billFY === CURRENT_FY`. Frozen two years back, **no current invoice
+ever matched**, so income prefilled as zero and nothing explained why.
+
+The screen now takes its year from the engine, so there is one answer
+instead of two, and the assessment year is derived rather than hardcoded.
+
+### Added - an honest notice when the app is behind the current FY
+
+The built-in slab tables, rebate limits and capital-gains rates go up to
+FY 2025-26. The real year is now FY 2026-27, and those rates are not in
+the app.
+
+Rather than let that stay invisible, the screen now says so directly: what
+year the figures are for, that current-year invoices are excluded from the
+income figure, and to check with a CA before filing.
+
+**Deliberately not done:** inventing FY 2026-27 slab rates. Those come
+from a Budget that is not implemented here, and guessing at tax rates
+would be far more dangerous than admitting the gap. Passing an unsupported
+year to the engine also silently falls back to the *oldest* table, so the
+notice matters.
+
+---
+
 ## [1.10.52] — 2026-08-23
 
 **Fixed: the supplier suggestion list showed GST numbers instead of names.**
