@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.52] — 2026-08-23
+
+**Fixed: the supplier suggestion list showed GST numbers instead of names.**
+
+Reported (#40, @sangwanmail-eng). This was a regression introduced by the
+supplier recall added in v1.10.50 the previous day.
+
+### How to update
+
+**Current version:** 1.10.51 -> **New version:** 1.10.52
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all - your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.52.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - supplier and item lists showed the wrong text
+
+v1.10.50 attached the GSTIN to each suggestion as a secondary hint, by
+putting it in the option's child text. Browsers disagree about which part
+of a suggestion they display: Chrome shows the value with the hint as
+secondary grey text, **Firefox shows the hint instead of the value**. So
+Firefox users saw a list of GST numbers where supplier names belonged.
+The item list had the same problem with HSN codes.
+
+Suggestions now carry the name and nothing else. The GSTIN, address and
+HSN still fill in automatically once a suggestion is picked, so nothing
+is lost - the hint was never buying anything.
+
+### Why the v1.10.50 test did not catch it
+
+The Playwright test written for v1.10.50 passed, and would still pass
+against the broken build. It asserted on each option's `value`, which was
+correct the whole time - the defect was in what the browser chose to
+*display*. Testing the mechanism is not testing the presentation.
+
+The test now asserts on `label ?? textContent ?? value`, the precedence a
+browser actually applies, so it fails against the old markup. Recorded as
+ERR-008 in `docs/KNOWN_ERRORS.md`.
+
+### Known, not yet fixed
+
+Also raised in #40: the app allows two clients or suppliers with the same
+name **and** the same GSTIN, and there is no "add supplier" screen to
+match the one for clients. Both are fair, and neither is fixed here -
+this release is kept to the regression so it can ship immediately. They
+are being scoped separately.
+
+---
+
 ## [1.10.51] — 2026-08-22
 
 **Fixed: a cleared Terms or Notes field still printed its heading.**

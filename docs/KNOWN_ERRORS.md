@@ -323,6 +323,57 @@ Playwright `route` interception to get the baseline.
 
 ---
 
+## ERR-008 — `<datalist>` options showed GSTINs instead of supplier names
+
+**Version:** broke in v1.10.50 · fixed in v1.10.52
+**Reported by:** @sangwanmail-eng (#40)
+
+**Symptom:** "it shows gst numbers list instead of supplier name list in
+supplier text box."
+
+**Cause**
+
+The supplier suggestion list put the GSTIN in the option's **child text**,
+intending it as a secondary hint:
+
+```jsx
+<option value={s.name}>{`GSTIN ${s.gstin}`}</option>   // WRONG
+```
+
+Browsers disagree about which part of a datalist option they display:
+
+| Browser | Shows |
+| --- | --- |
+| Chrome / Edge | the **value**, with label/text as secondary grey text |
+| Firefox | the **label or text INSTEAD of the value** |
+
+So Firefox users got a list of GST numbers where supplier names belonged.
+
+**Rule**
+
+> A `<datalist>` `<option>` carries a **`value` and nothing else** — no
+> child text, no `label` attribute — unless the label has been checked in
+> both Chrome and Firefox. There is no portable way to attach a secondary
+> hint.
+
+**Guard:** none automated.
+
+### The part worth remembering
+
+The v1.10.50 Playwright test **passed**, and would still pass on the
+broken build. It asserted on `option.value`, which was correct the whole
+time — the defect was in what the browser chose to *display* from that
+option.
+
+> **Testing the mechanism is not testing the presentation.** When a bug
+> would be visible to a user looking at the screen, the assertion has to
+> be on what is rendered, not on the data behind it.
+
+The fixed test asserts on `label ?? textContent ?? value` — the actual
+precedence a browser applies — so it fails on the old markup.
+
+---
+
 <!--
 Adding an entry? Copy this skeleton.
 

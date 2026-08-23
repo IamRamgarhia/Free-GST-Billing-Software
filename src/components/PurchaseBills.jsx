@@ -779,10 +779,16 @@ export default function PurchaseBills() {
                   list="fgsb-supplier-history" autoComplete="off"
                   onChange={e => updateSupplierName(e.target.value)}
                   placeholder={supplierHistory.length ? 'Type or pick a previous supplier' : 'Vendor / Supplier name'} />
+                {/* v1.10.52 (#40) — value ONLY, never child text or a label
+                    attribute. Browsers disagree about which one they show:
+                    Chrome lists the value with the label as secondary text,
+                    Firefox shows the label INSTEAD of the value. v1.10.50 put
+                    the GSTIN in the child text as a hint, so Firefox users got
+                    a list of GST numbers where supplier names should be.
+                    The GSTIN is auto-filled on selection anyway, so the hint
+                    bought nothing and cost the actual name. */}
                 <datalist id="fgsb-supplier-history">
-                  {supplierHistory.map(s => (
-                    <option key={s.name} value={s.name}>{s.gstin ? `GSTIN ${s.gstin}` : ''}</option>
-                  ))}
+                  {supplierHistory.map(s => <option key={s.name} value={s.name} />)}
                 </datalist>
               </div>
               <div className="form-group">
@@ -826,10 +832,9 @@ export default function PurchaseBills() {
             <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>Items</h4>
             {/* Rendered once for all rows — a <datalist> is referenced by id,
                 so duplicating it per row would only bloat the DOM. */}
+            {/* Same rule as the supplier list above — value only. */}
             <datalist id="fgsb-item-history">
-              {itemHistory.map(i => (
-                <option key={i.name} value={i.name}>{i.hsn ? `HSN ${i.hsn}` : ''}</option>
-              ))}
+              {itemHistory.map(i => <option key={i.name} value={i.name} />)}
             </datalist>
             {form.items.map((item, idx) => (
               <div key={idx} data-focus-key={item._focusKey} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
