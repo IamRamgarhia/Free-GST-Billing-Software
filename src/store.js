@@ -1,6 +1,8 @@
 // File-based storage via local Express API server
 // All data persists as JSON files in the ./data/ folder
 
+import { getFinancialYearLabel } from './utils';
+
 const API = '/api';
 
 async function apiFetch(url, options = {}) {
@@ -142,9 +144,14 @@ export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false, expli
   const padded = String(next).padStart(settings.padDigits || 4, '0');
 
   if (settings.showFinYear) {
-    const currentYear = new Date().getFullYear();
-    const nextYear = (currentYear + 1).toString().slice(-2);
-    return `${pfx}${sep}${currentYear}-${nextYear}${sep}${padded}`;
+    // v1.10.53 — was `new Date().getFullYear()`, i.e. the CALENDAR year.
+    // India's FY runs April→March, so every invoice minted between 1 Jan
+    // and 31 Mar was stamped with the NEXT financial year: an invoice on
+    // 15 Jan 2027 belongs to FY 2026-27 but was numbered .../2027-28/...
+    // That number is what gets reported in GSTR-1, so it was a compliance
+    // defect for three months of every year. Now uses the one shared
+    // definition in utils.js.
+    return `${pfx}${sep}${getFinancialYearLabel()}${sep}${padded}`;
   }
 
   return `${pfx}${sep}${padded}`;

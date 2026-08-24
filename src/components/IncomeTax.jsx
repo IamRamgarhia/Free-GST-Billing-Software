@@ -36,7 +36,9 @@ import {
   compute234CInterest,
   ADVANCE_TAX_SCHEDULE,
   buildITR4FieldMap,
+  CURRENT_FY as ENGINE_FY,
 } from '../utils/itr.js';
+import { getFinancialYearLabel } from '../utils';
 import { toast } from './Toast';
 
 // The Income Tax module has three sub-tabs. Keeping them in one file (rather
@@ -51,11 +53,24 @@ const TABS = [
   { key: 'summary',    label: 'ITR Summary',    icon: FileText, help: 'Consolidated view + ITR-4 Filing Summary PDF' },
 ];
 
-// FY 2024-25 (AY 2025-26) is the assessment year the app targets. The tax
-// slabs in utils/itr.js are locked to this year. When India ships a new
-// budget we'll bump both the label and the constants.
-const CURRENT_FY = '2024-25';
-const CURRENT_AY = '2025-26';
+// v1.10.53 — These were local constants reading '2024-25' / '2025-26',
+// which SHADOWED the engine's own CURRENT_FY ('2025-26' in utils/itr.js).
+// The UI therefore labelled everything FY 2024-25 while the engine
+// computed with FY 2025-26 slabs — two different answers to "which year
+// is this?" in one screen.
+//
+// Worse, the prefill below filters bills with `billFY === CURRENT_FY`.
+// With the constant frozen two years behind, no current bill ever matched,
+// so business income silently prefilled as zero and the user was never
+// told why.
+//
+// Now derived from the engine, so there is exactly one answer. AY is
+// always the FY that follows.
+const CURRENT_FY = ENGINE_FY;
+const CURRENT_AY = (() => {
+  const start = parseInt(CURRENT_FY.split('-')[0], 10) + 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+})();
 
 export default function IncomeTax() {
   const [tab, setTab] = useState('calculator');
@@ -187,6 +202,40 @@ export default function IncomeTax() {
           <p className="page-subtitle">FY {CURRENT_FY} · AY {CURRENT_AY} — Old vs New Regime, bank-statement import, ITR summary</p>
         </div>
       </div>
+
+      {/* v1.10.53 — The slab tables in utils/itr.js only go up to the FY
+          named by CURRENT_FY. When the real financial year has moved past
+          that, everything on this screen still computes against the older
+          year, and the income prefill below finds none of the user's bills
+          because they fall outside it.
+          Previously that failed silently: the user saw a zero and no
+          explanation. Saying it plainly is the honest option — inventing
+          slab rates for a year whose Budget has not been implemented here
+          would be far worse than admitting the gap. */}
+      {getFinancialYearLabel() !== CURRENT_FY && (
+        <div className="card" style={{
+          borderLeft: '4px solid #f59e0b',
+          background: 'rgba(245, 158, 11, 0.07)',
+          marginBottom: '1rem',
+          padding: '0.85rem 1rem',
+        }}>
+          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+            <Info size={18} style={{ color: '#b45309', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: '0.88rem', lineHeight: 1.5 }}>
+              <strong>These figures are for FY {CURRENT_FY}, not the current FY {getFinancialYearLabel()}.</strong>
+              <div style={{ marginTop: '0.35rem', color: 'var(--text-muted)' }}>
+                The tax slabs, rebate limits and capital-gains rates built into this
+                app go up to FY {CURRENT_FY}. Rates for FY {getFinancialYearLabel()} are
+                not included yet, so nothing here is calculated against them.
+                Invoices dated in FY {getFinancialYearLabel()} are also excluded from the
+                business-income figure below — enter that income manually, and
+                treat every number on this page as an estimate to check with your
+                CA before filing.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sub-tab strip */}
       <div className="glass-panel" style={{ padding: '0.5rem', marginBottom: '1rem' }}>

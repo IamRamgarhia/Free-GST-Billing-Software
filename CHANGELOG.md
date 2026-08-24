@@ -7,10 +7,314 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.10.53] - 2026-08-23
 
-Maintenance only. **Deliberately not cut as a release** — see the note at
-the end.
+**Two financial-year bugs that were silently producing wrong data.**
+
+Both found by a code audit, not by a user - which is the point: neither
+showed an error message. One mis-stamps invoice numbers for three months
+of every year; the other made the Income Tax screen quietly compute zero.
+
+### How to update
+
+**Current version:** 1.10.52 -> **New version:** 1.10.53
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all - your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.53.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches.
+
+### Fixed - invoice numbers carried the wrong financial year in Jan-Mar
+
+Invoice numbers with the financial year enabled used the **calendar**
+year. India's FY runs 1 April to 31 March, so an invoice raised on
+15 January 2027 belongs to FY 2026-27 but was numbered `.../2027-28/...`.
+
+Every invoice raised between 1 January and 31 March - three months of
+every year - carried the wrong FY, and that number is what gets reported
+in GSTR-1.
+
+| Invoice date | Before | Now |
+| --- | --- | --- |
+| 31 Dec 2026 | 2026-27 | 2026-27 |
+| 1 Jan 2027 | **2027-28** | 2026-27 |
+| 31 Mar 2027 | **2027-28** | 2026-27 |
+| 1 Apr 2027 | 2027-28 | 2027-28 |
+
+The correct April-boundary rule already existed twice in the codebase;
+`store.js` had simply reimplemented it wrongly. There is now one shared
+`getFinancialYearStart()` / `getFinancialYearLabel()` in `utils.js` that
+every caller uses, so it cannot drift apart again.
+
+**Nothing changes for anyone today** - between April and December the old
+and new logic agree. This lands before January, when they diverge.
+Invoice numbers already saved are left exactly as they are.
+
+### Fixed - Income Tax showed one year while calculating another
+
+The Income Tax screen declared its own `CURRENT_FY = '2024-25'`, which
+shadowed the tax engine's `'2025-26'`. The page was labelled FY 2024-25
+while every calculation ran on FY 2025-26 slabs.
+
+That constant also drives the business-income prefill, which filters bills
+by `billFY === CURRENT_FY`. Frozen two years back, **no current invoice
+ever matched**, so income prefilled as zero and nothing explained why.
+
+The screen now takes its year from the engine, so there is one answer
+instead of two, and the assessment year is derived rather than hardcoded.
+
+### Added - an honest notice when the app is behind the current FY
+
+The built-in slab tables, rebate limits and capital-gains rates go up to
+FY 2025-26. The real year is now FY 2026-27, and those rates are not in
+the app.
+
+Rather than let that stay invisible, the screen now says so directly: what
+year the figures are for, that current-year invoices are excluded from the
+income figure, and to check with a CA before filing.
+
+**Deliberately not done:** inventing FY 2026-27 slab rates. Those come
+from a Budget that is not implemented here, and guessing at tax rates
+would be far more dangerous than admitting the gap. Passing an unsupported
+year to the engine also silently falls back to the *oldest* table, so the
+notice matters.
+
+---
+
+## [1.10.52] — 2026-08-23
+
+**Fixed: the supplier suggestion list showed GST numbers instead of names.**
+
+Reported (#40, @sangwanmail-eng). This was a regression introduced by the
+supplier recall added in v1.10.50 the previous day.
+
+### How to update
+
+**Current version:** 1.10.51 -> **New version:** 1.10.52
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all - your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.52.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - supplier and item lists showed the wrong text
+
+v1.10.50 attached the GSTIN to each suggestion as a secondary hint, by
+putting it in the option's child text. Browsers disagree about which part
+of a suggestion they display: Chrome shows the value with the hint as
+secondary grey text, **Firefox shows the hint instead of the value**. So
+Firefox users saw a list of GST numbers where supplier names belonged.
+The item list had the same problem with HSN codes.
+
+Suggestions now carry the name and nothing else. The GSTIN, address and
+HSN still fill in automatically once a suggestion is picked, so nothing
+is lost - the hint was never buying anything.
+
+### Why the v1.10.50 test did not catch it
+
+The Playwright test written for v1.10.50 passed, and would still pass
+against the broken build. It asserted on each option's `value`, which was
+correct the whole time - the defect was in what the browser chose to
+*display*. Testing the mechanism is not testing the presentation.
+
+The test now asserts on `label ?? textContent ?? value`, the precedence a
+browser actually applies, so it fails against the old markup. Recorded as
+ERR-008 in `docs/KNOWN_ERRORS.md`.
+
+### Known, not yet fixed
+
+Also raised in #40: the app allows two clients or suppliers with the same
+name **and** the same GSTIN, and there is no "add supplier" screen to
+match the one for clients. Both are fair, and neither is fixed here -
+this release is kept to the regression so it can ship immediately. They
+are being scoped separately.
+
+---
+
+## [1.10.51] — 2026-08-22
+
+**Fixed: a cleared Terms or Notes field still printed its heading.**
+
+Adapted from a fix proposed by **@venkateshpabbati** in #38.
+
+### How to update
+
+**Current version:** 1.10.50 → **New version:** 1.10.51
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.51.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed — empty Terms / Notes printed a stray heading
+
+If you typed Terms & Conditions and later cleared the field, the invoice
+kept printing the **Terms & Conditions** heading with nothing under it.
+Same for Notes.
+
+The emptiness check stripped HTML tags with a regular expression but left
+**entities encoded**. A rich-text editor leaves `<p>&nbsp;</p>` behind
+when you clear a field, and `&nbsp;` survived tag-stripping as a literal
+seven-character string — so the field read as non-empty.
+
+Now the HTML is parsed rather than pattern-stripped, which decodes
+entities; `String.trim()` treats the resulting non-breaking space as
+whitespace, so a cleared field correctly reads as empty. Parsing also
+handles markup a regex mis-reads, such as `<div title="a>b">`.
+
+Verified in Firefox — `<p>&nbsp;</p>` and `<p>&nbsp;&nbsp;</p>` now read
+as empty, while real content and the `title="a>b"` case still read as
+present.
+
+Applied in **five** places rather than the three in the original PR, and
+extracted to a single `htmlHasText()` helper in `utils.js` — the same
+regex idiom had been copy-pasted across `InvoicePreview.jsx` and
+`InvoiceGenerator.jsx`.
+
+To be clear about scope: this is an **emptiness check**, not a security
+boundary. Rendering already runs the HTML through DOMPurify and still
+does.
+
+### Not taken from #38 — rate limiting on the trash endpoints
+
+The same PR added `express-rate-limit` as a production dependency, capping
+three `/api/trash` routes at 60 requests per minute.
+
+Declined. The bundled server binds to `127.0.0.1` and serves exactly one
+person: the user, on their own machine. There is no remote caller to
+throttle, so this adds a dependency to every user's install — more to
+download, more supply-chain surface — to defend against the user clicking
+too fast. It could also break legitimate use: restoring a batch of
+invoices from the trash can exceed 60 actions in a minute.
+
+---
+
+## [1.10.50] — 2026-08-22
+
+**Purchase bills remember your suppliers and items.**
+
+Reported (#39, @sangwanmail-eng): *"In add purchase option previous added
+supplier and item not shown. So all details need to be fill again, like
+supplier name, gst number, address, item name etc"*.
+
+### How to update
+
+**Current version:** 1.10.49 → **New version:** 1.10.50
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.50.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches. The updater also takes an
+automatic backup to `Documents\FreeGSTBill Backups\` before it changes
+anything.
+
+**Something went wrong?** Open an issue with a screenshot:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Added — supplier and item recall in Add Purchase Bill
+
+**Supplier Name** and each line item's **Name** now suggest what you have
+entered before, and filling one fills the rest:
+
+- Pick a supplier → **GSTIN**, **address** and the **inter-state** flag
+  come back automatically. The inter-state flag matters: it decides
+  whether ITC lands in the IGST column or CGST + SGST in GSTR-3B, and it
+  is a property of where the supplier is, so it is recalled with them.
+- Pick an item → **HSN**, **rate** and **tax %** (and cess, if any) come
+  back from the last time you bought it.
+- Suppliers and items you have never used are still free to type. The
+  suggestion list never blocks new entries.
+
+**Nothing you have already typed is ever overwritten.** Recall only fills
+fields left blank, so correcting a supplier's new GSTIN and then typing
+their name does not bring the old one back. Rate behaves the same way — a
+price you have already entered survives.
+
+Why this was worse than it looked: a mistyped GSTIN does not just cost
+retyping, it quietly breaks ITC reconciliation in GSTR-3B. Anyone entering
+a stack of bills from the same few vendors was hand-copying a 15-character
+GSTIN every time.
+
+**Implementation note:** purchase bills store supplier details inline
+rather than against a supplier master record, so the history is derived
+from the bills already loaded rather than by introducing a supplier table.
+That avoids a data migration and avoids a second place for the same
+details to drift out of sync. Newest bill wins, so the most recent
+spelling of a supplier is the one offered.
+
+Verified end-to-end in Firefox: seeded a bill, reopened the form,
+confirmed both suggestion lists populate, confirmed GSTIN + address + HSN
++ rate all recall correctly, confirmed an unknown supplier is still
+typeable, and confirmed a user-typed GSTIN survives typing a known
+supplier name.
 
 ### Changed — routine dependency updates
 
@@ -114,13 +418,12 @@ critical jspdf advisory sat in a shipped release until an outside
 contributor happened to file #22** — GitHub knew about it; the repo was
 not configured to say so. Both are now enabled.
 
-### Why no release
+### Note
 
-`react` 19.2.8 is the only change here that reaches a user, and it is a
-patch-level update with no fix they are waiting on. Everything else is
-dev-only. Users install by hand, so a release has a real cost for them —
-v1.10.49 went out the same day. This rides along with the next release
-that has something a user actually needs.
+The dependency work above was held back from a release of its own —
+`react` 19.2.8 was the only part reaching a user, and a hand-installed
+update is a real cost to ask for a patch nobody was waiting on. It ships
+here, alongside the supplier recall, which is something users do want.
 
 ---
 

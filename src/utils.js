@@ -929,6 +929,40 @@ export const PAPER_SIZES = {
 // Resolve a paper-size config, applying custom dimensions if this is the
 // "custom" preset. Callers can pass the invoiceOptions object as the
 // second argument to get width/height overrides applied.
+// v1.10.51 — Does this rich-text HTML contain any actual visible text?
+//
+// Adapted from a fix proposed by @venkateshpabbati in #38. The previous
+// idiom, duplicated in five places, was:
+//
+//     html.replace(/<[^>]*>/g, '').trim()
+//
+// which strips tags but leaves HTML ENTITIES encoded. So `<p>&nbsp;</p>`
+// — precisely what a rich-text editor leaves behind when the user clears
+// the field — survives as the literal string "&nbsp;" and reads as
+// non-empty. The invoice then printed a "Terms & Conditions" heading with
+// nothing underneath it.
+//
+// Parsing decodes entities, and String.trim() treats U+00A0 as
+// whitespace, so a cleared field correctly reads as empty. Parsing is
+// also robust against tag text the regex mis-handles, e.g.
+// `<div title="a>b">`.
+//
+// Note this is an EMPTINESS CHECK, not a sanitisation boundary — the
+// rendering path still runs the HTML through DOMPurify. Parsing with
+// DOMParser is inert: it builds a detached document that never executes
+// scripts or loads resources.
+export const htmlHasText = (html) => {
+  if (!html) return false;
+  try {
+    const doc = new DOMParser().parseFromString(String(html), 'text/html');
+    return (doc.body?.textContent || '').trim().length > 0;
+  } catch {
+    // Non-browser context (SSR, tests) — fall back to the old behaviour
+    // rather than reporting every field as empty.
+    return String(html).replace(/<[^>]*>/g, '').trim().length > 0;
+  }
+};
+
 export const getPaperSize = (key, options = {}) => {
   const base = PAPER_SIZES[key] || PAPER_SIZES.a4;
   if (base.kind !== 'custom') return base;
@@ -945,12 +979,36 @@ export const getPaperSize = (key, options = {}) => {
   };
 };
 
+// v1.10.53 — THE single definition of "which financial year is this date in".
+//
+// India's FY runs 1 April → 31 March, so the FY that a date belongs to is
+// NOT its calendar year for January, February and March — those months
+// belong to the FY that started the previous April.
+//
+// This existed correctly inside getFYOptions and the ITR helper, but
+// store.js had reimplemented it as a bare `new Date().getFullYear()`,
+// which stamped the WRONG financial year onto every invoice number minted
+// between 1 Jan and 31 Mar — three months a year, on the number that gets
+// reported in GSTR-1. Anything that needs the FY of a date calls this.
+//
+//   getFinancialYearStart(new Date('2027-01-15')) === 2026   (FY 2026-27)
+//   getFinancialYearStart(new Date('2027-04-01')) === 2027   (FY 2027-28)
+export const getFinancialYearStart = (date = new Date()) => (
+  date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1
+);
+
+// "2026-27" — the short form used on invoice numbers and FY dropdowns.
+export const getFinancialYearLabel = (date = new Date()) => {
+  const y = getFinancialYearStart(date);
+  return `${y}-${String(y + 1).slice(-2)}`;
+};
+
 // Fiscal-year dropdown options for the last N years. Was previously
 // duplicated in 5 files (Dashboard / PurchaseBills / ExpenseTracker /
 // GSTReturns / ReportsView) — extracted here so a bugfix only has to
 // touch one place. Each entry: { value, label, from, to }.
 export const getFYOptions = (n = 5, today = new Date()) => {
-  const currentYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const currentYear = getFinancialYearStart(today);
   const options = [];
   for (let i = 0; i < n; i++) {
     const y = currentYear - i;
