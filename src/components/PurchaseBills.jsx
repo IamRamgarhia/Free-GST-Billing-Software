@@ -77,6 +77,9 @@ function calcPurchaseTotal(items, applyRoundOff = false) {
 
 export default function PurchaseBills() {
   const [purchases, setPurchases] = useState([]);
+  // v1.10.54 (#42) — the Products & Services master, used to seed item
+  // suggestions. Loaded on mount alongside purchases.
+  const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
   const [fyFilter, setFyFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -141,9 +144,28 @@ export default function PurchaseBills() {
     }
   };
 
+  // v1.10.54 — reported (#42, @sangwanmail-eng): "Product not show properly
+  // in purchase tab". The Products & Services master held Keyboard,
+  // motherboard, Mouse, Pen drive — but the purchase item dropdown offered
+  // "mouse", "key", "Pen drive": lowercase variants and a half-typed entry
+  // from old bills, with two real products missing entirely.
+  //
+  // Cause: v1.10.50 built the suggestion list purely from what had been
+  // TYPED on past purchase bills, and never read the product master. The
+  // save path already calls getAllProducts() to update stock, so the data
+  // was right there — it just was not being used for suggestions.
+  const loadProducts = async () => {
+    try {
+      setProducts(await getAllProducts());
+    } catch {
+      // Non-fatal: suggestions fall back to purchase history alone.
+    }
+  };
+
   useEffect(() => {
     if (fyOptions[0]) setFyFilter(fyOptions[0].value);
     loadPurchases();
+    loadProducts();
   }, []);
 
   const filtered = purchases.filter(p => {
@@ -438,6 +460,11 @@ export default function PurchaseBills() {
       toast(editingId ? 'Purchase updated' : 'Purchase added — items synced to Products', 'success');
       closeForm();
       loadPurchases();
+      // v1.10.54 — saving a bill upserts its items into the product master
+      // (that is what the toast above means by "synced to Products"), so
+      // refresh it too. Otherwise a brand-new item would not appear in the
+      // suggestions until the page was reloaded.
+      loadProducts();
     } catch {
       toast('Failed to save purchase', 'error');
     }
@@ -496,8 +523,36 @@ export default function PurchaseBills() {
     return [...seen.values()];
   }, [purchases]);
 
+  // v1.10.54 (#42) — suggestions come from the product master FIRST, then
+  // anything else that has been typed on a past bill.
+  //
+  // Order matters: the master is inserted first and the map is first-wins,
+  // so "Mouse" from Products beats a stray "mouse" typed on an old bill.
+  // Deduping is case-insensitive for the same reason — the user should see
+  // one entry with the spelling they curated, not two differing in case.
+  //
+  // Purchase-only names are still kept. A one-off item bought once and
+  // never added to the catalogue is legitimate history, and there is no
+  // reliable way to tell that apart from an old typo — so both stay, and
+  // the user decides.
   const itemHistory = useMemo(() => {
     const seen = new Map();
+
+    for (const pr of products) {
+      const name = (pr.name || '').trim();
+      if (!name) continue;
+      seen.set(name.toLowerCase(), {
+        name,
+        hsn: (pr.hsn || '').trim(),
+        // purchasePrice is what we PAY a supplier; `rate`/sellingPrice is
+        // what we charge a customer. On a purchase bill the former is the
+        // sensible prefill.
+        rate: Number(pr.purchasePrice) || Number(pr.rate) || 0,
+        taxPercent: Number(pr.taxPercent) || 0,
+        cessPercent: Number(pr.cessPercent) || 0,
+      });
+    }
+
     for (const p of purchases) {
       for (const it of (p.items || [])) {
         const name = (it.name || '').trim();
@@ -514,8 +569,9 @@ export default function PurchaseBills() {
         }
       }
     }
-    return [...seen.values()];
-  }, [purchases]);
+
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [products, purchases]);
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 

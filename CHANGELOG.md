@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.54] - 2026-08-24
+
+**Fixed: your products did not appear in the purchase item list.**
+
+Reported (#42, @sangwanmail-eng). A follow-on flaw in the item recall
+added in v1.10.50.
+
+### How to update
+
+**Current version:** 1.10.53 -> **New version:** 1.10.54
+
+**If the in-app Update button works for you**
+
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all - your data is not touched.
+
+**If the Update button does not work (or you are unsure)**
+
+1. Download `Free-GST-Billing-v1.10.54.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when Windows asks.
+4. Double-click the launcher again.
+
+**Is my data safe?** Yes. Invoices, clients, products and settings live in
+`_system/data/`, which an update never touches.
+
+### Fixed - Add Purchase Bill ignored the Products & Services list
+
+The item suggestions were built purely from what had been **typed on past
+purchase bills**, and never looked at the product catalogue. With a master
+containing *Keyboard, motherboard, Mouse, Pen drive*, the dropdown offered
+*mouse, key, Pen drive* - lowercase variants and a half-typed entry from
+old bills, with two real products missing altogether.
+
+| | Before | After |
+| --- | --- | --- |
+| Suggestions | `mouse, key, Pen drive` | `key, Keyboard, motherboard, Mouse, Pen drive` |
+| Missing products | Keyboard, motherboard | none |
+| Stray `mouse` | listed separately | folded into `Mouse` |
+
+Now the **product master comes first**, so the spelling you curated wins
+over whatever was typed in a hurry months ago. Matching is
+case-insensitive, so `mouse` and `Mouse` collapse to one entry rather than
+two that look identical.
+
+Picking a product fills its **HSN** and **purchase price** - specifically
+the price you pay a supplier, not the price you charge a customer.
+
+One-off items bought once and never added to the catalogue are still
+listed. There is no reliable way to tell a genuine one-off from an old
+typo, so both are kept and you choose.
+
+The list also refreshes right after saving a bill, so an item added
+through a purchase shows up immediately instead of after a page reload.
+
+### Note on the underlying cause
+
+The save path already called `getAllProducts()` to update stock levels, so
+the catalogue was loaded and available the whole time - v1.10.50 simply
+never used it for suggestions. The data was there; the wiring was not.
+
+---
+
 ## [1.10.53] - 2026-08-23
 
 **Two financial-year bugs that were silently producing wrong data.**
