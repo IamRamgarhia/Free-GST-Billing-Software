@@ -323,7 +323,8 @@ export default function BillOCR({ onClose, onExtracted }) {
 
   const pickFile = (f) => {
     if (!f) return;
-    if (!f.type.startsWith('image/')) {
+    const allowedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    if (!allowedImageTypes.has((f.type || '').toLowerCase())) {
       toast('Please upload an image (PNG, JPG, WebP).', 'warning');
       return;
     }
@@ -503,7 +504,7 @@ export default function BillOCR({ onClose, onExtracted }) {
               <p style={{ margin: 0, fontSize: '0.85rem' }}>
                 {file ? file.name : 'Click or drag a bill image here'}
               </p>
-              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }}
                 onChange={e => pickFile(e.target.files?.[0])} />
             </div>
             {previewUrl && (
