@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.55] - 2026-08-27
+
+**Changing an item or supplier now refreshes its details, Settings warns
+about unsaved changes, and the project finally has automated tests.**
+
+Reported (#43, @sangwanmail-eng).
+
+### How to update
+
+**Current version:** 1.10.54 -> **New version:** 1.10.55
+
+1. Open the launcher, click **Update**, then **Stop Server** -> **Open App**.
+2. Or download `Free-GST-Billing-v1.10.55.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+   and extract it over your existing folder.
+
+Your data in `_system/data/` is never touched by an update.
+
+### Fixed - changing an item kept the previous item's HSN and rate
+
+Picking an item filled its details correctly, but changing that same field
+to a different item left the OLD values behind. Pick *Pen drive* (HSN `s`,
+rate 399), switch to *Mouse*, and the row still read HSN `s`, rate 399 -
+so the bill was saved with the wrong HSN and the wrong price, with nothing
+on screen to suggest anything was amiss.
+
+The same bug hit the supplier fields, where it was worse: switching
+supplier kept the **previous supplier's GSTIN**, filing the bill against
+the wrong taxpayer and breaking ITC reconciliation.
+
+Cause: v1.10.50 filled a field only when it was blank, so as not to
+overwrite typing. That treated "this field has something in it" as "the
+user typed this" - and after the first selection it always did.
+
+The app now records what it auto-filled. A field is replaced when it is
+empty or still holds exactly what was auto-filled into it; once you edit
+it by hand, it is left alone. So re-selecting updates the details **and** a
+correction you typed still survives - both, rather than one at the cost of
+the other.
+
+### Fixed - Settings gave no sign that changes were unsaved
+
+The Company Details form runs to about 450 lines of screen, and its Save
+button sits at the very bottom. Change your GSTIN near the top, scroll to
+another section, and nothing indicated the change was still unsaved.
+
+It felt intermittent because this page mixes three behaviours with no
+visible difference between them: **Features** toggles save the instant you
+click, **Region** saves and shows a toast, while **Company**, **Invoice
+Numbers** and **Terms** each need their own button. Some edits stuck, some
+vanished, and there was no way to tell which.
+
+A bar now appears at the top of Settings whenever Company Details has
+unsaved changes, stays visible as you scroll, and offers **Save** and
+**Discard**. Closing the app with unsaved changes also warns first.
+
+### Added - `npm test`
+
+This is the first automated test suite in the project.
+
+Fourteen checks run in **Firefox** at **1366x768** - the browser and screen
+size that several of these bugs needed in order to appear at all. They
+cover every field-reported regression from the last two weeks: the
+suggestion list contents (#42) and what it displays (#40), item and
+supplier re-selection (#43), the unsaved-changes bar (#43), preview
+clipping (ERR-005), and PDF generation with no security-policy violations
+(ERR-004, ERR-007).
+
+Each test was checked by reverting the fix and confirming it goes **red**
+first. A test that has never failed proves nothing, so that is the bar for
+adding to it.
+
+Run before publishing:
+
+```
+npm run test:install   # one time - downloads Firefox
+npm test
+```
+
+---
+
 ## [1.10.54] - 2026-08-24
 
 **Fixed: your products did not appear in the purchase item list.**

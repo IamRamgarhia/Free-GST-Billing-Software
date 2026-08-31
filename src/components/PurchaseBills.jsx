@@ -586,12 +586,18 @@ export default function PurchaseBills() {
     setForm(prev => {
       const next = { ...prev, supplierName: value };
       if (match) {
-        if (!(prev.supplierGstin || '').trim()) next.supplierGstin = match.gstin;
-        if (!(prev.supplierAddress || '').trim()) next.supplierAddress = match.address;
+        // v1.10.55 (#43) — same re-selection bug as the item rows, and worse
+        // here: switching supplier used to leave the PREVIOUS supplier's
+        // GSTIN in place, so the bill was filed against the wrong taxpayer
+        // and ITC reconciliation broke. See isOursToReplace above.
+        const last = prev._autoSupplier || {};
+        if (isOursToReplace(prev.supplierGstin, last.gstin)) next.supplierGstin = match.gstin;
+        if (isOursToReplace(prev.supplierAddress, last.address)) next.supplierAddress = match.address;
         // Interstate drives CGST+SGST vs IGST, so recall it too — it is a
         // property of where the supplier is, and getting it wrong routes
         // ITC to the wrong GSTR-3B column.
         next.interstate = match.interstate;
+        next._autoSupplier = { gstin: match.gstin, address: match.address };
       }
       return next;
     });
@@ -600,16 +606,50 @@ export default function PurchaseBills() {
   // Same idea for line items: recall HSN, rate and tax rates from the last
   // time this item was purchased. Rate is filled only when still 0 so a
   // price change the user has already typed is never clobbered.
+  // v1.10.55 — reported (#43, @sangwanmail-eng): "when we select item all
+  // details fetch ok. But when we change item in same field details not
+  // change."
+  //
+  // v1.10.50 filled a field only when it was BLANK, to avoid overwriting
+  // something the user had typed. That protected typed input but broke
+  // re-selection: pick "Pen drive" (HSN fills to `s`), then change the same
+  // row to "Mouse" — HSN is no longer blank, so it stayed on Pen drive's
+  // value. The bill then carried the wrong HSN and the wrong rate, silently.
+  //
+  // The flaw was treating "field is non-empty" as "user typed this". We now
+  // record what WE auto-filled on the row (`_auto`, transient — the save
+  // path whitelists fields, so it never persists). A field is ours to
+  // replace when it is empty or still holds exactly what we last put there;
+  // once the user edits it, it stops matching and we leave it alone.
+  //
+  // So: re-selecting updates the details, and a hand-typed correction still
+  // survives — both, rather than one at the cost of the other.
+  const isOursToReplace = (current, lastAuto) => {
+    const cur = current === undefined || current === null ? '' : String(current).trim();
+    if (cur === '' || cur === '0') return true;              // never filled, or still zero
+    if (lastAuto === undefined || lastAuto === null) return false;
+    return cur === String(lastAuto).trim();                  // untouched since we filled it
+  };
+
   const updateItemName = (index, value) => {
     const match = itemHistory.find(i => i.name.toLowerCase() === value.trim().toLowerCase());
     setForm(prev => {
       const items = [...prev.items];
       const cur = { ...items[index], name: value };
       if (match) {
-        if (!(cur.hsn || '').trim()) cur.hsn = match.hsn;
-        if (!Number(cur.rate)) cur.rate = match.rate;
-        if (match.taxPercent) cur.taxPercent = match.taxPercent;
-        if (match.cessPercent) cur.cessPercent = match.cessPercent;
+        const last = cur._auto || {};
+        if (isOursToReplace(cur.hsn, last.hsn)) cur.hsn = match.hsn;
+        if (isOursToReplace(cur.rate, last.rate)) cur.rate = match.rate;
+        if (isOursToReplace(cur.taxPercent, last.taxPercent)) cur.taxPercent = match.taxPercent;
+        if (isOursToReplace(cur.cessPercent, last.cessPercent)) cur.cessPercent = match.cessPercent;
+        // Remember exactly what we just wrote, so the next re-selection can
+        // tell our values apart from the user's.
+        cur._auto = {
+          hsn: match.hsn,
+          rate: match.rate,
+          taxPercent: match.taxPercent,
+          cessPercent: match.cessPercent,
+        };
       }
       items[index] = cur;
       return { ...prev, items };
