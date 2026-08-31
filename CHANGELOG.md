@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.56] - 2026-09-01
+
+**Hotfix: Settings kept claiming unsaved changes, and popped a dialog on
+every close.**
+
+Reported (#44 item 5, @sangwanmail-eng): *"Firm profile setting not saved.
+every time show popup"*. A regression from v1.10.55, four days old.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.56.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed
+
+**The profile was saving correctly the whole time.** The unsaved-changes
+tracker added in v1.10.55 was the thing at fault.
+
+It recorded "this is now the saved state" in the Save Profile handler
+only. But the profile is written to disk from three places:
+
+1. the **Save Profile** button
+2. **payment accounts**, which auto-save on every change (since v1.10.16)
+3. **switching business profile**, which saves before switching
+
+After 2 or 3 the data was safely on disk, but the tracker still held the
+older copy - so the bar insisted there were unsaved changes that did not
+exist, and the browser close-confirmation added alongside it then fired
+every single time. That dialog is the popup in the report.
+
+All three paths now update the baseline through one shared helper, so it
+cannot drift from what is actually stored.
+
+**The close-confirmation dialog is removed entirely.** Even with the
+baseline fixed it was the wrong tool - it hijacks the browser's own close
+dialog for a form the user may never have intended to save, and any future
+drift in the dirty check turns straight back into a popup on every exit.
+The sticky bar already makes unsaved work visible without interrupting
+anyone.
+
+(The separate warning when leaving a half-written **invoice** is untouched
+- that one predates this and is correctly gated on real unsaved work.)
+
+### Tests
+
+Two checks added, bringing the suite to 16: the bar must clear once the
+profile is on disk, and must not reappear on returning to Settings.
+
+### Still open from #44
+
+Items 1-4 of that report are **not** addressed here, so this fix could
+ship immediately: terms and conditions running together on the invoice,
+the payment-receipt dropdown overlapping the form beneath it, low-stock
+alerts not being clickable, and sluggish scrolling in list views.
+
+---
+
 ## [1.10.55] - 2026-08-27
 
 **Changing an item or supplier now refreshes its details, Settings warns

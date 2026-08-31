@@ -227,6 +227,23 @@ try {
   await sleep(600);
   check('#43 that bar stays reachable after scrolling', await barShown());
 
+  // #44: the bar must clear once the profile is actually on disk, and must
+  // NOT come back when the page is revisited. v1.10.55 recorded the saved
+  // baseline in only one of three persistence paths, so the bar could insist
+  // on unsaved changes for data that was already stored — and the
+  // beforeunload guard then popped a browser dialog on every close.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(400);
+  await page.getByRole('button', { name: /Save Profile/i }).first().click();
+  await sleep(2500);
+  check('#44 bar clears after saving', !(await barShown()));
+
+  await page.getByText('Dashboard', { exact: false }).first().click();
+  await sleep(1200);
+  await page.getByText('Settings', { exact: false }).first().click();
+  await sleep(2500);
+  check('#44 bar stays hidden on returning to Settings', !(await barShown()));
+
   await cleanup(page);
 } catch (err) {
   check('suite ran to completion', false, err.message.split('\n')[0]);
