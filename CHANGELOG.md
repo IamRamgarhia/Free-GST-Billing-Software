@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.57] - 2026-09-03
+
+**Terms print properly, the receipt list stops overlapping, and low-stock
+alerts are clickable.**
+
+Items 1-3 of #44 (@sangwanmail-eng). Item 4 is still open - see below.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.57.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed - terms and conditions ran together as one paragraph
+
+A numbered list of terms printed on the invoice as a single wall of text:
+*"1. Payment is due within 15 days... 2. Late payment interest..."* with no
+line breaks.
+
+Cause: the global CSS reset at the top of `index.css` -
+`* { margin: 0; padding: 0 }` - strips spacing from **every** element,
+including the `<p>`, `<ul>`, `<ol>` and `<li>` tags inside rich terms. With
+that spacing gone the paragraphs butt together and list markers lose their
+indent.
+
+The rules that put it back existed since v1.10.37, but only applied in
+**Formatted** mode - and the default is **Compact**. So every invoice
+except a services one printed the flattened version.
+
+Spacing now lives on the base rich-text class, so structure survives in
+both modes. Compact stays tighter, in keeping with fitting more on a page.
+Measured after the fix: paragraph spacing 5.6px (was 0), ordered-list
+indent 17.6px (was 0).
+
+### Fixed - payment receipt list overlapped the form beneath it
+
+In **New Payment Receipt**, the *Quick Select - Unpaid Invoices* list drew
+on top of Receipt No, Date, Received From and Amount.
+
+The list had a 150px height cap applied to a container with no overflow
+handling - the class that actually scrolls is a different one. Ten unpaid
+invoices in a box that could not clip them simply spilled over everything
+below. Measured: 424px of content in a 148px box, now scrolled instead of
+spilled.
+
+### Added - low-stock alerts open the Products tab
+
+The chips under **Low Stock Alert** on the dashboard were plain text, so
+seeing the warning meant finding Products in the sidebar yourself. Each is
+now a button that opens Products directly - matching the notification bell,
+which already did this.
+
+### Still open - #44 item 4, sluggish scrolling
+
+Not fixed here. "Slow moving scroll bar" in the purchase and client tabs
+needs profiling to find the actual cause rather than a guess, and these
+three were ready to ship. It is the next thing on the list.
+
+### Repository
+
+`main` is now protected against force-pushes and branch deletion.
+
+---
+
 ## [1.10.56] - 2026-09-01
 
 **Hotfix: Settings kept claiming unsaved changes, and popped a dialog on

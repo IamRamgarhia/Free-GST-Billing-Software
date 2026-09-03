@@ -2324,6 +2324,32 @@ a:focus-visible {
   margin: 0;
 }
 
+/* v1.10.57 — reported (#44 item 1, @sangwanmail-eng): "Term and condition
+   not arrange properly". Numbered terms printed as one run-on paragraph.
+
+   Cause: the global reset at the top of this file — `* { margin: 0;
+   padding: 0 }` — strips spacing from EVERY element, <p>, <ul>, <ol> and
+   <li> included. Rich terms are user HTML, so once that spacing is gone
+   the paragraphs butt together and list markers lose their indent, and a
+   tidy numbered list arrives as a wall of text.
+
+   v1.10.37 added the rules that put it back — but only under
+   `.inv-terms-formatted`, and the default mode is `compact` (see
+   printSettings.js). So every invoice except a services one rendered the
+   flattened version.
+
+   These rules sit on the base `.inv-rich` class so structure survives in
+   BOTH modes; compact keeps tighter spacing, in line with its purpose of
+   fitting more on the page. The `.inv-terms-formatted` block below
+   overrides these with roomier values and still wins on specificity. */
+.inv-terms.inv-rich p { margin: 0 0 0.35rem; }
+.inv-terms.inv-rich p:last-child { margin-bottom: 0; }
+.inv-terms.inv-rich ol,
+.inv-terms.inv-rich ul { margin: 0.25rem 0 0.35rem; padding-left: 1.1rem; }
+.inv-terms.inv-rich li { margin-bottom: 0.2rem; }
+.inv-terms.inv-rich li:last-child { margin-bottom: 0; }
+.inv-terms.inv-rich br { line-height: 1.6; }
+
 /* v1.10.37 — "Formatted" mode overrides. Reported: current "compact"
    render was small + uppercase-inherited + hard to read on the PDF.
    Users who want terms customers actually read pick termsFormatMode:
