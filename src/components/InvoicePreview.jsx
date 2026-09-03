@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import DOMPurify from 'dompurify';
-import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount, htmlHasText } from '../utils';
+import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount, htmlHasText, splitNumberedTerms } from '../utils';
 import { getPrintSettings, getLabel } from '../utils/printSettings';
 
 // v1.10.36 — Optional `previewOnly` prop suppresses the internal
@@ -1192,7 +1192,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               (same mechanism the extraSections feature uses). buildPDF's
               extraPages loop then captures it as its own PDF page. */}
           {!_ps.termsSeparatePage && (() => {
-            const termsHtml = customTerms ? DOMPurify.sanitize(customTerms) : '';
+            const termsHtml = customTerms ? splitNumberedTerms(DOMPurify.sanitize(customTerms)) : '';
             const hasTerms = htmlHasText(termsHtml);
             return showTerms && hasTerms ? (
               <div className="inv-footer-block">
@@ -1202,7 +1202,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             ) : null;
           })()}
           {!_ps.termsSeparatePage && (() => {
-            const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
+            const notesHtml = customNotes ? splitNumberedTerms(DOMPurify.sanitize(customNotes)) : '';
             const hasNotes = htmlHasText(notesHtml);
             return showNotes && hasNotes ? (
               <div className="inv-footer-block">
@@ -1218,7 +1218,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         {_ps.termsSeparatePage && (customTerms || customNotes) && (
           <div data-pdf-page="terms" style={{ padding: '2rem', pageBreakBefore: 'always', breakBefore: 'page' }}>
             {(() => {
-              const termsHtml = customTerms ? DOMPurify.sanitize(customTerms) : '';
+              const termsHtml = customTerms ? splitNumberedTerms(DOMPurify.sanitize(customTerms)) : '';
               const hasTerms = htmlHasText(termsHtml);
               return showTerms && hasTerms ? (
                 <div className="inv-footer-block">
@@ -1228,7 +1228,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               ) : null;
             })()}
             {(() => {
-              const notesHtml = customNotes ? DOMPurify.sanitize(customNotes) : '';
+              const notesHtml = customNotes ? splitNumberedTerms(DOMPurify.sanitize(customNotes)) : '';
               const hasNotes = htmlHasText(notesHtml);
               return showNotes && hasNotes ? (
                 <div className="inv-footer-block" style={{ marginTop: '2rem' }}>

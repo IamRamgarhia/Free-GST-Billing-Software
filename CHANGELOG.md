@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.60] - 2026-09-03
+
+**PDFs printed without any formatting. Root cause found and removed.**
+
+Reported by @sguptagzb (#51) with a sample PDF attached, and by
+@sangwanmail-eng (#50). Two users, same underlying area.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.60.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed - the PDF came out with no formatting at all (#51)
+
+*"When I try to print the Invoice, the format is not coming as it comes in
+Preview."*
+
+The attached PDF was decoded rather than guessed at. It contained a single
+3168x4484 bitmap of an invoice with **no layout CSS**: no table borders, no
+cards, no aligned columns, labels running straight into values
+("Subtotal(rupee)1,78,000.00"). Inline styles had survived; every rule
+that came from a stylesheet had not. Generating the same invoice here, on
+the same version, produced a correctly formatted PDF - so the code was
+right and something in that user's environment was stopping the styles
+loading.
+
+**Root cause.** The PDF is produced by cloning the invoice into a detached
+document and photographing it. That clone had to **re-fetch the stylesheet
+by URL**. Any reason that fetch fails gives a silently unformatted PDF:
+a security policy that does not match the address in use, a service worker
+(this app is a PWA) returning a stale or failed response, or a clone
+document with no origin of its own.
+
+v1.10.48 widened the security policy, which fixed one cause. This removes
+the dependency altogether: **the stylesheet is now embedded directly into
+the clone**, so nothing is fetched and nothing can fail. The thermal print
+path has worked this way since v1.10.42; the PDF path had never adopted it.
+
+Verified by deliberately restoring the exact security policy that produced
+the broken PDF, and confirming the output is fully formatted anyway.
+
+### Fixed - numbered terms printed as one paragraph (#50)
+
+All 13 built-in Terms presets use real bullet lists and were unaffected.
+But terms typed or pasted by hand - commonly from Word - arrive as a
+single paragraph with the numbers typed in:
+
+    1. Payment due in 15 days. 2. Interest 18% p.a. 3. ...
+
+That genuinely is one paragraph, so no styling could separate it; the app
+was printing exactly what was written. It still reads as a wall of text.
+
+Such terms are now split onto separate lines at the numbering. The rule is
+deliberately cautious - it needs **three or more** numbered markers before
+it will touch anything, so ordinary prose like "refer to Section 2. of the
+Act", or content already using bullets, is left alone.
+
+### Note
+
+An earlier edit in this session introduced a broken string literal that
+made the file fail to parse. It was caught by lint before release, but the
+build check used to wave it through was too narrow to notice - worth
+recording, since a green build meant nothing in that state.
+
+---
+
 ## [1.10.59] - 2026-09-03
 
 **Security: every dependency advisory closed. Plus a client-list

@@ -993,6 +993,38 @@ export const getPaperSize = (key, options = {}) => {
 //
 //   getFinancialYearStart(new Date('2027-01-15')) === 2026   (FY 2026-27)
 //   getFinancialYearStart(new Date('2027-04-01')) === 2027   (FY 2027-28)
+// v1.10.60 — reported (#50, @sangwanmail-eng): "Terms and conditions show
+// as paragraph in formatted".
+//
+// The 13 built-in presets all use real <ul>/<li> markup and render as
+// lists. But many users type or paste their own terms from Word as ONE
+// paragraph with the numbers typed by hand:
+//
+//   <p>1. Payment due in 15 days. 2. Interest 18% p.a. 3. ...</p>
+//
+// That is genuinely a single paragraph, so no stylesheet can separate it —
+// the app was faithfully rendering what was written. It still reads as a
+// wall of text on the invoice, which is the complaint.
+//
+// This splits such a paragraph at the numbering. It is deliberately
+// conservative: it needs THREE OR MORE markers before it will touch
+// anything, so ordinary prose containing "Section 2. of the Act" or a
+// price like "Rs 2. 50" is left alone. Content already using <li> or <br>
+// is skipped entirely — that is already structured.
+export const splitNumberedTerms = (html) => {
+  if (!html || typeof html !== 'string') return html;
+  if (/<(li|br)[ />]/i.test(html)) return html;   // already structured — leave it alone
+  const marker = /(^|[\s>])(\d{1,2})\.\s+/g;
+  const count = (html.match(marker) || []).length;
+  if (count < 3) return html;                         // not a list
+  // Break before every marker except the first, so item 1 keeps its place.
+  let seen = 0;
+  return html.replace(marker, (m, pre, num) => {
+    seen += 1;
+    return seen === 1 ? m : `${pre}<br />${num}. `;
+  });
+};
+
 export const getFinancialYearStart = (date = new Date()) => (
   date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1
 );
