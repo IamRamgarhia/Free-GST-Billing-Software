@@ -794,6 +794,36 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return items.some(item => (item.name || '').trim() && (item.quantity || 0) * (item.rate || 0) > 0);
   }, [client?.name, items, editingBill]);
 
+  // v1.10.58 — reported (#47 item 1, @sangwanmail-eng): "New invoice save
+  // and print without client name and without any product add."
+  //
+  // isMeaningfulInvoice() above already encoded exactly the right rule, but
+  // it only gated AUTO-save and the leave-guard. The explicit Save button
+  // and the Print / Download paths called saveInvoiceToDB() with no checks
+  // at all, so an empty form saved happily.
+  //
+  // That is worse than an empty record: saving reserves an invoice number
+  // from the atomic counter. A blank invoice permanently consumes a number
+  // in the sequence, and GST expects that sequence to be gapless — so a few
+  // stray saves leave holes a CA has to explain.
+  //
+  // Returns null when the invoice is fit to save, otherwise the specific
+  // reason, so the user is told which field is missing rather than just
+  // being refused.
+  const validateForSave = useCallback(() => {
+    if (editingBill) return null; // an existing bill is already a real record
+    if (!client?.name?.trim()) {
+      return 'Add a client name before saving.';
+    }
+    const hasRealItem = items.some(
+      item => (item.name || '').trim() && (item.quantity || 0) * (item.rate || 0) > 0,
+    );
+    if (!hasRealItem) {
+      return 'Add at least one item with a quantity and rate before saving.';
+    }
+    return null;
+  }, [client?.name, items, editingBill]);
+
   // Debounced auto-save (2s after last change), gated on meaningful content.
   //
   // v1.8.1 CHANGE: for NEW bills that haven't been explicitly saved yet,
@@ -2617,6 +2647,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const directPrint = async () => {
     if (!printRef.current) return;
+    // v1.10.58 (#47) — same gate as Save: printing persists the bill and
+    // reserves an invoice number, so a blank one must not get through here
+    // either.
+    const problem = validateForSave();
+    if (problem) { toast(problem, 'warning'); return; }
     if (isThermalPaper()) {
       // Thermal → show the preview modal. Actual print fires from the
       // modal's Print button via executePrint. User can Cancel there
@@ -2632,6 +2667,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const generatePDF = async () => {
     if (!printRef.current) return;
+    // v1.10.58 (#47) — same gate as Save: printing persists the bill and
+    // reserves an invoice number, so a blank one must not get through here
+    // either.
+    const problem = validateForSave();
+    if (problem) { toast(problem, 'warning'); return; }
     try {
       setSaving(true);
       // v1.10.26 — force preview on-screen so html2canvas can snapshot it.
@@ -2807,6 +2847,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               + auto-print + Drive sync side effects that generatePDF
               does — minus the PDF file. */}
           <button className="btn btn-primary" onClick={async () => {
+            // v1.10.58 (#47) — refuse a blank invoice. Saving reserves an
+            // invoice number, so an empty save leaves a permanent gap in a
+            // sequence GST expects to be gapless.
+            const problem = validateForSave();
+            if (problem) { toast(problem, 'warning'); return; }
             try {
               setSaving(true);
               await saveInvoiceToDB();

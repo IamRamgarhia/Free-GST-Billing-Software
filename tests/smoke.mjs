@@ -59,6 +59,12 @@ async function cleanup(page) {
       };
       await del('purchases');
       await del('products');
+      // The PDF step saves a real invoice; remove it by client name so the
+      // suite is repeatable and leaves no test data in the user's books.
+      const bills = await (await fetch('/api/bills')).json();
+      await Promise.all((bills || [])
+        .filter((b) => (b.clientName || '') === 'Smoke Test Client')
+        .map((b) => fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' })));
     });
   } catch { /* best effort */ }
 }
@@ -177,6 +183,24 @@ try {
   await page.waitForSelector('.invoice-preview-container', { timeout: 20000 });
   await sleep(1500);
 
+  // Fill a REAL invoice. Since #47, saving or printing a blank one is
+  // refused on purpose, so the PDF check below needs a client and a priced
+  // line item — the same minimum a user has to provide.
+  await page.locator('input[placeholder="Type client name to search or add new"]')
+    .fill('Smoke Test Client');
+  await sleep(500);
+  await page.keyboard.press('Escape');           // dismiss the client suggestion list
+  // The line-item name box carries no placeholder, so target it through its
+  // row: `.line-item-row` -> first text input, then the row's numeric fields.
+  const row = page.locator('.line-item-row').first();
+  await row.locator('input[type="text"]').first().fill('Test item');
+  await sleep(400);
+  await page.keyboard.press('Escape');           // dismiss product suggestions
+  const rowNums = row.locator('input[type="number"]');
+  await rowNums.nth(0).fill('2');                // qty
+  await rowNums.nth(1).fill('500');              // rate
+  await sleep(800);
+
   // ERR-005: transform: scale() does not shrink the layout box, and a
   // centred overflow puts the left edge in unreachable negative scroll.
   const clipped = await page.evaluate(() => {
@@ -211,15 +235,33 @@ try {
   check('no CSP violations during PDF generation', cspViolations.length === 0,
     cspViolations[0]?.slice(0, 90) || '');
 
+  // Generating the PDF saves the invoice, so the editor now holds a real,
+  // dirty bill and navigating away raises the leave-guard. Dismiss it, then
+  // delete the bill so the suite leaves nothing behind.
   // ---- Settings: unsaved changes are visible -----------------------------
   await page.getByText('Settings', { exact: false }).first().click();
+  await sleep(900);
+  const discard = page.getByRole('button', { name: /Discard.*leave/i });
+  if (await discard.count()) {
+    await discard.click();
+    await sleep(1200);
+    await page.getByText('Settings', { exact: false }).first().click();
+  }
   await sleep(2000);
   const barShown = () => page.evaluate(() =>
     !![...document.querySelectorAll('div')]
       .find((d) => /unsaved changes/i.test(d.textContent || '') && d.offsetParent !== null));
 
   check('#43 no unsaved-changes bar on a clean form', !(await barShown()));
-  await page.locator('#section-company input').first().fill('Smoke Test Co');
+
+  // Use a value that cannot already be on disk. A fixed string silently
+  // breaks this test the second time it runs: the field already holds it,
+  // so "editing" changes nothing and no bar should appear — the test would
+  // fail while the app behaved correctly. Original is restored below so the
+  // suite leaves the user's business name untouched.
+  const nameField = page.locator('#section-company input[name="businessName"]');
+  const originalName = await nameField.inputValue();
+  await nameField.fill(`Smoke Test ${Date.now()}`);
   await sleep(700);
   check('#43 editing the profile surfaces an unsaved-changes bar', await barShown());
 
@@ -243,6 +285,25 @@ try {
   await page.getByText('Settings', { exact: false }).first().click();
   await sleep(2500);
   check('#44 bar stays hidden on returning to Settings', !(await barShown()));
+
+  // Put the real business name back and persist it.
+  await page.locator('#section-company input[name="businessName"]').fill(originalName);
+  await sleep(500);
+  const restore = page.getByRole('button', { name: /Save Profile/i }).first();
+  if (await restore.count()) { await restore.click(); await sleep(2000); }
+
+  // #47: a blank invoice must not save. Saving reserves an invoice number,
+  // so an empty save leaves a permanent gap in a sequence GST expects to be
+  // gapless — the record being useless is the lesser problem.
+  const billCount = () => page.evaluate(async () => (await (await fetch('/api/bills')).json()).length);
+  const before = await billCount();
+  await page.getByText('New Invoice', { exact: false }).first().click();
+  await page.waitForSelector('.invoice-preview-container', { timeout: 20000 });
+  await sleep(1500);
+  await page.getByRole('button', { name: /^Save$/ }).first().click();
+  await sleep(2500);
+  check('#47 blank invoice is refused', (await billCount()) === before,
+    `bills ${before} -> ${await billCount()}`);
 
   await cleanup(page);
 } catch (err) {

@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.58] - 2026-09-03
+
+**Blank invoices and empty purchase bills can no longer be saved.**
+
+Reported (#47, @sangwanmail-eng).
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.58.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed - an empty invoice could be saved and printed
+
+Pressing **Save** on a brand-new invoice with no client and no items
+created the invoice anyway. Print and Download PDF did the same.
+
+The rule was already written - `isMeaningfulInvoice()` required a client
+name and at least one priced line - but it only gated the background
+auto-save. The Save button and the print paths went straight to the
+database with no checks at all.
+
+This mattered more than an empty record: **saving reserves an invoice
+number** from the counter. Every blank save permanently consumed a number,
+and GST expects that series to be gapless - so a handful of stray clicks
+left holes a CA would have to account for.
+
+Save, Print and Download now check first, and say which field is missing
+rather than simply refusing:
+
+- *"Add a client name before saving."*
+- *"Add at least one item with a quantity and rate before saving."*
+
+Editing an existing invoice is unaffected.
+
+### Fixed - purchase bills saved with no items
+
+Supplier name and invoice number were required; nothing checked that the
+bill had any line items, so an empty bill saved with a zero total.
+
+A purchase bill is the input-tax-credit record. A zero-value bill sits in
+GSTR-3B reconciliation as a vendor invoice claiming nothing, and the empty
+rows also feed the stock sync that runs on save.
+
+### Tests
+
+Suite is now 17 checks, and this release exercised it properly: adding the
+new guard turned the PDF test red, because that test had been generating a
+PDF from an invoice with no client - precisely the behaviour #47 says
+should be impossible. The test was wrong, not the fix.
+
+Two further faults in the tests themselves were found and repaired: the
+suite left a saved invoice behind, and the Settings test wrote a fixed
+business name, so on a second run the field already held that value,
+nothing changed, and the test failed while the app was correct. Both now
+use unique values, restore what they touched, and pass on repeated runs.
+
+---
+
 ## [1.10.57] - 2026-09-03
 
 **Terms print properly, the receipt list stops overlapping, and low-stock

@@ -328,6 +328,18 @@ export default function PurchaseBills() {
   const handleSave = async () => {
     if (!form.supplierName.trim()) { toast('Supplier name is required', 'warning'); return; }
     if (!form.invoiceNumber.trim()) { toast('Invoice number is required', 'warning'); return; }
+    // v1.10.58 — reported (#47 item 2, @sangwanmail-eng): "Purchase also
+    // save without adding any product." Supplier and invoice number were
+    // checked, but nothing verified the bill had any line items, so an
+    // empty bill saved with a zero total.
+    //
+    // That is not merely untidy: a purchase bill is the ITC record. A zero
+    // bill sits in GSTR-3B reconciliation as a vendor invoice claiming
+    // nothing, and the empty rows also feed the stock/product sync on save.
+    if (!form.items.some(i => (i.name || '').trim() && (parseFloat(i.quantity) || 0) * (parseFloat(i.rate) || 0) > 0)) {
+      toast('Add at least one item with a quantity and rate', 'warning');
+      return;
+    }
     try {
       const totals = calcPurchaseTotal(form.items, form.applyRoundOff);
       const purchase = {
