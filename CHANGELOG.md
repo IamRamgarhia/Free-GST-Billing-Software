@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.61] - 2026-09-04
+
+**The README's download link pointed at source code, not the app.**
+
+### Fixed - "Download ZIP" gave an unbuilt copy
+
+Four links in the README pointed at
+`/archive/refs/heads/main.zip` - GitHub's *source code* download for the
+main branch. Compared side by side against the real release ZIP:
+
+| | built app inside | folder layout |
+| --- | --- | --- |
+| `main.zip` (what the README linked) | **0 files** | `release-templates/` developer layout |
+| release ZIP | **50 files** | `Free-GST-Billing/_system/` |
+
+So anyone following the README got the source with **no built application**,
+in the developer folder layout, from an untagged commit. It also explains
+the very first bug report this project received, whose error path read
+`Free-GST-Billing-Software-mainelease-templates\_system-scripts\...` -
+that user had done exactly what the README told them to.
+
+All four links now point at the **latest release**, and the install step
+says explicitly not to use the green *Code -> Download ZIP* button.
+
+Worth noting: `Update FreeGSTBill.bat` - which downloads the main branch
+and runs `npm install` over your installation - is **not** in the release
+ZIP. It only ever reached people who took the main.zip route, so correcting
+these links closes that path too.
+
+### Security - fflate 0.8.2 -> 0.8.3
+
+Infinite loop when parsing malformed ZIP64 archives (moderate). It arrives
+through jsPDF and **does** ship. Shipped advisories are back to zero.
+
+---
+
 ## [1.10.60] - 2026-09-03
 
 **PDFs printed without any formatting. Root cause found and removed.**
