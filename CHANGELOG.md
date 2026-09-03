@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.59] - 2026-09-03
+
+**Security: every dependency advisory closed. Plus a client-list
+optimisation - and an honest negative result on the scrolling report.**
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.59.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Security - all open advisories closed
+
+Seven were outstanding. Only one reached users:
+
+- **`qs`** (moderate) - reachable through the bundled server, so it *did*
+  ship. Now patched.
+- `fast-uri` (high) and `@humanfs/node` (medium) - build tooling only. The
+  installer runs `npm install --omit=dev`, so neither has ever been on a
+  user's machine.
+
+Both `npm audit` and `npm audit --omit=dev` now report **zero across every
+severity**.
+
+### Changed - client list no longer rescans every bill per row
+
+`getClientStats()` filtered and re-sorted the entire bill list on each
+call, with no memoisation - so it re-ran on every render, including every
+keystroke in the search box. The client sort called it from inside its
+comparator as well, so a full scan happened O(n log n) times per render on
+top of once per rendered row.
+
+Bills are now grouped by client once per change, each group sorted once,
+and totals precomputed in the same pass. Lookups are O(1).
+
+### NOT fixed - #44 item 4, "slow moving scroll bar"
+
+Reported by @sangwanmail-eng. **I could not reproduce it, and the change
+above did not measurably help.**
+
+Measured in Firefox against a seeded book of 60 clients and 505 bills,
+before and after:
+
+| | before | after |
+| --- | --- | --- |
+| typing 13 characters into client search | 921 ms | 949 ms |
+| 25 scroll frames | 9.2 ms/frame | 8.9 ms/frame |
+
+Under 16.7 ms per frame is smooth, and both builds were already there. The
+optimisation is a real algorithmic improvement that will matter on a much
+larger book, but it is **not** a fix for what was reported, and it would be
+wrong to close the issue on it.
+
+The cause is therefore still unknown. It may need far more data than 505
+bills, or it may be something else entirely - a different view, a slower
+machine, or the scrollbar being physically hard to drag on a very long
+page rather than the page being slow. #44 stays open pending more detail.
+
+---
+
 ## [1.10.58] - 2026-09-03
 
 **Blank invoices and empty purchase bills can no longer be saved.**
