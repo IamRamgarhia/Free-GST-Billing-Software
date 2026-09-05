@@ -1,0 +1,31 @@
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.git
+.github
+.gitignore
+.gitattributes
+.stackblitzrc.json
+.gemini
+
+# App data and build outputs
+data/
+dist/
+
+# Documentation and release artifacts
+docs/
+release-templates/
+tests/
+SECURITY_AUDIT_REPORT.md
+*.bat
+*.txt
+*.md
+!README.md
+!DOCKER.md
+
+# Local environment
+.env
+.env.local
+.DS_Store
+Thumbs.db

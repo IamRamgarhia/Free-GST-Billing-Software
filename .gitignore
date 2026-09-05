@@ -12,6 +12,9 @@ dist
 dist-ssr
 release-build
 *.local
+.env
+.env.*
+!.env.example
 
 # Invoice data (personal/financial - keep local only)
 data/
@@ -40,3 +43,4 @@ public/tesseract/
 
 # Session scratch from other agent tooling — not part of the project
 .zcode
+.agents/

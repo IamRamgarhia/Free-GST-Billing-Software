@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import { computeInvoiceTotals } from './src/utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 
 // Port choice — we deliberately default to a high, unusual number rather than
 // the conventional 3001. The 3000-range is heavily used by every other Node /
@@ -25,12 +25,15 @@ const DATA_DIR = path.join(__dirname, 'data');
 // by any common software we could find. The persisted `data/port.txt` always
 // wins over this default — so a single user who genuinely needs 47371 for
 // something else can edit that file and we'll respect it forever.
-const DEFAULT_PORT = 47371;
-const PORT_FILE = path.join(__dirname, 'data', 'port.txt');
+// In containerized/Docker environments, PORT & HOST can be configured via environment variables.
+const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 47371;
+const PORT_FILE = path.join(DATA_DIR, 'port.txt');
+const BIND_HOST = process.env.HOST || '127.0.0.1';
 
 // Read the persisted port (if any) — written once on first successful start
 // and every time we get bumped off our preferred port by EADDRINUSE.
 const persistedPort = (() => {
+  if (process.env.PORT) return parseInt(process.env.PORT, 10);
   try {
     if (!fs.existsSync(PORT_FILE)) return null;
     const n = parseInt(fs.readFileSync(PORT_FILE, 'utf-8').trim(), 10);
@@ -53,11 +56,13 @@ const app = express();
 // also localhost.
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  const customOrigin = process.env.ALLOWED_ORIGINS;
   const allow =
     !origin ||
     /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
     /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin) ||
-    /^https?:\/\/\[::1\](:\d+)?$/i.test(origin);
+    /^https?:\/\/\[::1\](:\d+)?$/i.test(origin) ||
+    (customOrigin && (customOrigin === '*' || new RegExp(customOrigin, 'i').test(origin)));
   if (!allow) {
     return res.status(403).json({ error: 'Cross-origin request refused' });
   }
@@ -1365,14 +1370,15 @@ process.on('unhandledRejection', (err) => logFatal(err, 'unhandledRejection'));
 // every byte stays on the user's machine, which the privacy promise depends on.
 let activeServer = null;
 function startServer(port) {
-  const server = app.listen(port, '127.0.0.1', () => {
+  const server = app.listen(port, BIND_HOST, () => {
     activeServer = server;
     // Persist the chosen port — the .bat launcher reads this for the browser URL.
     // Writing on EVERY successful boot means: if our preferred 47371 was busy and
     // we landed on 47372 instead, next launch tries 47372 first (cuts collision
     // scans in half on repeated reboots of whatever was holding 47371).
     try { fs.writeFileSync(PORT_FILE, String(port), 'utf-8'); } catch { /* ignore */ }
-    console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
+    const displayHost = (BIND_HOST === '0.0.0.0' || BIND_HOST === '::') ? 'localhost' : BIND_HOST;
+    console.log(`\n  Free GST Billing Software running at http://${displayHost}:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
   });
   server.on('error', (err) => {

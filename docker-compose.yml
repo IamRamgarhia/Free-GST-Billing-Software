@@ -1,0 +1,26 @@
+services:
+  gst-billing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: free-gst-billing
+    restart: unless-stopped
+    ports:
+      # Map host port to container port (default: 47371)
+      - "${PORT:-47371}:47371"
+    environment:
+      - NODE_ENV=production
+      - PORT=47371
+      - HOST=0.0.0.0
+      - DATA_DIR=/app/data
+      # Optional: set custom allowed origin regex if accessing via custom domain/LAN IP
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+    volumes:
+      # Persist all billing data, templates, client profiles, and backups on your host machine
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:47371/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
