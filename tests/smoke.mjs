@@ -63,7 +63,8 @@ async function cleanup(page) {
       // suite is repeatable and leaves no test data in the user's books.
       const bills = await (await fetch('/api/bills')).json();
       await Promise.all((bills || [])
-        .filter((b) => (b.clientName || '') === 'Smoke Test Client')
+        .filter((b) => (b.clientName || '') === 'Smoke Test Client'
+                     || String(b.id || '').startsWith('smoketest-'))
         .map((b) => fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' })));
     });
   } catch { /* best effort */ }
@@ -304,6 +305,54 @@ try {
   await sleep(2500);
   check('#47 blank invoice is refused', (await billCount()) === before,
     `bills ${before} -> ${await billCount()}`);
+
+  // #53: notifications must clear when read, and come back when the facts
+  // change. The second half is the part that matters — a "mark read" that
+  // silences a genuinely new overdue invoice would be worse than not
+  // clearing at all.
+  const seedOverdue = (n) => page.evaluate(async (n) => {
+    await fetch('/api/bills', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: `smoketest-ovd-${n}`, invoiceNumber: `SMOKE-OVD/${n}`, clientName: 'Smoke Test Client',
+        status: 'unpaid', totalAmount: 5000, payments: [], items: [],
+        data: { details: { dueDate: '2026-01-10', invoiceNumber: `SMOKE-OVD/${n}` },
+                client: { name: 'Smoke Test Client' }, totals: { total: 5000 } },
+      }),
+    });
+  }, n);
+  const badgeCount = () => page.evaluate(() => {
+    const bell = [...document.querySelectorAll('button')].find((b) => /notification/i.test(b.title || ''));
+    return bell ? Number((bell.innerText.match(/\d+/) || [0])[0]) : -1;
+  });
+  const openBell = async () => {
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button')].find((x) => /notification/i.test(x.title || ''));
+      if (b) b.click();
+    });
+    await sleep(900);
+  };
+
+  await seedOverdue(1);
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(4500);
+  const withAlert = await badgeCount();
+  check('#53 an overdue invoice raises a notification', withAlert > 0, `badge=${withAlert}`);
+
+  await openBell();
+  const markRead = page.getByRole('button', { name: /Mark all as read/i });
+  if (await markRead.count()) { await markRead.click(); await sleep(800); }
+  const cleared = await badgeCount();
+  check('#53 marking read clears the badge', cleared === 0, `badge=${cleared}`);
+  await page.keyboard.press('Escape');
+  await sleep(400);
+
+  await seedOverdue(2);
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(4500);
+  const returned = await badgeCount();
+  check('#53 a NEW overdue invoice re-alerts after being marked read',
+    returned > 0, `badge=${returned}`);
 
   await cleanup(page);
 } catch (err) {

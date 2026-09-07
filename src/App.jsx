@@ -128,9 +128,59 @@ function App() {
   // click away from the relevant page.
   const [notifications, setNotifications] = useState({ overdue: [], dueSoon: [], lowStock: [], filings: [], autoFire: null });
   const [showNotifs, setShowNotifs] = useState(false);
-  const notifTotal = notifications.overdue.length + notifications.dueSoon.length
-    + notifications.lowStock.length + notifications.filings.length
-    + (notifications.autoFire?.count > 0 ? 1 : 0);
+
+  // v1.10.62 — reported (#53, @sangwanmail-eng): "Notifications should clear
+  // after check."
+  //
+  // They never did, and the reason is that these are not messages — they are
+  // computed live from your data every time the app loads ("3 invoices are
+  // overdue", "2 products are low on stock"). There was no notion of having
+  // read one, so the badge simply reported what was true and stayed lit
+  // forever.
+  //
+  // Marking them read cannot just hide them, though: if an invoice goes
+  // overdue tomorrow you must be told, even if you dismissed yesterday's
+  // overdue notice. So dismissal is recorded per section as a SIGNATURE of
+  // what was actually shown — the specific invoice numbers, the specific
+  // products. Dismissing stores that signature; the section stays quiet only
+  // while the signature is unchanged. The moment the underlying facts differ
+  // — a new overdue invoice, a different product running low — the signature
+  // changes and the alert comes back on its own.
+  //
+  // Kept in localStorage: it is a per-machine reading preference, not
+  // business data, and it must not travel in a backup or sync to another PC.
+  const DISMISS_KEY = 'fgsb_dismissedNotifs';
+  const [dismissed, setDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DISMISS_KEY) || '{}'); } catch { return {}; }
+  });
+
+  const notifSignatures = useMemo(() => ({
+    overdue: notifications.overdue.map(b => b.invoiceNumber || b.id).sort().join('|'),
+    dueSoon: notifications.dueSoon.map(b => b.invoiceNumber || b.id).sort().join('|'),
+    lowStock: notifications.lowStock.map(p => `${p.id || p.name}:${p.stock ?? ''}`).sort().join('|'),
+    filings: notifications.filings.map(f => f.label || f.id || String(f)).sort().join('|'),
+    autoFire: notifications.autoFire?.count > 0 ? `autofire:${notifications.autoFire.count}` : '',
+  }), [notifications]);
+
+  // A section counts toward the badge only when it has content AND that
+  // content is not the exact thing the user already dismissed.
+  const isLive = (key) => !!notifSignatures[key] && dismissed[key] !== notifSignatures[key];
+
+  const notifTotal = (isLive('overdue') ? notifications.overdue.length : 0)
+    + (isLive('dueSoon') ? notifications.dueSoon.length : 0)
+    + (isLive('lowStock') ? notifications.lowStock.length : 0)
+    + (isLive('filings') ? notifications.filings.length : 0)
+    + (isLive('autoFire') ? 1 : 0);
+
+  // How many sections are currently showing something that could be cleared.
+  const dismissableCount = ['overdue', 'dueSoon', 'lowStock', 'filings', 'autoFire']
+    .filter(isLive).length;
+
+  const markAllNotifsRead = () => {
+    const next = { ...dismissed, ...notifSignatures };
+    setDismissed(next);
+    try { localStorage.setItem(DISMISS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -859,7 +909,23 @@ function App() {
           <div className="modal-content" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <h3 className="section-title" style={{ margin: 0 }}>Notifications</h3>
-              <button className="icon-btn" onClick={() => setShowNotifs(false)} title="Close"><X size={18} /></button>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                {/* v1.10.62 (#53) — clears everything currently shown. Each
+                    section remembers exactly WHAT was cleared, so a genuinely
+                    new overdue invoice or a different product running low
+                    brings the alert back by itself. */}
+                {dismissableCount > 0 && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={markAllNotifsRead}
+                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
+                    title="Clear these notifications. They return if something new happens.">
+                    Mark all as read
+                  </button>
+                )}
+                <button className="icon-btn" onClick={() => setShowNotifs(false)} title="Close"><X size={18} /></button>
+              </span>
             </div>
             {notifTotal === 0 ? (
               <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1.5rem 0', margin: 0 }}>
@@ -867,7 +933,7 @@ function App() {
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {notifications.autoFire?.count > 0 && (
+                {isLive('autoFire') && (
                   <button type="button" className="notice notice-info" onClick={() => { setShowNotifs(false); setCurrentView('dashboard'); }} style={{ cursor: 'pointer', border: 'none', textAlign: 'left' }}>
                     <span className="notice-icon">🔁</span>
                     <div style={{ flex: 1 }}>
@@ -878,7 +944,7 @@ function App() {
                     </div>
                   </button>
                 )}
-                {notifications.overdue.length > 0 && (
+                {isLive('overdue') && (
                   <button type="button" className="notice notice-danger" onClick={() => { setShowNotifs(false); setCurrentView('dashboard'); }} style={{ cursor: 'pointer', border: 'none', textAlign: 'left' }}>
                     <span className="notice-icon">⚠</span>
                     <div style={{ flex: 1 }}>
@@ -889,7 +955,7 @@ function App() {
                     </div>
                   </button>
                 )}
-                {notifications.dueSoon.length > 0 && (
+                {isLive('dueSoon') && (
                   <button type="button" className="notice notice-warn" onClick={() => { setShowNotifs(false); setCurrentView('dashboard'); }} style={{ cursor: 'pointer', border: 'none', textAlign: 'left' }}>
                     <span className="notice-icon">⏰</span>
                     <div style={{ flex: 1 }}>
@@ -900,7 +966,7 @@ function App() {
                     </div>
                   </button>
                 )}
-                {notifications.filings.length > 0 && (
+                {isLive('filings') && (
                   <button type="button" className="notice notice-info" onClick={() => { setShowNotifs(false); setCurrentView('filing'); }} style={{ cursor: 'pointer', border: 'none', textAlign: 'left' }}>
                     <span className="notice-icon">📋</span>
                     <div style={{ flex: 1 }}>
@@ -911,7 +977,7 @@ function App() {
                     </div>
                   </button>
                 )}
-                {notifications.lowStock.length > 0 && (
+                {isLive('lowStock') && (
                   <button type="button" className="notice notice-note" onClick={() => { setShowNotifs(false); setCurrentView('inventory'); }} style={{ cursor: 'pointer', border: 'none', textAlign: 'left' }}>
                     <span className="notice-icon">📦</span>
                     <div style={{ flex: 1 }}>

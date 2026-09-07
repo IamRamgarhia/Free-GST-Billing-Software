@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.62] - 2026-09-07
+
+**Notifications can be cleared — and come back when something new happens.**
+
+Reported (#53, @sangwanmail-eng).
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.62.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder.
+
+### Added - "Mark all as read" on the notification bell
+
+The bell never cleared, and the reason was structural: these are not
+messages sitting in an inbox. They are worked out fresh from your data
+every time the app loads - "3 invoices are overdue", "2 products are low
+on stock". Nothing was ever stored, so there was no such thing as having
+read one, and the count simply reported what was true and stayed lit.
+
+Clearing them could not just hide them either. If an invoice falls overdue
+tomorrow you need telling, even though you dismissed yesterday's overdue
+notice.
+
+So each section now remembers **exactly what was cleared** - the specific
+invoice numbers, the specific products. It stays quiet only while that is
+unchanged. A new overdue invoice, or a different product running low,
+brings the alert straight back on its own.
+
+Measured across a reload: 2 overdue invoices + 1 GST filing showed a badge
+of 3; **Mark all as read** took it to 0; adding one more overdue invoice
+brought it back - showing only the overdue section, with the filing still
+correctly dismissed.
+
+The setting is stored per machine and is not part of your business data,
+so it never travels in a backup or to another PC.
+
+### Already available - multiple companies (#53 item 2)
+
+This exists today. **Settings -> All business profiles** keeps as many
+businesses as you like, each with its own name, GSTIN, address, bank
+details, logo and signature, and the header switcher moves between them.
+Invoice numbering, clients and reports all follow the active profile.
+
+No change was needed; it simply was not obvious enough from the interface,
+which is worth addressing separately.
+
+### Tests
+
+Suite is now 20 checks. The three added here cover the part most likely to
+be got wrong later: that clearing works, **and** that a genuinely new
+overdue invoice still re-alerts afterwards.
+
+---
+
 ## [1.10.61] - 2026-09-04
 
 **The README's download link pointed at source code, not the app.**
@@ -25,7 +81,8 @@ main branch. Compared side by side against the real release ZIP:
 So anyone following the README got the source with **no built application**,
 in the developer folder layout, from an untagged commit. It also explains
 the very first bug report this project received, whose error path read
-`Free-GST-Billing-Software-mainelease-templates\_system-scripts\...` -
+`Free-GST-Billing-Software-main
+elease-templates\_system-scripts\...` -
 that user had done exactly what the README told them to.
 
 All four links now point at the **latest release**, and the install step
