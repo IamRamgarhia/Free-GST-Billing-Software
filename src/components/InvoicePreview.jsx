@@ -81,8 +81,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   const currencySymbol = options.currency || 'INR';
 
   const fmt = (amount) => {
-    if (currencySymbol === 'INR') return formatCurrency(amount);
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencySymbol, minimumFractionDigits: 2 }).format(amount || 0);
+    return formatCurrency(amount, currencySymbol);
   };
 
   // v1.10.4 — Single read of print settings per render. Prior code
@@ -101,7 +100,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   const fmtDualSecondary = (amount) => {
     if (!dualCurrencyOn || _ps_dc.dualCurrencyPosition !== 'below') return '';
     const secondary = (Number(amount) || 0) / Number(_ps_dc.dualCurrencyRate);
-    return '≈ ' + new Intl.NumberFormat('en-US', { style: 'currency', currency: _ps_dc.dualCurrencyCode, minimumFractionDigits: 2 }).format(secondary);
+    return '≈ ' + formatCurrency(secondary, _ps_dc.dualCurrencyCode);
   };
 
   const amountInWords = (num) => {
@@ -119,11 +118,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       return result.trim();
     };
     const names = CURRENCY_NAMES[currencySymbol] || { major: currencySymbol, minor: 'Cents' };
-    const rounded = Math.round(num * 100) / 100;
+    const hasMinor = Boolean(names.minor);
+    const rounded = hasMinor ? Math.round(num * 100) / 100 : Math.round(num);
     const whole = Math.floor(rounded);
-    const cents = Math.round((rounded - whole) * 100);
+    const cents = hasMinor ? Math.round((rounded - whole) * 100) : 0;
     let result = convert(whole) + ' ' + names.major;
-    if (cents > 0) result += ' and ' + convert(cents) + ' ' + names.minor;
+    if (hasMinor && cents > 0) result += ' and ' + convert(cents) + ' ' + names.minor;
     return result + ' Only';
   };
 
@@ -580,10 +580,10 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                     }}>
                       <span style={{ wordBreak: 'break-word' }}>
                         {cap(showRate
-                          ? `${qty}${item.unit ? ' ' + item.unit : ''} × ${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
+                          ? `${qty}${item.unit ? ' ' + item.unit : ''} × ${currencySymbol}${currencySymbol === 'JPY' ? Math.round(rate) : rate.toFixed(2)}${tax}${hsnBit}`
                           : `${qty}${item.unit ? ' ' + item.unit : ''}${hsnBit}`)}
                       </span>
-                      <span style={{ textAlign: 'right', fontWeight: strongWeight }}>{currencySymbol}{amount.toFixed(2)}</span>
+                      <span style={{ textAlign: 'right', fontWeight: strongWeight }}>{currencySymbol}{currencySymbol === 'JPY' ? Math.round(amount) : amount.toFixed(2)}</span>
                     </div>
                   </div>
                 );
@@ -599,7 +599,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           const totalsColMm = isNarrow ? 18 : paperCfg.widthMm < 100 ? 24 : 30;
           const gridCols = `1fr ${totalsColMm}mm`;
           const rowStyle = { display: 'grid', gridTemplateColumns: gridCols, gap: '4px' };
-          const amt = (n) => currencySymbol + (Number(n) || 0).toFixed(2);
+          const amt = (n) => currencySymbol + (currencySymbol === 'JPY' ? Math.round(Number(n) || 0) : (Number(n) || 0).toFixed(2));
           return (
             <div style={{ padding: secPad, fontSize: '1em', fontWeight: baseWeight, ...dashLine }}>
               <div style={rowStyle}>

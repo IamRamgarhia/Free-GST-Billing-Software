@@ -40,11 +40,13 @@ export const numberToWords = (num) => {
 };
 
 export const formatCurrency = (amount, currency = 'INR') => {
-  const locale = currency === 'INR' ? 'en-IN' : 'en-US';
+  const isZeroDecimal = currency === 'JPY';
+  const locale = currency === 'INR' ? 'en-IN' : (currency === 'JPY' ? 'ja-JP' : 'en-US');
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency || 'INR',
-    minimumFractionDigits: 2
+    minimumFractionDigits: isZeroDecimal ? 0 : 2,
+    maximumFractionDigits: isZeroDecimal ? 0 : 2,
   }).format(amount || 0);
 };
 
@@ -507,6 +509,7 @@ export const COUNTRIES = [
   { name: 'Australia', code: 'AU', currency: 'AUD', currencySymbol: 'A$', taxLabel: 'GST', taxIdLabel: 'ABN', taxIdPlaceholder: '12 345 678 901', bankLabel: 'BSB Number', postalLabel: 'Postcode', stateLabel: 'State/Territory', hasStates: false, taxRates: [0, 10], taxIdRegex: /^\d{2}\s?\d{3}\s?\d{3}\s?\d{3}$/ },
   { name: 'Canada', code: 'CA', currency: 'CAD', currencySymbol: 'CA$', taxLabel: 'GST/HST', taxIdLabel: 'GST/HST Number', taxIdPlaceholder: '123456789 RT 0001', bankLabel: 'Transit Number', postalLabel: 'Postal Code', stateLabel: 'Province', hasStates: false, taxRates: [0, 5, 13, 15], taxIdRegex: /^\d{9}\s?(RT)\s?\d{4}$/i },
   { name: 'Singapore', code: 'SG', currency: 'SGD', currencySymbol: 'S$', taxLabel: 'GST', taxIdLabel: 'GST Reg No.', taxIdPlaceholder: 'M12345678X', bankLabel: 'Bank Code', postalLabel: 'Postal Code', stateLabel: 'Region', hasStates: false, taxRates: [0, 9], taxIdRegex: /^[MTFG]\d{7,8}[A-Z]$/i },
+  { name: 'Japan', code: 'JP', currency: 'JPY', currencySymbol: '¥', taxLabel: 'Consumption Tax', taxIdLabel: 'Invoice Reg. No.', taxIdPlaceholder: 'T1234567890123', bankLabel: 'Bank / Branch Code', postalLabel: 'Postal Code', stateLabel: 'Prefecture', hasStates: false, taxRates: [0, 8, 10], taxIdRegex: /^T?\d{13}$/i },
   { name: 'Malaysia', code: 'MY', currency: 'MYR', currencySymbol: 'RM', taxLabel: 'SST', taxIdLabel: 'SST No.', taxIdPlaceholder: 'W10-1234-56789012', bankLabel: 'Bank Code', postalLabel: 'Postcode', stateLabel: 'State', hasStates: false, taxRates: [0, 6, 8, 10] },
   { name: 'Germany', code: 'DE', currency: 'EUR', currencySymbol: '€', taxLabel: 'MwSt', taxIdLabel: 'USt-IdNr.', taxIdPlaceholder: 'DE123456789', bankLabel: 'IBAN', postalLabel: 'PLZ', stateLabel: 'Bundesland', hasStates: false, taxRates: [0, 7, 19], taxIdRegex: /^DE\d{9}$/i },
   { name: 'France', code: 'FR', currency: 'EUR', currencySymbol: '€', taxLabel: 'TVA', taxIdLabel: 'N° TVA', taxIdPlaceholder: 'FR12345678901', bankLabel: 'IBAN', postalLabel: 'Code Postal', stateLabel: 'Région', hasStates: false, taxRates: [0, 5.5, 10, 20], taxIdRegex: /^FR[A-Z\d]{2}\d{9}$/i },
@@ -1708,6 +1711,7 @@ export const CURRENCY_NAMES = {
   USD: { major: 'Dollars',  minor: 'Cents' },
   EUR: { major: 'Euros',    minor: 'Cents' },
   GBP: { major: 'Pounds',   minor: 'Pence' },
+  JPY: { major: 'Yen',      minor: null }, // Japanese Yen has no minor currency / subunits
   AUD: { major: 'Dollars',  minor: 'Cents' },
   CAD: { major: 'Dollars',  minor: 'Cents' },
   SGD: { major: 'Dollars',  minor: 'Cents' },
