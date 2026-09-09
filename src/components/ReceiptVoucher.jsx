@@ -268,7 +268,15 @@ export default function ReceiptVoucher() {
             {unpaidBills.length > 0 && !form.againstInvoice && (
               <div style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Quick Select — Unpaid Invoices</label>
-                <div className="client-picker" style={{ maxHeight: '150px' }}>
+                {/* v1.10.57 — reported (#44 item 2, @sangwanmail-eng):
+                    "payment receipt overlapped". This capped the height of
+                    `.client-picker`, which has no overflow handling — the
+                    class that scrolls is `.client-picker-list`. Ten unpaid
+                    invoices in a 150px box with nothing to clip them simply
+                    spilled out and painted over Receipt No / Date / Amount
+                    underneath. Adding overflow makes the cap actually mean
+                    something. */}
+                <div className="client-picker" style={{ maxHeight: '150px', overflowY: 'auto' }}>
                   {unpaidBills.slice(0, 10).map(bill => (
                     <button key={bill.id} className="client-picker-item" onClick={() => selectInvoice(bill)}>
                       <div>

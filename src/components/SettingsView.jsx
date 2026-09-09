@@ -67,6 +67,27 @@ export default function SettingsView({ onSaved }) {
   const savedProfileRef = useRef(null);
   const [profileDirty, setProfileDirty] = useState(false);
 
+  // v1.10.56 — reported (#44, @sangwanmail-eng): "Firm profile setting not
+  // saved. every time show popup".
+  //
+  // The profile was in fact saving fine. The v1.10.55 unsaved-changes
+  // tracker was wrong: it recorded the on-disk baseline in handleSave only,
+  // but the profile is persisted from THREE places —
+  //   1. handleSave              (the Save Profile button)
+  //   2. updateAccounts          (payment accounts auto-persist, v1.10.16)
+  //   3. handleLoadProfile       (switching business profile)
+  // After 2 or 3, the data was on disk but the baseline still held the older
+  // copy, so the bar insisted there were unsaved changes forever — and the
+  // beforeunload guard then threw a browser confirm dialog on every close.
+  // That popup is what the user was seeing.
+  //
+  // Fix: one helper, called from every path that persists, so the baseline
+  // can never drift from what is actually stored.
+  const markProfileSaved = (p) => {
+    savedProfileRef.current = JSON.stringify(p);
+    setProfileDirty(false);
+  };
+
   // Recompute against the persisted baseline whenever the form changes.
   // Compared by value, not by "did an onChange fire", so typing a character
   // and deleting it again correctly leaves you clean.
@@ -75,15 +96,12 @@ export default function SettingsView({ onSaved }) {
     setProfileDirty(JSON.stringify(profile) !== savedProfileRef.current);
   }, [profile]);
 
-  // Belt-and-braces: the browser's own confirm dialog if the window is
-  // closed with unsaved profile edits. Does not help with in-app navigation,
-  // but covers the "closed the app and lost my GSTIN" case.
-  useEffect(() => {
-    if (!profileDirty) return undefined;
-    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [profileDirty]);
+  // v1.10.56 — the beforeunload confirm added in v1.10.55 is GONE.
+  // Even with the baseline bug fixed it was the wrong tool: it hijacks the
+  // browser's own close dialog for a form the user may have no intention of
+  // saving, and any future drift in the dirty check turns straight into a
+  // popup on every exit. The sticky bar already makes unsaved work visible
+  // without interrupting anyone.
   useEffect(() => {
     const els = JUMP_NAV_SECTIONS
       .map(([id]) => document.getElementById(id))
@@ -204,7 +222,11 @@ export default function SettingsView({ onSaved }) {
       // active) auto-persists to the server without needing the main Save
       // button. Fire-and-forget — the same handler that awaits saveProfile
       // in handleSave already exists for the "save everything" path.
-      saveProfile(next).catch(() => { /* non-fatal — user can retry via Save */ });
+      // v1.10.56 (#44) — refresh the baseline on success, or the bar would
+      // keep claiming unsaved changes for something already on disk.
+      saveProfile(next)
+        .then(() => markProfileSaved(next))
+        .catch(() => { /* non-fatal — user can retry via Save */ });
       return next;
     });
   };
@@ -415,8 +437,7 @@ export default function SettingsView({ onSaved }) {
       if (onSaved) onSaved(profile);
       // v1.10.55 (#43) — mark this state as the persisted baseline so the
       // unsaved-changes bar disappears.
-      savedProfileRef.current = JSON.stringify(profile);
-      setProfileDirty(false);
+      markProfileSaved(profile);
       toast('Profile saved!', 'success');
     } catch { toast('Failed to save profile', 'error'); }
     finally { setSaving(false); }
@@ -626,6 +647,9 @@ export default function SettingsView({ onSaved }) {
     delete loaded.id;
     setProfile(loaded);
     await saveProfile(loaded);
+    // v1.10.56 (#44) — switching profiles persists immediately, so this IS
+    // the saved state now.
+    markProfileSaved(loaded);
     if (onSaved) onSaved(loaded);
     toast(`Switched to ${bp.businessName}`, 'success');
   };

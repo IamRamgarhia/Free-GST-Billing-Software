@@ -16,7 +16,7 @@
 
 Your data never leaves your computer. No cloud. No signup. No tracking. No limits. Open-source and offline-first.
 
-[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [☁ Run Online (Vercel / Supabase / Railway)](./docs/DEPLOY_ONLINE.md) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [☁ Run Online (Vercel / Supabase / Railway)](./docs/DEPLOY_ONLINE.md) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 
 </div>
 
@@ -98,7 +98,8 @@ You need: Windows 10/11 PC, ~50 MB free disk, your business name + bank details 
 
 ### Step 1 — Install (1 minute)
 
-1. Download the project as a ZIP from <https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip>
+1. Download `Free-GST-Billing-vX.Y.Z.zip` from the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+   (Do **not** use the green *Code -> Download ZIP* button — that gives the source code without the built app.)
 2. Right-click the downloaded ZIP → **Extract All** → pick a folder you'll remember (e.g. `Documents\FreeGSTBill`)
 3. Open that folder → **double-click `Install FreeGSTBill.bat`**
 4. Let it run — it installs Node.js automatically if you don't have it, then sets everything up. Takes 1–2 minutes the first time
@@ -386,7 +387,7 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 
 ### Option 1: Windows One-Click Installer (recommended — no terminal, no commands)
 
-1. **Download the ZIP** → [click here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) or grab the latest from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+1. **Download the ZIP** → [click here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) or grab the latest from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 2. **Extract** it anywhere (e.g. `Documents\FreeGSTBill`)
 3. **Double-click** `Install FreeGSTBill.bat`
 4. The app opens at **http://localhost:47371** — a **Desktop shortcut** and **Start-Menu entry** are created for you
@@ -754,7 +755,7 @@ This project is licensed under the [MIT License](LICENSE) — free to use, modif
 
 ### Ready to stop paying for billing software?
 
-[**⬇ Download Now**](https://github.com/IamRamgarhia/Free-GST-Billing-Software/archive/refs/heads/main.zip) &nbsp;·&nbsp; [⭐ **Star on GitHub**](https://github.com/IamRamgarhia/Free-GST-Billing-Software) &nbsp;·&nbsp; [📖 **Read the User Guide**](docs/USER_GUIDE.md) &nbsp;·&nbsp; [🐛 **Report an Issue**](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;·&nbsp; [📧 **Email DiceCodes**](mailto:Contact@dicecodes.com)
+[**⬇ Download Now**](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) &nbsp;·&nbsp; [⭐ **Star on GitHub**](https://github.com/IamRamgarhia/Free-GST-Billing-Software) &nbsp;·&nbsp; [📖 **Read the User Guide**](docs/USER_GUIDE.md) &nbsp;·&nbsp; [🐛 **Report an Issue**](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) &nbsp;·&nbsp; [📧 **Email DiceCodes**](mailto:Contact@dicecodes.com)
 
 ---
 

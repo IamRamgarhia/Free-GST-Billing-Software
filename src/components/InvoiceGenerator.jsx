@@ -794,6 +794,36 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return items.some(item => (item.name || '').trim() && (item.quantity || 0) * (item.rate || 0) > 0);
   }, [client?.name, items, editingBill]);
 
+  // v1.10.58 — reported (#47 item 1, @sangwanmail-eng): "New invoice save
+  // and print without client name and without any product add."
+  //
+  // isMeaningfulInvoice() above already encoded exactly the right rule, but
+  // it only gated AUTO-save and the leave-guard. The explicit Save button
+  // and the Print / Download paths called saveInvoiceToDB() with no checks
+  // at all, so an empty form saved happily.
+  //
+  // That is worse than an empty record: saving reserves an invoice number
+  // from the atomic counter. A blank invoice permanently consumes a number
+  // in the sequence, and GST expects that sequence to be gapless — so a few
+  // stray saves leave holes a CA has to explain.
+  //
+  // Returns null when the invoice is fit to save, otherwise the specific
+  // reason, so the user is told which field is missing rather than just
+  // being refused.
+  const validateForSave = useCallback(() => {
+    if (editingBill) return null; // an existing bill is already a real record
+    if (!client?.name?.trim()) {
+      return 'Add a client name before saving.';
+    }
+    const hasRealItem = items.some(
+      item => (item.name || '').trim() && (item.quantity || 0) * (item.rate || 0) > 0,
+    );
+    if (!hasRealItem) {
+      return 'Add at least one item with a quantity and rate before saving.';
+    }
+    return null;
+  }, [client?.name, items, editingBill]);
+
   // Debounced auto-save (2s after last change), gated on meaningful content.
   //
   // v1.8.1 CHANGE: for NEW bills that haven't been explicitly saved yet,
@@ -1851,6 +1881,41 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       try { await document.fonts.ready; } catch { /* non-fatal */ }
     }
 
+    // v1.10.60 — reported (#51, @sguptagzb): "when I try to print the
+    // Invoice, the format is not coming as it comes in Preview", with a
+    // sample PDF attached.
+    //
+    // Decoding that PDF showed the page rendered with NO layout CSS —
+    // no table borders, no cards, no flex rows, so labels ran straight into
+    // values ("Subtotal(rupee)1,78,000.00"). Inline styles survived, class
+    // rules did not. Generating the same invoice here produced a correctly
+    // styled PDF on the identical version, so the code was fine and their
+    // environment was not.
+    //
+    // Root cause of the whole class: html2canvas clones the invoice into a
+    // detached document, and that clone has to RE-FETCH the stylesheet by
+    // URL. Any reason that fetch fails — a CSP source expression that does
+    // not match the origin in use, a service worker (this is a PWA) serving
+    // a stale or failed response, a clone document with a null origin —
+    // produces a silently unstyled PDF. v1.10.48 widened the CSP, which
+    // fixed one cause; this removes the dependency altogether.
+    //
+    // Now the document's own CSS rules are read out and injected into the
+    // clone as a plain <style> element, so the clone never fetches anything.
+    // The thermal print path has done exactly this since v1.10.42 — the PDF
+    // path simply never adopted it.
+    const collectDocumentStyles = () => {
+      const parts = [];
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          const rules = sheet.cssRules;
+          if (!rules) continue;
+          for (const rule of Array.from(rules)) parts.push(rule.cssText);
+        } catch { /* cross-origin (Google Fonts) — skip; system fonts suffice */ }
+      }
+      return parts.join(String.fromCharCode(10));
+    };
+
     const captureOptions = (el) => ({
       scale: renderScale,
       // v1.10.3 — useCORS was `true` but every image source is a base64
@@ -1908,6 +1973,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const mainCanvas = await html2canvas(printRef.current, {
       ...captureOptions(printRef.current),
       onclone: (clonedDoc) => {
+        // v1.10.60 (#51) — embed the stylesheet rather than letting the
+        // clone re-fetch it. Without this, any fetch failure yields a
+        // completely unstyled PDF with no error shown to the user.
+        try {
+          const css = collectDocumentStyles();
+          if (css) {
+            const styleEl = clonedDoc.createElement('style');
+            styleEl.setAttribute('data-fgsb-inlined', '1');
+            styleEl.textContent = css;
+            (clonedDoc.head || clonedDoc.documentElement).appendChild(styleEl);
+          }
+        } catch { /* never block the capture over styling */ }
         clonedDoc.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; });
         const inv = clonedDoc.getElementById('invoice-preview');
         if (inv) {
@@ -2617,6 +2694,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const directPrint = async () => {
     if (!printRef.current) return;
+    // v1.10.58 (#47) — same gate as Save: printing persists the bill and
+    // reserves an invoice number, so a blank one must not get through here
+    // either.
+    const problem = validateForSave();
+    if (problem) { toast(problem, 'warning'); return; }
     if (isThermalPaper()) {
       // Thermal → show the preview modal. Actual print fires from the
       // modal's Print button via executePrint. User can Cancel there
@@ -2632,6 +2714,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const generatePDF = async () => {
     if (!printRef.current) return;
+    // v1.10.58 (#47) — same gate as Save: printing persists the bill and
+    // reserves an invoice number, so a blank one must not get through here
+    // either.
+    const problem = validateForSave();
+    if (problem) { toast(problem, 'warning'); return; }
     try {
       setSaving(true);
       // v1.10.26 — force preview on-screen so html2canvas can snapshot it.
@@ -2807,6 +2894,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               + auto-print + Drive sync side effects that generatePDF
               does — minus the PDF file. */}
           <button className="btn btn-primary" onClick={async () => {
+            // v1.10.58 (#47) — refuse a blank invoice. Saving reserves an
+            // invoice number, so an empty save leaves a permanent gap in a
+            // sequence GST expects to be gapless.
+            const problem = validateForSave();
+            if (problem) { toast(problem, 'warning'); return; }
             try {
               setSaving(true);
               await saveInvoiceToDB();

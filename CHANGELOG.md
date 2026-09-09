@@ -7,6 +7,412 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.62] - 2026-09-07
+
+**Notifications can be cleared — and come back when something new happens.**
+
+Reported (#53, @sangwanmail-eng).
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.62.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder.
+
+### Added - "Mark all as read" on the notification bell
+
+The bell never cleared, and the reason was structural: these are not
+messages sitting in an inbox. They are worked out fresh from your data
+every time the app loads - "3 invoices are overdue", "2 products are low
+on stock". Nothing was ever stored, so there was no such thing as having
+read one, and the count simply reported what was true and stayed lit.
+
+Clearing them could not just hide them either. If an invoice falls overdue
+tomorrow you need telling, even though you dismissed yesterday's overdue
+notice.
+
+So each section now remembers **exactly what was cleared** - the specific
+invoice numbers, the specific products. It stays quiet only while that is
+unchanged. A new overdue invoice, or a different product running low,
+brings the alert straight back on its own.
+
+Measured across a reload: 2 overdue invoices + 1 GST filing showed a badge
+of 3; **Mark all as read** took it to 0; adding one more overdue invoice
+brought it back - showing only the overdue section, with the filing still
+correctly dismissed.
+
+The setting is stored per machine and is not part of your business data,
+so it never travels in a backup or to another PC.
+
+### Already available - multiple companies (#53 item 2)
+
+This exists today. **Settings -> All business profiles** keeps as many
+businesses as you like, each with its own name, GSTIN, address, bank
+details, logo and signature, and the header switcher moves between them.
+Invoice numbering, clients and reports all follow the active profile.
+
+No change was needed; it simply was not obvious enough from the interface,
+which is worth addressing separately.
+
+### Tests
+
+Suite is now 20 checks. The three added here cover the part most likely to
+be got wrong later: that clearing works, **and** that a genuinely new
+overdue invoice still re-alerts afterwards.
+
+---
+
+## [1.10.61] - 2026-09-04
+
+**The README's download link pointed at source code, not the app.**
+
+### Fixed - "Download ZIP" gave an unbuilt copy
+
+Four links in the README pointed at
+`/archive/refs/heads/main.zip` - GitHub's *source code* download for the
+main branch. Compared side by side against the real release ZIP:
+
+| | built app inside | folder layout |
+| --- | --- | --- |
+| `main.zip` (what the README linked) | **0 files** | `release-templates/` developer layout |
+| release ZIP | **50 files** | `Free-GST-Billing/_system/` |
+
+So anyone following the README got the source with **no built application**,
+in the developer folder layout, from an untagged commit. It also explains
+the very first bug report this project received, whose error path read
+`Free-GST-Billing-Software-main
+elease-templates\_system-scripts\...` -
+that user had done exactly what the README told them to.
+
+All four links now point at the **latest release**, and the install step
+says explicitly not to use the green *Code -> Download ZIP* button.
+
+Worth noting: `Update FreeGSTBill.bat` - which downloads the main branch
+and runs `npm install` over your installation - is **not** in the release
+ZIP. It only ever reached people who took the main.zip route, so correcting
+these links closes that path too.
+
+### Security - fflate 0.8.2 -> 0.8.3
+
+Infinite loop when parsing malformed ZIP64 archives (moderate). It arrives
+through jsPDF and **does** ship. Shipped advisories are back to zero.
+
+---
+
+## [1.10.60] - 2026-09-03
+
+**PDFs printed without any formatting. Root cause found and removed.**
+
+Reported by @sguptagzb (#51) with a sample PDF attached, and by
+@sangwanmail-eng (#50). Two users, same underlying area.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.60.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed - the PDF came out with no formatting at all (#51)
+
+*"When I try to print the Invoice, the format is not coming as it comes in
+Preview."*
+
+The attached PDF was decoded rather than guessed at. It contained a single
+3168x4484 bitmap of an invoice with **no layout CSS**: no table borders, no
+cards, no aligned columns, labels running straight into values
+("Subtotal(rupee)1,78,000.00"). Inline styles had survived; every rule
+that came from a stylesheet had not. Generating the same invoice here, on
+the same version, produced a correctly formatted PDF - so the code was
+right and something in that user's environment was stopping the styles
+loading.
+
+**Root cause.** The PDF is produced by cloning the invoice into a detached
+document and photographing it. That clone had to **re-fetch the stylesheet
+by URL**. Any reason that fetch fails gives a silently unformatted PDF:
+a security policy that does not match the address in use, a service worker
+(this app is a PWA) returning a stale or failed response, or a clone
+document with no origin of its own.
+
+v1.10.48 widened the security policy, which fixed one cause. This removes
+the dependency altogether: **the stylesheet is now embedded directly into
+the clone**, so nothing is fetched and nothing can fail. The thermal print
+path has worked this way since v1.10.42; the PDF path had never adopted it.
+
+Verified by deliberately restoring the exact security policy that produced
+the broken PDF, and confirming the output is fully formatted anyway.
+
+### Fixed - numbered terms printed as one paragraph (#50)
+
+All 13 built-in Terms presets use real bullet lists and were unaffected.
+But terms typed or pasted by hand - commonly from Word - arrive as a
+single paragraph with the numbers typed in:
+
+    1. Payment due in 15 days. 2. Interest 18% p.a. 3. ...
+
+That genuinely is one paragraph, so no styling could separate it; the app
+was printing exactly what was written. It still reads as a wall of text.
+
+Such terms are now split onto separate lines at the numbering. The rule is
+deliberately cautious - it needs **three or more** numbered markers before
+it will touch anything, so ordinary prose like "refer to Section 2. of the
+Act", or content already using bullets, is left alone.
+
+### Note
+
+An earlier edit in this session introduced a broken string literal that
+made the file fail to parse. It was caught by lint before release, but the
+build check used to wave it through was too narrow to notice - worth
+recording, since a green build meant nothing in that state.
+
+---
+
+## [1.10.59] - 2026-09-03
+
+**Security: every dependency advisory closed. Plus a client-list
+optimisation - and an honest negative result on the scrolling report.**
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.59.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Security - all open advisories closed
+
+Seven were outstanding. Only one reached users:
+
+- **`qs`** (moderate) - reachable through the bundled server, so it *did*
+  ship. Now patched.
+- `fast-uri` (high) and `@humanfs/node` (medium) - build tooling only. The
+  installer runs `npm install --omit=dev`, so neither has ever been on a
+  user's machine.
+
+Both `npm audit` and `npm audit --omit=dev` now report **zero across every
+severity**.
+
+### Changed - client list no longer rescans every bill per row
+
+`getClientStats()` filtered and re-sorted the entire bill list on each
+call, with no memoisation - so it re-ran on every render, including every
+keystroke in the search box. The client sort called it from inside its
+comparator as well, so a full scan happened O(n log n) times per render on
+top of once per rendered row.
+
+Bills are now grouped by client once per change, each group sorted once,
+and totals precomputed in the same pass. Lookups are O(1).
+
+### NOT fixed - #44 item 4, "slow moving scroll bar"
+
+Reported by @sangwanmail-eng. **I could not reproduce it, and the change
+above did not measurably help.**
+
+Measured in Firefox against a seeded book of 60 clients and 505 bills,
+before and after:
+
+| | before | after |
+| --- | --- | --- |
+| typing 13 characters into client search | 921 ms | 949 ms |
+| 25 scroll frames | 9.2 ms/frame | 8.9 ms/frame |
+
+Under 16.7 ms per frame is smooth, and both builds were already there. The
+optimisation is a real algorithmic improvement that will matter on a much
+larger book, but it is **not** a fix for what was reported, and it would be
+wrong to close the issue on it.
+
+The cause is therefore still unknown. It may need far more data than 505
+bills, or it may be something else entirely - a different view, a slower
+machine, or the scrollbar being physically hard to drag on a very long
+page rather than the page being slow. #44 stays open pending more detail.
+
+---
+
+## [1.10.58] - 2026-09-03
+
+**Blank invoices and empty purchase bills can no longer be saved.**
+
+Reported (#47, @sangwanmail-eng).
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.58.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed - an empty invoice could be saved and printed
+
+Pressing **Save** on a brand-new invoice with no client and no items
+created the invoice anyway. Print and Download PDF did the same.
+
+The rule was already written - `isMeaningfulInvoice()` required a client
+name and at least one priced line - but it only gated the background
+auto-save. The Save button and the print paths went straight to the
+database with no checks at all.
+
+This mattered more than an empty record: **saving reserves an invoice
+number** from the counter. Every blank save permanently consumed a number,
+and GST expects that series to be gapless - so a handful of stray clicks
+left holes a CA would have to account for.
+
+Save, Print and Download now check first, and say which field is missing
+rather than simply refusing:
+
+- *"Add a client name before saving."*
+- *"Add at least one item with a quantity and rate before saving."*
+
+Editing an existing invoice is unaffected.
+
+### Fixed - purchase bills saved with no items
+
+Supplier name and invoice number were required; nothing checked that the
+bill had any line items, so an empty bill saved with a zero total.
+
+A purchase bill is the input-tax-credit record. A zero-value bill sits in
+GSTR-3B reconciliation as a vendor invoice claiming nothing, and the empty
+rows also feed the stock sync that runs on save.
+
+### Tests
+
+Suite is now 17 checks, and this release exercised it properly: adding the
+new guard turned the PDF test red, because that test had been generating a
+PDF from an invoice with no client - precisely the behaviour #47 says
+should be impossible. The test was wrong, not the fix.
+
+Two further faults in the tests themselves were found and repaired: the
+suite left a saved invoice behind, and the Settings test wrote a fixed
+business name, so on a second run the field already held that value,
+nothing changed, and the test failed while the app was correct. Both now
+use unique values, restore what they touched, and pass on repeated runs.
+
+---
+
+## [1.10.57] - 2026-09-03
+
+**Terms print properly, the receipt list stops overlapping, and low-stock
+alerts are clickable.**
+
+Items 1-3 of #44 (@sangwanmail-eng). Item 4 is still open - see below.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.57.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed - terms and conditions ran together as one paragraph
+
+A numbered list of terms printed on the invoice as a single wall of text:
+*"1. Payment is due within 15 days... 2. Late payment interest..."* with no
+line breaks.
+
+Cause: the global CSS reset at the top of `index.css` -
+`* { margin: 0; padding: 0 }` - strips spacing from **every** element,
+including the `<p>`, `<ul>`, `<ol>` and `<li>` tags inside rich terms. With
+that spacing gone the paragraphs butt together and list markers lose their
+indent.
+
+The rules that put it back existed since v1.10.37, but only applied in
+**Formatted** mode - and the default is **Compact**. So every invoice
+except a services one printed the flattened version.
+
+Spacing now lives on the base rich-text class, so structure survives in
+both modes. Compact stays tighter, in keeping with fitting more on a page.
+Measured after the fix: paragraph spacing 5.6px (was 0), ordered-list
+indent 17.6px (was 0).
+
+### Fixed - payment receipt list overlapped the form beneath it
+
+In **New Payment Receipt**, the *Quick Select - Unpaid Invoices* list drew
+on top of Receipt No, Date, Received From and Amount.
+
+The list had a 150px height cap applied to a container with no overflow
+handling - the class that actually scrolls is a different one. Ten unpaid
+invoices in a box that could not clip them simply spilled over everything
+below. Measured: 424px of content in a 148px box, now scrolled instead of
+spilled.
+
+### Added - low-stock alerts open the Products tab
+
+The chips under **Low Stock Alert** on the dashboard were plain text, so
+seeing the warning meant finding Products in the sidebar yourself. Each is
+now a button that opens Products directly - matching the notification bell,
+which already did this.
+
+### Still open - #44 item 4, sluggish scrolling
+
+Not fixed here. "Slow moving scroll bar" in the purchase and client tabs
+needs profiling to find the actual cause rather than a guess, and these
+three were ready to ship. It is the next thing on the list.
+
+### Repository
+
+`main` is now protected against force-pushes and branch deletion.
+
+---
+
+## [1.10.56] - 2026-09-01
+
+**Hotfix: Settings kept claiming unsaved changes, and popped a dialog on
+every close.**
+
+Reported (#44 item 5, @sangwanmail-eng): *"Firm profile setting not saved.
+every time show popup"*. A regression from v1.10.55, four days old.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.56.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. Data in `_system/data/` is untouched.
+
+### Fixed
+
+**The profile was saving correctly the whole time.** The unsaved-changes
+tracker added in v1.10.55 was the thing at fault.
+
+It recorded "this is now the saved state" in the Save Profile handler
+only. But the profile is written to disk from three places:
+
+1. the **Save Profile** button
+2. **payment accounts**, which auto-save on every change (since v1.10.16)
+3. **switching business profile**, which saves before switching
+
+After 2 or 3 the data was safely on disk, but the tracker still held the
+older copy - so the bar insisted there were unsaved changes that did not
+exist, and the browser close-confirmation added alongside it then fired
+every single time. That dialog is the popup in the report.
+
+All three paths now update the baseline through one shared helper, so it
+cannot drift from what is actually stored.
+
+**The close-confirmation dialog is removed entirely.** Even with the
+baseline fixed it was the wrong tool - it hijacks the browser's own close
+dialog for a form the user may never have intended to save, and any future
+drift in the dirty check turns straight back into a popup on every exit.
+The sticky bar already makes unsaved work visible without interrupting
+anyone.
+
+(The separate warning when leaving a half-written **invoice** is untouched
+- that one predates this and is correctly gated on real unsaved work.)
+
+### Tests
+
+Two checks added, bringing the suite to 16: the bar must clear once the
+profile is on disk, and must not reappear on returning to Settings.
+
+### Still open from #44
+
+Items 1-4 of that report are **not** addressed here, so this fix could
+ship immediately: terms and conditions running together on the invoice,
+the payment-receipt dropdown overlapping the form beneath it, low-stock
+alerts not being clickable, and sluggish scrolling in list views.
+
+---
+
 ## [1.10.55] - 2026-08-27
 
 **Changing an item or supplier now refreshes its details, Settings warns

@@ -143,7 +143,7 @@ function ReceiptModal({ target, onClose }) {
   );
 }
 
-export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
+export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts }) {
   const [bills, setBills] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [stats, setStats] = useState({ byCurrency: {}, count: 0 });
@@ -1137,19 +1137,33 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert }) {
             </h3>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {/* v1.10.57 — reported (#44 item 3, @sangwanmail-eng): "Low stock
+                notification message should clickable to open direct product
+                tab". These were plain <div>s, so seeing the alert meant
+                finding Products in the sidebar yourself. Now each chip is a
+                real <button> that opens Products — matching the notification
+                bell, which already navigated there. */}
             {lowStockProducts.map(p => (
-              <div key={p.id} style={{
-                padding: '0.4rem 0.75rem', borderRadius: 6, fontSize: '0.8rem',
-                background: (p.stock ?? 0) <= 0 ? '#fef2f2' : '#fffbeb',
-                border: `1px solid ${(p.stock ?? 0) <= 0 ? '#fecaca' : '#fde68a'}`,
-                color: (p.stock ?? 0) <= 0 ? '#dc2626' : '#d97706',
-              }}>
+              <button
+                key={p.id}
+                type="button"
+                onClick={onOpenProducts}
+                title={onOpenProducts ? `Open Products to restock ${p.name}` : undefined}
+                style={{
+                  padding: '0.4rem 0.75rem', borderRadius: 6, fontSize: '0.8rem',
+                  background: (p.stock ?? 0) <= 0 ? '#fef2f2' : '#fffbeb',
+                  border: `1px solid ${(p.stock ?? 0) <= 0 ? '#fecaca' : '#fde68a'}`,
+                  color: (p.stock ?? 0) <= 0 ? '#dc2626' : '#d97706',
+                  cursor: onOpenProducts ? 'pointer' : 'default',
+                  font: 'inherit',
+                  textAlign: 'left',
+                }}>
                 <strong>{p.name}</strong>
                 {p.hsn ? <span className="text-muted" style={{ marginLeft: 4, fontSize: '0.72rem' }}>({p.hsn})</span> : null}
                 <span style={{ marginLeft: 6, fontWeight: 700 }}>
                   {(p.stock ?? 0) <= 0 ? 'Out of Stock' : `Stock: ${p.stock}`}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>

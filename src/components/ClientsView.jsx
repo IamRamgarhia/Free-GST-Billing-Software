@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
@@ -371,33 +371,61 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
     }
   };
 
-  // Group bills by client name
-  const getClientBills = (clientName) => {
-    return bills.filter(b => (b.clientName || '').toLowerCase() === clientName.toLowerCase())
-      .sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
-  };
+  // v1.10.59 — reported (#44 item 4, @sangwanmail-eng): "slow moving scroll
+  // bar in many tabs, like purchase tab client tab etc."
+  //
+  // getClientBills() scanned EVERY bill and re-sorted, and getClientStats()
+  // called it. Nothing was memoised, so the whole thing re-ran on every
+  // render — including every keystroke in the search box. Worse, the client
+  // sort below calls getClientStats() from inside its comparator, so a full
+  // scan of all bills happened O(n log n) times per render on top of once
+  // per rendered row.
+  //
+  // For 100 clients over 500 bills that is on the order of a third of a
+  // million string lowercasings and date parses to paint one frame, which
+  // is what made scrolling and typing feel sticky.
+  //
+  // Now: bills are grouped by client ONCE per change to `bills`, each group
+  // sorted once, and per-client totals precomputed in the same pass. Lookups
+  // become O(1), so rendering a row and sorting the list are both cheap.
+  const billsByClient = useMemo(() => {
+    const map = new Map();
+    for (const b of bills) {
+      const key = (b.clientName || '').toLowerCase();
+      let arr = map.get(key);
+      if (!arr) { arr = []; map.set(key, arr); }
+      arr.push(b);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
+    }
+    return map;
+  }, [bills]);
 
-  const getClientStats = (clientName) => {
-    const cBills = getClientBills(clientName);
-    const total = cBills.reduce((s, b) => s + (b.totalAmount || 0), 0);
-    // v1.10.23 — reported: "OUTSTANDING SHOULD ABE DISPLAYED HERE IN
-    // CLIENT LDGER TOO" — overpayments were hidden because `paid` used
-    // `totalAmount` when status='paid', clamping actual receipt to the
-    // invoice value. If a customer paid ₹650 on a ₹649 invoice, `paid`
-    // came back 649 and `unpaid` came back 0. Now we always read the
-    // ACTUAL paid amount from the payments array (falling back to
-    // paidAmount, then totalAmount for legacy status-only "paid" bills
-    // that were never given an explicit paidAmount).
-    const paid = cBills.reduce((s, b) => {
-      const fromPayments = (b.payments || []).reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
-      if (fromPayments > 0) return s + fromPayments;
-      if (typeof b.paidAmount === 'number' && b.paidAmount > 0) return s + b.paidAmount;
-      if (b.status === 'paid') return s + (b.totalAmount || 0);
-      return s;
-    }, 0);
-    const unpaid = total - paid; // can be negative → overpayment
-    return { total, paid, unpaid, count: cBills.length };
-  };
+  const statsByClient = useMemo(() => {
+    const map = new Map();
+    for (const [key, cBills] of billsByClient) {
+      const total = cBills.reduce((s, b) => s + (b.totalAmount || 0), 0);
+      const paid = cBills.reduce((s, b) => {
+        const fromPayments = (b.payments || []).reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
+        if (fromPayments > 0) return s + fromPayments;
+        if (typeof b.paidAmount === 'number' && b.paidAmount > 0) return s + b.paidAmount;
+        if (b.status === 'paid') return s + (b.totalAmount || 0);
+        return s;
+      }, 0);
+      map.set(key, { total, paid, unpaid: total - paid, count: cBills.length });
+    }
+    return map;
+  }, [billsByClient]);
+
+  const EMPTY_BILLS = useMemo(() => [], []);
+  const getClientBills = (clientName) =>
+    billsByClient.get((clientName || '').toLowerCase()) || EMPTY_BILLS;
+
+  const getClientStats = (clientName) =>
+    statsByClient.get((clientName || '').toLowerCase())
+    || { total: 0, paid: 0, unpaid: 0, count: 0 };
+
 
   // v1.10.22 — Aging analysis: bucket unpaid amounts by how long they've
   // been outstanding. Age = today − dueDate (falls back to invoiceDate
