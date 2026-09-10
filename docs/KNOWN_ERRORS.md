@@ -434,6 +434,27 @@ other things had working servers, and the only broken path was the one
 almost nobody took. Correcting the README in v1.10.61 pointed everyone at
 the release ZIP, which would have made this far more visible.
 
+
+### Two further faults found the moment the gate was built
+
+Running the suite against a genuinely fresh install exposed defects the
+tests themselves had been hiding:
+
+1. **The first-run wizard had never been exercised.** A fresh install shows
+   two screens in sequence whose buttons are capitalised differently -
+   `Skip Setup` then `Skip setup`. The suite matched `/^Skip setup$/`, which
+   never matched the first one. In the dev tree onboarding is already
+   complete, so no wizard appears and the mismatch was invisible.
+
+2. **The "is anything in the way?" check was wrong.** It used
+   `offsetParent !== null`, which is **always null for a `position: fixed`
+   element** - and `.modal-overlay` is fixed. So it reported a clear screen
+   while a full-page wizard sat on top, and every later click timed out
+   against an intercepted element.
+
+Both are the same mistake as ERR-009 wearing a different hat: the primed
+development environment is not the one users get.
+
 **Verify by hand after any packaging change:**
 
 ```powershell

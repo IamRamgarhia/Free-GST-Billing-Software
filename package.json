@@ -89,9 +89,10 @@
     "preview": "vite preview",
     "icons": "node scripts/generate-icons.mjs",
     "bundle:tesseract": "node scripts/bundle-tesseract-assets.mjs",
-    "release:zip": "npm run build && node scripts/build-release-zip.mjs",
+    "release:zip": "npm run build && node scripts/build-release-zip.mjs && node scripts/verify-release.mjs",
     "test": "node tests/smoke.mjs",
-    "test:install": "playwright install firefox"
+    "test:install": "playwright install firefox",
+    "verify:release": "node scripts/verify-release.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",

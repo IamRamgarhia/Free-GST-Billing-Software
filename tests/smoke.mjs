@@ -70,6 +70,53 @@ async function cleanup(page) {
   } catch { /* best effort */ }
 }
 
+
+/**
+ * Clear anything a FRESH install shows before the app is usable.
+ *
+ * The wizard's button is "Skip Setup" with a capital S; the suite used to
+ * match /^Skip setup$/ and silently never matched. In the development tree
+ * onboarding is already complete so no wizard appears, and the mismatch was
+ * invisible — against a real packaged install it blocked every later click.
+ *
+ * Called after EVERY navigation that reloads the page, because anything
+ * gating first use can reappear, and a test that hangs for 30s tells you
+ * far less than one that simply clears the way and carries on.
+ */
+async function dismissFirstRun(page) {
+  // A fresh install shows TWO screens in sequence, and their buttons are
+  // capitalised differently: a region step ("Skip Setup") and then a
+  // business-type step ("Skip setup"). Clearing one reveals the other.
+  //
+  // The visibility test matters as much as the clicking. An earlier version
+  // used `offsetParent !== null`, which is ALWAYS null for a
+  // `position: fixed` element — and `.modal-overlay` is fixed. So it
+  // reported "nothing in the way" while a full-screen wizard sat on top,
+  // and every later click timed out against an intercepted element.
+  const blockingOverlay = () => page.evaluate(() =>
+    [...document.querySelectorAll('.modal-overlay')].some((o) => {
+      const cs = getComputedStyle(o);
+      const r = o.getBoundingClientRect();
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+    }));
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const hasNav = await page.evaluate(() => !!document.querySelector('.nav-btn'));
+    if (hasNav && !(await blockingOverlay())) return;
+    let clicked = false;
+    for (const pattern of [/^skip setup$/i, /none of these/i, /get started/i, /continue|finish|close/i]) {
+      const btn = page.getByRole('button', { name: pattern });
+      if (await btn.count()) {
+        await btn.first().click({ timeout: 5000 }).catch(() => {});
+        await sleep(1200);
+        clicked = true;
+        break;
+      }
+    }
+    if (!clicked) break;
+  }
+}
+
 const APP = await startServer();
 console.log(`\nRunning smoke tests against ${APP} (Firefox)\n`);
 
@@ -85,8 +132,9 @@ page.on('console', (m) => { if (/Content-Security-Policy/i.test(m.text())) cspVi
 try {
   await page.goto(APP, { waitUntil: 'networkidle' });
   await sleep(2000);
-  const skip = page.getByRole('button', { name: /^Skip setup$/ });
-  if (await skip.count()) { await skip.click(); await sleep(1200); }
+  await dismissFirstRun(page);
+  check('first-run setup can be dismissed',
+    await page.evaluate(() => !!document.querySelector('.nav-btn')));
 
   // ---- App loads without breaking its own security policy ----------------
   // ERR-004 / ERR-007: the CSP blocked the print iframe and, separately,
@@ -119,6 +167,7 @@ try {
   });
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(1600);
+  await dismissFirstRun(page);
 
   // ---- Purchase bill: suggestions ---------------------------------------
   await page.getByText('Purchases', { exact: false }).first().click();
@@ -336,6 +385,7 @@ try {
   await seedOverdue(1);
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(4500);
+  await dismissFirstRun(page);
   const withAlert = await badgeCount();
   check('#53 an overdue invoice raises a notification', withAlert > 0, `badge=${withAlert}`);
 
@@ -350,13 +400,18 @@ try {
   await seedOverdue(2);
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(4500);
+  await dismissFirstRun(page);
   const returned = await badgeCount();
   check('#53 a NEW overdue invoice re-alerts after being marked read',
     returned > 0, `badge=${returned}`);
 
   await cleanup(page);
 } catch (err) {
-  check('suite ran to completion', false, err.message.split('\n')[0]);
+  // Report enough to act on. A bare "Timeout 30000ms exceeded" says nothing
+  // about WHICH element was being waited for, turning a two-minute fix into
+  // a guessing game.
+  const detail = err.message.split('\n').filter((l) => l.trim()).slice(0, 4).join(' | ');
+  check('suite ran to completion', false, detail);
   try { await cleanup(page); } catch { /* ignore */ }
 } finally {
   await browser.close();
