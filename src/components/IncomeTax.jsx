@@ -38,7 +38,7 @@ import {
   buildITR4FieldMap,
   CURRENT_FY as ENGINE_FY,
 } from '../utils/itr.js';
-import { getFinancialYearLabel } from '../utils';
+import { getFinancialYearLabel, belongsToProfile } from '../utils';
 import { toast } from './Toast';
 
 // The Income Tax module has three sub-tabs. Keeping them in one file (rather
@@ -122,7 +122,10 @@ export default function IncomeTax() {
       getAllPurchases().catch(() => []),
       getProfile().catch(() => ({})),
     ]).then(([b, e, p, prof]) => {
-      setBills(b); setExpenses(e); setPurchases(p); setProfile(prof);
+      // v1.10.64 (#55) — income tax is filed per business, so only the active
+      // business's invoices may contribute to its figures.
+      setBills((b || []).filter(bill => belongsToProfile(bill, prof)));
+      setExpenses(e); setPurchases(p); setProfile(prof);
     });
   }, []);
 

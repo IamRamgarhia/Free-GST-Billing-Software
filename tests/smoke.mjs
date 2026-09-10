@@ -405,6 +405,76 @@ try {
   check('#53 a NEW overdue invoice re-alerts after being marked read',
     returned > 0, `badge=${returned}`);
 
+  // #55: two businesses must not share one set of books — and, far more
+  // importantly, nothing may DISAPPEAR. Older invoices carry no business id,
+  // so a naive filter would hide a user's entire history. They are matched by
+  // the seller GSTIN stored on every invoice, and anything unattributable is
+  // always shown.
+  // Give the active business a known GSTIN for the duration. Depending on
+  // whatever GSTIN happens to be configured makes this test meaningless on a
+  // fresh install, where the profile has none at all — with nothing to
+  // compare, every invoice matches and both assertions pass vacuously.
+  // The original profile is restored below.
+  const originalProfile = await page.evaluate(async () => (await (await fetch('/api/profile')).json()));
+  const TEST_GSTIN = '03AAAAA1111A1Z1';
+  await page.evaluate(async ({ prof, gstin }) => {
+    await fetch('/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...prof, gstin, businessName: prof?.businessName || 'Active Co' }),
+    });
+  }, { prof: originalProfile, gstin: TEST_GSTIN });
+  const activeProfile = { gstin: TEST_GSTIN };
+  await page.evaluate(async (gstin) => {
+    const post = (b) => fetch('/api/bills', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+    });
+    // Belongs to the active business.
+    await post({ id: 'smoketest-mine', invoiceNumber: 'SMOKE-MINE/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 1000, payments: [], items: [], invoiceDate: new Date().toISOString().slice(0,10),
+      data: { profile: { gstin, businessName: 'Active Co' }, details: {}, totals: { total: 1000 } } });
+    // Belongs to a DIFFERENT business.
+    await post({ id: 'smoketest-other', invoiceNumber: 'SMOKE-OTHER/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 2000, payments: [], items: [], invoiceDate: new Date().toISOString().slice(0,10),
+      data: { profile: { gstin: '29ZZZZZ9999Z9Z9', businessName: 'Other Co' }, details: {}, totals: { total: 2000 } } });
+    // Legacy: no seller recorded at all.
+    // Dated in the current FY so the dashboard's year filter cannot be what
+    // hides it — this test is about company scoping, nothing else.
+    const today = new Date().toISOString().slice(0, 10);
+    await post({ id: 'smoketest-legacy', invoiceNumber: 'SMOKE-LEGACY/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 3000, payments: [], items: [], invoiceDate: today,
+      data: { details: { invoiceNumber: 'SMOKE-LEGACY/1' }, totals: { total: 3000 } } });
+  }, activeProfile?.gstin || '');
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(3000);
+  await dismissFirstRun(page);
+  // Go to the Dashboard explicitly. The app restores the last view from
+  // sessionStorage, which by now is Settings — and a "not visible" assertion
+  // passes trivially when NOTHING is on screen. Assert against the invoice
+  // list itself, not the whole page.
+  await page.getByText('Dashboard', { exact: false }).first().click();
+  await sleep(2500);
+  const visible = await page.evaluate(() => {
+    const table = document.querySelector('table');
+    return table ? table.innerText : document.body.innerText;
+  });
+  // Guard the guard: if our own invoice is not listed, the check below proves
+  // nothing about scoping.
+  check('#55 the active business invoice IS listed (sanity)',
+    visible.includes('SMOKE-MINE/1'));
+
+  check('#55 an invoice from the other business is hidden',
+    !visible.includes('SMOKE-OTHER/1'));
+  check('#55 a legacy invoice with no business recorded is still shown',
+    visible.includes('SMOKE-LEGACY/1'));
+
+  // Put the real business details back.
+  await page.evaluate(async (prof) => {
+    await fetch('/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prof),
+    });
+  }, originalProfile);
+
   await cleanup(page);
 } catch (err) {
   // Report enough to act on. A bare "Timeout 30000ms exceeded" says nothing

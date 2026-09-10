@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions } from '../utils';
+import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -531,7 +531,10 @@ export default function GSTReturns() {
   const loadData = async () => {
     try {
       const [b, e, p] = await Promise.all([getAllBills(), getAllExpenses(), getProfile()]);
-      setBills(b); setExpenses(e); setProfile(p || {});
+      // v1.10.64 (#55) — a GST return must cover ONE GSTIN. Showing another
+      // business's invoices here would misstate the return being filed.
+      setBills((b || []).filter(bill => belongsToProfile(bill, p)));
+      setExpenses(e); setProfile(p || {});
       // Purchases endpoint may not exist on older server versions
       try { const pur = await getAllPurchases(); setPurchases(pur || []); } catch { /* ignore — older servers don't have this endpoint */ }
     } catch { toast('Failed to load data', 'error'); }

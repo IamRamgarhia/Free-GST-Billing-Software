@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.64] - 2026-09-10
+
+**Each business now has its own books.**
+
+Requested (#55, @sangwanmail-eng): *"keep both companies' data stored and
+displayed separately based on their respective GST numbers. An invoice
+belonging to one company should not appear under the other."*
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.64.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+
+### Added - invoices are scoped to the business that issued them
+
+Switching business already changed the letterhead, but every list -
+dashboard, GST returns, reports, income tax - still showed **all**
+invoices. Two businesses meant one mixed set of books, and a GST return
+could include invoices raised under a different GSTIN.
+
+Now the **dashboard**, **GST Returns**, **Reports** and **Income Tax**
+show only the invoices belonging to the business you have selected.
+
+### Correction to v1.10.62
+
+In #53 the answer given was that "invoice numbering, clients and reports
+all follow the active profile". **That was wrong about reports** - nothing
+filtered by business at all. This release is what actually makes it true.
+
+### Nothing disappears - and why that took care
+
+The obvious approach is to filter on the business id stored with each
+invoice. That would have been a disaster: the id was only added recently,
+so **every older invoice has none**, and filtering on it would have wiped
+a user's entire history from view the moment they updated. In accounting
+software that is the worst failure available.
+
+Invoices are matched on the **seller's GSTIN**, which every invoice has
+stored since day one because the seller's details are saved onto each
+invoice as it is raised. That also survives a rename: this user has
+invoices reading "Dice Codes" and "Anahat Exclusive" under a single GSTIN
+- one business, renamed. GSTIN keeps them together; matching on the name
+would have split them in two.
+
+A business with no GSTIN yet falls back to its name, and **anything that
+cannot be attributed at all is shown, never hidden**. If in doubt, you see
+your invoice.
+
+Three tests cover exactly this, including one that fails if an
+un-attributable invoice is ever hidden.
+
+### Not yet scoped
+
+**Clients** and **Receipts** still show everything. Those lists are shared
+rather than wrong - a client can be a client of both businesses - so they
+need a decision rather than a filter. Say which behaviour you want and it
+will follow.
+
+---
+
 ## [1.10.63] - 2026-09-10
 
 **Critical: the release ZIP shipped a server that could not start.**
