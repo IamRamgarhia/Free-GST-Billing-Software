@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.63] - 2026-09-10
+
+**Critical: the release ZIP shipped a server that could not start.**
+
+Reported (#54, @ANIM35H), with the exact cause already diagnosed. Thank you.
+
+### How to update
+
+Download `Free-GST-Billing-v1.10.63.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. If your app never started, this is the
+release that fixes it - nothing else needs doing.
+
+### Fixed - "Server did not respond in 15s"
+
+The packaged `server.js` imports one file from `src/`, and `src/` was not
+in the ZIP. The server exited before it could bind, so the launcher could
+only report a timeout - the real error was never shown:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '_system/src/utils.js'
+  imported from '_system/server.js'
+```
+
+**How it happened.** `server.js` began importing `./src/utils.js` in
+v1.10.31. A later commit removed `src/` from the ZIP to halve the download
+(31.5 MB to 15.95 MB) - right for the React source, but nobody noticed the
+**server** had grown a dependency on one file inside it.
+
+`src/utils.js` imports nothing, so shipping that single file is the entire
+fix. The rest of `src/` stays out and the ZIP is unchanged in size.
+
+Verified by extracting the built ZIP and starting the server from it:
+it now prints `running at http://localhost:47371` instead of exiting.
+
+### Added - the build refuses to ship a server that cannot start
+
+The real failure here was not the bad commit; it was that **nothing ever
+opened the package**. The test suite, the linter and every manual check
+run against the development tree, where `src/` is always present. The
+artefact users download was never started even once.
+
+`npm run release:zip` now walks every relative import reachable from the
+packaged `server.js` and **aborts the build** if any file is missing.
+Confirmed by removing the fix and watching the build refuse to produce a
+ZIP.
+
+Recorded as ERR-009 in `docs/KNOWN_ERRORS.md`, with the rule stated
+plainly: *testing the repo is not testing the release*.
+
+### Why this was not caught sooner
+
+Until v1.10.61, the README pointed people at the **source** ZIP, which
+does contain `src/`. Those users had working servers - which is why the
+regulars reporting other bugs were unaffected, and the broken path was the
+one almost nobody used. Correcting that link in v1.10.61 pointed everyone
+at the release ZIP, and this surfaced immediately.
+
+---
+
 ## [1.10.62] - 2026-09-07
 
 **Notifications can be cleared — and come back when something new happens.**

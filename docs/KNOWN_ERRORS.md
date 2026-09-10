@@ -374,6 +374,77 @@ precedence a browser applies — so it fails on the old markup.
 
 ---
 
+---
+
+## ERR-009 - The release ZIP shipped a server that could not start
+
+**Version:** broke in v1.10.44.1 - fixed in v1.10.63
+**Reported by:** @ANIM35H (#54)
+
+**Symptom**
+
+```
+  Starting server on port 47371...
+  Server did not respond in 15s. Check for errors in this window.
+```
+
+The launcher never showed the real error. Running the shipped `server.js`
+by hand gives it:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '_system/src/utils.js'
+  imported from '_system/server.js'
+```
+
+**Cause**
+
+`server.js` has imported `./src/utils.js` (for `computeInvoiceTotals`)
+since v1.10.31. Commit `4169fac` then removed `src/` from the ZIP to cut
+the download from 31.5 MB to 15.95 MB - correct for the React source,
+except the **server** had quietly grown a runtime dependency on one file
+inside it. The process exits before binding, so the launcher can only
+report a timeout.
+
+**Every release from v1.10.44.1 onward shipped a dead server.**
+
+**Rule**
+
+> Anything `server.js` imports must be in the ZIP. Slimming the package is
+> fine; slimming it without re-checking the server's import graph is not.
+
+**Guard:** `scripts/build-release-zip.mjs` -> `assertServerImportsResolve()`
+walks every relative import reachable from the packaged `server.js` and
+**fails the build** if a file is missing. Verified by removing the fix and
+confirming the build aborts.
+
+### The part worth remembering
+
+Fifteen releases went out broken while every check was green. The smoke
+suite, the lint run and the manual testing all exercised the **development
+tree**, where `src/` is always present. Nothing ever ran the artefact that
+users actually download.
+
+> **Testing the repo is not testing the release.** If a defect can exist
+> only in the packaged output, it can only be caught by opening the
+> package.
+
+It stayed hidden longer because the README pointed people at the *source*
+ZIP, which does contain `src/` - so the users who complained loudest about
+other things had working servers, and the only broken path was the one
+almost nobody took. Correcting the README in v1.10.61 pointed everyone at
+the release ZIP, which would have made this far more visible.
+
+**Verify by hand after any packaging change:**
+
+```powershell
+Expand-Archive Free-GST-Billing-vX.Y.Z.zip -DestinationPath t
+cd t\Free-GST-Billing\_system
+npm install --omit=dev
+node server.js        # must print "running at http://localhost:PORT"
+```
+
+---
+
 <!--
 Adding an entry? Copy this skeleton.
 
