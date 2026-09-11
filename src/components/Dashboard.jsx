@@ -143,7 +143,7 @@ function ReceiptModal({ target, onClose }) {
   );
 }
 
-export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts }) {
+export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts, activeProfile }) {
   // v1.10.64 — requested (#55, @sangwanmail-eng): "An invoice belonging to one
   // company should not appear under the other."
   //
@@ -156,7 +156,21 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   // Anything that cannot be attributed to a business is SHOWN, never hidden.
   // See belongsToProfile() in utils.js for why that matters here.
   const [allBills, setBills] = useState([]);
-  const [profile, setProfileState] = useState(null);
+  const [profileState, setProfileState] = useState(null);
+
+  // v1.10.65 — requested (#58 item 1, @sangwanmail-eng): "Dashboard should
+  // refresh automatically after company switch."
+  //
+  // It did not, because the dashboard fetched the business ONCE when it
+  // mounted. Switching business from the header updated the app, but this
+  // screen never heard about it and kept showing the previous company's
+  // invoices until a manual reload.
+  //
+  // The live value is now passed in as a prop, so a switch re-filters
+  // immediately. The locally fetched copy stays as a fallback for the first
+  // paint, before the prop has arrived.
+  const profile = activeProfile ?? profileState;
+
   const bills = useMemo(
     () => allBills.filter(b => belongsToProfile(b, profile)),
     [allBills, profile],

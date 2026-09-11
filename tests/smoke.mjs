@@ -59,6 +59,7 @@ async function cleanup(page) {
       };
       await del('purchases');
       await del('products');
+      await del('profiles');
       // The PDF step saves a real invoice; remove it by client name so the
       // suite is repeatable and leaves no test data in the user's books.
       const bills = await (await fetch('/api/bills')).json();
@@ -269,6 +270,28 @@ try {
   });
   check('Fit actually fits the preview', fits);
 
+  // #58 item 2: the action toolbar must stay reachable from the bottom of a
+  // long invoice. Reported as "you have to scroll all page" to reach the
+  // preview toggle — but Save, Print and E-Way Bill were equally stranded.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await sleep(700);
+  const toolbar = await page.evaluate(() => {
+    const tb = document.querySelector('.generator-toolbar');
+    if (!tb) return null;
+    const r = tb.getBoundingClientRect();
+    const previewBtn = [...tb.querySelectorAll('button')].find((b) => /Preview/i.test(b.innerText));
+    return {
+      onScreen: r.top >= -2 && r.top < window.innerHeight,
+      hasPreviewButton: !!previewBtn,
+    };
+  });
+  check('#58 the action toolbar stays on screen when scrolled to the bottom',
+    !!toolbar?.onScreen);
+  check('#58 the preview toggle lives in that toolbar',
+    !!toolbar?.hasPreviewButton);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(400);
+
   // ERR-004/007 again, end to end: a real PDF must download, and its size
   // is a proxy for whether the stylesheet made it into the render.
   let pdfBytes = 0;
@@ -467,6 +490,52 @@ try {
     !visible.includes('SMOKE-OTHER/1'));
   check('#55 a legacy invoice with no business recorded is still shown',
     visible.includes('SMOKE-LEGACY/1'));
+
+  // #58 item 1: switching business must refresh the dashboard on the spot.
+  // It used to read the business once on mount, so a switch left the previous
+  // company's invoices on screen until a manual reload.
+  const OTHER_GSTIN = '29BBBBB2222B2Z2';
+  await page.evaluate(async ({ a, b }) => {
+    const post = (u, body) => fetch(u, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    await post('/api/profiles', { id: 'smoketest-pa', businessName: 'Smoke Alpha', gstin: a });
+    await post('/api/profiles', { id: 'smoketest-pb', businessName: 'Smoke Beta', gstin: b });
+    await post('/api/bills', {
+      id: 'smoketest-beta-bill', invoiceNumber: 'SMOKE-BETA/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 4000, invoiceDate: new Date().toISOString().slice(0, 10),
+      payments: [], items: [],
+      data: { profile: { gstin: b, businessName: 'Smoke Beta' }, details: {}, totals: { total: 4000 } },
+    });
+    await post('/api/profile', { businessName: 'Smoke Alpha', gstin: a });
+  }, { a: TEST_GSTIN, b: OTHER_GSTIN });
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(3000);
+  await dismissFirstRun(page);
+  await page.getByText('Dashboard', { exact: false }).first().click();
+  await sleep(2000);
+  const tableText = () => page.evaluate(() => {
+    const t = document.querySelector('table');
+    return t ? t.innerText : '';
+  });
+  check('#58 before switching, only the active business is listed',
+    (await tableText()).includes('SMOKE-MINE/1') && !(await tableText()).includes('SMOKE-BETA/1'));
+
+  // Switch business from the header, WITHOUT reloading the page.
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Smoke Alpha/.test(x.innerText));
+    if (b) b.click();
+  });
+  await sleep(800);
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Smoke Beta/.test(x.innerText));
+    if (b) b.click();
+  });
+  await sleep(2500);
+  const afterSwitch = await tableText();
+  check('#58 the dashboard re-filters on a company switch, with no reload',
+    afterSwitch.includes('SMOKE-BETA/1') && !afterSwitch.includes('SMOKE-MINE/1'));
 
   // Put the real business details back.
   await page.evaluate(async (prof) => {

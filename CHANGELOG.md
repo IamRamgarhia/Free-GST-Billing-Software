@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.65] - 2026-09-11
+
+**Company switching now refreshes the screen, the invoice toolbar stays put,
+and expenses/purchases/recurring are separated per business.**
+
+All three requested in #58 by @sangwanmail-eng.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.65.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+
+### Fixed - the dashboard did not refresh after switching business
+
+It read the selected business **once, when the screen first opened**.
+Switching from the header changed everything else but never reached the
+dashboard, so the previous company's invoices stayed on screen until a
+manual reload. It now updates immediately.
+
+### Changed - the invoice toolbar no longer scrolls away
+
+Reported as: *"to access show preview and hide preview button once you are at
+the bottom of the page, you have to scroll all page."*
+
+Moving that one button would not have fixed it. The whole toolbar - **Save**,
+**Save & Download**, **Print**, **WhatsApp**, **E-Way Bill** - sat at the top
+of a long form and scrolled out of reach, so *any* of those actions meant
+scrolling back up. The bar is now pinned, which fixes the complaint for all of
+them at once.
+
+The preview control moved into that bar beside E-Way Bill and now reads
+**Hide Preview** / **Show Preview** with an eye icon, rather than
+"Focus mode (hide preview)".
+
+### Added - expenses, purchases and recurring templates follow the business
+
+Invoices were separated in v1.10.64; these three were not. They had no
+business recorded against them at all, so an `ownerGstin` is now stamped when
+they are saved, and each list shows only the selected business.
+
+The field is deliberately named `owner*`: a purchase bill already records a
+`supplierGstin` and an expense a `vendorGstin`, but those are the **other**
+party. Filing your own purchases under your supplier would be exactly
+backwards.
+
+### Added - assign older records to a business, when you choose to
+
+Anything saved before businesses were separated has no owner recorded, so it
+appears under **every** business. It is never hidden - losing sight of past
+expenses would be far worse than seeing them twice.
+
+Expenses, Purchases and Recurring now show a line such as *"3 expenses are not
+assigned to a business"* with an **Assign to <business>** button. It appears
+only when there is something to assign, names the business in the confirmation
+so it cannot be done while looking at the wrong company, and disappears once
+done.
+
+Assigning is never automatic. Only you know which business an old expense
+belonged to, and guessing would quietly file records into the wrong books.
+
+### Documentation
+
+The README and the User Guide described multi-business as switching letterhead
+details only. They now explain that each business keeps its own books, that
+switching refreshes immediately, that matching is by GST number so a rename
+does not split a history, and what the **Assign to <business>** prompt does.
+
+### Tests
+
+24 -> 28, covering all three items. Each was checked by reverting its fix and
+confirming the test goes red first - reverting the dashboard fix alone turns
+`#58 the dashboard re-filters on a company switch` red, as it should.
+
+---
+
 ## [1.10.64] - 2026-09-10
 
 **Each business now has its own books.**

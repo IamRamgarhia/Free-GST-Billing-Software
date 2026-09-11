@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, FileText, Eye } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct } from '../store';
-import { formatCurrency, calculateRoundOff, getFYOptions } from '../utils';
+import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile } from '../store';
+import { formatCurrency, calculateRoundOff, getFYOptions, belongsToProfile, isUnassignedToBusiness } from '../utils';
+import UnassignedBanner from './UnassignedBanner';
 import { getPrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -77,6 +78,8 @@ function calcPurchaseTotal(items, applyRoundOff = false) {
 
 export default function PurchaseBills() {
   const [purchases, setPurchases] = useState([]);
+  // v1.10.65 (#58 item 3) — the business these records belong to.
+  const [ownerProfile, setOwnerProfile] = useState(null);
   // v1.10.54 (#42) — the Products & Services master, used to seed item
   // suggestions. Loaded on mount alongside purchases.
   const [products, setProducts] = useState([]);
@@ -136,9 +139,28 @@ export default function PurchaseBills() {
 
   const fyOptions = getFYOptions();
 
+
+  // v1.10.65 (#58 item 3) — assign records saved before businesses were kept
+  // separate. Never automatic: only the user knows which business an old
+  // record belonged to, so guessing would file it into the wrong books.
+  const unassignedPurchases = purchases.filter(isUnassignedToBusiness);
+  const assignUnassignedPurchases = async () => {
+    await Promise.all(unassignedPurchases.map(r => savePurchase({
+      ...r,
+      ownerGstin: ownerProfile?.gstin || '',
+      ownerName: ownerProfile?.businessName || '',
+    })));
+    loadPurchases();
+  };
+
   const loadPurchases = async () => {
     try {
-      setPurchases(await getAllPurchases());
+      const [rows, prof] = await Promise.all([getAllPurchases(), getProfile().catch(() => null)]);
+      setOwnerProfile(prof);
+      // v1.10.65 (#58 item 3) — show only this business's records. Anything
+      // saved before businesses were separated has no owner recorded and is
+      // always shown, so nothing disappears from an existing ledger.
+      setPurchases((rows || []).filter(r => belongsToProfile(r, prof)));
     } catch {
       toast('Failed to load purchases', 'error');
     }
@@ -349,6 +371,10 @@ export default function PurchaseBills() {
         supplierAddress: (form.supplierAddress || '').trim(),
         supplierGstin: form.supplierGstin.trim(),
         invoiceNumber: form.invoiceNumber.trim(),
+        // Which of YOUR businesses bought this. Distinct from supplierGstin
+        // directly above, which is who sold it.
+        ownerGstin: ownerProfile?.gstin || '',
+        ownerName: ownerProfile?.businessName || '',
         items: form.items.map(i => ({
           name: (i.name || '').trim(),
           hsn: (i.hsn || '').trim(),
@@ -828,6 +854,13 @@ export default function PurchaseBills() {
       })()}
 
       {/* Stats */}
+      <UnassignedBanner
+        count={unassignedPurchases.length}
+        businessName={ownerProfile?.businessName}
+        noun="purchase bill"
+        onAssign={assignUnassignedPurchases}
+      />
+
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple"><ShoppingCart size={22} /></div>

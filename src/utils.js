@@ -1052,10 +1052,32 @@ export const splitNumberedTerms = (html) => {
 const normaliseGstin = (v) => String(v || '').trim().toUpperCase();
 const normaliseName = (v) => String(v || '').trim().toLowerCase();
 
+// v1.10.65 (#58 item 3) — expenses, purchase bills and recurring templates
+// have no `data.profile` block: invoices snapshot the seller onto themselves,
+// those records never did. So they also carry a plain `ownerGstin` /
+// `ownerName`, stamped when they are saved.
+//
+// Note the field names. A purchase bill already has `supplierGstin` and an
+// expense has `vendorGstin` — those are the OTHER party. Confusing the two
+// would file your own purchases under your supplier's business, so the
+// owning business is named `owner*` and never read from those fields.
 export const getRecordSeller = (record) => ({
-  gstin: normaliseGstin(record?.data?.profile?.gstin),
-  name: normaliseName(record?.data?.profile?.businessName),
+  gstin: normaliseGstin(record?.data?.profile?.gstin ?? record?.ownerGstin),
+  name: normaliseName(record?.data?.profile?.businessName ?? record?.ownerName),
 });
+
+/**
+ * Has this record never been attributed to any business?
+ *
+ * These are records saved before businesses were kept separate. They show
+ * under every business, because hiding them would be worse than showing them
+ * twice — which is also why the user is offered the chance to assign them
+ * rather than having it done silently on their behalf.
+ */
+export const isUnassignedToBusiness = (record) => {
+  const seller = getRecordSeller(record);
+  return !seller.gstin && !seller.name;
+};
 
 /**
  * Does this saved record belong to the business currently selected?
