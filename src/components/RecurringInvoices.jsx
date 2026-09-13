@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Plus, Edit3, Trash2, Play, Pause, X, Save } from 'lucide-react';
-import { getAllRecurring, saveRecurring, deleteRecurring, getAllClients, saveBill, getNextInvoiceNumber } from '../store';
-import { formatCurrency, INVOICE_TYPES } from '../utils';
+import { getAllRecurring, saveRecurring, deleteRecurring, getAllClients, saveBill, getNextInvoiceNumber, getProfile } from '../store';
+import { formatCurrency, INVOICE_TYPES, belongsToProfile, isUnassignedToBusiness } from '../utils';
+import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 
@@ -21,15 +22,37 @@ const emptyForm = {
 
 export default function RecurringInvoices() {
   const [templates, setTemplates] = useState([]);
+  // v1.10.65 (#58 item 3) — the business these templates belong to.
+  const [ownerProfile, setOwnerProfile] = useState(null);
   const [clients, setClients] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
 
+
+  // v1.10.65 (#58 item 3) — assign records saved before businesses were kept
+  // separate. Never automatic: only the user knows which business an old
+  // record belonged to, so guessing would file it into the wrong books.
+  const unassignedTemplates = templates.filter(isUnassignedToBusiness);
+  const assignUnassignedTemplates = async () => {
+    await Promise.all(unassignedTemplates.map(r => saveRecurring({
+      ...r,
+      ownerGstin: ownerProfile?.gstin || '',
+      ownerName: ownerProfile?.businessName || '',
+    })));
+    load();
+  };
+
   const load = async () => {
     try {
-      const [recs, cls] = await Promise.all([getAllRecurring(), getAllClients()]);
-      setTemplates(recs);
+      const [recs, cls, prof] = await Promise.all([
+        getAllRecurring(), getAllClients(), getProfile().catch(() => null),
+      ]);
+      setOwnerProfile(prof);
+      // v1.10.65 (#58 item 3) — show only this business's records. Anything
+      // saved before businesses were separated has no owner recorded and is
+      // always shown, so nothing disappears from an existing ledger.
+      setTemplates((recs || []).filter(r => belongsToProfile(r, prof)));
       setClients(cls);
     } catch {
       toast('Failed to load data', 'error');
@@ -111,6 +134,9 @@ export default function RecurringInvoices() {
         ...(editingId ? { id: editingId } : {}),
         ...form,
         items: form.items.filter(i => i.name),
+        // v1.10.65 (#58 item 3) — which business this template bills for.
+        ownerGstin: ownerProfile?.gstin || '',
+        ownerName: ownerProfile?.businessName || '',
       });
       toast(editingId ? 'Template updated' : 'Recurring invoice created', 'success');
       closeForm();
@@ -217,6 +243,13 @@ export default function RecurringInvoices() {
       </div>
 
       {/* Due Now Alert */}
+      <UnassignedBanner
+        count={unassignedTemplates.length}
+        businessName={ownerProfile?.businessName}
+        noun="recurring template"
+        onAssign={assignUnassignedTemplates}
+      />
+
       {dueTemplates.length > 0 && (
         <div className="glass-panel p-4 mb-6" style={{ borderLeft: '4px solid #f59e0b', background: 'var(--warn-bg)', color: 'var(--warn-text)' }}>
           <h4 style={{ marginBottom: '0.5rem', color: 'var(--warn-text)' }}>{dueTemplates.length} invoice{dueTemplates.length > 1 ? 's' : ''} due for generation</h4>

@@ -7,6 +7,203 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.65] - 2026-09-11
+
+**Company switching now refreshes the screen, the invoice toolbar stays put,
+and expenses/purchases/recurring are separated per business.**
+
+All three requested in #58 by @sangwanmail-eng.
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.65.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+
+### Fixed - the dashboard did not refresh after switching business
+
+It read the selected business **once, when the screen first opened**.
+Switching from the header changed everything else but never reached the
+dashboard, so the previous company's invoices stayed on screen until a
+manual reload. It now updates immediately.
+
+### Changed - the invoice toolbar no longer scrolls away
+
+Reported as: *"to access show preview and hide preview button once you are at
+the bottom of the page, you have to scroll all page."*
+
+Moving that one button would not have fixed it. The whole toolbar - **Save**,
+**Save & Download**, **Print**, **WhatsApp**, **E-Way Bill** - sat at the top
+of a long form and scrolled out of reach, so *any* of those actions meant
+scrolling back up. The bar is now pinned, which fixes the complaint for all of
+them at once.
+
+The preview control moved into that bar beside E-Way Bill and now reads
+**Hide Preview** / **Show Preview** with an eye icon, rather than
+"Focus mode (hide preview)".
+
+### Added - expenses, purchases and recurring templates follow the business
+
+Invoices were separated in v1.10.64; these three were not. They had no
+business recorded against them at all, so an `ownerGstin` is now stamped when
+they are saved, and each list shows only the selected business.
+
+The field is deliberately named `owner*`: a purchase bill already records a
+`supplierGstin` and an expense a `vendorGstin`, but those are the **other**
+party. Filing your own purchases under your supplier would be exactly
+backwards.
+
+### Added - assign older records to a business, when you choose to
+
+Anything saved before businesses were separated has no owner recorded, so it
+appears under **every** business. It is never hidden - losing sight of past
+expenses would be far worse than seeing them twice.
+
+Expenses, Purchases and Recurring now show a line such as *"3 expenses are not
+assigned to a business"* with an **Assign to <business>** button. It appears
+only when there is something to assign, names the business in the confirmation
+so it cannot be done while looking at the wrong company, and disappears once
+done.
+
+Assigning is never automatic. Only you know which business an old expense
+belonged to, and guessing would quietly file records into the wrong books.
+
+### Documentation
+
+The README and the User Guide described multi-business as switching letterhead
+details only. They now explain that each business keeps its own books, that
+switching refreshes immediately, that matching is by GST number so a rename
+does not split a history, and what the **Assign to <business>** prompt does.
+
+### Tests
+
+24 -> 28, covering all three items. Each was checked by reverting its fix and
+confirming the test goes red first - reverting the dashboard fix alone turns
+`#58 the dashboard re-filters on a company switch` red, as it should.
+
+---
+
+## [1.10.64] - 2026-09-10
+
+**Each business now has its own books.**
+
+Requested (#55, @sangwanmail-eng): *"keep both companies' data stored and
+displayed separately based on their respective GST numbers. An invoice
+belonging to one company should not appear under the other."*
+
+### How to update
+
+Launcher -> **Update** -> **Stop Server** -> **Open App**, or download
+`Free-GST-Billing-v1.10.64.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+
+### Added - invoices are scoped to the business that issued them
+
+Switching business already changed the letterhead, but every list -
+dashboard, GST returns, reports, income tax - still showed **all**
+invoices. Two businesses meant one mixed set of books, and a GST return
+could include invoices raised under a different GSTIN.
+
+Now the **dashboard**, **GST Returns**, **Reports** and **Income Tax**
+show only the invoices belonging to the business you have selected.
+
+### Correction to v1.10.62
+
+In #53 the answer given was that "invoice numbering, clients and reports
+all follow the active profile". **That was wrong about reports** - nothing
+filtered by business at all. This release is what actually makes it true.
+
+### Nothing disappears - and why that took care
+
+The obvious approach is to filter on the business id stored with each
+invoice. That would have been a disaster: the id was only added recently,
+so **every older invoice has none**, and filtering on it would have wiped
+a user's entire history from view the moment they updated. In accounting
+software that is the worst failure available.
+
+Invoices are matched on the **seller's GSTIN**, which every invoice has
+stored since day one because the seller's details are saved onto each
+invoice as it is raised. That also survives a rename: this user has
+invoices reading "Dice Codes" and "Anahat Exclusive" under a single GSTIN
+- one business, renamed. GSTIN keeps them together; matching on the name
+would have split them in two.
+
+A business with no GSTIN yet falls back to its name, and **anything that
+cannot be attributed at all is shown, never hidden**. If in doubt, you see
+your invoice.
+
+Three tests cover exactly this, including one that fails if an
+un-attributable invoice is ever hidden.
+
+### Not yet scoped
+
+**Clients** and **Receipts** still show everything. Those lists are shared
+rather than wrong - a client can be a client of both businesses - so they
+need a decision rather than a filter. Say which behaviour you want and it
+will follow.
+
+---
+
+## [1.10.63] - 2026-09-10
+
+**Critical: the release ZIP shipped a server that could not start.**
+
+Reported (#54, @ANIM35H), with the exact cause already diagnosed. Thank you.
+
+### How to update
+
+Download `Free-GST-Billing-v1.10.63.zip` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and extract it over your folder. If your app never started, this is the
+release that fixes it - nothing else needs doing.
+
+### Fixed - "Server did not respond in 15s"
+
+The packaged `server.js` imports one file from `src/`, and `src/` was not
+in the ZIP. The server exited before it could bind, so the launcher could
+only report a timeout - the real error was never shown:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '_system/src/utils.js'
+  imported from '_system/server.js'
+```
+
+**How it happened.** `server.js` began importing `./src/utils.js` in
+v1.10.31. A later commit removed `src/` from the ZIP to halve the download
+(31.5 MB to 15.95 MB) - right for the React source, but nobody noticed the
+**server** had grown a dependency on one file inside it.
+
+`src/utils.js` imports nothing, so shipping that single file is the entire
+fix. The rest of `src/` stays out and the ZIP is unchanged in size.
+
+Verified by extracting the built ZIP and starting the server from it:
+it now prints `running at http://localhost:47371` instead of exiting.
+
+### Added - the build refuses to ship a server that cannot start
+
+The real failure here was not the bad commit; it was that **nothing ever
+opened the package**. The test suite, the linter and every manual check
+run against the development tree, where `src/` is always present. The
+artefact users download was never started even once.
+
+`npm run release:zip` now walks every relative import reachable from the
+packaged `server.js` and **aborts the build** if any file is missing.
+Confirmed by removing the fix and watching the build refuse to produce a
+ZIP.
+
+Recorded as ERR-009 in `docs/KNOWN_ERRORS.md`, with the rule stated
+plainly: *testing the repo is not testing the release*.
+
+### Why this was not caught sooner
+
+Until v1.10.61, the README pointed people at the **source** ZIP, which
+does contain `src/`. Those users had working servers - which is why the
+regulars reporting other bugs were unaffected, and the broken path was the
+one almost nobody used. Correcting that link in v1.10.61 pointed everyone
+at the release ZIP, and this surfaced immediately.
+
+---
+
 ## [1.10.62] - 2026-09-07
 
 **Notifications can be cleared — and come back when something new happens.**

@@ -59,6 +59,7 @@ async function cleanup(page) {
       };
       await del('purchases');
       await del('products');
+      await del('profiles');
       // The PDF step saves a real invoice; remove it by client name so the
       // suite is repeatable and leaves no test data in the user's books.
       const bills = await (await fetch('/api/bills')).json();
@@ -68,6 +69,53 @@ async function cleanup(page) {
         .map((b) => fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' })));
     });
   } catch { /* best effort */ }
+}
+
+
+/**
+ * Clear anything a FRESH install shows before the app is usable.
+ *
+ * The wizard's button is "Skip Setup" with a capital S; the suite used to
+ * match /^Skip setup$/ and silently never matched. In the development tree
+ * onboarding is already complete so no wizard appears, and the mismatch was
+ * invisible — against a real packaged install it blocked every later click.
+ *
+ * Called after EVERY navigation that reloads the page, because anything
+ * gating first use can reappear, and a test that hangs for 30s tells you
+ * far less than one that simply clears the way and carries on.
+ */
+async function dismissFirstRun(page) {
+  // A fresh install shows TWO screens in sequence, and their buttons are
+  // capitalised differently: a region step ("Skip Setup") and then a
+  // business-type step ("Skip setup"). Clearing one reveals the other.
+  //
+  // The visibility test matters as much as the clicking. An earlier version
+  // used `offsetParent !== null`, which is ALWAYS null for a
+  // `position: fixed` element — and `.modal-overlay` is fixed. So it
+  // reported "nothing in the way" while a full-screen wizard sat on top,
+  // and every later click timed out against an intercepted element.
+  const blockingOverlay = () => page.evaluate(() =>
+    [...document.querySelectorAll('.modal-overlay')].some((o) => {
+      const cs = getComputedStyle(o);
+      const r = o.getBoundingClientRect();
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+    }));
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const hasNav = await page.evaluate(() => !!document.querySelector('.nav-btn'));
+    if (hasNav && !(await blockingOverlay())) return;
+    let clicked = false;
+    for (const pattern of [/^skip setup$/i, /none of these/i, /get started/i, /continue|finish|close/i]) {
+      const btn = page.getByRole('button', { name: pattern });
+      if (await btn.count()) {
+        await btn.first().click({ timeout: 5000 }).catch(() => {});
+        await sleep(1200);
+        clicked = true;
+        break;
+      }
+    }
+    if (!clicked) break;
+  }
 }
 
 const APP = await startServer();
@@ -85,8 +133,9 @@ page.on('console', (m) => { if (/Content-Security-Policy/i.test(m.text())) cspVi
 try {
   await page.goto(APP, { waitUntil: 'networkidle' });
   await sleep(2000);
-  const skip = page.getByRole('button', { name: /^Skip setup$/ });
-  if (await skip.count()) { await skip.click(); await sleep(1200); }
+  await dismissFirstRun(page);
+  check('first-run setup can be dismissed',
+    await page.evaluate(() => !!document.querySelector('.nav-btn')));
 
   // ---- App loads without breaking its own security policy ----------------
   // ERR-004 / ERR-007: the CSP blocked the print iframe and, separately,
@@ -119,6 +168,7 @@ try {
   });
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(1600);
+  await dismissFirstRun(page);
 
   // ---- Purchase bill: suggestions ---------------------------------------
   await page.getByText('Purchases', { exact: false }).first().click();
@@ -219,6 +269,28 @@ try {
     return pane.scrollWidth <= pane.clientWidth + 1;
   });
   check('Fit actually fits the preview', fits);
+
+  // #58 item 2: the action toolbar must stay reachable from the bottom of a
+  // long invoice. Reported as "you have to scroll all page" to reach the
+  // preview toggle — but Save, Print and E-Way Bill were equally stranded.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await sleep(700);
+  const toolbar = await page.evaluate(() => {
+    const tb = document.querySelector('.generator-toolbar');
+    if (!tb) return null;
+    const r = tb.getBoundingClientRect();
+    const previewBtn = [...tb.querySelectorAll('button')].find((b) => /Preview/i.test(b.innerText));
+    return {
+      onScreen: r.top >= -2 && r.top < window.innerHeight,
+      hasPreviewButton: !!previewBtn,
+    };
+  });
+  check('#58 the action toolbar stays on screen when scrolled to the bottom',
+    !!toolbar?.onScreen);
+  check('#58 the preview toggle lives in that toolbar',
+    !!toolbar?.hasPreviewButton);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(400);
 
   // ERR-004/007 again, end to end: a real PDF must download, and its size
   // is a proxy for whether the stylesheet made it into the render.
@@ -336,6 +408,7 @@ try {
   await seedOverdue(1);
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(4500);
+  await dismissFirstRun(page);
   const withAlert = await badgeCount();
   check('#53 an overdue invoice raises a notification', withAlert > 0, `badge=${withAlert}`);
 
@@ -350,13 +423,134 @@ try {
   await seedOverdue(2);
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(4500);
+  await dismissFirstRun(page);
   const returned = await badgeCount();
   check('#53 a NEW overdue invoice re-alerts after being marked read',
     returned > 0, `badge=${returned}`);
 
+  // #55: two businesses must not share one set of books — and, far more
+  // importantly, nothing may DISAPPEAR. Older invoices carry no business id,
+  // so a naive filter would hide a user's entire history. They are matched by
+  // the seller GSTIN stored on every invoice, and anything unattributable is
+  // always shown.
+  // Give the active business a known GSTIN for the duration. Depending on
+  // whatever GSTIN happens to be configured makes this test meaningless on a
+  // fresh install, where the profile has none at all — with nothing to
+  // compare, every invoice matches and both assertions pass vacuously.
+  // The original profile is restored below.
+  const originalProfile = await page.evaluate(async () => (await (await fetch('/api/profile')).json()));
+  const TEST_GSTIN = '03AAAAA1111A1Z1';
+  await page.evaluate(async ({ prof, gstin }) => {
+    await fetch('/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...prof, gstin, businessName: prof?.businessName || 'Active Co' }),
+    });
+  }, { prof: originalProfile, gstin: TEST_GSTIN });
+  const activeProfile = { gstin: TEST_GSTIN };
+  await page.evaluate(async (gstin) => {
+    const post = (b) => fetch('/api/bills', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+    });
+    // Belongs to the active business.
+    await post({ id: 'smoketest-mine', invoiceNumber: 'SMOKE-MINE/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 1000, payments: [], items: [], invoiceDate: new Date().toISOString().slice(0,10),
+      data: { profile: { gstin, businessName: 'Active Co' }, details: {}, totals: { total: 1000 } } });
+    // Belongs to a DIFFERENT business.
+    await post({ id: 'smoketest-other', invoiceNumber: 'SMOKE-OTHER/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 2000, payments: [], items: [], invoiceDate: new Date().toISOString().slice(0,10),
+      data: { profile: { gstin: '29ZZZZZ9999Z9Z9', businessName: 'Other Co' }, details: {}, totals: { total: 2000 } } });
+    // Legacy: no seller recorded at all.
+    // Dated in the current FY so the dashboard's year filter cannot be what
+    // hides it — this test is about company scoping, nothing else.
+    const today = new Date().toISOString().slice(0, 10);
+    await post({ id: 'smoketest-legacy', invoiceNumber: 'SMOKE-LEGACY/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 3000, payments: [], items: [], invoiceDate: today,
+      data: { details: { invoiceNumber: 'SMOKE-LEGACY/1' }, totals: { total: 3000 } } });
+  }, activeProfile?.gstin || '');
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(3000);
+  await dismissFirstRun(page);
+  // Go to the Dashboard explicitly. The app restores the last view from
+  // sessionStorage, which by now is Settings — and a "not visible" assertion
+  // passes trivially when NOTHING is on screen. Assert against the invoice
+  // list itself, not the whole page.
+  await page.getByText('Dashboard', { exact: false }).first().click();
+  await sleep(2500);
+  const visible = await page.evaluate(() => {
+    const table = document.querySelector('table');
+    return table ? table.innerText : document.body.innerText;
+  });
+  // Guard the guard: if our own invoice is not listed, the check below proves
+  // nothing about scoping.
+  check('#55 the active business invoice IS listed (sanity)',
+    visible.includes('SMOKE-MINE/1'));
+
+  check('#55 an invoice from the other business is hidden',
+    !visible.includes('SMOKE-OTHER/1'));
+  check('#55 a legacy invoice with no business recorded is still shown',
+    visible.includes('SMOKE-LEGACY/1'));
+
+  // #58 item 1: switching business must refresh the dashboard on the spot.
+  // It used to read the business once on mount, so a switch left the previous
+  // company's invoices on screen until a manual reload.
+  const OTHER_GSTIN = '29BBBBB2222B2Z2';
+  await page.evaluate(async ({ a, b }) => {
+    const post = (u, body) => fetch(u, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    await post('/api/profiles', { id: 'smoketest-pa', businessName: 'Smoke Alpha', gstin: a });
+    await post('/api/profiles', { id: 'smoketest-pb', businessName: 'Smoke Beta', gstin: b });
+    await post('/api/bills', {
+      id: 'smoketest-beta-bill', invoiceNumber: 'SMOKE-BETA/1', clientName: 'Smoke Test Client',
+      status: 'unpaid', totalAmount: 4000, invoiceDate: new Date().toISOString().slice(0, 10),
+      payments: [], items: [],
+      data: { profile: { gstin: b, businessName: 'Smoke Beta' }, details: {}, totals: { total: 4000 } },
+    });
+    await post('/api/profile', { businessName: 'Smoke Alpha', gstin: a });
+  }, { a: TEST_GSTIN, b: OTHER_GSTIN });
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(3000);
+  await dismissFirstRun(page);
+  await page.getByText('Dashboard', { exact: false }).first().click();
+  await sleep(2000);
+  const tableText = () => page.evaluate(() => {
+    const t = document.querySelector('table');
+    return t ? t.innerText : '';
+  });
+  check('#58 before switching, only the active business is listed',
+    (await tableText()).includes('SMOKE-MINE/1') && !(await tableText()).includes('SMOKE-BETA/1'));
+
+  // Switch business from the header, WITHOUT reloading the page.
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Smoke Alpha/.test(x.innerText));
+    if (b) b.click();
+  });
+  await sleep(800);
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Smoke Beta/.test(x.innerText));
+    if (b) b.click();
+  });
+  await sleep(2500);
+  const afterSwitch = await tableText();
+  check('#58 the dashboard re-filters on a company switch, with no reload',
+    afterSwitch.includes('SMOKE-BETA/1') && !afterSwitch.includes('SMOKE-MINE/1'));
+
+  // Put the real business details back.
+  await page.evaluate(async (prof) => {
+    await fetch('/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prof),
+    });
+  }, originalProfile);
+
   await cleanup(page);
 } catch (err) {
-  check('suite ran to completion', false, err.message.split('\n')[0]);
+  // Report enough to act on. A bare "Timeout 30000ms exceeded" says nothing
+  // about WHICH element was being waited for, turning a two-minute fix into
+  // a guessing game.
+  const detail = err.message.split('\n').filter((l) => l.trim()).slice(0, 4).join(' | ');
+  check('suite ran to completion', false, detail);
   try { await cleanup(page); } catch { /* ignore */ }
 } finally {
   await browser.close();

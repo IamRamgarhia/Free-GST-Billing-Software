@@ -130,6 +130,24 @@ for (const f of includeAtSystem) {
   const src = join(REPO_ROOT, f);
   if (existsSync(src)) copyFileSync(src, join(SYSTEM, f));
 }
+
+// v1.10.63 — reported (#54, @ANIM35H): the shipped server could not start.
+//
+//   Error [ERR_MODULE_NOT_FOUND]: Cannot find module '_system/src/utils.js'
+//     imported from '_system/server.js'
+//
+// server.js has imported `./src/utils.js` for computeInvoiceTotals since
+// v1.10.31. The ZIP-slimming commit then dropped `src/` to halve the
+// download, without noticing the SERVER had grown a runtime dependency on
+// one file inside it. Every release since shipped a server that exits
+// before binding, which the launcher reported only as "Server did not
+// respond in 15s" — no mention of the real cause.
+//
+// src/utils.js is standalone (it imports nothing), so shipping that single
+// file is the whole fix. The rest of src/ stays out.
+mkdirSync(join(SYSTEM, 'src'), { recursive: true });
+copyFileSync(join(REPO_ROOT, 'src', 'utils.js'), join(SYSTEM, 'src', 'utils.js'));
+
 copyDirRecursive(join(REPO_ROOT, 'dist'), join(SYSTEM, 'dist'));
 // Only ship the scripts that postinstall / release-time need — not the
 // dev-only helpers (tax-test, discount-modes-test, generate-icons,
@@ -143,6 +161,50 @@ for (const s of runtimeScripts) {
 
 // --- Create empty data folder so first-run doesn't need to mkdir ---
 mkdirSync(join(SYSTEM, 'data'), { recursive: true });
+
+// v1.10.63 (#54) — Refuse to ship a server that cannot start.
+//
+// The bug above was not that someone wrote bad code; it was that NOTHING
+// checked the packaged output. The dev tree always has src/, so every test
+// passed while the artefact users downloaded was dead on arrival for
+// fifteen releases.
+//
+// This walks every relative import reachable from server.js INSIDE the
+// staging folder and fails the build if any file is missing. It is a
+// static check, so it needs no node_modules and no running server — bare
+// specifiers like 'express' are resolved by npm at install time and are
+// deliberately not our concern here.
+function assertServerImportsResolve() {
+  const missing = [];
+  const seen = new Set();
+  const visit = (fileAbs, fromLabel) => {
+    if (seen.has(fileAbs)) return;
+    seen.add(fileAbs);
+    if (!existsSync(fileAbs)) {
+      missing.push(`    ${fileAbs.replace(SYSTEM, '_system')}  (imported from ${fromLabel})`);
+      return;
+    }
+    const text = readFileSync(fileAbs, 'utf8');
+    // Relative import/export specifiers only.
+    const specs = [...text.matchAll(/(?:^|\s)(?:import|export)[^'"]*?from\s*['"](\.[^'"]+)['"]/g)]
+      .map((m) => m[1]);
+    for (const spec of specs) {
+      const target = resolve(fileAbs, '..', spec);
+      visit(target, fileAbs.replace(SYSTEM, '_system'));
+    }
+  };
+  visit(join(SYSTEM, 'server.js'), '(entry point)');
+
+  if (missing.length) {
+    console.error('\n  x The packaged server has imports that do not exist in the ZIP:');
+    console.error(missing.join('\n'));
+    console.error('\n    Users would see only "Server did not respond in 15s".');
+    console.error('    Add the missing file(s) to the copy step above.\n');
+    process.exit(1);
+  }
+  console.log(`  → Verified ${seen.size} server file(s) resolve inside _system/`);
+}
+assertServerImportsResolve();
 
 // --- ZIP it up ---
 const zipName = `Free-GST-Billing-v${version}.zip`;

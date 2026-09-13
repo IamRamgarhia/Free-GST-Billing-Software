@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Wallet, Plus, Edit3, Trash2, Search, X, Save, Download, Calendar } from 'lucide-react';
-import { getAllExpenses, saveExpense, deleteExpense } from '../store';
-import { formatCurrency, getFYOptions } from '../utils';
+import { getAllExpenses, saveExpense, deleteExpense, getProfile } from '../store';
+import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness } from '../utils';
+import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 
@@ -63,6 +64,8 @@ const emptyForm = {
 
 export default function ExpenseTracker() {
   const [expenses, setExpenses] = useState([]);
+  // v1.10.65 (#58 item 3) — the business these records belong to.
+  const [ownerProfile, setOwnerProfile] = useState(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [fyFilter, setFyFilter] = useState('');
@@ -72,9 +75,28 @@ export default function ExpenseTracker() {
 
   const fyOptions = getFYOptions();
 
+
+  // v1.10.65 (#58 item 3) — assign records saved before businesses were kept
+  // separate. Never automatic: only the user knows which business an old
+  // record belonged to, so guessing would file it into the wrong books.
+  const unassignedExpenses = expenses.filter(isUnassignedToBusiness);
+  const assignUnassignedExpenses = async () => {
+    await Promise.all(unassignedExpenses.map(r => saveExpense({
+      ...r,
+      ownerGstin: ownerProfile?.gstin || '',
+      ownerName: ownerProfile?.businessName || '',
+    })));
+    loadExpenses();
+  };
+
   const loadExpenses = async () => {
     try {
-      setExpenses(await getAllExpenses());
+      const [rows, prof] = await Promise.all([getAllExpenses(), getProfile().catch(() => null)]);
+      setOwnerProfile(prof);
+      // v1.10.65 (#58 item 3) — show only this business's records. Anything
+      // saved before businesses were separated has no owner recorded and is
+      // always shown, so nothing disappears from an existing ledger.
+      setExpenses((rows || []).filter(r => belongsToProfile(r, prof)));
     } catch {
       toast('Failed to load expenses', 'error');
     }
@@ -154,6 +176,11 @@ export default function ExpenseTracker() {
         paymentMode: form.paymentMode,
         interstate: !!form.interstate,
         note: form.note.trim(),
+        // Stamp the business this expense belongs to. `vendorGstin` above is
+        // the SUPPLIER — filing an expense under your own supplier would be
+        // exactly backwards, so the owner is kept in its own field.
+        ownerGstin: ownerProfile?.gstin || '',
+        ownerName: ownerProfile?.businessName || '',
       };
       await saveExpense(expense);
       toast(editingId ? 'Expense updated' : 'Expense added', 'success');
@@ -220,6 +247,13 @@ export default function ExpenseTracker() {
           <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Expense</button>
         </div>
       </div>
+
+      <UnassignedBanner
+        count={unassignedExpenses.length}
+        businessName={ownerProfile?.businessName}
+        noun="expense"
+        onAssign={assignUnassignedExpenses}
+      />
 
       {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>

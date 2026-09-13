@@ -325,11 +325,11 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 | **Payment Receipts & Vouchers** | Generate payment receipts linked to invoices with amount in words |
 | 🆕 **Auto-Print Payment Receipt** | Recording a payment auto-opens a printable receipt (business header, receipt number, invoice number, mode, amount in Indian words, running balance). Print via browser Print → Save as PDF |
 | 🆕 **Payment History CRUD** | Every payment has a stable id + Receipt (reprint) / Edit note / Delete actions. Deleting a payment recomputes totals + status automatically |
-| 🆕 **Notification Bell** | Overdue invoices, low stock, upcoming GST filings, and update banners all surface in a single click-out popover with badge count |
+| 🆕 **Notification Bell** | Overdue invoices, low stock, upcoming GST filings, and update banners all surface in a single click-out popover with badge count. **Mark all as read** clears it — and each section remembers exactly what was cleared, so a genuinely new overdue invoice brings the alert back on its own |
 | 🆕 **Ctrl+K Command Palette** | Spotlight-style search across invoices, clients, products, and every settings section. Select an invoice → opens for edit in one keystroke |
 | 🆕 **Setup Wizard** | 3-step first-run wizard with 6 business-type presets (Retail / Freelancer / Restaurant / Wholesale / Manufacturing / Service). Configures paper size, language, and defaults in 90 seconds |
 | **Purchase Bills** | Record purchase invoices for ITC tracking and expense management |
-| **Multi-Business Profiles** | Switch between multiple businesses with separate GSTIN, bank details, logo, signature |
+| **Multi-Business Profiles** | Run several businesses side by side, each with its own GSTIN, bank details, logo and signature — **and its own separate books**. Invoices, expenses, purchases, recurring templates, reports, GST returns and Income Tax all follow whichever business is selected, so one company's invoices never appear under another |
 
 ### :bar_chart: Reports & Analytics
 
@@ -370,7 +370,7 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 | **Modules Page** | Turn off entire feature groups you don't need (recurring invoices, expenses, purchases, GST returns, integrations) — sidebar shrinks to match |
 | **Custom Invoice Numbering** | Branded prefix, separator (/ - #), financial year toggle, starting number, digit padding |
 | **Terms & Conditions** | Rich-text editor (B/I/U, lists, headings, links) + 13 India business-type starter templates + reusable saved-template library |
-| **Multi-Business Profiles** | Separate profiles with different GSTIN, bank details, logo, signature, country, currency. Switcher in the header for one-click context change |
+| **Multi-Business Profiles** | Separate profiles with different GSTIN, bank details, logo, signature, country, currency. Switcher in the header for one-click context change — the dashboard and every report re-filter immediately, with no reload. Records saved before you began separating businesses stay visible under all of them and are never hidden; a one-click **Assign to ‹business›** prompt lets you attach them when you are ready |
 | **Dark Mode** | Full dark theme with automatic persistence and theme-aware utility classes everywhere |
 | **PWA Installable** | Install as a standalone desktop app via Chrome or Edge — opens instantly, no browser needed |
 | **In-App Searchable User Guide** | 17 sections, live search with highlighted matches, downloadable as a fully searchable text PDF |

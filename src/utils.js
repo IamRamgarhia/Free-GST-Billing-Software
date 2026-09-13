@@ -1025,6 +1025,80 @@ export const splitNumberedTerms = (html) => {
   });
 };
 
+// v1.10.64 — requested (#55, @sangwanmail-eng): "keep both companies' data
+// stored and displayed separately based on their respective GST numbers. An
+// invoice belonging to one company should not appear under the other."
+//
+// Multi-business profiles already switch the letterhead, but every list —
+// dashboard, GST returns, reports — showed ALL invoices regardless of which
+// business was active. Two businesses meant one mixed set of books.
+//
+// Scoping by GSTIN rather than by a profile id is deliberate, and it is what
+// makes this safe to ship:
+//
+//   * Older invoices carry NO profile id — the field was added later. Had we
+//     filtered on it, every historical invoice would have vanished from the
+//     user's books the moment they updated. In accounting software that is
+//     the worst failure available.
+//   * Every invoice, however old, stores the seller's details at save time
+//     under `data.profile`, so the GSTIN is always there to match on.
+//   * It survives a rename. This user has invoices reading "Dice Codes" and
+//     "Anahat Exclusive" under one GSTIN — the same business, renamed. GSTIN
+//     keeps them together; matching on name would have split them in two.
+//
+// A business with no GSTIN yet (not registered, or mid-setup) falls back to
+// its name. And anything we cannot attribute at all is SHOWN, never hidden —
+// if in doubt the user sees their invoice.
+const normaliseGstin = (v) => String(v || '').trim().toUpperCase();
+const normaliseName = (v) => String(v || '').trim().toLowerCase();
+
+// v1.10.65 (#58 item 3) — expenses, purchase bills and recurring templates
+// have no `data.profile` block: invoices snapshot the seller onto themselves,
+// those records never did. So they also carry a plain `ownerGstin` /
+// `ownerName`, stamped when they are saved.
+//
+// Note the field names. A purchase bill already has `supplierGstin` and an
+// expense has `vendorGstin` — those are the OTHER party. Confusing the two
+// would file your own purchases under your supplier's business, so the
+// owning business is named `owner*` and never read from those fields.
+export const getRecordSeller = (record) => ({
+  gstin: normaliseGstin(record?.data?.profile?.gstin ?? record?.ownerGstin),
+  name: normaliseName(record?.data?.profile?.businessName ?? record?.ownerName),
+});
+
+/**
+ * Has this record never been attributed to any business?
+ *
+ * These are records saved before businesses were kept separate. They show
+ * under every business, because hiding them would be worse than showing them
+ * twice — which is also why the user is offered the chance to assign them
+ * rather than having it done silently on their behalf.
+ */
+export const isUnassignedToBusiness = (record) => {
+  const seller = getRecordSeller(record);
+  return !seller.gstin && !seller.name;
+};
+
+/**
+ * Does this saved record belong to the business currently selected?
+ *
+ * Returns TRUE when it cannot be determined, so an un-attributable record is
+ * always visible rather than silently lost.
+ */
+export const belongsToProfile = (record, profile) => {
+  if (!profile) return true;                     // no active business — show everything
+  const seller = getRecordSeller(record);
+  const activeGstin = normaliseGstin(profile.gstin);
+  const activeName = normaliseName(profile.businessName);
+
+  // Prefer GSTIN: unique per taxpayer, and unaffected by renames.
+  if (seller.gstin && activeGstin) return seller.gstin === activeGstin;
+  // Fall back to the business name when either side has no GSTIN.
+  if (seller.name && activeName) return seller.name === activeName;
+  // Not attributable — show it.
+  return true;
+};
+
 export const getFinancialYearStart = (date = new Date()) => (
   date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1
 );

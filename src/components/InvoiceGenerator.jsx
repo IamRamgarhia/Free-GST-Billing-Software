@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
@@ -2936,23 +2936,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <Truck size={18} /> E-Way Bill
             </button>
           )}
+          {/* v1.10.65 — requested (#58 item 2, @sangwanmail-eng): "to access
+              show preview and hide preview button once you are at the bottom
+              of the page, you have to scroll all page."
+              Moved here beside E-Way Bill, and this whole toolbar is now
+              sticky (see .generator-toolbar), so it — and Save, Print and the
+              rest — stay reachable from anywhere on a long invoice. */}
+          <button className="btn btn-secondary" type="button"
+            onClick={() => setPreviewCollapsed(v => !v)}
+            title={previewCollapsed ? 'Show the live preview' : 'Hide the preview and use the full width for entry'}>
+            {previewCollapsed ? <><Eye size={18} /> Show Preview</> : <><EyeOff size={18} /> Hide Preview</>}
+          </button>
         </div>
       </div>
 
       <div className={`split-view ${previewCollapsed ? 'split-view-focus' : ''}`}>
         <div className="editor-pane">
-          {/* v1.10.22 — focus mode toggle. When ON, preview is hidden and
-              the editor takes the full width so line-item entry has room
-              to breathe. Persists across page loads. */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-            <button type="button" className="btn btn-secondary"
-              onClick={() => setPreviewCollapsed(v => !v)}
-              style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-              title={previewCollapsed ? 'Show live preview' : 'Hide preview to focus on entries'}>
-              {previewCollapsed ? '◀ Show preview' : '▶ Focus mode (hide preview)'}
-            </button>
-          </div>
-
           {/* Business Profile Selector — shown only if multiple profiles saved */}
           {allProfiles.length > 1 && (
             <div className="glass-panel p-6 mb-6">

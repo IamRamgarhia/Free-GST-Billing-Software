@@ -237,8 +237,29 @@ A: Yes. Pick *Bill of Supply* as the invoice type — no GST is charged. Or set
 the GST rate to 0%. Or set Region Preference to *International*.
 
 **Q: I run multiple businesses. Can I bill from different ones?**
-A: Yes. Add each business in *Settings → Business Profiles*. A profile picker
-appears at the top of every new invoice.
+A: Yes. Add each business in *Settings → Business Profiles*, then switch
+between them from the picker at the top of the window.
+
+Each business keeps its **own books**. The dashboard, reports, GST returns,
+Income Tax, expenses, purchases and recurring invoices all show only the
+business you have selected, so one company's invoices never turn up under
+another. Switching updates the screen straight away — no need to reload.
+
+Businesses are matched on their **GST number**, so renaming a business does
+not split its history in two.
+
+**Q: I used the app before separating my businesses. Where did those records go?**
+A: Nowhere — they are all still there. Anything saved before you began keeping
+businesses apart has no business recorded against it, so it stays visible under
+*every* business rather than being hidden from you.
+
+When you open Expenses, Purchases or Recurring, you will see a line such as
+*"3 expenses are not assigned to a business"* with an **Assign to ‹business›**
+button. Pressing it attaches those records to the business you currently have
+selected, and they stop appearing under the others.
+
+It is never done automatically, because only you know which business an old
+record belonged to. Check the correct business is selected before assigning.
 
 **Q: Can I use my own units (e.g. *Carat* for jewellery)?**
 A: Yes. On any line item, click the Unit dropdown → *＋ Add custom…* and type

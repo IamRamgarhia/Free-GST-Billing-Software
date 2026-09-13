@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords } from '../utils';
+import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
 import PageHeader from './PageHeader';
 import { toast } from './Toast';
@@ -143,8 +143,38 @@ function ReceiptModal({ target, onClose }) {
   );
 }
 
-export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts }) {
-  const [bills, setBills] = useState([]);
+export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts, activeProfile }) {
+  // v1.10.64 — requested (#55, @sangwanmail-eng): "An invoice belonging to one
+  // company should not appear under the other."
+  //
+  // Bills and the active business load independently, so filtering at load
+  // time would race — whichever arrived second would be ignored. Instead the
+  // raw list is held and the visible list derived, which stays correct when
+  // either changes, including when the user switches business from the
+  // header without a reload.
+  //
+  // Anything that cannot be attributed to a business is SHOWN, never hidden.
+  // See belongsToProfile() in utils.js for why that matters here.
+  const [allBills, setBills] = useState([]);
+  const [profileState, setProfileState] = useState(null);
+
+  // v1.10.65 — requested (#58 item 1, @sangwanmail-eng): "Dashboard should
+  // refresh automatically after company switch."
+  //
+  // It did not, because the dashboard fetched the business ONCE when it
+  // mounted. Switching business from the header updated the app, but this
+  // screen never heard about it and kept showing the previous company's
+  // invoices until a manual reload.
+  //
+  // The live value is now passed in as a prop, so a switch re-filters
+  // immediately. The locally fetched copy stays as a fallback for the first
+  // paint, before the prop has arrived.
+  const profile = activeProfile ?? profileState;
+
+  const bills = useMemo(
+    () => allBills.filter(b => belongsToProfile(b, profile)),
+    [allBills, profile],
+  );
   const [filtered, setFiltered] = useState([]);
   const [stats, setStats] = useState({ byCurrency: {}, count: 0 });
   const [search, setSearch] = useState('');
@@ -185,7 +215,6 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   const [editPaymentModal, setEditPaymentModal] = useState(null);
   const [paymentInput, setPaymentInput] = useState({ amount: '', date: '', mode: 'bank-transfer', note: '' });
   const [showRemindAll, setShowRemindAll] = useState(false);
-  const [profile, setProfileState] = useState(null);
   const [clients, setClients] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
 

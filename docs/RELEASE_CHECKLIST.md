@@ -114,7 +114,11 @@ the wrong version number.
 - [ ] Affected buttons/screens named in plain language
 - [ ] If the updater itself was broken — the ⚠️ manual-download warning is
       at the top
-- [ ] `npm run release:zip` succeeded (this also runs the ASCII guard from
-      ERR-001)
+- [ ] `npm run release:zip` succeeded. It now refuses to hand you a ZIP
+      unless that ZIP **extracts, installs, boots and passes the full smoke
+      suite** (see `scripts/verify-release.mjs`). A failing build deletes
+      the ZIP rather than leaving something shippable lying about.
+      It also runs the ASCII guard (ERR-001) and the server import-graph
+      check (ERR-009).
 - [ ] `releases/latest` verified to return the new tag **and** new asset
 - [ ] Reply posted to whoever reported it
