@@ -240,12 +240,17 @@ export function computeInvoiceTotals(opts) {
   const cessTotal = r2(sum(lines.map(l => l.cess)));
 
   // Place of supply / interstate detection.
+  const businessCountry = (profile.country || 'India').trim();
+  const clientCountry = (client.country || businessCountry).trim();
+  const isClientForeign = clientCountry !== 'India';
   const businessState = (profile.state || '').trim();
   const clientState = (client.state || '').trim();
   const placeOfSupplyRaw = (details.placeOfSupply || clientState || '').trim();
   const businessCode = getStateCode(businessState || profile.gstin);
   const posCode = getStateCode(placeOfSupplyRaw || client.gstin);
   const isSEZ = !!client.isSEZ;
+  const currency = invoiceOptions.currency || rawOpts.currency || 'INR';
+  const isForeignCurrency = currency !== 'INR';
 
   // v1.10.1 — Explicit blank-business-state guard. Prior code let this
   // silently fall through to intra-state (undefined !== 'X' is true but
@@ -257,13 +262,23 @@ export function computeInvoiceTotals(opts) {
     warnings.push('Your business state is not set. Interstate/intra-state detection cannot be trusted. Set it in Settings → Company Details before issuing GST invoices.');
     needsProfileFix = true;
   }
-  if (isIndia && showGST && !placeOfSupplyRaw) {
+  if (isIndia && showGST && !placeOfSupplyRaw && !isClientForeign) {
     warnings.push('Place of supply is not set. Falling back to client state.');
   }
 
-  const isInterstate = isIndia && (isSEZ || (
-    !!businessCode && !!posCode && businessCode !== posCode
-  ));
+  const isForeignSupply = isClientForeign || isForeignCurrency;
+  const hasDistinctPos = !!placeOfSupplyRaw && !!businessState &&
+    (businessCode && posCode ? businessCode !== posCode : businessState.toLowerCase() !== placeOfSupplyRaw.toLowerCase());
+  const hasDistinctState = !!clientState && !!businessState &&
+    (businessCode && posCode ? businessCode !== posCode : businessState.toLowerCase() !== clientState.toLowerCase());
+
+  const isInterstate = isIndia && (
+    isSEZ ||
+    isForeignSupply ||
+    hasDistinctPos ||
+    hasDistinctState ||
+    (!!businessCode && !!posCode && businessCode !== posCode)
+  );
 
   // UTGST for intra-UT supplies. When supplier & recipient are BOTH in
   // one of the 5 UTs without legislature, and it's intra-state (same
@@ -562,6 +577,7 @@ const GST_STATE_CODES = {
   'lakshadweep': '31', 'kerala': '32', 'tamil nadu': '33',
   'puducherry': '34', 'andaman and nicobar islands': '35',
   'telangana': '36', 'ladakh': '38',
+  'other territory': '97', 'outside india': '96', 'other country': '96', 'foreign country': '96',
 };
 
 // v1.10.31 — GST-H1: legacy codes normalized.
@@ -579,6 +595,12 @@ export const getStateCode = (stateOrGstin) => {
   // If it looks like a GSTIN (15 chars), extract first 2 digits
   if (/^\d{2}[A-Z0-9]{13}$/i.test(s)) {
     const prefix = s.substring(0, 2);
+    return LEGACY_STATE_CODE_MAP[prefix] || prefix;
+  }
+  // If string starts with a 2-digit code e.g. "96 - Foreign Country" or "24 - Gujarat"
+  const m = s.match(/^(\d{2})\b/);
+  if (m) {
+    const prefix = m[1];
     return LEGACY_STATE_CODE_MAP[prefix] || prefix;
   }
   const code = GST_STATE_CODES[s.toLowerCase()] || '';

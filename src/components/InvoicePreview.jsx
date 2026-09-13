@@ -24,10 +24,16 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // igst field).
   const businessState = profile?.state?.trim().toLowerCase();
   const clientState = client?.state?.trim().toLowerCase();
-  const isInterstate = (typeof totals?.igst === 'number' && totals.igst > 0)
-    || !!client?.isSEZ
-    || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
-    || (businessState && clientState && businessState !== clientState);
+  const isInterstate = totals?.isInterstate != null
+    ? Boolean(totals.isInterstate)
+    : (
+        (typeof totals?.igst === 'number' && totals.igst > 0)
+        || !!client?.isSEZ
+        || (client?.country && client.country !== 'India')
+        || (options?.currency && options.currency !== 'INR')
+        || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
+        || (businessState && clientState && businessState !== clientState)
+      );
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
   // Seller's country drives tax label (GST / VAT / SST / MwSt etc.) and bank label.
   const sellerCC = getCountryConfig(profile?.country);
@@ -1040,7 +1046,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             isIndia && isInterstate ? (
               <div className="inv-total-row">
                 <span>IGST</span>
-                <span>{fmt(totals.igst)}</span>
+                <span>{fmt(totals.igst > 0 ? totals.igst : ((totals.cgst || 0) + (totals.sgst || 0) + (totals.igst || 0)))}</span>
               </div>
             ) : isIndia ? (
               <>
