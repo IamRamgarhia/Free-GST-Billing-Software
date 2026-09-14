@@ -31,7 +31,7 @@
 
 import { readdirSync, statSync, existsSync, mkdirSync, rmSync, copyFileSync, readFileSync } from 'fs';
 import { join, resolve, basename } from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -210,17 +210,92 @@ assertServerImportsResolve();
 const zipName = `Free-GST-Billing-v${version}.zip`;
 const zipPath = join(OUT_DIR, zipName);
 console.log(`  → Creating ${zipName}…`);
+assertUnixLineEndings([STAGING, SYSTEM]);
 try {
   if (process.platform === 'win32') {
-    // Use PowerShell's Compress-Archive; it ships with every Windows install.
-    execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${STAGING}' -DestinationPath '${zipPath}' -Force"`, { stdio: 'inherit' });
+    // v1.10.66 — Windows' built-in tar.exe (bsdtar, present since Windows 10
+    // 1803) instead of Compress-Archive. Windows PowerShell 5.1's
+    // Compress-Archive stores entry names with BACKSLASHES, which the ZIP
+    // specification forbids. Windows tolerates that; unzip on Linux and macOS
+    // warns, and BusyBox or Archive Utility create single files literally
+    // named "Free-GST-Billing\_system\server.js". Every Linux / NAS install,
+    // and the new update-unix.sh, had to fight the package itself (#59).
+    const tarExe = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+    if (!existsSync(tarExe)) {
+      console.error(`  x ${tarExe} was not found. It ships with Windows 10 (1803) and later.`);
+      process.exit(1);
+    }
+    // Argument arrays, no shell: nothing in a path is ever interpreted.
+    execFileSync(tarExe, ['-a', '-c', '-f', zipPath, '-C', OUT_DIR, 'Free-GST-Billing'], { stdio: 'inherit' });
   } else {
     // Use system zip if available (macOS + most Linux).
-    execSync(`cd "${OUT_DIR}" && zip -qr "${zipName}" "Free-GST-Billing"`, { stdio: 'inherit' });
+    execFileSync('zip', ['-qr', zipName, 'Free-GST-Billing'], { cwd: OUT_DIR, stdio: 'inherit' });
   }
 } catch (e) {
   console.error('  ❌ Zip step failed:', e.message);
   process.exit(1);
+}
+assertPortableZip(zipPath);
+
+/**
+ * v1.10.66 — a Unix script with Windows (CRLF) line endings dies in sh on its
+ * first line ("set: illegal option -"). .gitattributes pins *.sh to LF, but
+ * this is checked on the files actually being packaged, not the repo's promise.
+ */
+function assertUnixLineEndings(dirs) {
+  const offenders = [];
+  for (const dir of dirs) {
+    for (const f of readdirSync(dir)) {
+      if (!/\.(sh|command)$/i.test(f)) continue;
+      if (readFileSync(join(dir, f), 'latin1').includes('\r')) offenders.push(`    ${join(dir, f)}`);
+    }
+  }
+  if (offenders.length) {
+    console.error('\n  x Unix scripts with Windows (CRLF) line endings:');
+    console.error(offenders.join('\n'));
+    console.error('\n    sh on Linux and macOS stops at the first line. Convert them to LF.\n');
+    process.exit(1);
+  }
+}
+
+/**
+ * v1.10.66 — read the finished archive back and refuse one that only Windows
+ * opens cleanly: every entry name must use "/" (the ZIP specification's only
+ * separator) and the server must be where the launchers look for it.
+ */
+function assertPortableZip(file) {
+  const buf = readFileSync(file);
+  const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (eocd < 0) {
+    console.error('\n  x The ZIP has no central directory - it is not a valid archive.\n');
+    process.exit(1);
+  }
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const names = [];
+  for (let i = 0; i < count; i += 1) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) {
+      console.error('\n  x The ZIP central directory is corrupt.\n');
+      process.exit(1);
+    }
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    names.push(buf.toString('utf8', p + 46, p + 46 + nameLen));
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  const backslashed = names.filter((n) => n.includes('\\'));
+  if (backslashed.length) {
+    console.error(`\n  x ${backslashed.length} ZIP entries use "\\" as a path separator, e.g.:`);
+    console.error(backslashed.slice(0, 5).map((n) => `    ${n}`).join('\n'));
+    console.error('\n    Linux, macOS and NAS unzip tools cannot unpack that into folders.\n');
+    process.exit(1);
+  }
+  if (!names.includes('Free-GST-Billing/_system/server.js')) {
+    console.error('\n  x Free-GST-Billing/_system/server.js is not in the ZIP - the layout is wrong.\n');
+    process.exit(1);
+  }
+  console.log(`  → Verified ${names.length} ZIP entries use portable "/" paths`);
 }
 
 const sizeMB = (statSync(zipPath).size / 1024 / 1024).toFixed(2);

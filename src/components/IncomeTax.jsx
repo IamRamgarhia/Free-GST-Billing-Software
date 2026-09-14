@@ -125,7 +125,11 @@ export default function IncomeTax() {
       // v1.10.64 (#55) — income tax is filed per business, so only the active
       // business's invoices may contribute to its figures.
       setBills((b || []).filter(bill => belongsToProfile(bill, prof)));
-      setExpenses(e); setPurchases(p); setProfile(prof);
+      // v1.10.66 (#64) — and only its own expenses and purchases. Left
+      // unfiltered, one company's costs reduced another company's income.
+      setExpenses((e || []).filter(r => belongsToProfile(r, prof)));
+      setPurchases((p || []).filter(r => belongsToProfile(r, prof)));
+      setProfile(prof);
     });
   }, []);
 

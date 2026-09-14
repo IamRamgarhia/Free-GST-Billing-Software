@@ -60,6 +60,13 @@ async function cleanup(page) {
       await del('purchases');
       await del('products');
       await del('profiles');
+      await del('expenses');
+      await del('receipts');
+      // The expense added through the form gets a generated id.
+      const expenses = await (await fetch('/api/expenses')).json();
+      await Promise.all((expenses || [])
+        .filter((e) => String(e.description || '').startsWith('SMOKE-EXP-'))
+        .map((e) => fetch(`/api/expenses/${encodeURIComponent(e.id)}`, { method: 'DELETE' })));
       // The PDF step saves a real invoice; remove it by client name so the
       // suite is repeatable and leaves no test data in the user's books.
       const bills = await (await fetch('/api/bills')).json();
@@ -120,6 +127,14 @@ async function dismissFirstRun(page) {
 
 const APP = await startServer();
 console.log(`\nRunning smoke tests against ${APP} (Firefox)\n`);
+
+// The suite changes the ACTIVE business profile several times, and the server
+// replaces that file wholesale on every save. Snapshot it before anything runs
+// and put it back in `finally`, so a step that times out half way can never
+// leave a real profile reduced to a bare "Smoke Alpha".
+const profileAtStart = await fetch(`${APP}/api/profile`)
+  .then((r) => (r.ok ? r.json() : null))
+  .catch(() => null);
 
 const browser = await firefox.launch({ headless: true });
 // 1366x768 is the resolution the preview-clipping bug needed (ERR-005).
@@ -537,6 +552,322 @@ try {
   check('#58 the dashboard re-filters on a company switch, with no reload',
     afterSwitch.includes('SMOKE-BETA/1') && !afterSwitch.includes('SMOKE-MINE/1'));
 
+  // ======================================================================
+  // v1.10.66 — #64 (@sangwanmail-eng), #61, #62, #59
+  // ======================================================================
+  // Every "ignores another company" check below is paired with a sanity check
+  // that the same number DOES move for this company. Without the pair, a card
+  // that never updates at all would pass the first check.
+  const today = new Date().toISOString().slice(0, 10);
+  const THIRD_GSTIN = '27CCCCC3333C3Z3';
+  const api = (url, body) => page.evaluate(async ({ url, body }) => (await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })).ok, { url, body });
+  const openView = async (label) => {
+    await page.evaluate((label) => {
+      const b = [...document.querySelectorAll('.sidebar .nav-btn')].find((x) => x.innerText.trim() === label);
+      if (b) b.click();
+    }, label);
+    await sleep(2000);
+  };
+  // Screens load their data when they mount, so leave and come back.
+  const reopenView = async (label) => { await openView('Clients'); await openView(label); };
+  const money = (text) => Number(String(text).replace(/[^0-9.-]/g, ''));
+  const close = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.01;
+  // textContent, not innerText: .stat-label is uppercased by CSS, and innerText
+  // returns the transformed "TOTAL INVOICED", so an exact match never hits.
+  const cardValues = (label) => page.evaluate((label) => {
+    const l = [...document.querySelectorAll('.stat-label')].find((x) => x.textContent.trim() === label);
+    return l ? [...l.parentElement.querySelectorAll('.stat-value')].map((v) => v.textContent.trim()) : null;
+  }, label);
+  const rupees = (vals) => {
+    if (!vals) return NaN;
+    const inr = vals.find((v) => v.includes('₹'));
+    return inr ? money(inr) : (vals[0] === '—' ? 0 : NaN);
+  };
+  const screenText = () => page.evaluate(() => document.querySelector('.main-content')?.innerText || '');
+  const switchBusiness = async (from, to) => {
+    await page.evaluate((from) => {
+      const b = [...document.querySelectorAll('.profile-switcher-btn')].find((x) => x.innerText.includes(from));
+      if (b) b.click();
+    }, from);
+    await sleep(700);
+    await page.evaluate((to) => {
+      const b = [...document.querySelectorAll('.profile-switcher-item')].find((x) => x.innerText.trim() === to);
+      if (b) b.click();
+    }, to);
+    await sleep(2500);
+  };
+
+  // ---- #64 item 3: dashboard cards counted every company ------------------
+  const dashboard = async () => {
+    await reopenView('Dashboard');
+    return { total: rupees(await cardValues('Total Invoiced')), count: money((await cardValues('Invoices'))?.[0]) };
+  };
+  const dash0 = await dashboard();
+  await api('/api/bills', { id: 'smoketest-third', invoiceNumber: 'SMOKE-THIRD/1', clientName: 'Smoke Test Client',
+    status: 'unpaid', totalAmount: 777777, invoiceDate: today, payments: [], items: [],
+    data: { profile: { gstin: THIRD_GSTIN, businessName: 'Smoke Third' }, details: {}, totals: { total: 777777 } } });
+  const dash1 = await dashboard();
+  await api('/api/bills', { id: 'smoketest-beta-bill2', invoiceNumber: 'SMOKE-BETA/2', clientName: 'Smoke Test Client',
+    status: 'unpaid', totalAmount: 1111, invoiceDate: today, payments: [], items: [],
+    data: { profile: { gstin: OTHER_GSTIN, businessName: 'Smoke Beta' }, details: {}, totals: { total: 1111 } } });
+  const dash2 = await dashboard();
+  check('#64 dashboard totals ignore another company\'s invoice',
+    close(dash1.total, dash0.total) && dash1.count === dash0.count,
+    `total ${dash0.total} -> ${dash1.total}, count ${dash0.count} -> ${dash1.count}`);
+  check('#64 dashboard totals include this company\'s new invoice (sanity)',
+    close(dash2.total, dash0.total + 1111) && dash2.count === dash0.count + 1,
+    `total ${dash0.total} -> ${dash2.total}, count ${dash0.count} -> ${dash2.count}`);
+
+  // ---- #64 item 2: Reports counted every company's expenses ----------------
+  const expenseCard = async () => { await reopenView('Reports'); return rupees(await cardValues('Expenses (ex. GST)')); };
+  const expense = (id, description, amount, gstin, name) => ({ id, date: today, description, category: 'Other',
+    amount, gstAmount: 0, gstPercent: 0, paymentMode: 'Cash', ownerGstin: gstin, ownerName: name });
+  const rep0 = await expenseCard();
+  await api('/api/expenses', expense('smoketest-exp-a', 'SMOKE-EXP-ALPHA', 55555, TEST_GSTIN, 'Smoke Alpha'));
+  const rep1 = await expenseCard();
+  await api('/api/expenses', expense('smoketest-exp-b', 'SMOKE-EXP-BETA', 2222, OTHER_GSTIN, 'Smoke Beta'));
+  const rep2 = await expenseCard();
+  check('#64 reports ignore another company\'s expenses', close(rep1, rep0), `${rep0} -> ${rep1}`);
+  check('#64 reports include this company\'s expenses (sanity)', close(rep2, rep0 + 2222), `${rep0} -> ${rep2}`);
+
+  // ---- #64: GSTR-3B input tax credit counted every company's purchases -----
+  const netItc = async () => {
+    await reopenView('GST Returns');
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'GSTR-3B');
+      if (b) b.click();
+    });
+    await sleep(1200);
+    return page.evaluate(() => {
+      const row = [...document.querySelectorAll('tr')].find((r) => r.innerText.trim().startsWith('Net ITC Available'));
+      return row ? [...row.querySelectorAll('td')].slice(1)
+        .reduce((s, td) => s + (Number(td.innerText.replace(/[^0-9.-]/g, '')) || 0), 0) : NaN;
+    });
+  };
+  const purchase = (id, rate, gstin, name) => ({ id, date: today, supplierName: 'Smoke ITC Supplier',
+    supplierGstin: '07AAAAA0000A1Z1', invoiceNumber: id.toUpperCase(), paymentStatus: 'Unpaid', interstate: false,
+    ownerGstin: gstin, ownerName: name,
+    items: [{ name: 'Smoke ITC item', hsn: '9999', quantity: 1, rate, taxPercent: 18, cessPercent: 0 }] });
+  const itc0 = await netItc();
+  await api('/api/purchases', purchase('smoketest-itc-a', 10000, TEST_GSTIN, 'Smoke Alpha'));
+  const itc1 = await netItc();
+  await api('/api/purchases', purchase('smoketest-itc-b', 1000, OTHER_GSTIN, 'Smoke Beta'));
+  const itc2 = await netItc();
+  check('#64 GSTR-3B ITC ignores another company\'s purchases', close(itc1, itc0), `${itc0} -> ${itc1}`);
+  check('#64 GSTR-3B ITC includes this company\'s purchases (sanity)', close(itc2, itc0 + 180), `${itc0} -> ${itc2}`);
+
+  // ---- #61: an export is zero-rated (3.1(b)), not a home-state B2C sale ----
+  const zeroRated = async () => {
+    await reopenView('GST Returns');
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'GSTR-3B');
+      if (b) b.click();
+    });
+    await sleep(1200);
+    return page.evaluate(() => {
+      const row = [...document.querySelectorAll('tr')].find((r) => r.innerText.trim().startsWith('(b) Zero-rated supplies'));
+      return {
+        cells: row ? [...row.querySelectorAll('td')].slice(1, 3).map((td) => Number(td.innerText.replace(/[^0-9.-]/g, '')) || 0) : null,
+        notice: (document.querySelector('.main-content')?.innerText || '').includes('SMOKE-EXPORT/1'),
+      };
+    });
+  };
+  const zr0 = await zeroRated();
+  await api('/api/bills', { id: 'smoketest-export', invoiceNumber: 'SMOKE-EXPORT/1', invoiceType: 'tax-invoice',
+    clientName: 'Smoke Test Client', status: 'unpaid', totalAmount: 5900, invoiceDate: today, payments: [], items: [],
+    data: { profile: { gstin: OTHER_GSTIN, businessName: 'Smoke Beta', country: 'India', state: 'Karnataka' },
+      client: { name: 'Smoke Test Client', country: 'United States', state: 'California' }, details: {},
+      items: [{ name: 'Export item', hsn: '9983', quantity: 1, rate: 5000, taxPercent: 18 }],
+      totals: { subtotal: 5000, taxableAmount: 5000, igst: 900, cgst: 0, sgst: 0, cess: 0, total: 5900, isInterstate: true } } });
+  const zr1 = await zeroRated();
+  check('#61 an export is reported in GSTR-3B 3.1(b) zero-rated supplies',
+    !!zr0.cells && !!zr1.cells && close(zr1.cells[0], zr0.cells[0] + 5000) && close(zr1.cells[1], zr0.cells[1] + 900),
+    `3.1(b) ${JSON.stringify(zr0.cells)} -> ${JSON.stringify(zr1.cells)}`);
+  check('#61 GST Returns flags the export for GSTR-1 Table 6A', zr1.notice);
+
+  // ---- #64 item 1: an open screen must follow a company switch -------------
+  await reopenView('Expenses');
+  const exp0 = await screenText();
+  check('#64 Expenses shows only the selected company (sanity)',
+    exp0.includes('SMOKE-EXP-BETA') && !exp0.includes('SMOKE-EXP-ALPHA'));
+  const switchStarted = Date.now();
+  await switchBusiness('Smoke Beta', 'Smoke Alpha');
+  // Poll rather than read once after a fixed pause: the release gate runs on a
+  // fresh install where the switch can take longer than on a warm dev tree, and
+  // a single read turned that into a coin toss. The condition is unchanged; the
+  // detail reports how long the screen actually took to follow the switch.
+  let exp1 = await screenText();
+  while (!(exp1.includes('SMOKE-EXP-ALPHA') && !exp1.includes('SMOKE-EXP-BETA')) && Date.now() - switchStarted < 10_000) {
+    await sleep(250);
+    exp1 = await screenText();
+  }
+  check('#64 switching company refreshes an Expenses screen that is already open',
+    exp1.includes('SMOKE-EXP-ALPHA') && !exp1.includes('SMOKE-EXP-BETA'),
+    `screen followed the switch after ${Date.now() - switchStarted} ms`);
+  await page.getByRole('button', { name: /Add Expense/ }).first().click();
+  await sleep(800);
+  await page.locator('input[placeholder="e.g. AWS Hosting - March"]').fill('SMOKE-EXP-UI');
+  await page.locator('input[placeholder="0.00"]').first().fill('10');
+  await page.getByRole('button', { name: /^Save$/ }).first().click();
+  await sleep(1800);
+  const uiOwner = await page.evaluate(async () =>
+    (await (await fetch('/api/expenses')).json()).find((e) => e.description === 'SMOKE-EXP-UI')?.ownerGstin ?? null);
+  check('#64 an expense added right after switching is saved under the new company',
+    uiOwner === TEST_GSTIN, `ownerGstin=${uiOwner}`);
+
+  // ---- #64 item 2: receipts are per company --------------------------------
+  const receipt = (id, receiptNo, owner) => ({ id, receiptNo, date: today, clientName: 'Smoke Test Client',
+    amount: 10, paymentMode: 'Cash', ...owner });
+  await api('/api/receipts', receipt('smoketest-rcp-a', 'SMOKE-RCP-A', { ownerGstin: TEST_GSTIN, ownerName: 'Smoke Alpha' }));
+  await api('/api/receipts', receipt('smoketest-rcp-b', 'SMOKE-RCP-B', { ownerGstin: OTHER_GSTIN, ownerName: 'Smoke Beta' }));
+  await api('/api/receipts', receipt('smoketest-rcp-legacy', 'SMOKE-RCP-LEGACY', {}));
+  await reopenView('Receipts');
+  const rcp = await screenText();
+  check('#64 Receipts lists this company\'s receipts (sanity)', rcp.includes('SMOKE-RCP-A'));
+  check('#64 Receipts hides another company\'s receipts', !rcp.includes('SMOKE-RCP-B'));
+  check('#64 a receipt saved before companies were separated is still listed', rcp.includes('SMOKE-RCP-LEGACY'));
+
+  // ---- #61 / #62 / #64 item 5: what the invoice itself prints --------------
+  await api('/api/profile', { businessName: 'Smoke Alpha', gstin: TEST_GSTIN, state: 'Punjab', country: 'India' });
+  const openDraft = async (draft) => {
+    await page.evaluate((draft) => {
+      sessionStorage.setItem('gst_invoiceDraft', JSON.stringify(draft));
+      sessionStorage.setItem('gst_currentView', 'new');
+    }, draft);
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await dismissFirstRun(page);
+    await page.waitForSelector('#invoice-preview', { timeout: 20000 });
+    await sleep(1500);
+  };
+  const preview = () => page.evaluate(() => {
+    const p = document.querySelector('#invoice-preview');
+    return {
+      rows: [...(p?.querySelectorAll('.inv-total-row') || [])].map((r) => r.innerText.replace(/\s+/g, ' ').trim()),
+      text: (p?.innerText || '').replace(/\s+/g, ' '),
+      pos: p?.querySelector('.inv-party-right .inv-party-name')?.innerText.trim() || '',
+    };
+  });
+  const draftItems = [{ id: 'smk-line-1', name: 'Smoke item', hsn: '9983', quantity: 1, rate: 1000, taxPercent: 18, discount: 0, unit: 'Nos' }];
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/1', invoiceDate: today, placeOfSupply: 'Punjab' },
+    items: draftItems,
+    taxInclusive: false,
+  });
+  const pv = await preview();
+  check('#61 test invoice: Delhi client, place of supply Punjab (sanity)', pv.pos === 'Punjab', `place of supply "${pv.pos}"`);
+  check('#61 the invoice prints the CGST + SGST it charged, not "IGST ₹0.00"',
+    pv.rows.some((r) => r.startsWith('CGST')) && !pv.rows.some((r) => r.startsWith('IGST')), pv.rows.join(' | '));
+  check('#62 a tax invoice states "Reverse Charge: No"', /Reverse Charge:? No\b/i.test(pv.text));
+
+  // The switch lives in the Customize panel.
+  const clickReverseCharge = () => page.evaluate(() => {
+    const label = [...document.querySelectorAll('label.option-toggle')].find((l) => /Reverse Charge applies/.test(l.innerText));
+    const input = label?.querySelector('input');
+    if (input) input.click();
+    return !!input;
+  });
+  if (!(await page.evaluate(() => !!document.querySelector('label.option-toggle')))) {
+    await page.getByRole('button', { name: /Customize/ }).first().click();
+    await sleep(800);
+  }
+  const toggled = await clickReverseCharge();
+  await sleep(1000);
+  check('#62 turning Reverse Charge on prints "Reverse Charge: Yes"',
+    toggled && /Reverse Charge:? Yes\b/i.test((await preview()).text));
+  // Put the option back: it is remembered as a default for future invoices.
+  if (toggled) { await clickReverseCharge(); await sleep(1500); }
+
+  await openDraft({
+    invoiceType: 'proforma',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/2', invoiceDate: today },
+    items: draftItems,
+    taxInclusive: false,
+  });
+  const faint = await page.evaluate(() => {
+    const rgb = (c) => (c.match(/[0-9.]+/g) || []).map(Number);
+    const lum = ([r, g, b]) => {
+      const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const background = (el) => {
+      for (let e = el; e; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        if (cs.backgroundImage !== 'none') return null;   // gradient: cannot judge, skip
+        const c = rgb(cs.backgroundColor);
+        if (c.length === 3 || c[3] > 0.5) return c.slice(0, 3);
+      }
+      return [255, 255, 255];
+    };
+    const root = document.querySelector('#invoice-preview');
+    const offenders = [];
+    for (const el of root ? root.querySelectorAll('*') : []) {
+      const ownText = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+      if (!ownText || el.getBoundingClientRect().width === 0) continue;
+      const bg = background(el);
+      if (!bg) continue;
+      const ratio = contrast(rgb(getComputedStyle(el).color).slice(0, 3), bg);
+      if (ratio < 4.5) offenders.push(`"${ownText.slice(0, 32)}" ${getComputedStyle(el).color} ${ratio.toFixed(2)}:1`);
+    }
+    return { offenders, hasDisclaimer: !!root && /This is not a tax invoice/.test(root.innerText) };
+  });
+  check('#64 proforma disclaimer is on the page (sanity)', faint.hasDisclaimer);
+  check('#64 no invoice text is too faint for black-and-white print (4.5:1)',
+    faint.offenders.length === 0, faint.offenders.slice(0, 3).join(' | '));
+
+  // ---- #59: a hide/show menu on phones, nothing new on desktop -------------
+  const desk = await page.evaluate(() => {
+    const bar = document.querySelector('.mobile-topbar');
+    const side = document.querySelector('.sidebar').getBoundingClientRect();
+    return { bar: bar ? getComputedStyle(bar).display : 'missing', left: Math.round(side.left), width: Math.round(side.width) };
+  });
+  check('#59 desktop keeps the fixed sidebar and shows no phone menu bar',
+    desk.bar === 'none' && desk.left === 0 && desk.width > 200, JSON.stringify(desk));
+
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const mob = await phone.newPage();
+  try {
+    await mob.goto(APP, { waitUntil: 'networkidle' });
+    await sleep(2000);
+    await dismissFirstRun(mob);
+    const menuBox = () => mob.evaluate(() => {
+      const r = document.querySelector('.sidebar').getBoundingClientRect();
+      return { left: Math.round(r.left), right: Math.round(r.right) };
+    });
+    const barShownOnPhone = await mob.evaluate(() => {
+      const bar = document.querySelector('.mobile-topbar');
+      return !!bar && getComputedStyle(bar).display !== 'none';
+    });
+    const startBox = await menuBox();
+    check('#59 on a phone the menu starts hidden behind a menu button',
+      barShownOnPhone && startBox.right <= 1, `bar=${barShownOnPhone} menu=${JSON.stringify(startBox)}`);
+    if (barShownOnPhone) {
+      await mob.getByRole('button', { name: 'Open menu' }).click();
+      await sleep(700);
+      const openBox = await menuBox();
+      check('#59 the menu button slides the menu in', openBox.left >= 0 && openBox.right > 200, JSON.stringify(openBox));
+      await mob.evaluate(() => {
+        const b = [...document.querySelectorAll('.sidebar .nav-btn')].find((x) => x.innerText.trim() === 'Expenses');
+        if (b) b.click();
+      });
+      await sleep(1800);
+      const pickedBox = await menuBox();
+      const title = await mob.evaluate(() => document.querySelector('.page-title')?.innerText || '');
+      check('#59 picking a page opens it and closes the menu',
+        pickedBox.right <= 1 && /Expenses/.test(title), `menu=${JSON.stringify(pickedBox)} page="${title}"`);
+      const width = await mob.evaluate(() => Math.round(document.querySelector('.main-content').getBoundingClientRect().width));
+      check('#59 pages get the full phone width', width >= 380, `${width}px`);
+    }
+  } finally {
+    await phone.close();
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {
@@ -553,6 +884,11 @@ try {
   check('suite ran to completion', false, detail);
   try { await cleanup(page); } catch { /* ignore */ }
 } finally {
+  if (profileAtStart) {
+    await fetch(`${APP}/api/profile`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileAtStart),
+    }).catch(() => {});
+  }
   await browser.close();
   if (serverProc) serverProc.kill();
 }

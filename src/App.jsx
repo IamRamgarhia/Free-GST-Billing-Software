@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients } from './store';
 import { isModuleEnabled, getUpcomingFilings } from './utils';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
@@ -380,6 +380,22 @@ function App() {
     setProfile(loaded);
   };
 
+  // v1.10.66 (#64 item 1) — identifies the active business for the screens
+  // keyed on it below. GSTIN first, the same rule belongsToProfile() uses to
+  // decide which records a business owns; the name covers a business that has
+  // no GSTIN yet.
+  const businessKey = String(profile?.gstin || profile?.businessName || '').trim().toUpperCase();
+
+  // v1.10.66 (#59) — on a phone the sidebar is a slide-in menu. It closes as
+  // soon as something in it is chosen, so picking a page never leaves the menu
+  // covering the page that was just asked for. Opening the business list is
+  // the one exception: that choice is not finished yet.
+  const [navOpen, setNavOpen] = useState(false);
+  const closeNavAfterPick = (e) => {
+    const picked = e.target.closest('button');
+    if (picked && !picked.classList.contains('profile-switcher-btn')) setNavOpen(false);
+  };
+
   const handleNewInvoice = () => {
     sessionStorage.removeItem('gst_invoiceDraft');
     setEditingBill(null);
@@ -691,7 +707,18 @@ function App() {
           ✨ Finish setup
         </button>
       )}
-      <div className="sidebar">
+      {/* v1.10.66 (#59) — phone-only top bar with the menu button. CSS hides it
+          on wider screens, where the sidebar is always shown. */}
+      <div className="mobile-topbar">
+        <button type="button" className="mobile-topbar-btn" onClick={() => setNavOpen(true)}
+          aria-label="Open menu" aria-expanded={navOpen}>
+          <Menu size={22} />
+        </button>
+        <span className="mobile-topbar-title">GST Billing</span>
+        <span className="mobile-topbar-business">{profile?.businessName || ''}</span>
+      </div>
+      {navOpen && <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
+      <div className={`sidebar${navOpen ? ' sidebar-open' : ''}`} onClick={closeNavAfterPick}>
         <div className="sidebar-brand">
           <div className="sidebar-logo">
             <FileText size={22} />
@@ -868,26 +895,31 @@ function App() {
         {currentView === 'inventory' && (
           <InventoryView />
         )}
+        {/* v1.10.66 (#64 item 1) — `key={businessKey}` remounts these screens
+            when the business changes. Each reads the business once when it
+            opens, so a switch left the previous company's records on screen,
+            and a record added straight after switching was saved under the OLD
+            business. Remounting makes every one of them read it again. */}
         {currentView === 'expenses' && (
-          <ExpenseTracker />
+          <ExpenseTracker key={businessKey} />
         )}
         {currentView === 'purchases' && (
-          <PurchaseBills />
+          <PurchaseBills key={businessKey} />
         )}
         {currentView === 'recurring' && (
-          <RecurringInvoices onEdit={handleEditInvoice} />
+          <RecurringInvoices key={businessKey} onEdit={handleEditInvoice} />
         )}
         {currentView === 'receipts' && (
-          <ReceiptVoucher />
+          <ReceiptVoucher key={businessKey} />
         )}
         {currentView === 'reports' && (
-          <ReportsView />
+          <ReportsView key={businessKey} />
         )}
         {currentView === 'filing' && (
-          <GSTReturns />
+          <GSTReturns key={businessKey} />
         )}
         {currentView === 'incometax' && (
-          <IncomeTax />
+          <IncomeTax key={businessKey} />
         )}
         {currentView === 'guide' && (
           <UserGuideView />

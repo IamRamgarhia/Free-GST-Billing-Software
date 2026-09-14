@@ -48,6 +48,22 @@ export const formatCurrency = (amount, currency = 'INR') => {
   }).format(amount || 0);
 };
 
+// v1.10.66 (#63) — CSV cells that start with = + - @ (or a tab / carriage
+// return) are run as FORMULAS by Excel, LibreOffice and Google Sheets. A client
+// or item named `=HYPERLINK("http://evil.example","Invoice")` turned into a
+// live link inside an exported ledger. Such text is prefixed with an
+// apostrophe so the spreadsheet shows it as plain text. Plain numbers —
+// including negatives such as a credit note's -500.00 — are left alone so the
+// amount columns still add up.
+const CSV_FORMULA_START = /^[=+\-@\t\r]/;
+const CSV_PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+export const toCsvCell = (value) => {
+  let s = String(value ?? '');
+  if (s.length > 1 && CSV_FORMULA_START.test(s) && !CSV_PLAIN_NUMBER.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+export const toCsvLine = (cells) => cells.map(toCsvCell).join(',');
+
 // Compute the per-item tax breakdown.
 // `taxInclusive=true` means rate already includes tax (MRP-style) — back-calculate the
 // taxable value. This matches the bill form's "Prices include tax" toggle.
@@ -255,11 +271,21 @@ export function computeInvoiceTotals(opts) {
     warnings.push('Your business state is not set. Interstate/intra-state detection cannot be trusted. Set it in Settings → Company Details before issuing GST invoices.');
     needsProfileFix = true;
   }
-  if (isIndia && showGST && !placeOfSupplyRaw) {
+  // v1.10.66 (#61) — a client outside India makes this an export, and an
+  // export's place of supply is outside India, so any tax charged is IGST —
+  // never CGST + SGST. The CLIENT'S COUNTRY decides it, not the currency: an
+  // Indian client can be billed in USD without the supply leaving the state.
+  // An explicit Indian place of supply (goods delivered here for a foreign
+  // buyer) still wins, so that case follows the normal state comparison.
+  const clientCountry = (client.country || '').trim();
+  const isExportClient = isIndia && !!clientCountry && clientCountry !== 'India'
+    && !getStateCode((details.placeOfSupply || '').trim());
+
+  if (isIndia && showGST && !placeOfSupplyRaw && !isExportClient) {
     warnings.push('Place of supply is not set. Falling back to client state.');
   }
 
-  const isInterstate = isIndia && (isSEZ || (
+  const isInterstate = isIndia && (isSEZ || isExportClient || (
     !!businessCode && !!posCode && businessCode !== posCode
   ));
 

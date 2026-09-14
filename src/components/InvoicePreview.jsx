@@ -24,10 +24,19 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   // igst field).
   const businessState = profile?.state?.trim().toLowerCase();
   const clientState = client?.state?.trim().toLowerCase();
-  const isInterstate = (typeof totals?.igst === 'number' && totals.igst > 0)
-    || !!client?.isSEZ
-    || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
-    || (businessState && clientState && businessState !== clientState);
+  //
+  // v1.10.66 (#61) — the tax engine's own decision now wins. computeInvoiceTotals
+  // records `isInterstate` beside the amounts it produced, and every row below
+  // has to describe THOSE amounts. The name comparison further down could
+  // disagree with the engine — a Delhi client supplied in Punjab, say — and the
+  // invoice then printed "IGST ₹0.00" above a total that really held CGST +
+  // SGST. The comparison survives only for invoices saved before the flag.
+  const isInterstate = typeof totals?.isInterstate === 'boolean'
+    ? totals.isInterstate
+    : ((typeof totals?.igst === 'number' && totals.igst > 0)
+      || !!client?.isSEZ
+      || (details?.placeOfSupply && businessState && details.placeOfSupply.toLowerCase() !== businessState)
+      || (businessState && clientState && businessState !== clientState));
   const typeConfig = INVOICE_TYPES[invoiceType] || INVOICE_TYPES['tax-invoice'];
   // Seller's country drives tax label (GST / VAT / SST / MwSt etc.) and bank label.
   const sellerCC = getCountryConfig(profile?.country);
@@ -78,6 +87,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   const showInvoiceNumber = opt('showInvoiceNumber');
   const showInvoiceDate = opt('showInvoiceDate');
   const customTitle = options.customTitle || typeConfig.title;
+  // v1.10.66 (#62) — Rule 46(p) of the CGST Rules: a tax invoice has to state
+  // whether tax is payable on reverse charge. The notice under the totals only
+  // appears for "Yes", so an ordinary invoice never said "No" at all. Credit
+  // notes carry the same flag, which GSTR-1 reports for them.
+  const showReverseChargeLine = isIndia && showGST && (invoiceType === 'tax-invoice' || invoiceType === 'credit-note');
+  const reverseChargeText = options.reverseCharge ? 'Yes' : 'No';
   const currencySymbol = options.currency || 'INR';
 
   const fmt = (amount) => {
@@ -201,6 +216,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           {showInvoiceNumber && <span><strong style={{ color: '#64748b' }}>No.</strong> {details?.invoiceNumber}</span>}
           {showInvoiceDate && <span><strong style={{ color: '#64748b' }}>Date</strong> {details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</span>}
           {showDueDate && details?.dueDate && <span><strong style={{ color: '#64748b' }}>Due</strong> {new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+          {showReverseChargeLine && <span><strong style={{ color: '#64748b' }}>Reverse Charge</strong> {reverseChargeText}</span>}
         </div>
         {invoiceType === 'credit-note' && details?.originalInvoiceRef && (
           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Against: <strong style={{ color: '#334155' }}>{details.originalInvoiceRef}</strong></span>
@@ -217,7 +233,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             <img src={profile.logo} alt="Logo" style={{ maxHeight: `${profile.logoHeight || 48}px`, maxWidth: '180px', objectFit: 'contain', marginBottom: '0.5rem', display: 'block' }} />
           )}
           {showBusinessName && <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>{profile?.businessName || 'Your Business'}</h2>}
-          <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.6, marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.6, marginTop: '0.25rem' }}>
             {showBusinessAddress && profile?.address && <p style={{ margin: 0 }}>{profile.address}</p>}
             {showBusinessAddress && (profile?.city || profile?.pin) && <p style={{ margin: 0 }}>{[profile.city, profile.pin].filter(Boolean).join(' - ')}</p>}
             {showState && profile?.state && <p style={{ margin: 0 }}>{profile.state}</p>}
@@ -232,11 +248,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             {showInvoiceNumber && <p style={{ margin: 0 }}>{details?.invoiceNumber}</p>}
             {showInvoiceDate && <p style={{ margin: 0 }}>{details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</p>}
             {showDueDate && details?.dueDate && <p style={{ margin: 0 }}>Due: {new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+            {showReverseChargeLine && <p style={{ margin: 0 }}>Reverse Charge: {reverseChargeText}</p>}
           </div>
         </div>
       </div>
       {invoiceType === 'proforma' && (
-        <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', margin: '0 0 0.5rem' }}>This is not a tax invoice. For estimation purposes only.</p>
+        <p style={{ fontSize: '0.7rem', color: '#475569', fontStyle: 'italic', margin: '0 0 0.5rem' }}>This is not a tax invoice. For estimation purposes only.</p>
       )}
       <div style={{ borderBottom: `1.5px solid ${accent}`, marginBottom: '0' }} />
     </div>
@@ -252,16 +269,19 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           )}
           <h1 className="inv-title" style={{ color: accent }}>{customTitle}</h1>
           {invoiceType === 'proforma' && (
-            <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', marginBottom: '0.75rem' }}>This is not a tax invoice. For estimation purposes only.</p>
+            <p style={{ fontSize: '0.7rem', color: '#475569', fontStyle: 'italic', marginBottom: '0.75rem' }}>This is not a tax invoice. For estimation purposes only.</p>
           )}
           {invoiceType === 'credit-note' && details?.originalInvoiceRef && (
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>Against Invoice: <strong style={{ color: '#334155' }}>{details.originalInvoiceRef}</strong></p>
+            <p style={{ fontSize: '0.75rem', color: '#475569', marginBottom: '0.75rem' }}>Against Invoice: <strong style={{ color: '#334155' }}>{details.originalInvoiceRef}</strong></p>
           )}
           <div className="inv-meta">
             {showInvoiceNumber && <div className="inv-meta-row"><span className="inv-meta-label">No.</span><span className="inv-meta-value">{details?.invoiceNumber}</span></div>}
             {showInvoiceDate && <div className="inv-meta-row"><span className="inv-meta-label">Date</span><span className="inv-meta-value">{details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</span></div>}
             {showDueDate && details?.dueDate && (
               <div className="inv-meta-row"><span className="inv-meta-label">Due Date</span><span className="inv-meta-value">{new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
+            )}
+            {showReverseChargeLine && (
+              <div className="inv-meta-row"><span className="inv-meta-label">Reverse Charge</span><span className="inv-meta-value">{reverseChargeText}</span></div>
             )}
           </div>
         </div>
@@ -533,6 +553,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         {/* ================= INVOICE DETAILS ================= */}
         <div style={{ padding: secPad, fontSize: '0.95em', fontWeight: baseWeight, ...dashLine }}>
           <div><strong style={{ fontWeight: strongWeight }}>{cap('Invoice #')}: </strong>{cap(invoiceNum)}</div>
+          {showReverseChargeLine && <div><strong style={{ fontWeight: strongWeight }}>{cap('Reverse charge')}: </strong>{cap(reverseChargeText)}</div>}
           <div><strong style={{ fontWeight: strongWeight }}>{cap('Date')}: </strong>{cap(invoiceDate)}</div>
           {client?.name && (
             <div style={{ marginTop: 3 }}>
@@ -1013,10 +1034,10 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               <h4 className="inv-section-label">SCAN TO PAY (UPI)</h4>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <img src={qrDataUrl} alt="UPI QR" style={{ width: '90px', height: '90px', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                  <p style={{ margin: 0, color: '#94a3b8' }}>UPI ID:</p>
+                <div style={{ fontSize: '0.7rem', color: '#475569', lineHeight: 1.5 }}>
+                  <p style={{ margin: 0, color: '#475569' }}>UPI ID:</p>
                   <p style={{ margin: 0, color: '#334155', fontWeight: 600, fontSize: '0.75rem' }}>{upiId}</p>
-                  <p style={{ margin: '0.25rem 0 0', color: '#94a3b8' }}>{fmt(totals.total)}</p>
+                  <p style={{ margin: '0.25rem 0 0', color: '#475569' }}>{fmt(totals.total)}</p>
                 </div>
               </div>
             </div>

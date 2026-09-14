@@ -871,9 +871,15 @@ function pickScript(name) {
 function runControlScript(scriptPath) {
   return new Promise((resolve) => {
     if (!scriptPath) { resolve({ ok: false, error: 'Script not found for this platform' }); return; }
+    // v1.10.66 (#59) — update-unix.sh is plain POSIX sh, so it runs under `sh`
+    // and therefore also where bash does not exist (Alpine / BusyBox NAS
+    // images). The other Unix scripts use bash features and keep running under
+    // bash, found on PATH as before — /usr/local/bin/bash on TrueNAS CORE,
+    // /run/current-system/sw/bin/bash on NixOS.
+    const unixShell = path.basename(scriptPath) === 'update-unix.sh' ? 'sh' : 'bash';
     const [cmd, args] = isWindows
       ? ['powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]]
-      : ['bash', [scriptPath]];
+      : [unixShell, [scriptPath]];
     let out = '', err = '';
     try {
       const child = spawn(cmd, args, { detached: false, windowsHide: false });
@@ -1513,6 +1519,10 @@ async function processDueRecurring() {
         name: tpl.clientName,
         state: tpl.clientState,
         gstin: tpl.clientGstin,
+        // v1.10.66 (#61) — the client's country decides whether the supply is
+        // an export (IGST). Without it every recurring invoice to a client
+        // abroad was calculated as intrastate.
+        country: tpl.clientCountry,
         isSEZ: !!tpl.isSEZ,
       };
       const details = { placeOfSupply: tpl.placeOfSupply };

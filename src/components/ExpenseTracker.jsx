@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Wallet, Plus, Edit3, Trash2, Search, X, Save, Download, Calendar } from 'lucide-react';
 import { getAllExpenses, saveExpense, deleteExpense, getProfile } from '../store';
-import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, toCsvLine } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
@@ -222,10 +222,11 @@ export default function ExpenseTracker() {
   const exportCSV = () => {
     if (filtered.length === 0) { toast('No expenses to export', 'warning'); return; }
     const headers = ['Date', 'Description', 'Category', 'Amount', 'GST Amount', 'GST %', 'Vendor', 'Vendor GSTIN', 'Invoice No', 'Payment Mode', 'Note'];
-    const escape = (v) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const lines = [headers.map(escape).join(',')];
+    // v1.10.66 (#63) — toCsvLine neutralises formula-like text and quotes
+    // line breaks, which the old local escape let split a row in two.
+    const lines = [toCsvLine(headers)];
     filtered.forEach(e => {
-      lines.push([e.date, e.description, e.category, e.amount, e.gstAmount || 0, e.gstPercent || 0, e.vendorName, e.vendorGstin, e.invoiceNo, e.paymentMode, e.note].map(escape).join(','));
+      lines.push(toCsvLine([e.date, e.description, e.category, e.amount, e.gstAmount || 0, e.gstPercent || 0, e.vendorName, e.vendorGstin, e.invoiceNo, e.paymentMode, e.note]));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
