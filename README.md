@@ -55,6 +55,30 @@ The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-softwar
 
 If the GitHub Actions build previously failed at `RUN npm ci`, that was a Dockerfile ordering bug: npm runs the OCR asset `postinstall` script during dependency installation. The Dockerfile now copies that script before `npm ci`.
 
+If ZimaOS reports `permission denied while trying to connect to the Docker daemon socket`, the compose file is not the problem: the current shell user cannot access Docker. Run the immediate diagnostic with `sudo`:
+
+```sh
+sudo docker compose -f docker-compose.nas.yml ps
+sudo docker compose -f docker-compose.nas.yml logs --tail=200 free-gst-billing
+```
+
+For a permanent fix, check the socket group and add the current user to that group:
+
+```sh
+ls -l /var/run/docker.sock
+getent group docker
+sudo usermod -aG docker "$USER"
+```
+
+Log out and back in (or start a new SSH session), then verify:
+
+```sh
+docker ps
+docker compose -f docker-compose.nas.yml ps
+```
+
+If `getent group docker` returns no group, use `sudo` for Docker commands on that ZimaOS installation or enable Docker socket access through the ZimaOS administrator UI. Do not make `/var/run/docker.sock` world-writable with `chmod 666`.
+
 The server writes application errors to:
 
 ```text

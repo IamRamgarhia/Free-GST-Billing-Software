@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   free-gst-billing:
     image: ghcr.io/deppen12/free-gst-billing-software:latest
