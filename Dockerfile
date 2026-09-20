@@ -10,7 +10,7 @@ COPY package*.json ./
 # npm ci runs the package's postinstall hook, which bundles offline OCR
 # assets and therefore needs this script before dependencies are installed.
 COPY scripts/bundle-tesseract-assets.mjs ./scripts/bundle-tesseract-assets.mjs
-RUN npm ci
+RUN npm ci --include=dev
 COPY . .
 RUN npm run build
 RUN npm prune --omit=dev
