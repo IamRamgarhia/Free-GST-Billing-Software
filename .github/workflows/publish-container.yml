@@ -42,15 +42,3 @@ jobs:
             ${{ startsWith(github.ref, 'refs/tags/v') && format('{0}:{1}', env.IMAGE_NAME, github.ref_name) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Make image publicly pullable
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl --fail-with-body \
-            -X PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/user/packages/container/free-gst-billing-software \
-            -d '{"visibility":"public"}'

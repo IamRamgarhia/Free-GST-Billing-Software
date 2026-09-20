@@ -51,7 +51,13 @@ docker compose -f docker-compose.nas.yml up -d
 If using CasaOS's importer, use the raw compose URL:
 `https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/deppen12-docker-gst-api/docker-compose.nas.yml`
 
-The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in `/media/HDD-Storage/AppData/free-gst-billing/`. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
+The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in `/media/HDD-Storage/AppData/free-gst-billing/`.
+
+Before the first NAS pull, make the GHCR package public in GitHub: open the repository's **Packages** page, select `free-gst-billing-software`, open **Package settings**, choose **Change visibility → Public**, and confirm. GitHub Actions can publish the package, but its repository `GITHUB_TOKEN` cannot change package visibility. If the package must remain private, authenticate the NAS first with a GitHub token that has `read:packages`:
+
+```sh
+echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u deppen12 --password-stdin
+```
 
 If the GitHub Actions build previously failed at `RUN npm ci`, that was a Dockerfile ordering bug: npm runs the OCR asset `postinstall` script during dependency installation. The Dockerfile now copies that script before `npm ci`.
 
