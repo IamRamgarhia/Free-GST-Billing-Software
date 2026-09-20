@@ -38,6 +38,17 @@ Use `docker-compose.yml` as the Portainer stack template. In the NAS environment
 
 Open `http://<NAS-IP>:47371`. To use another host port, set `FREEGST_PORT` while leaving the container port at `47371`.
 
+### One-time auto-update installer
+
+For a NAS with Docker Compose or Portainer, copy `docker-compose.nas.yml` and `.env.nas.example` to a writable application folder, rename the example file to `.env`, then run:
+
+```sh
+cp .env.nas.example .env
+docker compose -f docker-compose.nas.yml up -d
+```
+
+The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in the named `free-gst-billing-data` volume. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
+
 ### Source checkout versus release ZIP
 
 - From this Git repository, run `docker compose build --no-cache`; the root `Dockerfile` builds the frontend from `src/`.
