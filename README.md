@@ -22,6 +22,69 @@ Your data never leaves your computer. No cloud. No signup. No tracking. No limit
 
 ---
 
+## 🐳 Docker / NAS / ZimaOS
+
+The image writes all mutable files to `/data`, so it works with Docker, Portainer, Synology, Unraid, and ZimaOS. **Do not paste the shell prompt (`admin@ZimaOS:~ ➜ $`) into a command**; paste only the command after it. The `mkdir /root/.docker...` message is from a malformed command or a read-only Docker home, not from this application.
+
+For an existing `free-gst-billing:1.10.66` deployment, create a persistent `/data` bind mount or named volume, then rebuild and recreate the container:
+
+```sh
+docker compose build --no-cache
+docker compose up -d
+docker compose logs -f free-gst-billing
+```
+
+Use `docker-compose.yml` as the Portainer stack template. In the NAS environment settings, set `GST_API_PROVIDER` (`mastersindia`, `razorpay`, or `signzy`), `GST_API_KEY`, and optionally `GST_API_URL`; these values remain server-side. Alternatively configure the provider and key from **Settings → GSTIN Search API**. Never mount the application directory read-only: mount only `/data` for billing data and API configuration.
+
+Open `http://<NAS-IP>:47371`. The CasaOS stack uses the fixed mapping `47371:47371` because CasaOS does not expand `${FREEGST_PORT}` in imported port mappings. To use another host port, edit the left side of the mapping directly, for example `"48080:47371"`, while leaving the container port at `47371`.
+
+### One-time auto-update installer
+
+For ZimaOS/CasaOS, import `docker-compose.nas.yml` directly from this GitHub repository. It contains no variable interpolation in the port, environment, command, or volume fields, which avoids CasaOS decoder errors. It uses your exact persistent path `/media/HDD-Storage/AppData/free-gst-billing:/data`, the GHCR image, and Watchtower auto-updates. `docker-compose.yml` is the same deployment with the CasaOS `/DATA` default for other NAS installations.
+
+```sh
+mkdir -p /media/HDD-Storage/AppData/free-gst-billing
+sudo chown -R 1000:1000 /media/HDD-Storage/AppData/free-gst-billing
+docker compose -f docker-compose.nas.yml up -d
+```
+
+If using CasaOS's importer, use the raw compose URL:
+`https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/deppen12-docker-gst-api/docker-compose.nas.yml`
+
+The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in `/media/HDD-Storage/AppData/free-gst-billing/`. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
+
+The server writes application errors to:
+
+```text
+/media/HDD-Storage/AppData/free-gst-billing/errors.log
+```
+
+It is created automatically when an API, startup, recurring-job, or uncaught-process error occurs. Container output is also available with:
+
+```sh
+docker compose -f docker-compose.nas.yml logs --tail=200 free-gst-billing
+docker compose -f docker-compose.nas.yml ps
+```
+
+If the stack itself fails to import, no application log can exist yet; inspect the CasaOS/Docker event log because the container has not started.
+
+CasaOS may add resource controls when importing a stack. Use Docker memory units such as `256M` and `4G` (not `256MB`), and numeric CPU values such as `0.25` and `1.0` (not quoted strings). Remove empty generated fields such as `hostname: ""`, `index: /`, and unsupported `custom:` metadata if the CasaOS editor reports a decoding error.
+
+### Source checkout versus release ZIP
+
+- You do **not** need to run `docker build` for the NAS stack. It pulls the published GHCR image:
+  `docker compose -f docker-compose.nas.yml pull && docker compose -f docker-compose.nas.yml up -d`.
+- Only build manually when using a local source checkout. The command `sudo env DOCKER_CONFIG=... docker build ...` is not needed for this published-image installation, and it will fail unless the complete source/release files are present in the current directory.
+- From an extracted release ZIP, run the build from the directory containing `_system/` and use the packaged-layout file:
+
+  ```sh
+  docker build --no-cache -f Dockerfile.release -t free-gst-billing:1.10.66 .
+  ```
+
+  `Dockerfile.release` copies the prebuilt `_system/dist/` and deliberately does not run `npm run build`. If you create a Dockerfile manually in that release directory, its equivalent is `COPY _system/ ./` followed by `CMD ["node", "server.js"]`; do not use the source checkout Dockerfile there.
+
+---
+
 ## ⚡ Install in 60 Seconds — one launcher per platform
 
 **As of v1.10.44**, the download ZIP has **one clean file** at the root (the launcher for your OS) and everything else tucked into a hidden `_system/` folder. Extract the ZIP, double-click the launcher, done.

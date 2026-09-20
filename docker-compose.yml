@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  free-gst-billing:
+    image: ghcr.io/deppen12/free-gst-billing-software:latest
+    container_name: free-gst-billing
+    restart: unless-stopped
+    pull_policy: always
+    ports:
+      - "47371:47371"
+    environment:
+      TZ: ${TZ:-UTC}
+      HOST: 0.0.0.0
+      PORT: 47371
+      DATA_DIR: /data
+      # Set these in a .env file or NAS environment settings.
+      GST_API_PROVIDER: ${GST_API_PROVIDER:-}
+      GST_API_KEY: ${GST_API_KEY:-}
+      GST_API_URL: ${GST_API_URL:-}
+      GST_API_TIMEOUT_MS: ${GST_API_TIMEOUT_MS:-8000}
+      GST_RATE_LIMIT: ${GST_RATE_LIMIT:-30}
+    volumes:
+      - /media/HDD-Storage/AppData/free-gst-billing:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: free-gst-billing-updater
+    restart: unless-stopped
+    command: --label-enable --interval ${UPDATE_INTERVAL_SECONDS:-3600} --cleanup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: free-gst-billing
+  description:
+    en_US: "Offline-first GST billing and invoicing software with client management, GST returns, inventory, and secure GSTIN lookup."
+  tagline:
+    en_US: "Free GST billing and invoicing"
+  developer: "deppen12"
+  author: "deppen12"
+  icon: "https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/main/public/favicon.svg"
+  screenshot_link:
+    - "https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/main/docs/screenshots/dashboard.png"
+  title:
+    en_US: "Free GST Billing Software"
+  category: "Productivity"
+  port_map: "47371"
+  scheme: http

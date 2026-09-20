@@ -28,6 +28,7 @@ const JUMP_NAV_SECTIONS = [
   ['section-modules',  'Features'],
   ['section-stock',    'Stock'],
   ['section-region',   'Region'],
+  ['section-gst-api',  'GST API'],
   ['section-backups',  'Backups'],
   ['section-cloud',    'Google Drive'],
   ['section-data',     'Import/Export'],
@@ -66,6 +67,7 @@ export default function SettingsView({ onSaved }) {
   // anywhere on the page and unsaved work is never silent.
   const savedProfileRef = useRef(null);
   const [profileDirty, setProfileDirty] = useState(false);
+  const [gstApi, setGstApi] = useState({ provider: '', apiKey: '', url: '', configured: false, providers: [], saving: false });
 
   // v1.10.56 — reported (#44, @sangwanmail-eng): "Firm profile setting not
   // saved. every time show popup".
@@ -95,6 +97,12 @@ export default function SettingsView({ onSaved }) {
     if (savedProfileRef.current === null) return; // profile not loaded yet
     setProfileDirty(JSON.stringify(profile) !== savedProfileRef.current);
   }, [profile]);
+
+  useEffect(() => {
+    fetch('/api/gst/config').then(r => r.ok ? r.json() : Promise.reject(new Error('Could not load GST API settings')))
+      .then(config => setGstApi(prev => ({ ...prev, ...config })))
+      .catch(() => {});
+  }, []);
 
   // v1.10.56 — the beforeunload confirm added in v1.10.55 is GONE.
   // Even with the baseline bug fixed it was the wrong tool: it hijacks the
@@ -184,6 +192,25 @@ export default function SettingsView({ onSaved }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setProfile(prev => ({ ...prev, [name]: value }));
+  };
+
+  const saveGstApi = async () => {
+    setGstApi(prev => ({ ...prev, saving: true }));
+    try {
+      const response = await fetch('/api/gst/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: gstApi.provider, apiKey: gstApi.apiKey, url: gstApi.url }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not save GST API settings');
+      setGstApi(prev => ({ ...prev, ...result, apiKey: '' }));
+      toast('GST API settings saved securely on the server.', 'success');
+    } catch (error) {
+      toast(error.message || 'Could not save GST API settings', 'error');
+    } finally {
+      setGstApi(prev => ({ ...prev, saving: false }));
+    }
   };
 
   // ---- Payment Accounts manager ----
@@ -1561,6 +1588,46 @@ export default function SettingsView({ onSaved }) {
             })}
           </div>
         )}
+      </div>
+
+      {/* ---- GST API ---- */}
+      <div id="section-gst-api" className="glass-panel p-6 mb-6" style={{ order: 8 }}>
+        <h3 className="section-title">GSTIN Search API</h3>
+        <p className="page-subtitle mb-4">
+          Verify a client GSTIN and autofill their legal name, address, state, and PIN from a supported provider.
+          The API key is sent only to this server and is never returned to the browser.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="form-group">
+            <label className="form-label">Provider</label>
+            <select className="form-input" value={gstApi.provider}
+              onChange={e => setGstApi(prev => ({ ...prev, provider: e.target.value }))}>
+              <option value="">Select a provider</option>
+              {gstApi.providers.map(provider => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">API key</label>
+            <input type="password" className="form-input" value={gstApi.apiKey}
+              onChange={e => setGstApi(prev => ({ ...prev, apiKey: e.target.value }))}
+              placeholder={gstApi.configured ? 'Configured — enter a new key to replace it' : 'Paste provider API key'} />
+          </div>
+          <div className="form-group full-width">
+            <label className="form-label">Custom endpoint <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+            <input type="url" className="form-input" value={gstApi.url}
+              onChange={e => setGstApi(prev => ({ ...prev, url: e.target.value }))}
+              placeholder="https://provider.example/api/gstin" />
+            <p className="field-hint">For a custom provider, set both an endpoint and API key. Docker users can set <code>GST_API_PROVIDER</code>, <code>GST_API_KEY</code>, and <code>GST_API_URL</code> instead.</p>
+          </div>
+        </div>
+        <div className="flex justify-between items-center mt-4">
+          <span style={{ fontSize: '0.78rem', color: gstApi.configured ? '#16a34a' : 'var(--text-muted)' }}>
+            {gstApi.configured ? '✓ Provider configured' : 'Not configured — Verify & Autofill will show an explanation'}
+          </span>
+          <button type="button" className="btn btn-primary" onClick={saveGstApi} disabled={gstApi.saving}>
+            <Save size={16} /> {gstApi.saving ? 'Saving…' : 'Save GST API'}
+          </button>
+        </div>
       </div>
 
       {/* ---- Cloud Backup ---- */}
