@@ -40,7 +40,7 @@ Open `http://<NAS-IP>:47371`. To use another host port, set `FREEGST_PORT` while
 
 ### One-time auto-update installer
 
-For ZimaOS/CasaOS, import `docker-compose.yml` directly. It includes the `x-casaos` metadata, `/DATA/AppData/free-gst-billing/data` persistence, the GHCR image, and Watchtower auto-updates. For a generic NAS with Docker Compose or Portainer, copy `docker-compose.nas.yml` and `.env.nas.example` to a writable application folder, rename the example file to `.env`, then run:
+For ZimaOS/CasaOS, import `docker-compose.yml` directly. It includes the `x-casaos` metadata, `/DATA/AppData/free-gst-billing/data` persistence, the GHCR image, and Watchtower auto-updates. `docker-compose.nas.yml` is the equivalent CasaOS-compatible stack if you prefer that filename. For a generic NAS with Docker Compose or Portainer, copy `docker-compose.nas.yml` and `.env.nas.example` to a writable application folder, rename the example file to `.env`, then run:
 
 ```sh
 cp .env.nas.example .env
@@ -48,6 +48,8 @@ docker compose -f docker-compose.nas.yml up -d
 ```
 
 The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in the named `free-gst-billing-data` volume. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
+
+CasaOS may add resource controls when importing a stack. Use Docker memory units such as `256M` and `4G` (not `256MB`), and numeric CPU values such as `0.25` and `1.0` (not quoted strings). Remove empty generated fields such as `hostname: ""`, `index: /`, and unsupported `custom:` metadata if the CasaOS editor reports a decoding error.
 
 ### Source checkout versus release ZIP
 

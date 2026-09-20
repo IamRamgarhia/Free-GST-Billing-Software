@@ -19,7 +19,7 @@ services:
       GST_API_TIMEOUT_MS: ${GST_API_TIMEOUT_MS:-8000}
       GST_RATE_LIMIT: ${GST_RATE_LIMIT:-30}
     volumes:
-      - free-gst-billing-data:/data
+      - /DATA/AppData/free-gst-billing/data:/data
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
@@ -32,9 +32,6 @@ services:
     command: --label-enable --interval ${UPDATE_INTERVAL_SECONDS:-3600} --cleanup
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-
-volumes:
-  free-gst-billing-data:
 
 x-casaos:
   architectures:
