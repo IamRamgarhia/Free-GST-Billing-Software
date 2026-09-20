@@ -53,6 +53,8 @@ If using CasaOS's importer, use the raw compose URL:
 
 The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in `/media/HDD-Storage/AppData/free-gst-billing/`. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
 
+If the GitHub Actions build previously failed at `RUN npm ci`, that was a Dockerfile ordering bug: npm runs the OCR asset `postinstall` script during dependency installation. The Dockerfile now copies that script before `npm ci`.
+
 The server writes application errors to:
 
 ```text

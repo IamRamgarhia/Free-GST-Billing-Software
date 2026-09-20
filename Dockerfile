@@ -7,6 +7,9 @@ ENV NODE_ENV=production \
     DATA_DIR=/data
 
 COPY package*.json ./
+# npm ci runs the package's postinstall hook, which bundles offline OCR
+# assets and therefore needs this script before dependencies are installed.
+COPY scripts/bundle-tesseract-assets.mjs ./scripts/bundle-tesseract-assets.mjs
 RUN npm ci
 COPY . .
 RUN npm run build
