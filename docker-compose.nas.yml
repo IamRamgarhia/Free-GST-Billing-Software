@@ -40,8 +40,8 @@ x-casaos:
     en_US: "Offline-first GST billing and invoicing software with client management, GST returns, inventory, and secure GSTIN lookup."
   tagline:
     en_US: "Free GST billing and invoicing"
-  developer: "deppen12"
-  author: "deppen12"
+  developer: "Electro-Tec Engineer"
+  author: "Electro-Tec Engineer"
   icon: "https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/main/public/favicon.svg"
   screenshot_link:
     - "https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/main/docs/screenshots/dashboard.png"
@@ -50,3 +50,5 @@ x-casaos:
   category: "Productivity"
   port_map: "47371"
   scheme: http
+  hostname: ""
+  index: /

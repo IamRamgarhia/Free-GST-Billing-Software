@@ -34,7 +34,7 @@ docker compose up -d
 docker compose logs -f free-gst-billing
 ```
 
-Use `docker-compose.yml` as the Portainer stack template. In the NAS environment settings, set `GST_API_PROVIDER` (`mastersindia`, `razorpay`, or `signzy`), `GST_API_KEY`, and optionally `GST_API_URL`; these values remain server-side. Alternatively configure the provider and key from **Settings → GSTIN Search API**. Never mount the application directory read-only: mount only `/data` for billing data and API configuration.
+Use `docker-compose.yml` as the Portainer stack template. In the NAS environment settings, set `GST_API_PROVIDER` (`gstinapi`, `mastersindia`, `razorpay`, or `signzy`), `GST_API_KEY`, and optionally `GST_API_URL`; these values remain server-side. The built-in `gstinapi` provider uses `https://www.gstinapi.in/v1/gstin/{GSTIN}?include=profile` and sends the key server-side as the `x-api-key` header. Alternatively configure the provider and key from **Settings → GSTIN Search API**. Never mount the application directory read-only: mount only `/data` for billing data and API configuration.
 
 Open `http://<NAS-IP>:47371`. The CasaOS stack uses the fixed mapping `47371:47371` because CasaOS does not expand `${FREEGST_PORT}` in imported port mappings. To use another host port, edit the left side of the mapping directly, for example `"48080:47371"`, while leaving the container port at `47371`.
 
@@ -45,8 +45,13 @@ For ZimaOS/CasaOS, import `docker-compose.nas.yml` directly from this GitHub rep
 ```sh
 mkdir -p /media/HDD-Storage/AppData/free-gst-billing
 sudo chown -R 1000:1000 /media/HDD-Storage/AppData/free-gst-billing
-docker compose -f docker-compose.nas.yml up -d
+cd /media/HDD-Storage/AppData/Free-GST-Billing-Software
+sudo docker compose -f docker-compose.nas.yml pull
+sudo docker compose -f docker-compose.nas.yml up -d
+sudo docker compose -f docker-compose.nas.yml ps
 ```
+
+Open `http://<NAS-IP>:47371`. The `x-casaos` metadata supplies the CasaOS/ZimaOS home-page title, icon, description, and port. If no home-page tile appears, import the current compose file again and confirm the NAS can reach the icon URL.
 
 If using CasaOS's importer, use the raw compose URL:
 `https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/deppen12-docker-gst-api/docker-compose.nas.yml`

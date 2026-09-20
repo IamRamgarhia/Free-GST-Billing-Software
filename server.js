@@ -354,6 +354,12 @@ app.post('/api/profile', (req, res) => {
 // ========================
 const GST_CONFIG_PATH = path.join(DATA_DIR, 'gst-api.json');
 const GST_PROVIDERS = {
+  gstinapi: {
+    label: 'GSTINAPI.in',
+    url: gstin => `https://www.gstinapi.in/v1/gstin/${encodeURIComponent(gstin)}?include=profile`,
+    method: 'GET',
+    headers: key => ({ 'x-api-key': key }),
+  },
   mastersindia: {
     label: 'Masters India',
     url: 'https://commonapi.mastersindia.co/commonapis/searchgstin',
@@ -411,20 +417,27 @@ app.get('/api/gst/lookup/:gstin', async (req, res) => {
   if (!/^[0-9]{2}[A-Z0-9]{13}$/.test(gstin)) return res.status(400).json({ error: 'GSTIN must be 15 characters', code: 'invalid-gstin' });
   const config = getGstConfig();
   const provider = GST_PROVIDERS[config.provider];
-  const endpoint = config.url || provider?.url;
+  const endpoint = config.url || (typeof provider?.url === 'function' ? provider.url(gstin) : provider?.url);
   if (!config.apiKey || !endpoint) return res.status(503).json({ error: 'GST API is not configured. Add a provider and API key in Settings.', code: 'not-configured' });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
+    const method = provider?.method || 'POST';
     const response = await fetch(endpoint, {
-      method: 'POST',
+      method,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(provider?.headers(config.apiKey) || { Authorization: `Bearer ${config.apiKey}` }) },
-      body: JSON.stringify(provider?.body(gstin) || { gstin }),
+      ...(method === 'POST' ? { body: JSON.stringify(provider?.body(gstin) || { gstin }) } : {}),
       signal: controller.signal,
     });
     const raw = await response.text();
     let payload;
     try { payload = JSON.parse(raw); } catch { payload = { raw }; }
+    if (payload.success === false) {
+      return res.status(response.status === 404 ? 404 : 502).json({
+        error: payload.error || 'GST provider rejected the lookup',
+        code: response.status === 404 ? 'not-found' : 'provider-error',
+      });
+    }
     if (!response.ok) return res.status(502).json({ error: 'GST provider rejected the lookup', code: 'provider-error', status: response.status });
     // Providers use different field names. Preserve the raw response server-side
     // only and expose a small, stable shape to the browser.
@@ -433,8 +446,8 @@ app.get('/api/gst/lookup/:gstin', async (req, res) => {
       gstin,
       name: data.lgnm || data.tradeNam || data.legalName || data.name || '',
       address: data.pradr?.adr || data.address || data.principalAddress || '',
-      state: data.stj || data.state || data.stateName || '',
-      pin: data.pradr?.pncd || data.pin || data.pincode || '',
+      state: data.stj || data.state || data.stateName || data.address_details?.state || '',
+      pin: data.pradr?.pncd || data.pin || data.pincode || data.address_details?.pincode || '',
       status: data.sts || data.status || '',
     });
   } catch (err) {
