@@ -38,6 +38,17 @@ Use `docker-compose.yml` as the Portainer stack template. In the NAS environment
 
 Open `http://<NAS-IP>:47371`. To use another host port, set `FREEGST_PORT` while leaving the container port at `47371`.
 
+### Source checkout versus release ZIP
+
+- From this Git repository, run `docker compose build --no-cache`; the root `Dockerfile` builds the frontend from `src/`.
+- From an extracted release ZIP, run the build from the directory containing `_system/` and use the packaged-layout file:
+
+  ```sh
+  docker build --no-cache -f Dockerfile.release -t free-gst-billing:1.10.66 .
+  ```
+
+  `Dockerfile.release` copies the prebuilt `_system/dist/` and deliberately does not run `npm run build`. If you create a Dockerfile manually in that release directory, its equivalent is `COPY _system/ ./` followed by `CMD ["node", "server.js"]`; do not use the source checkout Dockerfile there.
+
 ---
 
 ## ⚡ Install in 60 Seconds — one launcher per platform

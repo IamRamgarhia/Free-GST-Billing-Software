@@ -67,6 +67,8 @@ for (const f of readdirSync(templates)) {
   const src = join(templates, f);
   if (statSync(src).isFile()) copyFileSync(src, join(STAGING, f));
 }
+// Keep the packaged release directly usable as a Docker build context.
+copyFileSync(join(REPO_ROOT, 'Dockerfile.release'), join(STAGING, 'Dockerfile'));
 
 // --- Copy _system-scripts contents INTO _system/ (flattened, no subfolder) ---
 console.log('  → Copying platform scripts into _system/…');
