@@ -40,7 +40,7 @@ Open `http://<NAS-IP>:47371`. To use another host port, set `FREEGST_PORT` while
 
 ### One-time auto-update installer
 
-For a NAS with Docker Compose or Portainer, copy `docker-compose.nas.yml` and `.env.nas.example` to a writable application folder, rename the example file to `.env`, then run:
+For ZimaOS/CasaOS, import `docker-compose.yml` directly. It includes the `x-casaos` metadata, `/DATA/AppData/free-gst-billing/data` persistence, the GHCR image, and Watchtower auto-updates. For a generic NAS with Docker Compose or Portainer, copy `docker-compose.nas.yml` and `.env.nas.example` to a writable application folder, rename the example file to `.env`, then run:
 
 ```sh
 cp .env.nas.example .env
@@ -51,7 +51,7 @@ The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-softwar
 
 ### Source checkout versus release ZIP
 
-- From this Git repository, run `docker compose build --no-cache`; the root `Dockerfile` builds the frontend from `src/`.
+- From this Git repository, run `docker compose -f docker-compose.nas.yml build --no-cache`; the root `Dockerfile` builds the frontend from `src/`.
 - From an extracted release ZIP, run the build from the directory containing `_system/` and use the packaged-layout file:
 
   ```sh

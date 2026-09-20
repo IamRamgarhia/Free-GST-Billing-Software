@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   free-gst-billing:
     image: ghcr.io/deppen12/free-gst-billing-software:latest
@@ -7,6 +9,7 @@ services:
     ports:
       - "${FREEGST_PORT:-47371}:47371"
     environment:
+      TZ: ${TZ:-UTC}
       HOST: 0.0.0.0
       PORT: 47371
       DATA_DIR: /data
@@ -32,3 +35,23 @@ services:
 
 volumes:
   free-gst-billing-data:
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: free-gst-billing
+  description:
+    en_US: "Offline-first GST billing and invoicing software with client management, GST returns, inventory, and secure GSTIN lookup."
+  tagline:
+    en_US: "Free GST billing and invoicing"
+  developer: "deppen12"
+  author: "deppen12"
+  icon: "https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/main/public/favicon.svg"
+  screenshot_link:
+    - "https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/main/docs/screenshots/dashboard.png"
+  title:
+    en_US: "Free GST Billing Software"
+  category: "Productivity"
+  port_map: "47371"
+  scheme: http
