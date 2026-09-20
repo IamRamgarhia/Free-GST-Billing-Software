@@ -36,7 +36,7 @@ docker compose logs -f free-gst-billing
 
 Use `docker-compose.yml` as the Portainer stack template. In the NAS environment settings, set `GST_API_PROVIDER` (`mastersindia`, `razorpay`, or `signzy`), `GST_API_KEY`, and optionally `GST_API_URL`; these values remain server-side. Alternatively configure the provider and key from **Settings → GSTIN Search API**. Never mount the application directory read-only: mount only `/data` for billing data and API configuration.
 
-Open `http://<NAS-IP>:47371`. To use another host port, set `FREEGST_PORT` while leaving the container port at `47371`.
+Open `http://<NAS-IP>:47371`. The CasaOS stack uses the fixed mapping `47371:47371` because CasaOS does not expand `${FREEGST_PORT}` in imported port mappings. To use another host port, edit the left side of the mapping directly, for example `"48080:47371"`, while leaving the container port at `47371`.
 
 ### One-time auto-update installer
 

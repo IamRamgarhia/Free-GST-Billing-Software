@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     pull_policy: always
     ports:
-      - "${FREEGST_PORT:-47371}:47371"
+      - "47371:47371"
     environment:
       TZ: ${TZ:-UTC}
       HOST: 0.0.0.0
