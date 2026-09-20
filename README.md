@@ -40,20 +40,41 @@ Open `http://<NAS-IP>:47371`. The CasaOS stack uses the fixed mapping `47371:473
 
 ### One-time auto-update installer
 
-For ZimaOS/CasaOS, import `docker-compose.yml` directly. It includes the `x-casaos` metadata, `/DATA/AppData/free-gst-billing/data` persistence, the GHCR image, and Watchtower auto-updates. `docker-compose.nas.yml` is the equivalent CasaOS-compatible stack if you prefer that filename. For a generic NAS with Docker Compose or Portainer, copy `docker-compose.nas.yml` and `.env.nas.example` to a writable application folder, rename the example file to `.env`, then run:
+For ZimaOS/CasaOS, import `docker-compose.nas.yml` directly from this GitHub repository. It contains no variable interpolation in the port, environment, command, or volume fields, which avoids CasaOS decoder errors. It uses your exact persistent path `/media/HDD-Storage/AppData/free-gst-billing:/data`, the GHCR image, and Watchtower auto-updates. `docker-compose.yml` is the same deployment with the CasaOS `/DATA` default for other NAS installations.
 
 ```sh
-cp .env.nas.example .env
+mkdir -p /media/HDD-Storage/AppData/free-gst-billing
+sudo chown -R 1000:1000 /media/HDD-Storage/AppData/free-gst-billing
 docker compose -f docker-compose.nas.yml up -d
 ```
 
-The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in the named `free-gst-billing-data` volume. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
+If using CasaOS's importer, use the raw compose URL:
+`https://raw.githubusercontent.com/deppen12/Free-GST-Billing-Software/deppen12-docker-gst-api/docker-compose.nas.yml`
+
+The GitHub Actions workflow publishes `ghcr.io/deppen12/free-gst-billing-software:latest` whenever `main` changes. Watchtower checks that image hourly and recreates the app automatically. Existing invoices and settings remain in `/media/HDD-Storage/AppData/free-gst-billing/`. The first GHCR pull may require making the package public in GitHub **Packages** or adding a read-only `GHCR_TOKEN` to the NAS.
+
+The server writes application errors to:
+
+```text
+/media/HDD-Storage/AppData/free-gst-billing/errors.log
+```
+
+It is created automatically when an API, startup, recurring-job, or uncaught-process error occurs. Container output is also available with:
+
+```sh
+docker compose -f docker-compose.nas.yml logs --tail=200 free-gst-billing
+docker compose -f docker-compose.nas.yml ps
+```
+
+If the stack itself fails to import, no application log can exist yet; inspect the CasaOS/Docker event log because the container has not started.
 
 CasaOS may add resource controls when importing a stack. Use Docker memory units such as `256M` and `4G` (not `256MB`), and numeric CPU values such as `0.25` and `1.0` (not quoted strings). Remove empty generated fields such as `hostname: ""`, `index: /`, and unsupported `custom:` metadata if the CasaOS editor reports a decoding error.
 
 ### Source checkout versus release ZIP
 
-- From this Git repository, run `docker compose -f docker-compose.nas.yml build --no-cache`; the root `Dockerfile` builds the frontend from `src/`.
+- You do **not** need to run `docker build` for the NAS stack. It pulls the published GHCR image:
+  `docker compose -f docker-compose.nas.yml pull && docker compose -f docker-compose.nas.yml up -d`.
+- Only build manually when using a local source checkout. The command `sudo env DOCKER_CONFIG=... docker build ...` is not needed for this published-image installation, and it will fail unless the complete source/release files are present in the current directory.
 - From an extracted release ZIP, run the build from the directory containing `_system/` and use the packaged-layout file:
 
   ```sh

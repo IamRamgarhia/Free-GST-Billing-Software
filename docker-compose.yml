@@ -20,7 +20,7 @@ services:
       GST_API_TIMEOUT_MS: ${GST_API_TIMEOUT_MS:-8000}
       GST_RATE_LIMIT: ${GST_RATE_LIMIT:-30}
     volumes:
-      - /DATA/AppData/free-gst-billing/data:/data
+      - /media/HDD-Storage/AppData/free-gst-billing:/data
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 

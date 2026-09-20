@@ -9,17 +9,17 @@ services:
     ports:
       - "47371:47371"
     environment:
-      TZ: ${TZ:-UTC}
+      TZ: UTC
       HOST: 0.0.0.0
       PORT: 47371
       DATA_DIR: /data
-      GST_API_PROVIDER: ${GST_API_PROVIDER:-}
-      GST_API_KEY: ${GST_API_KEY:-}
-      GST_API_URL: ${GST_API_URL:-}
-      GST_API_TIMEOUT_MS: ${GST_API_TIMEOUT_MS:-8000}
-      GST_RATE_LIMIT: ${GST_RATE_LIMIT:-30}
+      GST_API_PROVIDER: ""
+      GST_API_KEY: ""
+      GST_API_URL: ""
+      GST_API_TIMEOUT_MS: "8000"
+      GST_RATE_LIMIT: "30"
     volumes:
-      - /DATA/AppData/free-gst-billing/data:/data
+      - /media/HDD-Storage/AppData/free-gst-billing:/data
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
@@ -29,7 +29,7 @@ services:
     image: containrrr/watchtower:latest
     container_name: free-gst-billing-updater
     restart: unless-stopped
-    command: --label-enable --interval ${UPDATE_INTERVAL_SECONDS:-3600} --cleanup
+    command: --label-enable --interval 3600 --cleanup
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
