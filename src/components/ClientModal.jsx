@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES } from '../utils';
+import { X, Search, LoaderCircle } from 'lucide-react';
+import { getCountryConfig, getStatesForCountry, validateTaxId, validateGstinChecksum, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES } from '../utils';
 import { getRegionMode } from '../store';
 
 export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
@@ -18,6 +18,7 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
   };
   const [form, setForm] = useState({ ...emptyForm });
   const [taxIdWarning, setTaxIdWarning] = useState('');
+  const [gstLookup, setGstLookup] = useState({ busy: false, error: '', success: '' });
 
   useEffect(() => {
     if (show && client) {
@@ -34,6 +35,7 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
       setForm({ ...emptyForm });
     }
     setTaxIdWarning('');
+    setGstLookup({ busy: false, error: '', success: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, client]);
 
@@ -50,6 +52,32 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
   const handleSave = () => {
     if (!form.name.trim()) return;
     onSave(form);
+  };
+
+  const verifyGstin = async () => {
+    const gstin = form.gstin.trim().toUpperCase();
+    if (!validateGstinChecksum(gstin)) {
+      setTaxIdWarning('GSTIN format or checksum is invalid.');
+      return;
+    }
+    setGstLookup({ busy: true, error: '', success: '' });
+    try {
+      const response = await fetch(`/api/gst/lookup/${encodeURIComponent(gstin)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'GST lookup failed');
+      setForm(prev => ({
+        ...prev,
+        gstin,
+        name: payload.name || prev.name,
+        address: payload.address || prev.address,
+        state: payload.state || prev.state,
+        pin: payload.pin || prev.pin,
+      }));
+      setTaxIdWarning('');
+      setGstLookup({ busy: false, error: '', success: 'GSTIN verified and details filled.' });
+    } catch (error) {
+      setGstLookup({ busy: false, error: error.message || 'GST lookup failed', success: '' });
+    }
   };
 
   return (
@@ -109,6 +137,15 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
               onBlur={handleTaxIdBlur}
               placeholder={cc.taxIdPlaceholder} maxLength={20} />
             {taxIdWarning && <small style={{ color: '#d97706', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>⚠ {taxIdWarning}</small>}
+            {form.country === 'India' && (
+              <button type="button" className="btn btn-secondary" onClick={verifyGstin} disabled={gstLookup.busy}
+                style={{ marginTop: '0.45rem', fontSize: '0.75rem', padding: '0.35rem 0.55rem' }}>
+                {gstLookup.busy ? <LoaderCircle size={14} className="spin" /> : <Search size={14} />}
+                {gstLookup.busy ? 'Verifying…' : 'Verify & Autofill'}
+              </button>
+            )}
+            {gstLookup.error && <small style={{ color: '#dc2626', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>⚠ {gstLookup.error}</small>}
+            {gstLookup.success && <small style={{ color: '#16a34a', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>✓ {gstLookup.success}</small>}
           </div>
           <div className="form-group">
             <label className="form-label">Email</label>

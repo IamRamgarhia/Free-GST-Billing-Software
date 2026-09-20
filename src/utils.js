@@ -1257,10 +1257,31 @@ export const validateTaxId = (countryName, value) => {
   if (!value || !value.trim()) return { ok: true, message: '' };
   const cc = getCountryConfig(countryName);
   if (!cc.taxIdRegex) return { ok: true, message: '' };
-  const ok = cc.taxIdRegex.test(value.trim().toUpperCase());
+  const normalized = value.trim().toUpperCase();
+  const ok = cc.taxIdRegex.test(normalized) && (countryName !== 'India' || validateGstinChecksum(normalized));
   return ok
     ? { ok: true, message: '' }
     : { ok: false, message: `${cc.taxIdLabel} format looks unusual. Expected like: ${cc.taxIdPlaceholder}` };
+};
+
+// GSTIN uses a base-36 weighted checksum. This catches transposed/typed
+// numbers locally before an external lookup is attempted.
+export const validateGstinChecksum = (gstin) => {
+  const value = String(gstin || '').trim().toUpperCase();
+  if (!/^\d{2}[A-Z0-9]{13}$/.test(value)) return false;
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let factor = 2;
+  let sum = 0;
+  for (let i = value.length - 2; i >= 0; i -= 1) {
+    const code = chars.indexOf(value[i]);
+    if (code < 0) return false;
+    let product = code * factor;
+    product = Math.floor(product / 36) + (product % 36);
+    sum += product;
+    factor = factor === 2 ? 1 : 2;
+  }
+  const check = (36 - (sum % 36)) % 36;
+  return chars[check] === value[value.length - 1];
 };
 
 // ========== Country detection from browser locale ==========

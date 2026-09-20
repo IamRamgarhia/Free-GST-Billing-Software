@@ -14,7 +14,9 @@ import { fileURLToPath } from 'url';
 import { computeInvoiceTotals } from './src/utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, 'data');
+// Containers should mount a writable volume here. Keep the desktop default
+// unchanged so existing installs continue using ./data.
+const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 
 // Port choice — we deliberately default to a high, unusual number rather than
 // the conventional 3001. The 3000-range is heavily used by every other Node /
@@ -26,7 +28,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 // wins over this default — so a single user who genuinely needs 47371 for
 // something else can edit that file and we'll respect it forever.
 const DEFAULT_PORT = 47371;
-const PORT_FILE = path.join(__dirname, 'data', 'port.txt');
+const PORT_FILE = path.join(DATA_DIR, 'port.txt');
 
 // Read the persisted port (if any) — written once on first successful start
 // and every time we get bumped off our preferred port by EADDRINUSE.
@@ -37,10 +39,32 @@ const persistedPort = (() => {
     return (isFinite(n) && n >= 1024 && n <= 65535) ? n : null;
   } catch { return null; }
 })();
-const STARTING_PORT = persistedPort || DEFAULT_PORT;
+const configuredPort = Number.parseInt(process.env.PORT || '', 10);
+const STARTING_PORT = (configuredPort >= 1 && configuredPort <= 65535)
+  ? configuredPort
+  : (persistedPort || DEFAULT_PORT);
 const MAX_PORT_SCAN = 50; // 47371 → 47420 is enough headroom for any conceivable collision
 
 const app = express();
+const SERVER_HOST = process.env.HOST || (process.env.DOCKER === 'true' ? '0.0.0.0' : '127.0.0.1');
+
+// Small, dependency-free limiter for the external GST lookup route. It is
+// intentionally scoped to the process; a reverse proxy can provide stronger
+// limits for multi-instance deployments.
+const gstRate = new Map();
+const GST_RATE_WINDOW_MS = 60_000;
+const GST_RATE_MAX = Math.max(1, Number.parseInt(process.env.GST_RATE_LIMIT || '30', 10));
+function allowGstRequest(req) {
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = gstRate.get(key);
+  if (!entry || now - entry.startedAt >= GST_RATE_WINDOW_MS) {
+    gstRate.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= GST_RATE_MAX;
+}
 
 // v1.10.0 — CORS lockdown. Previously `app.use(cors())` echoed
 // Access-Control-Allow-Origin: *, which meant any site the user visited
@@ -53,8 +77,14 @@ const app = express();
 // also localhost.
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  const configuredOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const sameHost = origin && req.headers.host && (() => {
+    try { return new URL(origin).host === req.headers.host; } catch { return false; }
+  })();
   const allow =
     !origin ||
+    configuredOrigins.includes(origin) ||
+    sameHost ||
     /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
     /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin) ||
     /^https?:\/\/\[::1\](:\d+)?$/i.test(origin);
@@ -317,6 +347,102 @@ app.get('/api/profile', (req, res) => {
 app.post('/api/profile', (req, res) => {
   writeJSON(PROFILE_PATH, req.body);
   res.json({ success: true });
+});
+
+// ========================
+// GSTIN LOOKUP
+// ========================
+const GST_CONFIG_PATH = path.join(DATA_DIR, 'gst-api.json');
+const GST_PROVIDERS = {
+  mastersindia: {
+    label: 'Masters India',
+    url: 'https://commonapi.mastersindia.co/commonapis/searchgstin',
+    headers: key => ({ Authorization: `Bearer ${key}` }),
+    body: gstin => ({ gstin }),
+  },
+  razorpay: {
+    label: 'Razorpay',
+    url: 'https://api.razorpay.com/v1/gstins',
+    headers: key => ({ Authorization: `Basic ${Buffer.from(`${key}:`).toString('base64')}` }),
+    body: gstin => ({ gstin }),
+  },
+  signzy: {
+    label: 'Signzy',
+    url: process.env.SIGNZY_GST_URL || '',
+    headers: key => ({ Authorization: key }),
+    body: gstin => ({ gstin }),
+  },
+};
+
+function getGstConfig() {
+  const stored = readJSON(GST_CONFIG_PATH, {});
+  const provider = process.env.GST_API_PROVIDER || stored.provider || '';
+  const apiKey = process.env.GST_API_KEY || stored.apiKey || '';
+  const customUrl = process.env.GST_API_URL || stored.url || '';
+  return { provider, apiKey, url: customUrl, timeoutMs: Math.min(30_000, Math.max(2_000, Number.parseInt(process.env.GST_API_TIMEOUT_MS || stored.timeoutMs || '8000', 10))) };
+}
+
+app.get('/api/gst/config', (_req, res) => {
+  const config = getGstConfig();
+  res.json({
+    provider: config.provider,
+    providerLabel: GST_PROVIDERS[config.provider]?.label || (config.provider ? 'Custom provider' : ''),
+    configured: Boolean(config.apiKey && (config.url || GST_PROVIDERS[config.provider]?.url)),
+    timeoutMs: config.timeoutMs,
+    providers: Object.entries(GST_PROVIDERS).map(([id, value]) => ({ id, label: value.label })),
+  });
+});
+
+app.post('/api/gst/config', (req, res) => {
+  const provider = String(req.body?.provider || '').trim().toLowerCase();
+  const apiKey = String(req.body?.apiKey || '').trim();
+  const url = String(req.body?.url || '').trim();
+  if (provider && !GST_PROVIDERS[provider] && !url) return res.status(400).json({ error: 'Choose a supported provider or enter a custom endpoint' });
+  const current = readJSON(GST_CONFIG_PATH, {});
+  // An empty key means "keep the existing server-side key", not erase it.
+  const next = { ...current, provider, ...(apiKey ? { apiKey } : {}), ...(url ? { url } : {}) };
+  writeJSON(GST_CONFIG_PATH, next);
+  res.json({ success: true, provider, configured: Boolean(next.apiKey && (next.url || GST_PROVIDERS[provider]?.url)) });
+});
+
+app.get('/api/gst/lookup/:gstin', async (req, res) => {
+  if (!allowGstRequest(req)) return res.status(429).json({ error: 'Too many GST lookups. Try again shortly.', code: 'rate-limited' });
+  const gstin = String(req.params.gstin || '').trim().toUpperCase();
+  if (!/^[0-9]{2}[A-Z0-9]{13}$/.test(gstin)) return res.status(400).json({ error: 'GSTIN must be 15 characters', code: 'invalid-gstin' });
+  const config = getGstConfig();
+  const provider = GST_PROVIDERS[config.provider];
+  const endpoint = config.url || provider?.url;
+  if (!config.apiKey || !endpoint) return res.status(503).json({ error: 'GST API is not configured. Add a provider and API key in Settings.', code: 'not-configured' });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(provider?.headers(config.apiKey) || { Authorization: `Bearer ${config.apiKey}` }) },
+      body: JSON.stringify(provider?.body(gstin) || { gstin }),
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let payload;
+    try { payload = JSON.parse(raw); } catch { payload = { raw }; }
+    if (!response.ok) return res.status(502).json({ error: 'GST provider rejected the lookup', code: 'provider-error', status: response.status });
+    // Providers use different field names. Preserve the raw response server-side
+    // only and expose a small, stable shape to the browser.
+    const data = payload.data || payload.result || payload.taxpayerInfo || payload;
+    res.json({
+      gstin,
+      name: data.lgnm || data.tradeNam || data.legalName || data.name || '',
+      address: data.pradr?.adr || data.address || data.principalAddress || '',
+      state: data.stj || data.state || data.stateName || '',
+      pin: data.pradr?.pncd || data.pin || data.pincode || '',
+      status: data.sts || data.status || '',
+    });
+  } catch (err) {
+    const code = err.name === 'AbortError' ? 'timeout' : 'provider-unavailable';
+    return res.status(504).json({ error: code === 'timeout' ? 'GST provider timed out' : 'GST provider is unavailable', code });
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 // ========================
@@ -1371,14 +1497,14 @@ process.on('unhandledRejection', (err) => logFatal(err, 'unhandledRejection'));
 // every byte stays on the user's machine, which the privacy promise depends on.
 let activeServer = null;
 function startServer(port) {
-  const server = app.listen(port, '127.0.0.1', () => {
+  const server = app.listen(port, SERVER_HOST, () => {
     activeServer = server;
     // Persist the chosen port — the .bat launcher reads this for the browser URL.
     // Writing on EVERY successful boot means: if our preferred 47371 was busy and
     // we landed on 47372 instead, next launch tries 47372 first (cuts collision
     // scans in half on repeated reboots of whatever was holding 47371).
     try { fs.writeFileSync(PORT_FILE, String(port), 'utf-8'); } catch { /* ignore */ }
-    console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
+    console.log(`\n  Free GST Billing Software running on ${SERVER_HOST}:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
   });
   server.on('error', (err) => {

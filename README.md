@@ -22,6 +22,24 @@ Your data never leaves your computer. No cloud. No signup. No tracking. No limit
 
 ---
 
+## 🐳 Docker / NAS / ZimaOS
+
+The image writes all mutable files to `/data`, so it works with Docker, Portainer, Synology, Unraid, and ZimaOS. **Do not paste the shell prompt (`admin@ZimaOS:~ ➜ $`) into a command**; paste only the command after it. The `mkdir /root/.docker...` message is from a malformed command or a read-only Docker home, not from this application.
+
+For an existing `free-gst-billing:1.10.66` deployment, create a persistent `/data` bind mount or named volume, then rebuild and recreate the container:
+
+```sh
+docker compose build --no-cache
+docker compose up -d
+docker compose logs -f free-gst-billing
+```
+
+Use `docker-compose.yml` as the Portainer stack template. In the NAS environment settings, set `GST_API_PROVIDER` (`mastersindia`, `razorpay`, or `signzy`), `GST_API_KEY`, and optionally `GST_API_URL`; these values remain server-side. Alternatively configure the provider and key from **Settings → GSTIN Search API**. Never mount the application directory read-only: mount only `/data` for billing data and API configuration.
+
+Open `http://<NAS-IP>:47371`. To use another host port, set `FREEGST_PORT` while leaving the container port at `47371`.
+
+---
+
 ## ⚡ Install in 60 Seconds — one launcher per platform
 
 **As of v1.10.44**, the download ZIP has **one clean file** at the root (the launcher for your OS) and everything else tucked into a hidden `_system/` folder. Extract the ZIP, double-click the launcher, done.
