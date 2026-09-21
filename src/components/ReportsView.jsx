@@ -37,7 +37,9 @@ export default function ReportsView() {
       // v1.10.64 (#55) — reports are per business. Mixing two companies'
       // turnover into one profit figure is simply a wrong number.
       setBills((billData || []).filter(b => belongsToProfile(b, prof)));
-      setExpenses(expData);
+      // v1.10.66 (#64) — expenses too. Filtering only the invoices left every
+      // company's expenses in each company's profit and loss.
+      setExpenses((expData || []).filter(e => belongsToProfile(e, prof)));
     } catch {
       toast('Failed to load data', 'error');
     }

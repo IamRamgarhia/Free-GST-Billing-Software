@@ -85,6 +85,17 @@ npm start          # builds, then serves on http://localhost:47371
 ```
 Open <http://localhost:47371> in your browser.
 
+**Updating on Linux or a NAS.** If you installed from the release ZIP, use
+*Control Panel → Update Now* (v1.10.66 and later). It backs up your data first,
+downloads the latest release, and puts the previous version back if anything
+fails. It needs `unzip` (or python3): `sudo apt install unzip` on Debian /
+Ubuntu, `apk add unzip` on Alpine. Restart the app — or its container —
+afterwards. If you installed with `git clone`, update with
+`git pull && npm install && npm run build` instead.
+
+**On a phone or tablet** the menu sits behind the ☰ button at the top left, so
+pages get the whole screen.
+
 ---
 
 <a id="first-invoice"></a>
@@ -240,10 +251,15 @@ the GST rate to 0%. Or set Region Preference to *International*.
 A: Yes. Add each business in *Settings → Business Profiles*, then switch
 between them from the picker at the top of the window.
 
-Each business keeps its **own books**. The dashboard, reports, GST returns,
-Income Tax, expenses, purchases and recurring invoices all show only the
-business you have selected, so one company's invoices never turn up under
-another. Switching updates the screen straight away — no need to reload.
+Each business keeps its **own books**. The dashboard and its totals, reports,
+GST returns, Income Tax, expenses, purchases, recurring invoices and payment
+receipts all show only the business you have selected, so one company's figures
+never turn up under another. Switching updates whichever screen you are on
+straight away — no need to reload — and anything you add afterwards is saved
+under the business you switched to.
+
+Your **client list is shared** by all your businesses, because the same customer
+often buys from more than one of them.
 
 Businesses are matched on their **GST number**, so renaming a business does
 not split its history in two.
@@ -253,7 +269,7 @@ A: Nowhere — they are all still there. Anything saved before you began keeping
 businesses apart has no business recorded against it, so it stays visible under
 *every* business rather than being hidden from you.
 
-When you open Expenses, Purchases or Recurring, you will see a line such as
+When you open Expenses, Purchases, Recurring or Receipts, you will see a line such as
 *"3 expenses are not assigned to a business"* with an **Assign to ‹business›**
 button. Pressing it attaches those records to the business you currently have
 selected, and they stop appearing under the others.
@@ -332,9 +348,16 @@ You're on the *India only* region preference. Switch in *Settings → Region
 Preference* to *International* or *Both*.
 
 ### Foreign client invoice shows wrong tax split (CGST + SGST)
-Make sure the **client's country** is set correctly in the client form. The
-app uses the *seller's* country for tax labels and the *client's* country for
-place-of-supply detection.
+Set the **client's country** in the client form. From v1.10.66 a client whose
+country is outside India is treated as an export, so any tax charged is shown as
+IGST. Leave *Place of Supply* on "Defaults to Client State" — picking an Indian
+state there means the goods are supplied in India, and that state is used
+instead. The invoice currency does not change the tax split. Invoices saved
+before v1.10.66 keep the split they were issued with.
+
+In *GST Returns* these invoices count as zero-rated exports in GSTR-3B 3.1(b).
+They are not put in the GSTR-1 file: add them in Table 6A on the GST portal with
+the shipping bill details — a red notice at the top of GST Returns lists them.
 
 ---
 

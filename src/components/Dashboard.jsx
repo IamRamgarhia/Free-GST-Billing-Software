@@ -176,7 +176,22 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     [allBills, profile],
   );
   const [filtered, setFiltered] = useState([]);
-  const [stats, setStats] = useState({ byCurrency: {}, count: 0 });
+  // v1.10.66 (#64 item 3) — the headline cards are computed from `bills`, the
+  // list already narrowed to the active business. They used to be summed in
+  // loadBills() from the raw server response, so Total Invoiced, Tax Collected,
+  // Outstanding and the invoice count added up EVERY company's invoices while
+  // the table underneath showed only one.
+  const stats = useMemo(() => {
+    const byCurrency = {};
+    for (const b of bills) {
+      const cur = b.currency || b.data?.invoiceOptions?.currency || 'INR';
+      if (!byCurrency[cur]) byCurrency[cur] = { total: 0, tax: 0, unpaid: 0 };
+      byCurrency[cur].total += b.totalAmount || 0;
+      byCurrency[cur].tax += b.totalTaxAmount || 0;
+      if (b.status !== 'paid') byCurrency[cur].unpaid += (b.totalAmount || 0) - (b.paidAmount || 0);
+    }
+    return { byCurrency, count: bills.length };
+  }, [bills]);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -257,7 +272,14 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
         }
         const reconcileWrites = [];
         for (const bill of data) {
-          const rcpts = receiptsByBillKey.get(bill.id) || receiptsByBillKey.get(bill.invoiceNumber) || [];
+          // v1.10.66 (#64) — only a receipt from the business that raised the
+          // invoice may repair it. Two businesses can share an invoice number,
+          // and matching on the number alone posted one company's payment onto
+          // the other company's invoice every time the Dashboard opened.
+          // Receipts saved before businesses were separated carry no business
+          // and still match, as before.
+          const rcpts = (receiptsByBillKey.get(bill.id) || receiptsByBillKey.get(bill.invoiceNumber) || [])
+            .filter(r => belongsToProfile(bill, { gstin: r.ownerGstin, businessName: r.ownerName }));
           if (!rcpts.length) continue;
           const currentPayments = Array.isArray(bill.payments) ? bill.payments : [];
           const missing = rcpts.filter(r => {
@@ -314,18 +336,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
         await Promise.allSettled(updates);
       }
 
+      // Headline totals are derived from the business-filtered list (`stats`).
       setBills(data);
-
-      // Group totals by currency
-      const byCurrency = {};
-      for (const b of data) {
-        const cur = b.currency || b.data?.invoiceOptions?.currency || 'INR';
-        if (!byCurrency[cur]) byCurrency[cur] = { total: 0, tax: 0, unpaid: 0 };
-        byCurrency[cur].total += b.totalAmount || 0;
-        byCurrency[cur].tax += b.totalTaxAmount || 0;
-        if (b.status !== 'paid') byCurrency[cur].unpaid += (b.totalAmount || 0) - (b.paidAmount || 0);
-      }
-      setStats({ byCurrency, count: data.length });
     } catch {
       toast('Failed to load invoices', 'error');
     }

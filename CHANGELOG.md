@@ -7,6 +7,171 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.66] - 2026-09-14
+
+**Every company now has fully separate figures, invoices print the tax they
+actually charged, and the app works on phones and on Linux / NAS.**
+
+Reported in #64 by @sangwanmail-eng, #61 / #62 / #63 by @Yashparmar1125, and
+#59 by @deppen12.
+
+### How to update
+
+**Current version:** 1.10.65  →  **New version:** 1.10.66
+
+#### If the in-app Update button works for you
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+#### If the Update button does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.66.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when asked.
+4. Double-click the launcher again.
+
+#### Linux / NAS
+Versions before 1.10.66 have no Linux updater, so on Linux or a NAS use the
+download steps above **this one time** — for example
+`unzip -o Free-GST-Billing-v1.10.66.zip` in the folder that contains your
+`Free-GST-Billing` folder — then restart the app or its container. From then
+on, **Control Panel → Update Now** works there too.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - one company's expenses and purchases counted in another's figures
+
+Invoices were separated per business in v1.10.64, but **GST Returns**,
+**Reports** and **Income Tax** still added up the expenses and purchase bills of
+**every** business. In GST Returns that meant the input tax credit in GSTR-3B
+Table 4 for one GSTIN included purchases made by another. Each screen now uses
+only the selected business's records.
+
+### Fixed - dashboard totals included other companies
+
+**Total Invoiced**, **Tax Collected**, **Outstanding** and **Invoices** were
+added up before the list was narrowed to the selected business, so the cards
+counted every company while the table underneath showed one.
+
+### Fixed - screens kept the previous company after switching
+
+Expenses, Purchases, Recurring, Receipts, Reports, GST Returns and Income Tax
+read the selected business once, when they opened. After a switch they kept
+showing the old company - and anything added straight after switching was saved
+under the **old** business. They now reload the moment you switch.
+
+### Changed - payment receipts belong to a business
+
+Receipts are now kept per business, like invoices. **Quick Select** offers only
+the selected business's unpaid invoices, and **Against Invoice** only matches its
+invoices - two businesses can each have an `INV/2026-27/0001`. Receipts saved
+earlier appear under every business with an **Assign to ‹business›** button,
+exactly like older expenses, and editing an old receipt does not quietly assign
+it. The dashboard's automatic repair of receipt payments now only matches an
+invoice of the same business. Your client list stays shared by all businesses.
+
+### Fixed - the invoice printed "IGST ₹0.00" (#61)
+
+The tax rows on the invoice decided "IGST or CGST + SGST" with a check of their
+own, separate from the tax calculation. For a client from another state supplied
+in yours - a Delhi client with place of supply Punjab, say - the calculation
+correctly charged CGST + SGST, but the invoice printed an **IGST ₹0.00** row
+above the correct total. The invoice and GST Returns now use the calculation's
+own decision.
+
+The fix offered in PR #60 was not merged: it treated every non-rupee invoice as
+an export, so an Indian client in your own state billed in USD would have been
+charged IGST.
+
+### Fixed - invoices to clients abroad charged CGST + SGST
+
+A client whose **country** is outside India makes the invoice an export, so any
+tax charged is IGST. The client's country decides this, not the currency, and an
+Indian place of supply you choose yourself still wins. Invoices already saved
+keep the tax they were issued with.
+
+In **GST Returns** these exports now appear in GSTR-3B **3.1(b) Zero-rated
+supplies** rather than 3.1(a), and are left out of GSTR-1's B2B / B2C tables,
+where the portal rejects an inter-state row for your own state. GSTR-1
+**Table 6A** needs shipping-bill and port details the app does not record, so
+GST Returns lists those invoices in a red notice to add on the portal.
+
+### Added - "Reverse Charge: Yes / No" on tax invoices (#62)
+
+GST rules (Rule 46(p)) require a tax invoice to say whether tax is payable on
+reverse charge. The app printed a notice only for **Yes**; tax invoices and
+credit notes now always show **Reverse Charge: No** or **Yes** beside the
+invoice number. The rest of #62 was already in place: the **Reverse Charge
+applies** switch under **Customize**, tax left out of the amount payable, and
+the flag in the GSTR-1 and GSTR-3B exports.
+
+### Fixed - light grey text faded out in black-and-white print
+
+"This is not a tax invoice", "Against Invoice", the UPI block and the business
+details in the Minimal style were a very light grey. The PDF route darkened
+them, but **Print** did not, so on a black-and-white printer they almost
+vanished. They are now dark enough on screen, in print and in PDFs.
+
+### Fixed - exported CSV files could run spreadsheet formulas (#63)
+
+A value beginning with `=`, `+`, `-` or `@` - a client or item name, for
+example - ran as a formula when the CSV was opened in Excel or Google Sheets.
+Such cells are now written as plain text; numbers, negative amounts included,
+are unchanged. This covers the Expenses, Purchases and GST Returns exports. A
+note containing a line break no longer splits a row in two either.
+
+### Added - a menu for phones (#59)
+
+On narrow screens the sidebar is now a slide-in menu behind a ☰ button, so
+every page gets the full width. It closes as soon as you pick a page. Desktop is
+unchanged.
+
+### Added - Update Now on Linux and NAS (#59)
+
+**Control Panel -> Update Now** had no Linux version and always failed with
+"Script not found for this platform". It now downloads the latest release,
+checks that every file arrived complete, backs up your data, replaces the app
+files (never your data), reinstalls dependencies, and puts the previous version
+back if anything goes wrong. It never installs an older version over a newer
+one. It runs on minimal systems without bash (Alpine / BusyBox) and needs
+`unzip` or python3. Restart the app - or its container - afterwards. Copies installed with
+`git clone` are told to use `git pull` instead. It should also work on macOS,
+but it has only been tested on Linux.
+
+### Fixed - the release ZIP did not unpack properly on Linux or macOS
+
+The ZIP was built with Windows PowerShell, which puts `\` into file paths. ZIP
+files may only use `/`, so Linux and macOS tools warned, or produced single
+files literally named `Free-GST-Billing\_system\server.js`. The ZIP now uses
+standard paths, and the build refuses to produce one that does not.
+
+### For developers
+
+- `npm test` runs the unit tests (`npm run test:unit`: tax, discount and the new
+  CSV tests) before the browser smoke suite.
+- `npm run test:update-unix` runs `update-unix.sh` in real Alpine (BusyBox) and
+  Debian (dash) containers: update, re-run, rollback after a failed install, a
+  truncated download, no downgrade, a git checkout, and a system without unzip.
+  Needs Docker.
+- The smoke suite now restores the active business profile even when a step
+  fails part way, so an interrupted run cannot leave a real profile overwritten.
+- The release build reads the ZIP back and fails on `\` paths or on shell
+  scripts with Windows line endings.
+
+---
+
 ## [1.10.65] - 2026-09-11
 
 **Company switching now refreshes the screen, the invoice toolbar stays put,

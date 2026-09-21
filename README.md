@@ -329,7 +329,7 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 | 🆕 **Ctrl+K Command Palette** | Spotlight-style search across invoices, clients, products, and every settings section. Select an invoice → opens for edit in one keystroke |
 | 🆕 **Setup Wizard** | 3-step first-run wizard with 6 business-type presets (Retail / Freelancer / Restaurant / Wholesale / Manufacturing / Service). Configures paper size, language, and defaults in 90 seconds |
 | **Purchase Bills** | Record purchase invoices for ITC tracking and expense management |
-| **Multi-Business Profiles** | Run several businesses side by side, each with its own GSTIN, bank details, logo and signature — **and its own separate books**. Invoices, expenses, purchases, recurring templates, reports, GST returns and Income Tax all follow whichever business is selected, so one company's invoices never appear under another |
+| **Multi-Business Profiles** | Run several businesses side by side, each with its own GSTIN, bank details, logo and signature — **and its own separate books**. Invoices, dashboard totals, expenses, purchases, payment receipts, recurring templates, reports, GST returns and Income Tax all follow whichever business is selected, so one company's figures never appear under another. Your client list stays shared |
 
 ### :bar_chart: Reports & Analytics
 
@@ -531,7 +531,7 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 - [ ] **E-Invoicing (IRN)** — generate Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr — see [docs/COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md))*
 - [ ] **Bulk E-Invoicing** — generate IRN for multiple invoices at once
 - [ ] **Direct GSTR-1/3B portal upload** *(currently we generate the JSON, user uploads via offline tool — direct submission requires GSP partnership)*
-- [ ] **Reverse Charge Mechanism (RCM)** flag + self-invoice
+- [ ] **RCM self-invoice** for purchases from unregistered suppliers *(the reverse-charge switch, the "Reverse Charge: Yes / No" line on tax invoices and the GSTR-1 / GSTR-3B reporting already ship)*
 - [ ] **GST Cess** (compensation cess on tobacco/auto/coal)
 - [ ] **Composition scheme** invoice variant with Rule 46A declaration
 - [ ] **Automatic Payment Reminders** — email + WhatsApp for overdue invoices
@@ -723,7 +723,7 @@ Yes. Free GST Billing Software supports **22 countries** with locale-correct cur
 Yes. You can add unlimited business profiles (each with its own GSTIN, bank accounts, logo, signature, and country setting). Switch between them with one click in the header.
 
 ### Does it run on Mac or Linux?
-The `.bat` installers are Windows-only, but the app itself works on macOS and Linux via `npm install` + `npm start`. See the [Quick Start](#quick-start--installation) section.
+The `.bat` installers are Windows-only, but the app itself works on macOS and Linux — a NAS included — from the release ZIP (`Free GST Billing.sh`) or via `npm install` + `npm start`. See the [Quick Start](#quick-start--installation) section. From v1.10.66, **Control Panel → Update Now** also works on Linux / NAS installs made from the release ZIP (it needs `unzip` or python3); restart the app, or its container, afterwards.
 
 ### What happens to my data when the app updates?
 Updates only refresh the app code and dependencies. Your `data/` folder (invoices, clients, products, settings) and `Saved Invoices/` PDF archive are **never touched**. The updater also backs them up to `%TEMP%` as a third safety net before pulling new code.

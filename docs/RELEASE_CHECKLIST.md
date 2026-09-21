@@ -118,7 +118,11 @@ the wrong version number.
       unless that ZIP **extracts, installs, boots and passes the full smoke
       suite** (see `scripts/verify-release.mjs`). A failing build deletes
       the ZIP rather than leaving something shippable lying about.
-      It also runs the ASCII guard (ERR-001) and the server import-graph
-      check (ERR-009).
+      It also runs the ASCII guard (ERR-001), the server import-graph
+      check (ERR-009), and refuses a ZIP with `\` paths or CRLF shell
+      scripts (ERR-014).
+- [ ] If `update-unix.sh`, the ZIP layout or any Unix launcher changed:
+      `npm run test:update-unix` passes. It runs the Linux / NAS updater in
+      real Alpine and Debian containers (needs Docker, ERR-014).
 - [ ] `releases/latest` verified to return the new tag **and** new asset
 - [ ] Reply posted to whoever reported it

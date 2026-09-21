@@ -424,6 +424,49 @@ console.log('\n[V31-M3] §44AE parity — isEligible, negative clamp, declared-b
   truthy(under.notes.some(n => /less than the presumptive minimum/i.test(n)), 'Warns when declared < deemed');
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// v1.10.66 (#61) — IGST vs CGST + SGST, and the flag the invoice relies on.
+// The printed tax rows now follow `isInterstate` from these totals, so the
+// flag has to be right in every case the rows can be asked to describe.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[V66-#61] Interstate decision and the isInterstate flag');
+{
+  const items = [{ quantity: 1, rate: 1000, discount: 0, taxPercent: 18 }];
+  const profile = { country: 'India', state: 'Punjab', gstin: '03AAAAA1111A1Z1' };
+  const run = (client, details = {}, invoiceOptions = {}) =>
+    computeInvoiceTotals({ items, profile, client, details, invoiceOptions });
+
+  const inter = run({ state: 'Delhi' }, { placeOfSupply: 'Delhi' });
+  eq([inter.isInterstate, inter.igst, inter.cgst], [true, 180, 0], 'Delhi client, place of supply Delhi → IGST');
+
+  const intra = run({ state: 'Punjab' }, { placeOfSupply: 'Punjab' });
+  eq([intra.isInterstate, intra.igst, intra.cgst, intra.sgst], [false, 0, 90, 90], 'Same state → CGST + SGST');
+
+  // The case #61 reported: the engine charged CGST + SGST while the invoice,
+  // comparing state names on its own, printed an "IGST ₹0.00" row.
+  const posGoverns = run({ state: 'Delhi' }, { placeOfSupply: 'Punjab' });
+  eq([posGoverns.isInterstate, posGoverns.igst, posGoverns.cgst], [false, 0, 90], 'Delhi client supplied in Punjab → place of supply governs');
+
+  const byGstin = run({ gstin: '07BBBBB2222B1Z2' });
+  eq([byGstin.isInterstate, byGstin.igst], [true, 180], 'Client known only by an out-of-state GSTIN → IGST');
+
+  const exportClient = run({ country: 'United States', state: 'California' }, {}, { currency: 'USD' });
+  eq([exportClient.isInterstate, exportClient.igst, exportClient.cgst], [true, 180, 0], 'Client outside India → IGST, never CGST + SGST');
+  truthy(!exportClient.warnings.some(w => /Place of supply is not set/.test(w)), 'No "place of supply not set" warning for an export');
+
+  // PR #60 made any non-INR currency an export. Currency is not place of supply.
+  const usdInState = run({ country: 'India', state: 'Punjab' }, { placeOfSupply: 'Punjab' }, { currency: 'USD' });
+  eq([usdInState.isInterstate, usdInState.igst, usdInState.cgst], [false, 0, 90], 'Indian client in the same state billed in USD stays CGST + SGST');
+
+  const deliveredHere = run({ country: 'United States' }, { placeOfSupply: 'Punjab' });
+  eq([deliveredHere.isInterstate, deliveredHere.cgst], [false, 90], 'Foreign client with an explicit Indian place of supply follows that place');
+
+  const noCountry = run({ state: 'Punjab' });
+  eq(noCountry.isInterstate, false, 'A client with no country recorded is treated as Indian');
+
+  eq(typeof intra.isInterstate, 'boolean', 'isInterstate is always a boolean');
+}
+
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);
 if (failed) process.exit(1);

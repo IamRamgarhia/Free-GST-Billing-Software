@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile } from '../utils';
+import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile, toCsvLine } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -17,9 +17,10 @@ const QUARTERS = [
 // v1.10.6 — audit L4: local copy removed, imported from utils above.
 
 function downloadCSV(filename, headers, rows) {
-  const escape = (val) => { const s = String(val ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const lines = [headers.map(escape).join(',')];
-  rows.forEach(row => lines.push(row.map(escape).join(',')));
+  // v1.10.66 (#63) — toCsvLine stops a cell such as a client name starting
+  // with "=" from running as a spreadsheet formula when the file is opened.
+  const lines = [toCsvLine(headers)];
+  rows.forEach(row => lines.push(toCsvLine(row)));
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
@@ -164,7 +165,17 @@ function buildReconciliation(twoBData, purchases) {
 
 // Inter-state status of a bill — follows place of supply when set explicitly,
 // SEZ supplies always interstate, else compares seller and client state.
+//
+// v1.10.66 (#61) — the invoice's own saved decision comes first. Every bill
+// keeps the totals the tax engine produced, `isInterstate` included, and a
+// return has to report the tax the way the invoice actually charged it.
+// Re-deriving it here from state NAMES disagreed with the engine where the
+// engine works from codes — a client known only by GSTIN, or a client abroad —
+// and filed IGST for an invoice that charged CGST + SGST. The name comparison
+// below remains only for bills saved before the flag existed.
 function billIsInterstate(bill) {
+  const saved = bill.data?.totals?.isInterstate;
+  if (typeof saved === 'boolean') return saved;
   const prof = bill.data?.profile;
   const client = bill.data?.client;
   const details = bill.data?.details;
@@ -534,9 +545,12 @@ export default function GSTReturns() {
       // v1.10.64 (#55) — a GST return must cover ONE GSTIN. Showing another
       // business's invoices here would misstate the return being filed.
       setBills((b || []).filter(bill => belongsToProfile(bill, p)));
-      setExpenses(e); setProfile(p || {});
+      // v1.10.66 (#64) — and only its own expenses and purchases. Left
+      // unfiltered, GSTR-3B Table 4 claimed input tax credit on purchases made
+      // by a different GSTIN.
+      setExpenses((e || []).filter(r => belongsToProfile(r, p))); setProfile(p || {});
       // Purchases endpoint may not exist on older server versions
-      try { const pur = await getAllPurchases(); setPurchases(pur || []); } catch { /* ignore — older servers don't have this endpoint */ }
+      try { const pur = await getAllPurchases(); setPurchases((pur || []).filter(r => belongsToProfile(r, p))); } catch { /* ignore — older servers don't have this endpoint */ }
     } catch { toast('Failed to load data', 'error'); }
   };
 
@@ -596,8 +610,26 @@ export default function GSTReturns() {
   // ========== Classification ==========
   const creditNotes = filteredBills.filter(b => (b.invoiceType || 'tax-invoice') === 'credit-note');
   const regularBills = filteredBills.filter(b => (b.invoiceType || 'tax-invoice') !== 'credit-note');
-  const b2bRegular = regularBills.filter(b => b.data?.client?.gstin);
-  const b2cRegular = regularBills.filter(b => !b.data?.client?.gstin);
+  // v1.10.66 (#61) — exports. The tax engine now charges a client outside India
+  // IGST, so such an invoice can no longer sit in B2C with your own state as
+  // place of supply: the portal rejects an inter-state row for the home state.
+  // Exports belong in GSTR-1 Table 6A — which needs shipping-bill and port
+  // details this app does not record — and in GSTR-3B 3.1(b). They are kept
+  // out of B2B / B2C and 3.1(a), counted in 3.1(b), and flagged so they are
+  // entered in Table 6A on the portal. They stay in regularBills, so the HSN
+  // and document summaries still include them. An older invoice whose saved
+  // totals charged CGST + SGST stays exactly where it was, so tax it collected
+  // can never drop out of 3.1(a).
+  const isExportBill = (bill) => {
+    const country = String(bill.data?.client?.country || '').trim();
+    return (bill.data?.profile?.country || 'India') === 'India'
+      && !!country && country !== 'India'
+      && !getStateCode(String(bill.data?.details?.placeOfSupply || '').trim())
+      && bill.data?.totals?.isInterstate !== false;
+  };
+  const exportBills = regularBills.filter(isExportBill);
+  const b2bRegular = regularBills.filter(b => b.data?.client?.gstin && !isExportBill(b));
+  const b2cRegular = regularBills.filter(b => !b.data?.client?.gstin && !isExportBill(b));
   const b2cLarge = b2cRegular.filter(b => {
     const isInter = billIsInterstate(b);
     return isInter && (b.totalAmount || 0) > 250000;
@@ -729,7 +761,14 @@ export default function GSTReturns() {
   };
 
   // ========== GSTR-3B ==========
-  const outputTax = { cgst: grandTotals.cgst, sgst: grandTotals.sgst, igst: grandTotals.igst };
+  // v1.10.66 (#61) — exports are zero-rated supplies, GSTR-3B 3.1(b). IGST paid
+  // on an export is still tax payable, so it joins the output tax below even
+  // though the export itself is reported outside 3.1(a).
+  const exportTotals = exportBills.reduce((acc, b) => {
+    const t = b.data?.totals || {};
+    return { taxable: acc.taxable + getTaxableAmount(t), igst: acc.igst + (t.igst || 0), cess: acc.cess + (t.cess || 0) };
+  }, { taxable: 0, igst: 0, cess: 0 });
+  const outputTax = { cgst: grandTotals.cgst, sgst: grandTotals.sgst, igst: grandTotals.igst + exportTotals.igst };
   // ITC from expenses — P1 #15 fix: route to IGST when the expense is
   // interstate (vendor charged IGST, e.g. AWS / Google / Adobe from an
   // out-of-state office). Was unconditionally splitting 50/50 into
@@ -801,6 +840,12 @@ export default function GSTReturns() {
   });
   if (!profile.gstin) {
     warnings.push({ type: 'error', msg: 'Your business GSTIN is not set. Go to Settings → Company Details to add it.' });
+  }
+  // v1.10.66 (#61) — exports are left out of the GSTR-1 file (see isExportBill).
+  // Put first, so the three-message limit on the banner can never hide it.
+  if (exportBills.length > 0) {
+    const listed = exportBills.slice(0, 3).map(b => b.invoiceNumber).join(', ') + (exportBills.length > 3 ? ', …' : '');
+    warnings.unshift({ type: 'error', msg: `${exportBills.length} export invoice(s) (${listed}) are not in the GSTR-1 file. Add them in Table 6A on the GST portal with the shipping bill details — their value is in GSTR-3B 3.1(b).` });
   }
 
   // ========== Filing Period Key ==========
@@ -992,7 +1037,8 @@ export default function GSTReturns() {
         samt: round2(grandTotals.sgst),
         csamt: round2(grandTotals.cess),
       },
-      osup_zero: { txval: 0, iamt: 0, csamt: 0 },
+      // v1.10.66 (#61) — exports, kept out of osup_det above.
+      osup_zero: { txval: round2(exportTotals.taxable), iamt: round2(exportTotals.igst), csamt: round2(exportTotals.cess) },
       osup_nil_exmp: { txval: 0 },
       // v1.10.31 — GST-M10: RCM inward supplies populated from purchases
       // flagged as reverse-charge (was hardcoded 0 → self-remit RCM liability
@@ -1700,7 +1746,7 @@ export default function GSTReturns() {
                 <thead><tr><th>Nature of Supplies</th><th style={{ textAlign: 'right' }}>Taxable Value</th><th style={{ textAlign: 'right' }}>IGST</th><th style={{ textAlign: 'right' }}>CGST</th><th style={{ textAlign: 'right' }}>SGST</th></tr></thead>
                 <tbody>
                   <tr><td className="font-medium">(a) Outward taxable supplies (other than zero-rated, nil-rated and exempted)</td><td style={{ textAlign: 'right' }}>{formatCurrency(grandTotals.taxable)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(grandTotals.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(grandTotals.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(grandTotals.sgst)}</td></tr>
-                  <tr><td className="font-medium">(b) Zero-rated supplies</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td></tr>
+                  <tr><td className="font-medium">(b) Zero-rated supplies</td><td style={{ textAlign: 'right' }}>{formatCurrency(exportTotals.taxable)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(exportTotals.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td></tr>
                   <tr><td className="font-medium">(c) Non-GST supplies</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>N/A</td></tr>
                 </tbody>
               </table>
