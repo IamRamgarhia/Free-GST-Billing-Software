@@ -341,6 +341,7 @@ const LineItem = memo(function LineItem({
       <div className="line-item-field" style={{ flex: 0.7 }}>
         <label className="form-label">Qty</label>
         <input type="number" min="0" step="any" className="form-input" value={item.quantity}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => onFieldChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
       </div>
       <div className="line-item-field" style={{ flex: 0.9 }}>
@@ -376,6 +377,7 @@ const LineItem = memo(function LineItem({
       <div className="line-item-field" style={{ flex: 1.2 }}>
         <label className="form-label">Rate</label>
         <input type="number" min="0" step="any" className="form-input" value={item.rate}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
       </div>
       {invoiceOptions.showDiscount && (
@@ -390,6 +392,7 @@ const LineItem = memo(function LineItem({
               total — tax gets backed out so consumer sees clean round). */}
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             <input type="number" min="0" step="any" className="form-input" value={item.discount}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => onFieldChange(item.id, 'discount', clampNonNeg(e.target.value))}
               style={{ flex: 1, minWidth: 55 }} />
             <select className="form-input"
@@ -1125,7 +1128,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (liveMatch && liveMatch !== activeProfile) setActiveProfile(liveMatch);
   }, [editingBill, allProfiles, activeProfile]);
 
+  const isIssuedInvoice = !!editingBill && !editingBill._isDuplicate && !editingBill._convertToType;
+
   const handleTypeChange = async (type) => {
+    if (isIssuedInvoice) return;
     setInvoiceType(type);
     const config = INVOICE_TYPES[type];
     // v1.10.14 — honour the per-type prefix override when switching invoice type.
@@ -2956,32 +2962,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
       <div className={`split-view ${previewCollapsed ? 'split-view-focus' : ''}`}>
         <div className="editor-pane">
-          {/* Business Profile Selector — shown only if multiple profiles saved */}
-          {allProfiles.length > 1 && (
-            <div className="glass-panel p-6 mb-6">
-              <h3 className="section-title" style={{ marginBottom: '0.75rem' }}>Billing From (Business Profile)</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                {allProfiles.map(bp => {
-                  const isSelected = (activeProfile?.businessName || profileProp?.businessName) === bp.businessName;
-                  return (
-                    <button key={bp.id} type="button"
-                      onClick={() => setActiveProfile(bp)}
-                      style={{
-                        padding: '0.5rem 1rem', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer',
-                        border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                        background: isSelected ? 'rgba(59,130,246,0.08)' : 'var(--surface)',
-                        color: isSelected ? 'var(--primary)' : 'var(--text)',
-                        fontWeight: isSelected ? 700 : 400,
-                      }}>
-                      {bp.businessName}
-                      {bp.gstin && <span style={{ fontSize: '0.72rem', marginLeft: 6, opacity: 0.7 }}>{bp.gstin}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
+          {/* v1.10.67 (#66 item 6) — the "Billing From (Business Profile)"
+              card was removed. The company picker at the top of the sidebar
+              already sets which business an invoice belongs to; a second
+              picker here only made it possible to issue the invoice from a
+              company other than the one on screen. */}
           {/* Invoice Type */}
           <div className="glass-panel p-6 mb-6">
             <div className="flex justify-between items-center">
@@ -2993,10 +2978,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             </div>
             <div className="type-selector" style={{ marginTop: '0.75rem' }}>
               {Object.entries(INVOICE_TYPES).map(([key, val]) => (
-                <button key={key} className={`type-chip ${invoiceType === key ? 'type-chip-active' : ''}`}
+                <button key={key} type="button"
+                  className={`type-chip ${invoiceType === key ? 'type-chip-active' : ''}`}
+                  disabled={isIssuedInvoice && invoiceType !== key}
+                  title={isIssuedInvoice ? 'The type cannot change once an invoice is saved. Duplicate it to make a different document.' : val.description}
                   onClick={() => handleTypeChange(key)}>{val.label}</button>
               ))}
             </div>
+            {isIssuedInvoice && (
+              <p className="type-desc" style={{ color: 'var(--text-muted)' }}>
+                Saved as a {typeConfig?.label || invoiceType}. The type stays fixed so the number series and tax treatment keep matching what the customer already has - use Duplicate to raise a different document.
+              </p>
+            )}
             <p className="type-desc">{typeConfig?.description}</p>
 
             {/* Goods / Services / Mixed selector — drives default line-item unit
@@ -3842,12 +3835,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Discount on total (whole bill)</label>
               <input type="number" min="0" step="any" className="form-input"
                 value={invoiceOptions.invoiceDiscountValue || ''}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountValue: clampNonNeg(e.target.value) }))}
                 style={{ width: 100 }} placeholder="0" />
               <select className="form-input"
                 value={invoiceOptions.invoiceDiscountType === 'percent' ? 'percent' : 'fixed'}
                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountType: e.target.value }))}
-                style={{ width: 90 }}>
+                style={{ width: 128 }}>
                 <option value="fixed">₹ (fixed)</option>
                 <option value="percent">% of total</option>
               </select>
@@ -4092,7 +4086,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             }}>
               <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
                 items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
-                customNotes={customNotes} extraSections={extraSections} options={invoiceOptions} />
+                customNotes={customNotes} extraSections={extraSections} options={invoiceOptions}
+                cancelled={editingBill?.status === 'cancelled'} />
             </div>
           </div>
         </div>
@@ -4110,6 +4105,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         onClose={() => setShowPrintPreview(false)}
         onPrint={executePrint}
         onDownloadPdf={generatePDF}
+        cancelled={editingBill?.status === 'cancelled'}
         profile={profile}
         client={client}
         details={details}

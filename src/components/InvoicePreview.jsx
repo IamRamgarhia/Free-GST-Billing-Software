@@ -11,7 +11,7 @@ import { getPrintSettings, getLabel } from '../utils/printSettings';
 // instance renders with previewOnly=true so it doesn't create a
 // duplicate id on the page — HTML-invalid + could confuse getElementById
 // lookups.
-const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {}, previewOnly = false }, ref) => {
+const InvoicePreview = React.forwardRef(({ profile, client, details, items, totals, invoiceType = 'tax-invoice', customTerms, customNotes, extraSections = [], options = {}, previewOnly = false, cancelled = false }, ref) => {
   // Interstate detection must match InvoiceGenerator.jsx — it honours
   // details.placeOfSupply (POS override) and client.isSEZ (SEZ supplies
   // are always interstate regardless of physical state). Without this
@@ -861,6 +861,8 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     ...(pdfFontSizeCss ? { fontSize: pdfFontSizeCss } : {}),
     ...(pdfFontWeightCss ? { fontWeight: pdfFontWeightCss } : {}),
     ...(pdfCapsOn ? { textTransform: 'uppercase' } : {}),
+    // v1.10.67 (#66 item 12) — origin for the CANCELLED watermark below.
+    position: 'relative',
   };
 
   return (
@@ -870,6 +872,21 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       data-row-density={_ps_final.rowDensity || 'normal'}
       data-header-compact={_ps_final.headerCompact ? '1' : '0'}
       ref={ref} {...(previewOnly ? {} : { id: 'invoice-preview' })} style={finalContainerStyle}>
+      {cancelled && (
+        <div aria-hidden="true" style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none', zIndex: 5,
+        }}>
+          <span style={{
+            transform: 'rotate(-24deg)', whiteSpace: 'nowrap',
+            fontSize: '3.6rem', fontWeight: 800, letterSpacing: '0.18em',
+            color: 'rgba(220, 38, 38, 0.22)',
+            border: '6px solid rgba(220, 38, 38, 0.22)', borderRadius: 14,
+            padding: '0.3rem 1.6rem',
+          }}>CANCELLED</span>
+        </div>
+      )}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'classic' && renderClassicHeader()}
@@ -1267,14 +1284,24 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           const printCfg = _ps;  // v1.10.4 — reuse top-of-function read
           const sigImg = profile?.signature || (printCfg.signatureShow !== false ? printCfg.signatureImage : null);
           const sigName = profile?.businessName || printCfg.signatureName;
-          if (!showSignature || !sigImg) return null;
+          // v1.10.67 (#66 item 13) — the stamp is a separate image with its own
+          // height, so it no longer has to be pasted into the signature file.
+          // Either one alone is enough to print the block.
+          const stampImg = profile?.stamp || null;
+          const sigMaxHeight = Number(profile?.signatureHeight) || 60;
+          const stampMaxHeight = Number(profile?.stampHeight) || 70;
+          if (!showSignature || (!sigImg && !stampImg)) return null;
           return (
             <div className="inv-signature">
               {showSignatoryText && <p className="inv-sig-label">Authorized Signatory</p>}
-              <img src={sigImg} alt="Signature" style={{
-                maxHeight: '60px', maxWidth: '180px', objectFit: 'contain',
-                display: 'block', marginLeft: 'auto', marginBottom: '0.4rem'
-              }} />
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                {stampImg && <img src={stampImg} alt="Stamp" style={{
+                  maxHeight: `${stampMaxHeight}px`, maxWidth: '120px', objectFit: 'contain', display: 'block',
+                }} />}
+                {sigImg && <img src={sigImg} alt="Signature" style={{
+                  maxHeight: `${sigMaxHeight}px`, maxWidth: '180px', objectFit: 'contain', display: 'block',
+                }} />}
+              </div>
               <p className="inv-sig-name">{sigName}</p>
             </div>
           );

@@ -7,6 +7,120 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.67] - 2026-09-23
+
+**Thirteen things @sangwanmail-eng asked for in #66: totals that count only
+real sales, an invoice you cancel instead of delete, a light sidebar in Light
+Mode, and a stamp of your own.**
+
+### How to update
+
+**Current version:** 1.10.66  →  **New version:** 1.10.67
+
+#### If the in-app Update button works for you
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+#### If the Update button does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.67.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when asked.
+4. Double-click the launcher again.
+
+#### Linux / NAS
+From v1.10.66 the in-app **Control Panel → Update Now** works here too. It
+needs `unzip` (or python3). Restart the app, or its container, afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - adding a new company could replace the one you had
+
+Reported as: *"when adding a new company, the newly added company profile
+replaces the existing company profile"*, together with a stray unsaved-changes
+warning.
+
+**Add New Profile** only blanked the form. Saving then wrote the new company
+over the old one - and on a first install the old company had never been kept
+in **Business Profiles**, so it was gone for good. The company on screen is now
+saved into Business Profiles first, and the blank form no longer claims you
+have unsaved work.
+
+### Fixed - Total Invoiced counted quotes and challans as sales
+
+The dashboard cards added up **every** document: Proforma / Estimate, Delivery
+Challan, Credit Note, Bill of Supply and Composition alike. An estimate you may
+never be paid for was counted as turnover.
+
+**Total Invoiced**, **Tax Collected**, **Outstanding** and **Invoices** now
+count Tax Invoice, Bill of Supply and Composition, subtract Credit Notes, and
+ignore Proforma / Estimate and Delivery Challan entirely.
+
+### Added - Cancel Invoice, in place of deleting one
+
+An issued invoice number has to stay in the books, so a saved invoice is no
+longer deleted from the list. **Cancel invoice** keeps the document and its
+number, stamps **CANCELLED** across the PDF, and takes it out of the dashboard
+totals, Reports, GST Returns, Income Tax, payment reminders and the receipt
+screen. Stock from the invoice is put back. Picking any other status from the
+status dropdown un-cancels it. The same applies to the bulk action, which now
+reads **Cancel invoices**.
+
+### Changed - the invoice type is fixed once an invoice is saved
+
+The type sets the number series and the tax treatment, so changing it after the
+customer has the document would put your books and their copy out of step. On a
+saved invoice the type buttons are locked; **Duplicate** still lets you raise a
+different document from the same details.
+
+### Changed - the sidebar follows Light Mode
+
+It was always dark navy, so Light Mode left the app half light and half dark.
+Dark Mode is unchanged.
+
+### Added - a stamp of your own, and a size slider for the signature
+
+**Settings → Branding** now has a **Company Stamp / Seal** upload beside the
+signature, each with the size slider the logo already had. Both print centred
+above the signatory name, side by side.
+
+### Changed - smaller things from the same list
+
+- **Billing From (Business Profile)** is gone from the invoice screen. The
+  company picker in the sidebar already decides which business an invoice
+  belongs to, and two pickers made it possible to bill from the wrong one.
+- New installs start on **India**, instead of guessing from the computer's
+  language and starting an Indian shop on "Outside India" with a US company.
+- New products default to **Pcs**.
+- Tapping **Qty**, **Rate** or **Discount** selects what is in the box, so
+  typing replaces it instead of landing next to the 0.
+- The whole-bill discount box is wide enough for its own label - it read
+  **"₹ (fixe"**.
+- **Type**, **Paid** and **Status** are centred in the invoice list. Amounts
+  stay right-aligned and names left-aligned, so the columns still line up.
+- **Settings** keeps one **Save Profile** button pinned at the top; the other
+  sections still save the moment you change them.
+
+### Already worked, for the record
+
+**Convert to Tax Invoice** already creates a new invoice and leaves the
+estimate alone. Deleted invoices already went to a 30-day Trash rather than
+disappearing.
+
+---
+
 ## [1.10.66] - 2026-09-14
 
 **Every company now has fully separate figures, invoices print the tax they

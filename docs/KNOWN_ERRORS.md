@@ -603,6 +603,54 @@ full update under dash.
 
 ---
 
+## ERR-015 - "Add New Profile" blanked the form and called it a new company
+
+**Version:** broke when multi-business landed · fixed in v1.10.67
+**Reported by:** @sangwanmail-eng (#66 item 3)
+
+**Symptom** - *"when adding a new company, the newly added company profile
+replaces the existing company profile. This issue is particularly noticeable
+when using the software for the first time."* Plus an unsaved-changes bar for a
+form the user had not touched.
+
+**Cause** - `handleAddNewProfile` only called `setProfile({ ...blank })`. The
+active profile file still held the old company, so the next **Save Profile**
+overwrote it. On a first install that company had never been copied into
+`data/profiles/`, so there was no surviving copy anywhere. The blank form also
+differed from the saved baseline, which is what raised the unsaved-changes bar.
+
+**Rule** - a "start a new X" button must persist the current X before it clears
+the form, and reset the dirty baseline afterwards. Clearing a form is not the
+same as creating a record, and the active profile is a single file, not a list.
+
+**Guard** - `tests/smoke.mjs` (#66): after Add New Profile the previous company
+is present in Business Profiles and the form is not marked dirty.
+
+---
+
+## ERR-016 - Every document type counted as turnover
+
+**Version:** fixed in v1.10.67
+**Reported by:** @sangwanmail-eng (#66 item 7)
+
+**Symptom** - *"Why are documents such as Proforma/Estimate, Delivery Challan,
+Composition, Credit Note and Bill of Supply included in the Total Invoiced
+Amount?"* A screenshot showed ₹4,248 of "sales" where ₹1,239 was an estimate.
+
+**Cause** - the dashboard cards summed every bill row. `invoiceType` was only
+ever used for labels and numbering, never for deciding what is turnover.
+
+**Rule** - money questions go through one rule, not per-screen filters:
+`salesSign()` in `src/utils.js` returns +1 for a sale (tax invoice, bill of
+supply, composition), -1 for a credit note and 0 for quotes, challans and
+anything cancelled. Every new money figure uses it.
+
+**Guard** - `scripts/tax-test.mjs` `[V67-#66]` covers all eight cases; the smoke
+suite checks a proforma and a challan do not move Total Invoiced while a sale
+and a credit note do.
+
+---
+
 <!--
 Adding an entry? Copy this skeleton.
 

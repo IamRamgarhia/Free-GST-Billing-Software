@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients } from './store';
-import { isModuleEnabled, getUpcomingFilings } from './utils';
+import { isModuleEnabled, getUpcomingFilings, isCancelledBill } from './utils';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
 // Dashboard downloaded and parsed GSTReturns (1952), InvoiceGenerator
@@ -195,13 +195,14 @@ function App() {
         const today = new Date().toISOString().split('T')[0];
         const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 3);
         const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        // v1.10.67 (#66 item 12) — never chase payment for a cancelled invoice.
         const overdue = bills.filter(b => {
           const d = b.data?.details?.dueDate;
-          return d && d < today && b.status !== 'paid';
+          return d && d < today && b.status !== 'paid' && !isCancelledBill(b);
         });
         const dueSoon = bills.filter(b => {
           const d = b.data?.details?.dueDate;
-          return d && d >= today && d <= tomorrowStr && b.status !== 'paid';
+          return d && d >= today && d <= tomorrowStr && b.status !== 'paid' && !isCancelledBill(b);
         });
         // Honour the user's stock-alert preferences. When disabled, the filter
         // returns nothing — bell badge drops to 0 for the stock category.

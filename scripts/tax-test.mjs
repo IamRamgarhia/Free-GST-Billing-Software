@@ -13,6 +13,9 @@ import {
   computeInvoiceTotals,
   isUnionTerritoryWithoutLegislature,
   getStateCode,
+  salesSign,
+  isCancelledBill,
+  getDefaultUnitForMode,
 } from '../src/utils.js';
 import {
   compute44AE,
@@ -465,6 +468,29 @@ console.log('\n[V66-#61] Interstate decision and the isInterstate flag');
   eq(noCountry.isInterstate, false, 'A client with no country recorded is treated as Indian');
 
   eq(typeof intra.isInterstate, 'boolean', 'isInterstate is always a boolean');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// v1.10.67 (#66 items 7 and 12) — what counts as turnover. The dashboard
+// cards, Reports, GST Returns and Income Tax all lean on this one rule.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[V67-#66] Sales documents, credit notes and cancelled invoices');
+{
+  const doc = (invoiceType, status) => ({ invoiceType, status });
+  eq(salesSign(doc('tax-invoice', 'unpaid')), 1, 'A tax invoice is a sale');
+  eq(salesSign(doc('bill-of-supply', 'paid')), 1, 'A bill of supply is a sale');
+  eq(salesSign(doc('composition', 'paid')), 1, 'A composition bill of supply is a sale');
+  eq(salesSign(doc('credit-note', 'unpaid')), -1, 'A credit note takes money back off sales');
+  eq(salesSign(doc('proforma', 'unpaid')), 0, 'A proforma is a quote, not a sale');
+  eq(salesSign(doc('delivery-challan', 'unpaid')), 0, 'A delivery challan sells nothing');
+  eq(salesSign(doc('tax-invoice', 'cancelled')), 0, 'A cancelled invoice counts for nothing');
+  eq(salesSign(doc('credit-note', 'cancelled')), 0, 'A cancelled credit note counts for nothing either');
+  eq(salesSign({ status: 'unpaid' }), 1, 'A bill with no type recorded is treated as a tax invoice');
+  truthy(isCancelledBill({ status: 'cancelled' }), 'isCancelledBill spots the cancelled status');
+  truthy(!isCancelledBill({ status: 'overdue' }), 'and leaves every other status alone');
+  eq(getDefaultUnitForMode('goods'), 'Pcs', 'Goods default to Pcs (#66 item 2)');
+  eq(getDefaultUnitForMode('mixed'), 'Pcs', 'Mixed invoices default to Pcs too');
+  eq(getDefaultUnitForMode('services'), 'Hrs', 'Services still default to Hrs');
 }
 
 console.log('\n────────────────────────────────────────');

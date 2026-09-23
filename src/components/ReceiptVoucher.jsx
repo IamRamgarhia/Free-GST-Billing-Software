@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Receipt, Plus, Trash2, Search, Printer, Pencil } from 'lucide-react';
 import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
-import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness } from '../utils';
+import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness, isCancelledBill } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
@@ -261,7 +261,8 @@ export default function ReceiptVoucher() {
     }, 100);
   };
 
-  const unpaidBills = bills.filter(b => b.status !== 'paid');
+  // v1.10.67 (#66 item 12) — no money is owed on a cancelled invoice.
+  const unpaidBills = bills.filter(b => b.status !== 'paid' && !isCancelledBill(b));
 
   // v1.10.66 (#64 item 2) — receipts saved before this release carry no
   // business. As with expenses they are never assigned automatically: only the

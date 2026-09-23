@@ -735,6 +735,7 @@ try {
     await page.evaluate((draft) => {
       sessionStorage.setItem('gst_invoiceDraft', JSON.stringify(draft));
       sessionStorage.setItem('gst_currentView', 'new');
+      sessionStorage.removeItem('gst_editingBill');
     }, draft);
     await page.reload({ waitUntil: 'networkidle' });
     await sleep(2500);
@@ -867,6 +868,177 @@ try {
   } finally {
     await phone.close();
   }
+
+  // ======================================================================
+  // v1.10.67 — #66 (@sangwanmail-eng)
+  // ======================================================================
+  const salesCards = async () => {
+    await reopenView('Dashboard');
+    return { total: rupees(await cardValues('Total Invoiced')), count: money((await cardValues('Invoices'))?.[0]) };
+  };
+  const seedBill = (id, number, type, amount, extra = {}) => api('/api/bills', {
+    id, invoiceNumber: number, invoiceType: type, clientName: 'Smoke Test Client',
+    status: 'unpaid', totalAmount: amount, totalTaxAmount: 0, invoiceDate: today, payments: [], items: [],
+    data: {
+      profile: { gstin: TEST_GSTIN, businessName: 'Smoke Alpha', country: 'India', state: 'Punjab' },
+      client: { name: 'Smoke Test Client', state: 'Punjab', country: '' },
+      details: { invoiceNumber: number, invoiceDate: today },
+      items: [{ id: 'l1', name: 'Smoke line', hsn: '9983', quantity: 1, rate: amount, taxPercent: 0, discount: 0, unit: 'Pcs' }],
+      totals: { subtotal: amount, taxableAmount: amount, cgst: 0, sgst: 0, igst: 0, total: amount, isInterstate: false },
+      invoiceOptions: { showGST: false },
+    },
+    ...extra,
+  });
+
+  // ---- #66 item 7: only real sales count on the dashboard ----------------
+  const sales0 = await salesCards();
+  await seedBill('smoketest-quote', 'SMOKE-EST/9', 'proforma', 9999);
+  await seedBill('smoketest-challan', 'SMOKE-DC/9', 'delivery-challan', 8888);
+  const sales1 = await salesCards();
+  check('#66 a proforma and a delivery challan are not counted as sales',
+    close(sales1.total, sales0.total) && sales1.count === sales0.count,
+    `total ${sales0.total} -> ${sales1.total}, count ${sales0.count} -> ${sales1.count}`);
+  await seedBill('smoketest-sale', 'SMOKE-SALE/9', 'tax-invoice', 1000);
+  await seedBill('smoketest-cn', 'SMOKE-CN/9', 'credit-note', 400);
+  const sales2 = await salesCards();
+  check('#66 a sale adds and a credit note subtracts (sanity)',
+    close(sales2.total, sales0.total + 600) && sales2.count === sales0.count + 2,
+    `total ${sales0.total} -> ${sales2.total}, count ${sales0.count} -> ${sales2.count}`);
+
+  // ---- #66 item 10: the short columns are centred -------------------------
+  const aligned = await page.evaluate(() => {
+    const head = [...document.querySelectorAll('th')];
+    const pick = (label) => head.find((h) => h.textContent.trim() === label);
+    const align = (el) => (el ? getComputedStyle(el).textAlign : null);
+    return { type: align(pick('Type')), paid: align(pick('Paid')), status: align(pick('Status')), client: align(pick('Client')) };
+  });
+  check('#66 Type, Paid and Status are centred; Client stays left',
+    aligned.type === 'center' && aligned.paid === 'center' && aligned.status === 'center' && aligned.client !== 'center',
+    JSON.stringify(aligned));
+
+  // ---- #66 item 11: the type is locked once the invoice is saved ---------
+  await seedBill('smoketest-cancel', 'SMOKE-CANCEL/9', 'tax-invoice', 5000);
+  await reopenView('Dashboard');
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('tr')].find((r) => r.innerText.includes('SMOKE-CANCEL/9'));
+    const btn = row && [...row.querySelectorAll('button')].find((b) => (b.title || '') === 'Edit');
+    if (btn) btn.click();
+  });
+  await page.waitForSelector('#invoice-preview', { timeout: 20000 });
+  await sleep(1500);
+  const chips = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('.type-selector .type-chip')];
+    return {
+      total: all.length,
+      disabled: all.filter((c) => c.disabled).length,
+      active: all.filter((c) => c.className.includes('type-chip-active')).length,
+    };
+  });
+  check('#66 the invoice type cannot be changed on a saved invoice',
+    chips.total > 1 && chips.disabled === chips.total - 1 && chips.active === 1, JSON.stringify(chips));
+  check('#66 the "Billing From" card is gone from the invoice screen',
+    !(await screenText()).includes('Billing From'));
+
+  await openView('Dashboard');
+  const leave = page.getByRole('button', { name: /Discard.*leave/i });
+  if (await leave.count()) { await leave.click(); await sleep(1500); }
+
+  // ---- #66 item 12: cancelling keeps the invoice, out of the totals ------
+  const beforeCancel = await salesCards();
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('tr')].find((r) => r.innerText.includes('SMOKE-CANCEL/9'));
+    const btn = row && [...row.querySelectorAll('button')].find((b) => /Cancel invoice/i.test(b.title || ''));
+    if (btn) btn.click();
+  });
+  await sleep(900);
+  const confirmCancel = page.getByRole('button', { name: /^Cancel invoice$/ });
+  if (await confirmCancel.count()) await confirmCancel.first().click();
+  await sleep(2500);
+  const afterCancel = await salesCards();
+  const cancelledRow = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('tr')].find((r) => r.innerText.includes('SMOKE-CANCEL/9'));
+    if (!row) return null;
+    const status = row.querySelector('select.status-select');
+    return { listed: true, status: status ? status.value : null };
+  });
+  check('#66 a cancelled invoice drops out of the sales totals',
+    close(afterCancel.total, beforeCancel.total - 5000) && afterCancel.count === beforeCancel.count - 1,
+    `total ${beforeCancel.total} -> ${afterCancel.total}`);
+  check('#66 the cancelled invoice is still listed, marked Cancelled',
+    cancelledRow?.listed === true && cancelledRow.status === 'cancelled', JSON.stringify(cancelledRow));
+  const cancelledStatus = await page.evaluate(async () =>
+    (await (await fetch('/api/bills')).json()).find((b) => b.id === 'smoketest-cancel')?.status ?? null);
+  check('#66 the invoice itself is kept, not deleted', cancelledStatus === 'cancelled', `status=${cancelledStatus}`);
+
+  // ---- #66 item 2: a new product starts in Pcs ---------------------------
+  await reopenView('Products');
+  await page.getByRole('button', { name: /Add Product/i }).first().click();
+  await sleep(900);
+  const unitValue = await page.evaluate(() => {
+    const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'Pcs'));
+    return sel ? sel.value : null;
+  });
+  check('#66 a new product defaults to Pcs', unitValue === 'Pcs', `unit=${unitValue}`);
+  await page.getByRole('button', { name: /^Cancel$/ }).first().click();
+  await sleep(800);
+
+  // ---- #66 item 8: the sidebar follows the theme -------------------------
+  const sidebarTone = async () => page.evaluate(() => {
+    const rgb = (getComputedStyle(document.querySelector('.sidebar')).backgroundColor.match(/[0-9.]+/g) || []).map(Number);
+    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+  });
+  const toggleTheme = async (label) => {
+    await page.evaluate((label) => {
+      const b = [...document.querySelectorAll('.sidebar .nav-btn')].find((x) => x.innerText.trim() === label);
+      if (b) b.click();
+    }, label);
+    await sleep(900);
+  };
+  const themeNow = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+  if (themeNow === 'dark') await toggleTheme('Light Mode');
+  const lightTone = await sidebarTone();
+  await toggleTheme('Dark Mode');
+  const darkTone = await sidebarTone();
+  check('#66 the sidebar is light in Light Mode and dark in Dark Mode',
+    lightTone > 0.7 && darkTone < 0.3, `light=${lightTone.toFixed(2)} dark=${darkTone.toFixed(2)}`);
+  await toggleTheme('Light Mode');
+
+  // ---- #66 item 13: the stamp prints beside the signature ----------------
+  const onePixelPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  await page.evaluate(async ({ png }) => {
+    const prof = await (await fetch('/api/profile')).json();
+    await fetch('/api/profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...prof, stamp: png, stampHeight: 70, signature: png, signatureHeight: 55 }),
+    });
+  }, { png: onePixelPng });
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-STAMP/1', invoiceDate: today, placeOfSupply: 'Punjab' },
+    items: draftItems,
+    taxInclusive: false,
+  });
+  const stampShown = await page.evaluate(() => {
+    const box = document.querySelector('#invoice-preview .inv-signature');
+    if (!box) return null;
+    const stamp = box.querySelector('img[alt="Stamp"]');
+    const sig = box.querySelector('img[alt="Signature"]');
+    return { stamp: !!stamp, sig: !!sig, stampHeight: stamp ? Math.round(stamp.getBoundingClientRect().height) : 0 };
+  });
+  check('#66 the stamp prints next to the signature', !!stampShown?.stamp && !!stampShown?.sig, JSON.stringify(stampShown));
+
+  // ---- #66 item 9: Settings always shows one Save at the top -------------
+  await openView('Settings');
+  await sleep(2000);
+  const saveBar = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) => /Save Profile/i.test(b.innerText));
+    if (!btn) return null;
+    const bar = btn.closest('div[style*="sticky"]');
+    return { hasButton: true, sticky: !!bar, top: bar ? Math.round(bar.getBoundingClientRect().top) : null };
+  });
+  check('#66 Settings keeps one Save button pinned at the top',
+    !!saveBar?.hasButton && !!saveBar?.sticky && saveBar.top < 200, JSON.stringify(saveBar));
 
   // Put the real business details back.
   await page.evaluate(async (prof) => {

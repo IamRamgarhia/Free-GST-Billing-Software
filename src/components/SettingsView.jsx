@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules, getStockAlertSettings, saveStockAlertSettings, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
-import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId } from '../utils';
 // v1.10.36 — lucide's `Image` icon was imported as `Image`, which
 // SHADOWED the browser's `HTMLImageElement` constructor. Reported:
 // "Uncaught TypeError: et is not a constructor at onChange" on logo
@@ -38,7 +38,7 @@ export default function SettingsView({ onSaved }) {
   const [profile, setProfile] = useState({
     businessName: '', address: '', state: '', gstin: '', pan: '',
     email: '', phone: '', bankName: '', accountNumber: '', ifsc: '',
-    logo: '', logoHeight: 48, signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
+    logo: '', logoHeight: 48, signature: '', signatureHeight: 60, stamp: '', stampHeight: 70, upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
   });
   // v1.10.36 — Scroll-spy: which section is currently in the viewport,
   // so the corresponding pill lights up as the user scrolls. Cheap
@@ -156,6 +156,7 @@ export default function SettingsView({ onSaved }) {
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const sigInputRef = useRef(null);
+  const stampInputRef = useRef(null);
   const companyFormRef = useRef(null);
   const visibleCountries = getCountriesForRegion(regionMode);
 
@@ -667,13 +668,36 @@ export default function SettingsView({ onSaved }) {
     }
   };
 
-  const handleAddNewProfile = () => {
-    setProfile({
-      businessName: '', address: '', city: '', state: '', pin: '', country: detectCountryFromBrowser(),
+  // v1.10.67 (#66 item 3, @sangwanmail-eng) — park the company that is on
+  // screen into Business Profiles BEFORE clearing the form. This used to just
+  // blank the fields, so the next Save wrote the new company over the old one
+  // - and on a fresh install the old one had never been saved as a profile,
+  // which meant it was gone for good. Clearing also resets the unsaved-changes
+  // baseline, so an empty form no longer claims you have unsaved work.
+  const handleAddNewProfile = async () => {
+    const current = profile.businessName?.trim();
+    if (current) {
+      const existing = businessProfiles.find(bp => bp.businessName.trim().toLowerCase() === current.toLowerCase());
+      try {
+        await saveBusinessProfile({ ...profile, id: existing?.id || undefined });
+        await loadBusinessProfiles();
+      } catch {
+        toast('Could not save the current company, so nothing was cleared. Try Save Profile first.', 'error');
+        return;
+      }
+    }
+    // #66 item 2 — a second company is almost always in the same country as
+    // the first, and this is an India-first app; the browser locale guessed
+    // United States on an Indian shop and started them on a US form.
+    const blank = {
+      businessName: '', address: '', city: '', state: '', pin: '', country: profile.country || 'India',
       gstin: '', pan: '', email: '', phone: '', bankName: '', accountNumber: '', ifsc: '', swift: '',
-      logo: '', logoHeight: 48, signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
-    });
+      logo: '', logoHeight: 48, signature: '', signatureHeight: 60, stamp: '', stampHeight: 70, upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
+    };
+    setProfile(blank);
+    markProfileSaved(blank);
     setTaxIdWarning('');
+    toast(current ? `${current} is safe in Business Profiles below - fill in the new company and press Save Profile` : 'Fill in the new company, then press Save Profile', 'info', 6000);
     companyFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -691,8 +715,11 @@ export default function SettingsView({ onSaved }) {
            section, instead of only from the bottom of a 450-line form the
            user has already scrolled past. Rendered only while there are
            real changes, so it never nags. */}
-      {profileDirty && (
-        <div style={{
+      {/* v1.10.67 (#66 item 9) — the bar is always on screen now, so Settings
+           has one Save at the top instead of a button 450 lines down. It turns
+           amber only when Company Details has unsaved edits; every other
+           section still saves the moment it is changed. */}
+      <div style={{
           position: 'sticky',
           top: 0,
           zIndex: 30,
@@ -704,15 +731,17 @@ export default function SettingsView({ onSaved }) {
           padding: '0.7rem 1rem',
           marginBottom: '0.9rem',
           borderRadius: 10,
-          border: '1px solid #f59e0b',
-          background: 'rgba(245, 158, 11, 0.12)',
+          border: profileDirty ? '1px solid #f59e0b' : '1px solid var(--border)',
+          background: profileDirty ? 'rgba(245, 158, 11, 0.12)' : 'var(--card-bg)',
           backdropFilter: 'blur(6px)',
         }}>
           <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>
-            You have unsaved changes in <strong>Company Details</strong>.
+            {profileDirty
+              ? <>You have unsaved changes in <strong>Company Details</strong>.</>
+              : <>Everything is saved. Sections other than <strong>Company Details</strong> save as you change them.</>}
           </span>
           <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button
+            {profileDirty && <button
               type="button"
               className="btn"
               onClick={() => {
@@ -722,7 +751,7 @@ export default function SettingsView({ onSaved }) {
               style={{ fontSize: '0.85rem' }}
             >
               Discard
-            </button>
+            </button>}
             <button
               type="button"
               className="btn btn-primary"
@@ -733,8 +762,7 @@ export default function SettingsView({ onSaved }) {
               <Save size={16} /> {saving ? 'Saving…' : 'Save Profile'}
             </button>
           </span>
-        </div>
-      )}
+      </div>
 
       {/* v1.10.36 — Header lifted with a soft primary-accent gradient
            card, gear glyph in a rounded badge for visual identity, and
@@ -1482,12 +1510,24 @@ export default function SettingsView({ onSaved }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Signature / Stamp</label>
+            <label className="form-label">Signature</label>
             <div className="upload-area">
               {profile.signature ? (
-                <div className="upload-preview">
-                  <img src={profile.signature} alt="Signature" className="upload-img" />
-                  <button type="button" className="icon-btn icon-btn-red upload-remove" onClick={() => removeImage('signature')}><Trash2 size={14} /></button>
+                <div className="logo-upload-section">
+                  <div className="logo-preview-box">
+                    <img src={profile.signature} alt="Signature" style={{ height: `${profile.signatureHeight || 60}px`, maxWidth: '180px', objectFit: 'contain', display: 'block' }} />
+                    <button type="button" className="icon-btn icon-btn-red upload-remove" onClick={() => removeImage('signature')}><Trash2 size={14} /></button>
+                  </div>
+                  <div className="logo-size-control">
+                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>Signature Size on Invoice</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>S</span>
+                      <input type="range" min="30" max="110" value={profile.signatureHeight || 60} onChange={(e) => setProfile(prev => ({ ...prev, signatureHeight: Number(e.target.value) }))} className="logo-slider" />
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>L</span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{profile.signatureHeight || 60}px height</span>
+                  </div>
+                  <button type="button" className="upload-change-btn" onClick={() => sigInputRef.current?.click()}>Change Signature</button>
                 </div>
               ) : (
                 <button type="button" className="upload-btn" onClick={() => sigInputRef.current?.click()}>
@@ -1495,6 +1535,34 @@ export default function SettingsView({ onSaved }) {
                 </button>
               )}
               <input ref={sigInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('signature', e)} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Company Stamp / Seal</label>
+            <div className="upload-area">
+              {profile.stamp ? (
+                <div className="logo-upload-section">
+                  <div className="logo-preview-box">
+                    <img src={profile.stamp} alt="Stamp" style={{ height: `${profile.stampHeight || 70}px`, maxWidth: '180px', objectFit: 'contain', display: 'block' }} />
+                    <button type="button" className="icon-btn icon-btn-red upload-remove" onClick={() => removeImage('stamp')}><Trash2 size={14} /></button>
+                  </div>
+                  <div className="logo-size-control">
+                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>Stamp Size on Invoice</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>S</span>
+                      <input type="range" min="30" max="120" value={profile.stampHeight || 70} onChange={(e) => setProfile(prev => ({ ...prev, stampHeight: Number(e.target.value) }))} className="logo-slider" />
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>L</span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{profile.stampHeight || 70}px height</span>
+                  </div>
+                  <button type="button" className="upload-change-btn" onClick={() => stampInputRef.current?.click()}>Change Stamp</button>
+                </div>
+              ) : (
+                <button type="button" className="upload-btn" onClick={() => stampInputRef.current?.click()}>
+                  <ImageIcon size={20} /><span>Upload Stamp</span><span className="upload-hint">PNG with a transparent background looks best (max 500KB)</span>
+                </button>
+              )}
+              <input ref={stampInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('stamp', e)} />
             </div>
           </div>
         </div>

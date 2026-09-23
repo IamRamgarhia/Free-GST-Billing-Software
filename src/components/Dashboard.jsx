@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer } from 'lucide-react';
+import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllBills, deleteBill, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile } from '../utils';
+import { getAllBills, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts } from '../store';
+import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
 import PageHeader from './PageHeader';
 import { toast } from './Toast';
@@ -20,6 +20,9 @@ const STATUS_CONFIG = {
   partial: { label: 'Partial', icon: Clock,          color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.14)' },
   paid:    { label: 'Paid',    icon: CheckCircle,    color: '#059669', bg: 'rgba(5, 150, 105, 0.14)'  },
   overdue: { label: 'Overdue', icon: AlertTriangle,  color: '#dc2626', bg: 'rgba(220, 38, 38, 0.14)'  },
+  // v1.10.67 (#66 item 12) — a cancelled document keeps its number but counts
+  // for nothing. Picking any other status here un-cancels it.
+  cancelled: { label: 'Cancelled', icon: Ban, color: '#64748b', bg: 'rgba(100, 116, 139, 0.16)' },
 };
 
 // v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
@@ -182,15 +185,23 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   // Outstanding and the invoice count added up EVERY company's invoices while
   // the table underneath showed only one.
   const stats = useMemo(() => {
+    // v1.10.67 (#66 item 7, @sangwanmail-eng) — these cards are turnover, so
+    // only real sales count. A proforma is a quote, a delivery challan moves
+    // goods without selling them, a credit note takes money back, and a
+    // cancelled document counts for nothing.
     const byCurrency = {};
+    let count = 0;
     for (const b of bills) {
+      const sign = salesSign(b);
+      if (sign === 0) continue;
+      count += 1;
       const cur = b.currency || b.data?.invoiceOptions?.currency || 'INR';
       if (!byCurrency[cur]) byCurrency[cur] = { total: 0, tax: 0, unpaid: 0 };
-      byCurrency[cur].total += b.totalAmount || 0;
-      byCurrency[cur].tax += b.totalTaxAmount || 0;
-      if (b.status !== 'paid') byCurrency[cur].unpaid += (b.totalAmount || 0) - (b.paidAmount || 0);
+      byCurrency[cur].total += sign * (b.totalAmount || 0);
+      byCurrency[cur].tax += sign * (b.totalTaxAmount || 0);
+      if (sign > 0 && b.status !== 'paid') byCurrency[cur].unpaid += (b.totalAmount || 0) - (b.paidAmount || 0);
     }
-    return { byCurrency, count: bills.length };
+    return { byCurrency, count };
   }, [bills]);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -329,7 +340,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
       // allSettled so one slow save can't block the rest.
       const dirty = data.filter(bill => {
         const dueDate = bill.data?.details?.dueDate;
-        return dueDate && dueDate < today && bill.status !== 'paid' && bill.status !== 'overdue';
+        return dueDate && dueDate < today && bill.status !== 'paid' && bill.status !== 'overdue' && bill.status !== 'cancelled';
       });
       if (dirty.length > 0) {
         const updates = dirty.map(bill => { bill.status = 'overdue'; return saveBill(bill, { overwrite: true }); });
@@ -379,11 +390,16 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     setFiltered(result);
   }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo]);
 
-  const handleDelete = async (bill) => {
+  // v1.10.67 (#66 item 12, @sangwanmail-eng) — an issued invoice is not
+  // deleted: its number has to stay in the books, gapless, for GST. Cancelling
+  // keeps the document and takes it out of every total and return. Any other
+  // status from the dropdown brings it back.
+  const handleCancelInvoice = async (bill) => {
+    if (isCancelledBill(bill)) return;
     const ok = await confirmAction({
-      title: 'Delete this invoice?',
-      message: `Invoice ${bill.invoiceNumber} for ${bill.clientName} will be soft-deleted (moved to Trash for 30 days). Stock will be restored for any products in this invoice.`,
-      confirmLabel: 'Delete',
+      title: 'Cancel this invoice?',
+      message: `Invoice ${bill.invoiceNumber} for ${bill.clientName} keeps its number but stops counting in totals, reports and GST returns. Stock is restored for any products on it. You can undo this from the status dropdown.`,
+      confirmLabel: 'Cancel invoice',
       tone: 'danger',
     });
     if (ok) {
@@ -398,17 +414,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
             await saveProduct({ ...product, stock: (product.stock || 0) + (item.quantity || 0) });
           }
         }
-        await deleteBill(bill.id);
-
-        // Move saved PDF to Trash folder
-        const prefix = { 'tax-invoice': 'INV', 'proforma': 'PRO', 'credit-note': 'CN', 'bill-of-supply': 'BOS', 'delivery-challan': 'DC' }[bill.invoiceType || 'tax-invoice'] || 'INV';
-        const pdfName = `${prefix}_${(bill.invoiceNumber || '').replace(/\//g, '-')}.pdf`;
-        const clientName = bill.clientName || bill.data?.client?.name || 'General';
-        fetch('/api/trash-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName: pdfName, clientName }) }).catch(err => console.warn('Could not trash PDF:', err));
-
-        toast('Invoice deleted & stock restored', 'success');
+        await saveBill({ ...bill, status: 'cancelled', cancelledAt: new Date().toISOString() }, { overwrite: true });
+        toast('Invoice cancelled & stock restored', 'success');
         loadBills();
-      } catch { toast('Failed to delete', 'error'); }
+      } catch { toast('Failed to cancel', 'error'); }
     }
   };
 
@@ -419,6 +428,21 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
 
   const changeStatus = async (bill, newStatus) => {
     const updated = { ...bill, status: newStatus };
+    // v1.10.67 (#66 item 12) — cancelling restores the stock on the invoice, so
+    // bringing the invoice back has to take it out again. Without this the
+    // stock count climbs by one invoice every cancel/un-cancel round trip.
+    if (isCancelledBill(bill) && newStatus !== 'cancelled' && bill.data?.items?.length) {
+      try {
+        const products = await getAllProducts();
+        for (const item of bill.data.items) {
+          if (!item.productId) continue;
+          const product = products.find(p => p.id === item.productId);
+          if (!product) continue;
+          await saveProduct({ ...product, stock: (product.stock || 0) - (item.quantity || 0) });
+        }
+      } catch { /* non-fatal: the status change still applies */ }
+      delete updated.cancelledAt;
+    }
     if (newStatus === 'paid') {
       updated.paidAmount = bill.totalAmount;
       // When flipping to paid via the row menu, also push a synthetic payment
@@ -688,24 +712,25 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     setBulkBusy(false);
   };
 
-  const bulkDelete = async () => {
-    const sel = getSelectedBills();
+  const bulkCancel = async () => {
+    const sel = getSelectedBills().filter(b => !isCancelledBill(b));
     if (sel.length === 0) return;
     if (!await confirmAction({
-      title: `Delete ${sel.length} invoice${sel.length !== 1 ? 's' : ''}?`,
-      message: 'The invoices will be moved to Trash for 30 days. The PDF copies in Saved Invoices/ stay untouched.',
-      confirmLabel: `Delete ${sel.length}`,
+      title: `Cancel ${sel.length} invoice${sel.length !== 1 ? 's' : ''}?`,
+      message: 'They keep their numbers but stop counting in totals, reports and GST returns. You can undo each one from its status dropdown.',
+      confirmLabel: `Cancel ${sel.length}`,
       tone: 'danger',
     })) return;
     setBulkBusy(true);
     try {
-      const results = await Promise.allSettled(sel.map(b => deleteBill(b.id)));
+      const at = new Date().toISOString();
+      const results = await Promise.allSettled(sel.map(b => saveBill({ ...b, status: 'cancelled', cancelledAt: at }, { overwrite: true })));
       const failed = results.filter(r => r.status === 'rejected').length;
-      if (failed > 0) toast(`${sel.length - failed} deleted, ${failed} failed`, 'warning');
-      else toast(`Deleted ${sel.length} invoice${sel.length !== 1 ? 's' : ''}`, 'success');
+      if (failed > 0) toast(`${sel.length - failed} cancelled, ${failed} failed`, 'warning');
+      else toast(`Cancelled ${sel.length} invoice${sel.length !== 1 ? 's' : ''}`, 'success');
       clearSelection();
       loadBills();
-    } catch (err) { toast('Bulk delete failed: ' + err.message, 'error'); }
+    } catch (err) { toast('Bulk cancel failed: ' + err.message, 'error'); }
     setBulkBusy(false);
   };
 
@@ -794,6 +819,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
             profile: data.profile, client: data.client, details: data.details, items: data.items,
             totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
             customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
+            cancelled: bill.status === 'cancelled',
           }));
           requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
         });
@@ -867,6 +893,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
           profile: data.profile, client: data.client, details: data.details, items: data.items,
           totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
           customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
+          cancelled: bill.status === 'cancelled',
         }));
         requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
       });
@@ -1333,9 +1360,9 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                 style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--warn-text)', borderColor: 'var(--warn-border)' }}
                 title="Stop the bulk export after the current invoice — partial results still get saved."><X size={13} /> Cancel</button>
             )}
-            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkDelete}
+            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkCancel}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
-              <Trash2 size={13} /> Delete
+              <Ban size={13} /> Cancel invoices
             </button>
             <button type="button" className="icon-btn" onClick={clearSelection} title="Clear selection" style={{ marginLeft: 'auto' }}>
               <X size={14} />
@@ -1363,14 +1390,14 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                   </th>
                   {visibleColumns.date && <th>Date</th>}
                   {visibleColumns.invoice && <th>Invoice No.</th>}
-                  {visibleColumns.type && <th>Type</th>}
+                  {visibleColumns.type && <th className="col-center">Type</th>}
                   {visibleColumns.client && <th>Client</th>}
                   {visibleColumns.amount && <th>Amount</th>}
                   {visibleColumns.currency && <th>Currency</th>}
                   {visibleColumns.dueDate && <th>Due Date</th>}
                   {visibleColumns.printed && <th>Printed</th>}
-                  <th>Paid</th>
-                  {visibleColumns.status && <th>Status</th>}
+                  <th className="col-center">Paid</th>
+                  {visibleColumns.status && <th className="col-center">Status</th>}
                   {visibleColumns.actions && <th>Actions</th>}
                 </tr>
               </thead>
@@ -1406,8 +1433,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                       {visibleColumns.currency && <td className="text-muted">{billCurrency}</td>}
                       {visibleColumns.dueDate && <td className="text-muted">{bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN') : <span className="cell-empty">—</span>}</td>}
                       {visibleColumns.printed && <td className="text-muted" style={{ textAlign: 'center' }}>{Number(bill.printedCount) || 0}×</td>}
-                      <td className="text-muted">{(bill.paidAmount || 0) > 0 ? formatCurrency(bill.paidAmount, billCurrency) : <span className="cell-empty">—</span>}</td>
-                      {visibleColumns.status && <td>
+                      <td className="text-muted col-center">{(bill.paidAmount || 0) > 0 ? formatCurrency(bill.paidAmount, billCurrency) : <span className="cell-empty">—</span>}</td>
+                      {visibleColumns.status && <td className="col-center">
                         <select className="status-select" value={isOverdue && status !== 'overdue' ? 'overdue' : status}
                           style={{ background: sc.bg, color: sc.color, borderColor: sc.color + '44' }}
                           onChange={e => changeStatus(bill, e.target.value)}>
@@ -1435,7 +1462,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                                customer should give option to send via
                                whatsapp or email as reminder predefined side
                                of every invoice. also for partial pending too". */}
-                          {(isOverdue || status === 'overdue' || status === 'unpaid' || status === 'partial') && (bill.totalAmount || 0) - (bill.paidAmount || 0) > 0.01 && (
+                          {!isCancelledBill(bill) && (isOverdue || status === 'overdue' || status === 'unpaid' || status === 'partial') && (bill.totalAmount || 0) - (bill.paidAmount || 0) > 0.01 && (
                             <button className="icon-btn icon-btn-green"
                               onClick={() => sendReminder({ ...bill, clientPhone: getClientPhone(bill) })}
                               title={status === 'partial' ? 'Send reminder — partial pending' : (status === 'overdue' || isOverdue ? 'Send reminder — overdue' : 'Send reminder — unpaid')}
@@ -1444,7 +1471,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                             </button>
                           )}
                           <button className="icon-btn icon-btn-blue" onClick={() => shareEmail(bill)} title="Email"><Mail size={15} /></button>
-                          <button className="icon-btn icon-btn-red" onClick={() => handleDelete(bill)} title="Delete"><Trash2 size={15} /></button>
+                          <button className="icon-btn icon-btn-red" onClick={() => handleCancelInvoice(bill)}
+                            disabled={isCancelledBill(bill)}
+                            title={isCancelledBill(bill) ? 'Already cancelled' : 'Cancel invoice — keeps the number, undo from the status dropdown'}>
+                            <Ban size={15} /></button>
                         </div>
                       </td>}
                     </tr>

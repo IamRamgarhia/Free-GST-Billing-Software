@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile, toCsvLine } from '../utils';
+import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -544,7 +544,8 @@ export default function GSTReturns() {
       const [b, e, p] = await Promise.all([getAllBills(), getAllExpenses(), getProfile()]);
       // v1.10.64 (#55) — a GST return must cover ONE GSTIN. Showing another
       // business's invoices here would misstate the return being filed.
-      setBills((b || []).filter(bill => belongsToProfile(bill, p)));
+      // v1.10.67 (#66 item 12) — a cancelled invoice is not reported.
+      setBills((b || []).filter(bill => belongsToProfile(bill, p) && !isCancelledBill(bill)));
       // v1.10.66 (#64) — and only its own expenses and purchases. Left
       // unfiltered, GSTR-3B Table 4 claimed input tax credit on purchases made
       // by a different GSTIN.

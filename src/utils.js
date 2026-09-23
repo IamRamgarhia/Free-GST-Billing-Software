@@ -474,6 +474,19 @@ export const INVOICE_TYPES = {
   },
 };
 
+// v1.10.67 (#66 item 7, @sangwanmail-eng) — which documents are actual sales.
+// A proforma/estimate is only a quote and a delivery challan moves goods
+// without selling them, so neither is turnover. A credit note reduces it. A
+// cancelled document counts for nothing at all (#66 item 12).
+export const SALES_INVOICE_TYPES = ['tax-invoice', 'bill-of-supply', 'composition'];
+export const isCancelledBill = (bill) => (bill?.status || '') === 'cancelled';
+export const countsAsSales = (bill) => !isCancelledBill(bill)
+  && SALES_INVOICE_TYPES.includes(bill?.invoiceType || 'tax-invoice');
+export const isCreditNote = (bill) => (bill?.invoiceType || '') === 'credit-note'
+  && !isCancelledBill(bill);
+// +1 for a sale, -1 for a credit note, 0 for quotes, challans and anything cancelled.
+export const salesSign = (bill) => (countsAsSales(bill) ? 1 : (isCreditNote(bill) ? -1 : 0));
+
 // Indian states list for dropdowns
 export const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -1205,8 +1218,8 @@ export const BUILTIN_UNITS = [
 // doesn't have to flip the unit dropdown 90% of the time.
 export const getDefaultUnitForMode = (mode) => {
   if (mode === 'services') return 'Hrs';
-  if (mode === 'mixed') return 'Nos';
-  return 'Nos'; // goods (default)
+  if (mode === 'mixed') return 'Pcs';
+  return 'Pcs'; // goods (default) - #66 item 2
 };
 
 // Filter units by invoice mode for the dropdown. Service mode hides

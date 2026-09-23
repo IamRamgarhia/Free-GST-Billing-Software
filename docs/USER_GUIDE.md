@@ -281,6 +281,16 @@ record belonged to. Check the correct business is selected before assigning.
 A: Yes. On any line item, click the Unit dropdown → *＋ Add custom…* and type
 your unit name. It's saved on this device and shows up everywhere.
 
+**Q: How do I cancel an invoice I already sent?**
+A: Open *Bills*, find the invoice and press the red **Cancel invoice** button.
+The invoice keeps its number and stays in the list marked *Cancelled*, prints
+with **CANCELLED** across it, and stops counting in your totals, reports and GST
+returns. Any stock on it is put back. Changed your mind? Pick another status
+(for example *Unpaid*) from the status dropdown on that row.
+
+Invoice numbers must run without gaps for GST, which is why a saved invoice is
+cancelled rather than deleted.
+
 **Q: I made a mistake on an invoice. Can I edit it?**
 A: Yes. Open it from the *Bills* list and edit. Or, if you've already sent the
 PDF, create a *Credit Note* against the original invoice number — the proper

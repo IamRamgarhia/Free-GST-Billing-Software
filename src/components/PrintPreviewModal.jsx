@@ -29,7 +29,7 @@ import { getPaperSize } from '../utils';
 export default function PrintPreviewModal({
   isOpen, onClose, onPrint, onDownloadPdf,
   profile, client, details, items, totals, invoiceType,
-  customTerms, customNotes, extraSections, invoiceOptions,
+  customTerms, customNotes, extraSections, invoiceOptions, cancelled = false,
 }) {
   const [printing, setPrinting] = useState(false);
   const modalRef = useRef(null);
@@ -152,7 +152,7 @@ export default function PrintPreviewModal({
               profile={profile} client={client} details={details}
               items={items} totals={totals} invoiceType={invoiceType}
               customTerms={customTerms} customNotes={customNotes}
-              extraSections={extraSections} options={invoiceOptions}
+              extraSections={extraSections} options={invoiceOptions} cancelled={cancelled}
             />
           </div>
         </div>

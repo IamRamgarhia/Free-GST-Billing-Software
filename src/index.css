@@ -3290,3 +3290,40 @@ kbd {
 /* Spin animation for auto-save loader */
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* v1.10.67 (#66 item 10, @sangwanmail-eng) — centre the short columns.
+   Amounts stay right-aligned and names left-aligned: a column of rupee
+   figures only reads as a column when the decimal points line up. */
+.data-table th.col-center,
+.data-table td.col-center { text-align: center; }
+
+/* v1.10.67 (#66 item 8, @sangwanmail-eng) — the sidebar follows the theme.
+   It was hard-coded dark navy, so Light Mode left the app half light and
+   half dark. Scoped to "not dark", so the dark look is untouched. */
+html:not([data-theme="dark"]) .sidebar {
+  background: #ffffff;
+  color: #0f172a;
+  border-right: 1px solid var(--border);
+  scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
+}
+html:not([data-theme="dark"]) .sidebar::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.18); }
+html:not([data-theme="dark"]) .sidebar::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.32); }
+html:not([data-theme="dark"]) .sidebar-title { color: #0f172a; }
+html:not([data-theme="dark"]) .sidebar-subtitle { color: #64748b; }
+html:not([data-theme="dark"]) .nav-btn { color: #475569; }
+html:not([data-theme="dark"]) .nav-btn:hover { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
+html:not([data-theme="dark"]) .profile-switcher-btn,
+html:not([data-theme="dark"]) .profile-switcher-edit {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: var(--border);
+  color: #334155;
+}
+html:not([data-theme="dark"]) .profile-switcher-btn:hover,
+html:not([data-theme="dark"]) .profile-switcher-edit:hover { background: rgba(15, 23, 42, 0.09); }
+html:not([data-theme="dark"]) .profile-switcher-menu { background: #ffffff; border-color: var(--border); }
+html:not([data-theme="dark"]) .profile-switcher-item { color: #334155; }
+html:not([data-theme="dark"]) .profile-switcher-item:hover { background: rgba(15, 23, 42, 0.06); }
+html:not([data-theme="dark"]) .profile-switcher-manage { border-top-color: var(--border); color: #64748b; }
+html:not([data-theme="dark"]) .server-status { background: rgba(15, 23, 42, 0.04); color: #64748b; }
+html:not([data-theme="dark"]) .mobile-topbar { background: #ffffff; color: #0f172a; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
+html:not([data-theme="dark"]) .mobile-topbar-btn { background: rgba(15, 23, 42, 0.06); color: #0f172a; }

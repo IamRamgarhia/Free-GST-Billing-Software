@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package } from 'lucide-react';
 import { getAllBills, getAllExpenses, getProfile } from '../store';
-import { formatCurrency, getFYOptions, belongsToProfile } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill } from '../utils';
 import { toast } from './Toast';
 
 const MONTHS = [
@@ -36,7 +36,8 @@ export default function ReportsView() {
       ]);
       // v1.10.64 (#55) — reports are per business. Mixing two companies'
       // turnover into one profit figure is simply a wrong number.
-      setBills((billData || []).filter(b => belongsToProfile(b, prof)));
+      // v1.10.67 (#66 item 12) — cancelled invoices earned nothing.
+      setBills((billData || []).filter(b => belongsToProfile(b, prof) && !isCancelledBill(b)));
       // v1.10.66 (#64) — expenses too. Filtering only the invoices left every
       // company's expenses in each company's profit and loss.
       setExpenses((expData || []).filter(e => belongsToProfile(e, prof)));

@@ -19,7 +19,11 @@ export default function WelcomeGuide({ onComplete }) {
     email: '', phone: '', bankName: '', accountNumber: '', ifsc: '', swift: '',
     logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
   });
-  const [region, setRegion] = useState(detectedCountry === 'India' ? 'india' : 'international');
+  // v1.10.67 (#66 item 2, @sangwanmail-eng) — this is an India-first GST app,
+  // so India is the default. It used to be chosen from the browser locale, and
+  // a Windows set to en-US started people on "Outside India" with a United
+  // States company profile. The other two options are one click away.
+  const [region, setRegion] = useState('india');
   const [saving, setSaving] = useState(false);
   const cc = getCountryConfig(profile.country);
   const stateOptions = getStatesForCountry(profile.country);

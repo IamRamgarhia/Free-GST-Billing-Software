@@ -12,7 +12,7 @@ import { confirmAction } from './ConfirmModal';
 // still gets a valid number, but the form no longer edits it directly —
 // dead state removed for clarity.
 const emptyForm = {
-  name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', unit: 'Nos', stock: '', description: '',
+  name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', unit: 'Pcs', stock: '', description: '',
 };
 
 export default function InventoryView() {

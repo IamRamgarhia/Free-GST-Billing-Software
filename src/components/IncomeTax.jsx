@@ -38,7 +38,7 @@ import {
   buildITR4FieldMap,
   CURRENT_FY as ENGINE_FY,
 } from '../utils/itr.js';
-import { getFinancialYearLabel, belongsToProfile } from '../utils';
+import { getFinancialYearLabel, belongsToProfile, isCancelledBill } from '../utils';
 import { toast } from './Toast';
 
 // The Income Tax module has three sub-tabs. Keeping them in one file (rather
@@ -124,7 +124,8 @@ export default function IncomeTax() {
     ]).then(([b, e, p, prof]) => {
       // v1.10.64 (#55) — income tax is filed per business, so only the active
       // business's invoices may contribute to its figures.
-      setBills((b || []).filter(bill => belongsToProfile(bill, prof)));
+      // v1.10.67 (#66 item 12) — cancelled invoices are not income.
+      setBills((b || []).filter(bill => belongsToProfile(bill, prof) && !isCancelledBill(bill)));
       // v1.10.66 (#64) — and only its own expenses and purchases. Left
       // unfiltered, one company's costs reduced another company's income.
       setExpenses((e || []).filter(r => belongsToProfile(r, prof)));
