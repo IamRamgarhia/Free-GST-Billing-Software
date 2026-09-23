@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, calculateRoundOff, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, htmlHasText } from '../utils';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, htmlHasText, decodeGstin } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -1129,6 +1129,29 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   }, [editingBill, allProfiles, activeProfile]);
 
   const isIssuedInvoice = !!editingBill && !editingBill._isDuplicate && !editingBill._convertToType;
+
+  // v1.10.68 (#68, idea from @deppen12) — the GSTIN already names the state and
+  // carries a checksum, so fill the state and catch a typo without any API key
+  // or internet. The state decides place of supply: get it wrong and the
+  // invoice charges CGST + SGST where it owes IGST, or the other way round.
+  const [gstinHint, setGstinHint] = useState(null);
+  const handleClientGstinBlur = () => {
+    const decoded = decodeGstin(client.gstin);
+    if (!decoded) { setGstinHint(null); return; }
+    if (!decoded.checksumOk) {
+      setGstinHint({ tone: 'warn', message: 'This GSTIN fails its own checksum — check for a typo.' });
+      return;
+    }
+    if (!decoded.state) { setGstinHint(null); return; }
+    if (!client.state?.trim()) {
+      setClient(prev => ({ ...prev, state: decoded.state }));
+      setGstinHint({ tone: 'ok', message: `Registered in ${decoded.state} — state filled in.` });
+    } else if (client.state.trim().toLowerCase() !== decoded.state.toLowerCase()) {
+      setGstinHint({ tone: 'warn', message: `This GSTIN is registered in ${decoded.state}, but the state says ${client.state}.` });
+    } else {
+      setGstinHint({ tone: 'ok', message: `Registered in ${decoded.state}.` });
+    }
+  };
 
   const handleTypeChange = async (type) => {
     if (isIssuedInvoice) return;
@@ -3684,7 +3707,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   <div className="form-group">
                     <label className="form-label">{cc.taxIdLabel}</label>
                     <input type="text" className="form-input" value={client.gstin}
-                      onChange={(e) => setClient({ ...client, gstin: e.target.value.toUpperCase() })} placeholder="Optional" maxLength={20} />
+                      onChange={(e) => setClient({ ...client, gstin: e.target.value.toUpperCase() })}
+                      onBlur={handleClientGstinBlur} placeholder="Optional" maxLength={20} />
+                    {gstinHint && (
+                      <small style={{ color: gstinHint.tone === 'warn' ? '#d97706' : '#16a34a', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
+                        {gstinHint.tone === 'warn' ? '⚠' : '✓'} {gstinHint.message}
+                      </small>
+                    )}
                   </div>
                 );
               })()}

@@ -1040,6 +1040,31 @@ try {
   check('#66 Settings keeps one Save button pinned at the top',
     !!saveBar?.hasButton && !!saveBar?.sticky && saveBar.top < 200, JSON.stringify(saveBar));
 
+  // ---- #68: a GSTIN fills in the state, offline -------------------------
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke GSTIN Client', address: '', city: '', pin: '', state: '', gstin: '', country: 'India', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-GSTIN/1', invoiceDate: today },
+    items: draftItems,
+    taxInclusive: false,
+  });
+  const billedTo = page.locator('.glass-panel').filter({ has: page.locator('h3.section-title', { hasText: 'Billed To' }) });
+  const fieldGroup = (label) => billedTo.locator('.form-group').filter({ has: page.locator(`label.form-label:text-is("${label}")`) });
+  const gstinInput = fieldGroup('GSTIN').locator('input');
+  await gstinInput.fill('27AAPFU0939F1ZV');
+  await page.keyboard.press('Tab');
+  await sleep(600);
+  const filledState = await fieldGroup('State').locator('select, input').inputValue();
+  check('#68 a valid GSTIN fills the client state from its first two digits',
+    filledState === 'Maharashtra', `state=${filledState}`);
+
+  await gstinInput.fill('27AAPFU0939F1ZW');
+  await page.keyboard.press('Tab');
+  await sleep(600);
+  const typoWarning = (await fieldGroup('GSTIN').locator('small').allInnerTexts()).join(' ');
+  check('#68 a mistyped GSTIN is caught by its own checksum',
+    /checksum/i.test(typoWarning), typoWarning || 'no warning shown');
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {

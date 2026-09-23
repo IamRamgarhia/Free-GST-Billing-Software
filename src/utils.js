@@ -600,6 +600,56 @@ const GST_STATE_CODES = {
   'telangana': '36', 'ladakh': '38',
 };
 
+// v1.10.68 (#68, idea from @deppen12) — a GSTIN carries its own facts, so the
+// state can be filled in and a typo caught without any API key or internet:
+//   27 ABCDE1234F 2 Z 5
+//   |  |          | | +- checksum over the first 14 characters
+//   |  |          | +--- Z for a regular taxpayer (D = TDS, C = TCS)
+//   |  |          +----- which registration of that PAN in that state
+//   |  +---------------- the PAN, whose 4th letter is the kind of entity
+//   +------------------- the state (2011 census code)
+const GSTIN_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const PAN_ENTITY_TYPES = {
+  P: 'Individual', C: 'Company', F: 'Firm / LLP', H: 'HUF', A: 'Association of persons',
+  T: 'Trust', B: 'Body of individuals', L: 'Local authority', J: 'Artificial juridical person',
+  G: 'Government',
+};
+const GSTIN_TAXPAYER_TYPES = { Z: 'Regular', D: 'TDS deductor', C: 'TCS collector' };
+
+// Luhn mod 36 over the first 14 characters. Verified against real GSTINs:
+// it rejects a single mistyped or transposed character, which is the whole
+// point — a wrong GSTIN is only discovered when the return is rejected.
+export const gstinChecksumOk = (value) => {
+  const gstin = String(value || '').trim().toUpperCase();
+  if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z][A-Z][0-9A-Z]$/.test(gstin)) return false;
+  let sum = 0;
+  for (let i = 0; i < 14; i += 1) {
+    const product = GSTIN_CHARS.indexOf(gstin[i]) * (i % 2 ? 2 : 1);
+    sum += Math.floor(product / 36) + (product % 36);
+  }
+  return GSTIN_CHARS[(36 - (sum % 36)) % 36] === gstin[14];
+};
+
+// Everything the number itself says. `state` is null for a code we do not
+// know (96/97/99 are used for foreign country, other territory and centre
+// jurisdiction), so callers can tell "unknown" from "wrong".
+export const decodeGstin = (value) => {
+  const gstin = String(value || '').trim().toUpperCase();
+  if (gstin.length !== 15) return null;
+  const stateCode = gstin.slice(0, 2);
+  const pan = gstin.slice(2, 12);
+  return {
+    gstin,
+    stateCode,
+    state: stateNameForCode(stateCode),
+    pan,
+    entityType: PAN_ENTITY_TYPES[pan[3]] || null,
+    registration: gstin[12],
+    taxpayerType: GSTIN_TAXPAYER_TYPES[gstin[13]] || null,
+    checksumOk: gstinChecksumOk(gstin),
+  };
+};
+
 // v1.10.31 — GST-H1: legacy codes normalized.
 // AP was reorganised in June 2014; old GSTINs with prefix `28` (before
 // bifurcation) should map to the current code `37` (Andhra Pradesh).
@@ -607,6 +657,16 @@ const GST_STATE_CODES = {
 // Without normalisation, a `28ABCDE…` GSTIN and the current state "Andhra
 // Pradesh" produced different codes → interstate/intrastate mis-classification.
 const LEGACY_STATE_CODE_MAP = { '28': '37', '25': '26' };
+
+// v1.10.68 — code -> state name. Built from INDIAN_STATES so the value is
+// spelled exactly like the entry in the State dropdown: a title-cased copy
+// would read "Dadra And Nagar Haveli..." and match no option at all.
+const STATE_NAME_BY_CODE = INDIAN_STATES.reduce((acc, name) => {
+  const code = GST_STATE_CODES[name.trim().toLowerCase()];
+  if (code && !acc[code]) acc[code] = name;
+  return acc;
+}, {});
+export const stateNameForCode = (code) => STATE_NAME_BY_CODE[String(code || '').trim()] || null;
 
 // Get 2-digit GST state code from state name or GSTIN
 export const getStateCode = (stateOrGstin) => {

@@ -106,6 +106,13 @@ pages get the whole screen.
    Supply / Delivery Challan).
 3. Type the client's name. If you've billed them before, you'll see their saved
    address and tax ID auto-suggested.
+   - Typing the client's **GSTIN** fills in their **State** for you — the first
+     two digits of a GSTIN are the state it is registered in. This works with
+     no internet and no account anywhere.
+   - If you mistype a digit, the app says so: every GSTIN carries a checksum
+     over its own characters, so a wrong one is caught here instead of when
+     your return is rejected. The state and city are never guessed — only the
+     state is filled, because that is the only thing the number actually says.
 4. Add line items. For each row:
    - **Description** — what you sold or did.
    - **Qty** — how much.

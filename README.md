@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#quick-start--installation)
-[![Version](https://img.shields.io/badge/Version-1.10.67-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![Version](https://img.shields.io/badge/Version-1.10.68-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](#install-as-a-desktop-app-pwa)
 [![GitHub Stars](https://img.shields.io/github/stars/IamRamgarhia/Free-GST-Billing-Software?style=social)](https://github.com/IamRamgarhia/Free-GST-Billing-Software)
 [![Countries](https://img.shields.io/badge/Countries-22-blue.svg)](#key-features)
@@ -269,6 +269,7 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 | **5 Invoice Types** | Tax Invoice, Proforma/Estimate, Bill of Supply, Credit Note, Delivery Challan |
 | 🆕 **Cancel Invoice (not delete)** | A saved invoice keeps its number for GST. Cancelling stamps **CANCELLED** on the PDF and removes it from totals, reports and GST returns; stock goes back. Any other status un-cancels it |
 | 🆕 **Logo, signature and stamp** | Upload each separately with its own size slider; signature and stamp print centred, side by side, above the signatory name |
+| 🆕 **GSTIN fills in the state** | Type a client's GSTIN and the State is filled from it, offline. A mistyped GSTIN is caught by the checksum the number carries, before it reaches a return |
 | **Auto GST Calculation** | CGST + SGST for intra-state, IGST for inter-state — uses *Place of Supply* override and SEZ flag (Section 16, IGST Act) |
 | 🆕 **UTGST Bucket** | Intra-UT supplies for Chandigarh, Ladakh, Andaman & Nicobar, Lakshadweep, Dadra & Nagar Haveli / Daman & Diu correctly file as CGST + **UTGST** instead of CGST + SGST — required by GSTN portal (Chapter II of GST Act) |
 | 🆕 **Interstate Detection Guard** | Blank business-state produces a warning + block instead of silently defaulting to intra-state (fresh installs can no longer ship interstate invoices with wrong tax split) |

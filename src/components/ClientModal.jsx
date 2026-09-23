@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES, decodeGstin } from '../utils';
 import { getRegionMode } from '../store';
 
 export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
@@ -42,9 +42,26 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
   const cc = getCountryConfig(form.country);
   const stateOptions = getStatesForCountry(form.country);
 
+  // v1.10.68 (#68, idea from @deppen12) — a GSTIN already says which state the
+  // client is registered in and carries a checksum, so fill the state in and
+  // catch a typo here, offline. The state drives place of supply, so a wrong
+  // one silently swaps CGST + SGST for IGST on every invoice to this client.
   const handleTaxIdBlur = () => {
     const result = validateTaxId(form.country, form.gstin);
     setTaxIdWarning(result.ok ? '' : result.message);
+    if (form.country !== 'India') return;
+    const decoded = decodeGstin(form.gstin);
+    if (!decoded) return;
+    if (!decoded.checksumOk) {
+      setTaxIdWarning('This GSTIN fails its own checksum — check for a typo.');
+      return;
+    }
+    if (!decoded.state) return;
+    if (!form.state?.trim()) {
+      setForm(prev => ({ ...prev, state: decoded.state }));
+    } else if (form.state.trim().toLowerCase() !== decoded.state.toLowerCase()) {
+      setTaxIdWarning(`This GSTIN is registered in ${decoded.state}, but the state says ${form.state}.`);
+    }
   };
 
   const handleSave = () => {

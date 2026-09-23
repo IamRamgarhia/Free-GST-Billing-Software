@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.68] - 2026-09-23
+
+**Type a client's GSTIN and their State fills in by itself — and a mistyped
+GSTIN is caught on the spot. No internet, no account, no API key.**
+
+### How to update
+
+**Current version:** 1.10.67  →  **New version:** 1.10.68
+
+#### If the in-app Update button works for you
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+#### If the Update button does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.68.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. Extract the ZIP over your existing Free GST Billing folder, replacing
+   files when asked.
+4. Double-click the launcher again.
+
+#### Linux / NAS
+The in-app **Control Panel → Update Now** works here too. It needs `unzip`
+(or python3). Restart the app, or its container, afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Added - a GSTIN fills in the state, and catches its own typos
+
+Idea from [@deppen12](https://github.com/deppen12) in PR #68, built here
+without the parts that would have exposed your books to the network.
+
+A GSTIN is not an opaque string. `27AAPFU0939F1ZV` says, on its own:
+
+```
+27 AAPFU0939F 1 Z V
+|  |          | | +- a checksum over the first 14 characters
+|  |          | +--- Z for a regular taxpayer (D = TDS, C = TCS)
+|  |          +----- which registration of that PAN in that state
+|  +---------------- the PAN; its 4th letter is the kind of entity
++------------------- the state (here 27, Maharashtra)
+```
+
+So on the **Clients** screen and on the invoice's **Billed To** panel, typing
+a GSTIN now:
+
+- fills in the **State** if you left it blank, and
+- says so if the GSTIN you typed says a different state than the one you
+  picked, and
+- refuses a GSTIN that fails its own checksum — a single mistyped or
+  swapped character is caught here, instead of when GSTR-1 is rejected.
+
+The state drives place of supply, so a wrong one quietly charges CGST + SGST
+where IGST is owed, on every invoice to that client.
+
+This runs entirely offline. **City is not filled in** — a GSTIN does not
+contain one, and guessing it from the PIN block would have been a guess.
+
+---
+
 ## [1.10.67] - 2026-09-23
 
 **Thirteen things @sangwanmail-eng asked for in #66: totals that count only

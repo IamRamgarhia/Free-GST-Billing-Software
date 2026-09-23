@@ -16,6 +16,10 @@ import {
   salesSign,
   isCancelledBill,
   getDefaultUnitForMode,
+  decodeGstin,
+  gstinChecksumOk,
+  stateNameForCode,
+  INDIAN_STATES,
 } from '../src/utils.js';
 import {
   compute44AE,
@@ -491,6 +495,37 @@ console.log('\n[V67-#66] Sales documents, credit notes and cancelled invoices');
   eq(getDefaultUnitForMode('goods'), 'Pcs', 'Goods default to Pcs (#66 item 2)');
   eq(getDefaultUnitForMode('mixed'), 'Pcs', 'Mixed invoices default to Pcs too');
   eq(getDefaultUnitForMode('services'), 'Hrs', 'Services still default to Hrs');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// v1.10.68 (#68) — what a GSTIN says on its own, with no API key and no
+// internet. The state it names decides place of supply, so a wrong one
+// silently swaps CGST + SGST for IGST on every invoice to that client.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[V68-#68] Reading a GSTIN offline');
+{
+  const real = decodeGstin('27AAPFU0939F1ZV');
+  eq([real.stateCode, real.state, real.pan, real.entityType, real.taxpayerType, real.checksumOk],
+    ['27', 'Maharashtra', 'AAPFU0939F', 'Firm / LLP', 'Regular', true],
+    'A real GSTIN gives state, PAN, entity type and passes its own checksum');
+  eq(decodeGstin('29AAGCB7383J1Z4').entityType, 'Company', 'The 4th letter of the PAN says Company');
+
+  truthy(!gstinChecksumOk('27AAPFU0939F1ZW'), 'A wrong last character is rejected');
+  truthy(!gstinChecksumOk('72AAPFU0939F1ZV'), 'Transposed state digits are rejected');
+  truthy(!gstinChecksumOk('27AAPFU9039F1ZV'), 'Transposed digits inside the PAN are rejected');
+  truthy(!gstinChecksumOk('27AAPFU0939F1Z'), 'A 14-character GSTIN is rejected');
+
+  eq(stateNameForCode('03'), 'Punjab', 'Code 03 is Punjab');
+  eq(stateNameForCode('37'), 'Andhra Pradesh', 'Code 37 is Andhra Pradesh, after the 2014 split');
+  eq(stateNameForCode('26'), 'Dadra and Nagar Haveli and Daman and Diu', 'Code 26 is the merged UT, spelled the way the dropdown spells it');
+  eq(stateNameForCode('96'), null, 'An unknown code returns null instead of a guess');
+  // A filled-in state has to match a State dropdown option exactly, or the
+  // client is left holding a state the form cannot show.
+  const strays = INDIAN_STATES.filter((s) => stateNameForCode(getStateCode(s)) !== s);
+  eq(strays, [], 'Every state survives name -> code -> name unchanged');
+
+  eq(decodeGstin(''), null, 'Empty input decodes to null');
+  eq(decodeGstin('27AAPFU0939F1Z'), null, 'A short string decodes to null');
 }
 
 console.log('\n────────────────────────────────────────');
