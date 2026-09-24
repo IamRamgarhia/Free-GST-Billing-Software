@@ -16,11 +16,11 @@
 
 Your data never leaves your computer. No cloud. No signup. No tracking. No limits. Open-source and offline-first.
 
-<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip"><img src="https://img.shields.io/github/v/release/IamRamgarhia/Free-GST-Billing-Software?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20Download&color=16a34a&labelColor=15803d" alt="Download the latest version" height="48"></a>
+<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip"><img src="https://img.shields.io/github/v/release/IamRamgarhia/Free-GST-Billing-Software?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20Download&color=16a34a&labelColor=15803d" alt="Download the latest version" height="48"></a>&nbsp;&nbsp;<a href="https://dicecodes.com/free-gst-software-documentation/"><img src="https://img.shields.io/badge/%F0%9F%93%96%20Documentation-Read%20the%20guide-2563eb?style=for-the-badge&labelColor=1d4ed8" alt="Read the documentation" height="48"></a>
 
 <sub>Always the newest version · about 16 MB · Windows, macOS and Linux in one ZIP · <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release notes</a></sub>
 
-[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [☁ Run Online (Vercel / Supabase / Railway)](./docs/DEPLOY_ONLINE.md) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
+[⬇ Download ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip) &nbsp;|&nbsp; [📦 Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases) &nbsp;|&nbsp; [📖 Documentation](https://dicecodes.com/free-gst-software-documentation/) &nbsp;|&nbsp; [⚡ 3-Step Install](#quick-start--installation) &nbsp;|&nbsp; [☁ Run Online (Vercel / Supabase / Railway)](./docs/DEPLOY_ONLINE.md) &nbsp;|&nbsp; [🧾 First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) &nbsp;|&nbsp; [📸 Screenshots](#screenshots) &nbsp;|&nbsp; [🐛 Report Bug](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)
 
 </div>
 
