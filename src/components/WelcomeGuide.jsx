@@ -302,8 +302,8 @@ export default function WelcomeGuide({ onComplete }) {
                 {[
                   { num: '1', title: 'Create your first invoice', desc: 'Click "New Invoice" in the sidebar. Pick invoice type, add client details and line items.' },
                   { num: '2', title: 'Download or share', desc: 'Generate PDF, share via WhatsApp or email. UPI QR auto-appears if you added your UPI ID.' },
-                  { num: '3', title: 'Check GST reports', desc: 'After a few invoices, go to "Reports & P&L". Your GSTR-1, GSTR-3B, and HSN data is auto-generated.' },
-                  { num: '4', title: 'File GST returns', desc: 'Download CSVs from Reports → Upload to GST portal. Follow the built-in "GST Filing" guide for step-by-step help.' },
+                  { num: '3', title: 'Check GST reports', desc: 'After a few invoices, open "GST Returns" in the sidebar. Your GSTR-1, GSTR-3B and HSN summary are built from them.' },
+                  { num: '4', title: 'File GST returns', desc: 'Download the GSTR-1 JSON from GST Returns and upload it on the GST portal. The Filing Guide tab there walks you through it.' },
                 ].map((item) => (
                   <div key={item.num} style={{ display: 'flex', gap: '1rem', padding: '0.75rem 0', borderBottom: '1px solid var(--border-color)' }}>
                     <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>

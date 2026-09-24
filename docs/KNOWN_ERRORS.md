@@ -720,6 +720,221 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-034 - Settings: the save bar sat on top of the "Jump to" bar
+
+**Version:** broke in v1.10.67 · fixed in v1.10.71
+**Reported by:** found while taking documentation screenshots
+
+**Symptom** - once Settings was scrolled, the "Jump to" section buttons were
+hidden behind the "Everything is saved" bar and could not be clicked.
+
+**Cause** - both bars were `position: sticky; top: 0`. The save bar was made
+always-visible in v1.10.67 without moving the jump bar down.
+
+**Rule** - two sticky elements in one scroll area need stacked `top` offsets,
+and the lower one's offset must follow the upper one's real height (it wraps
+on narrow screens).
+
+**Guard** - none automated. By hand: open Settings, scroll down, check the
+jump bar sits below the save bar, and a jump lands below both.
+
+---
+
+## ERR-033 - Setup wizard: the chosen language reverted to English
+
+**Version:** broke in v1.10.6 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - picking Hindi (or Tamil, Marathi, Bengali) with the Retail,
+Freelancer, Wholesale or Service business type gave English labels. The
+paper size picked in the wizard changed nothing either.
+
+**Cause** - `finish()` set `labelLanguage` first, then applied the business
+preset, and four presets set `labelLanguage: 'en'`. The paper size was saved
+to print settings, which the invoice screen never reads: it reads the invoice
+defaults.
+
+**Rule** - apply presets first and the user's explicit choices after, so the
+explicit choice wins. Save a setting where the screen that uses it reads it.
+
+**Guard** - none automated. By hand: run the wizard with Retail + Hindi + 80mm,
+then open a new invoice.
+
+---
+
+## ERR-032 - Income tax: labels and PDF disagreed with the tax worked out
+
+**Version:** broke in v1.10.31 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - the screen said STCG 15% and LTCG 10% over ₹1L, the engine used
+20% and 12.5% over ₹1.25L. The 80D hint said ₹1,00,000; the tax used ₹50,000,
+and the ITR-4 PDF printed up to ₹1 lakh. Business income added GST, quotes,
+challans and foreign-currency invoices to sales. "Office rent" in a bank
+statement became rent received. Pushing a statement twice doubled it.
+
+**Cause** - the engine rates and limits were updated, the labels were not; the
+UI never passed age, so senior limits could not apply; sales used
+`totalAmount` of every non-cancelled bill; the rent-paid rule came after the
+rent rule, and the first match wins.
+
+**Rule** - labels quote the engine's values, never their own copies. Income is
+counted from real sales without GST (`salesSign`).
+
+**Guard** - `scripts/tax-test.mjs` [V71] income-tax block: office rent is an
+expense, and the ITR-4 80D line equals the limit the tax used.
+
+---
+
+## ERR-031 - Reports counted quotes and challans as sales, credit notes as income
+
+**Version:** broke before v1.10.67 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - Reports' revenue did not match the Dashboard's. Proforma
+estimates and delivery challans counted as revenue and as money owed; credit
+notes were ADDED to revenue.
+
+**Cause** - v1.10.67 introduced `salesSign()` for the Dashboard; Reports kept
+summing every non-cancelled bill.
+
+**Rule** - every total of "sales" goes through `salesSign()` / `countsAsSales()`.
+Never sum `totalAmount` over all bills.
+
+**Guard** - none in the smoke suite yet; `salesSign` itself is covered in
+`scripts/tax-test.mjs`. By hand: a proforma must not change Reports.
+
+---
+
+## ERR-030 - GST rates and the B2C Large limit were out of date
+
+**Version:** stale from Aug 2024 / Sep 2025 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - the GSTR-1 export blocked any item at 40% ("Portal accepts only
+0, 0.25, 3, 5, 12, 18, 28%"), no screen offered 40%, and B2C Large started at
+₹2.5 lakh.
+
+**Cause** - hard-coded lists from before GST 2.0 (40% from 22 Sep 2025) and
+before Notification 12/2024-CT (B2CL above ₹1 lakh from 1 Aug 2024). Adding
+40% also broke the "second-highest rate" default for new rows, which would
+have become 28%.
+
+**Rule** - GST rates and limits live in one place in `utils.js`
+(`GST_PORTAL_RATES`, `b2clThreshold`), with the date a change took effect.
+Defaults name the rate (18%), never a position in a list.
+
+**Guard** - `scripts/tax-test.mjs` [V71] rates block.
+
+---
+
+## ERR-029 - TDS / TCS came out as ₹0 on ordinary invoices
+
+**Version:** broke in v1.10.31 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - ticking TDS (194J at 10%, say) or TCS on an invoice under ₹50
+lakh gave 0.
+
+**Cause** - the ₹50 lakh threshold was applied to every section, but it belongs
+to 194Q and 206C(1H) only. And the client's running total for the year was
+never worked out: the invoice screen always passed 0.
+
+**Rule** - thresholds belong to a section, not to TDS/TCS as a whole. A
+per-client yearly total is worked out from saved invoices
+(`clientYearToDate`), by the invoice screen and the server alike.
+
+**Guard** - `scripts/tax-test.mjs` [V71] TDS/TCS and year-to-date blocks.
+
+---
+
+## ERR-028 - Recurring templates lost their settings when edited
+
+**Version:** broke in v1.10.31 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - editing a template made from an invoice wiped its "every N",
+end date or count, terms, options and business. "Generate Now" made invoices
+with no CGST/SGST/IGST split, ignored the interval and end, and never counted.
+A template with no on/off flag showed Active but never fired. Auto-fired
+invoices in Jan-Mar carried next year's financial-year label.
+
+**Cause** - the server replaces the whole record on save and the form only
+sent the fields it shows; Generate Now had its own simplified maths in the
+browser; the server checked `!tpl.active` and used the calendar year.
+
+**Rule** - an edit form spreads the full original record under its own
+fields. One code path makes recurring invoices: the server's
+`generateFromTemplate`, used by the daily run and by Generate Now.
+
+**Guard** - `tests/smoke.mjs` "v71 Generate Now" checks: works on a paused
+template, splits the tax, honours every-2-months, counts the invoice.
+
+---
+
+## ERR-027 - Deleting a purchase bill did not take its stock back out
+
+**Version:** broke in v1.10.50 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - the confirmation said "Stock levels for the products in this
+bill will be reverted", but stock stayed. Removing a row while editing a bill
+also left its stock in.
+
+**Cause** - delete only removed the file; the edit path only looked at rows
+still present.
+
+**Rule** - every path that adds stock has a matching path that removes it:
+save, edit (changed and removed rows) and delete.
+
+**Guard** - none automated. By hand: add a purchase of 5, delete it, check
+stock.
+
+---
+
+## ERR-026 - Print did not save; Save & Download could print an unsaved number
+
+**Version:** broke in v1.10.58 · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - Print handed the client a numbered invoice that was never saved.
+Save & Download built the PDF before the number was reserved, so the PDF
+could show a different number from the saved invoice. After a
+duplicate-number error, "Invoice saved" still appeared. Ctrl+S and Save &
+leave never took stock out.
+
+**Cause** - print paths never called `saveInvoiceToDB`; the download path
+called it after `buildPDF`; `saveInvoiceToDB` returned nothing on its error
+paths, so callers could not tell.
+
+**Rule** - save first, then make any output from the saved number.
+`saveInvoiceToDB` returns the saved number or null, and callers check it.
+
+**Guard** - none automated for the order. By hand: new invoice, Print, check
+it is on the Dashboard with the number printed.
+
+---
+
+## ERR-025 - Dashboard "Bulk PDF" always failed
+
+**Version:** broke in v1.10.x · fixed in v1.10.71
+**Reported by:** found while writing the documentation
+
+**Symptom** - "Could not generate any PDFs" whatever was ticked.
+
+**Cause** - `onClick={bulkExportPDF}` passed the click event into the
+function's first argument, `billsOverride`, so the event was treated as the
+list of invoices. The same pattern opened Clients' Add Client with the event
+as prefill.
+
+**Rule** - never pass a handler with parameters straight to `onClick`; wrap it:
+`onClick={() => fn()}`.
+
+**Guard** - `tests/smoke.mjs` "v71 Bulk PDF downloads a PDF of the ticked
+invoices".
+
+---
+
 ## ERR-024 - A page break cut the company stamp in half
 
 **Version:** latent since page breaks learned to respect rows (v1.10.8); made likely by the stamp (v1.10.67) · fixed in v1.10.70

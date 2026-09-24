@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 // invoice-level discount, and round-off. Previously the recurring auto-fire
 // re-implemented totals inline and silently reintroduced every bug the
 // v1.10.1 extraction fixed. Same source of truth now.
-import { computeInvoiceTotals } from './src/utils.js';
+import { computeInvoiceTotals, clientYearToDate } from './src/utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
@@ -1464,7 +1464,11 @@ function nextInvoiceNumber(prefix, settings = {}) {
   const pfx = cfg.brandPrefix || prefix;
   const padded = String(next).padStart(cfg.padDigits || 4, '0');
   if (cfg.showFinYear) {
-    const y = new Date().getFullYear();
+    // India's financial year runs April to March, as in the app's own
+    // numbering (utils.getFinancialYearLabel). This used the calendar year,
+    // so recurring invoices made in Jan-Mar carried the NEXT year's label.
+    const now = new Date();
+    const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
     return `${pfx}${sep}${y}-${String(y + 1).slice(-2)}${sep}${padded}`;
   }
   return `${pfx}${sep}${padded}`;
@@ -1479,25 +1483,31 @@ function nextInvoiceNumber(prefix, settings = {}) {
 // blocked the event loop → HTTP handlers froze until it finished.
 // Now: single-template body is unchanged, but each iteration awaits
 // setImmediate() so pending fetches / API calls get a slot.
-async function processDueRecurring() {
-  const today = new Date().toISOString().split('T')[0];
-  const templates = readAllFromDir('recurring');
-  let fired = 0;
-  const yieldToLoop = () => new Promise(r => setImmediate(r));
-  for (const tpl of templates) {
-    await yieldToLoop();
-    if (!tpl || !tpl.active) continue;
-    if (!tpl.nextDate || tpl.nextDate > today) continue;
-    // End conditions
-    if (tpl.endMode === 'onDate' && tpl.endDate && today > tpl.endDate) continue;
-    if (tpl.endMode === 'afterN' && tpl.maxOccurrences && (tpl.occurrencesCreated || 0) >= tpl.maxOccurrences) continue;
+// Today as YYYY-MM-DD in the computer's own time zone. toISOString() is UTC,
+// which in India is still "yesterday" until 05:30.
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
-    try {
-      // Resolve a LIVE profile by id or businessName (mirrors v1.4.2
-      // company-name-auto-update behaviour for recurring fires).
+// A template made on the Recurring screen before it stored `active` has no
+// flag at all; the screen shows those as Active, so treat them as active.
+const templateIsActive = (tpl) => tpl.active !== false;
+const templateHasEnded = (tpl, today) =>
+  (tpl.endMode === 'onDate' && tpl.endDate && today > tpl.endDate)
+  || (tpl.endMode === 'afterN' && tpl.maxOccurrences && (tpl.occurrencesCreated || 0) >= tpl.maxOccurrences);
+
+// Makes ONE invoice from a template and moves the template on. Used by the
+// daily auto-fire and by the app's "Generate Now", so both produce the same
+// invoice (Generate Now used to do its own simplified maths in the browser:
+// no CGST/SGST/IGST split, no end conditions, interval ignored).
+function generateFromTemplate(tpl, today) {
+      // The business this template bills for: the one it was assigned to
+      // (ownerGstin), else its saved profile id / name, else the active one.
       const profiles = readAllFromDir('profiles');
-      let profile = profiles.find(p => p.id && tpl.profileId && p.id === tpl.profileId)
-                 || profiles.find(p => p.businessName === tpl.profileBusinessName)
+      let profile = profiles.find(p => p.gstin && tpl.ownerGstin && p.gstin === tpl.ownerGstin)
+                 || profiles.find(p => p.id && tpl.profileId && p.id === tpl.profileId)
+                 || profiles.find(p => p.businessName && p.businessName === (tpl.profileBusinessName || tpl.ownerName))
                  || readJSON(PROFILE_PATH, {});
 
       const prefix = (tpl.invoiceType === 'proforma' ? 'EST'
@@ -1506,7 +1516,12 @@ async function processDueRecurring() {
                    : tpl.invoiceType === 'composition' ? 'COMP'
                    : tpl.invoiceType === 'delivery-challan' ? 'DC'
                    : 'INV');
-      const invoiceNumber = nextInvoiceNumber(prefix);
+      // Never overwrite an existing invoice: if the counter lags behind the
+      // bills on disk (restored backup, hand-typed numbers), take the next one.
+      let invoiceNumber = nextInvoiceNumber(prefix);
+      for (let i = 0; i < 50 && fs.existsSync(path.join(DATA_DIR, 'bills', safeFileName(invoiceNumber) + '.json')); i++) {
+        invoiceNumber = nextInvoiceNumber(prefix);
+      }
       const invoiceDate = today;
 
       // v1.10.31 — Data-F3.1: use shared computeInvoiceTotals so every math
@@ -1526,7 +1541,9 @@ async function processDueRecurring() {
         isSEZ: !!tpl.isSEZ,
       };
       const details = { placeOfSupply: tpl.placeOfSupply };
-      const invoiceOptions = tpl.invoiceOptions || {};
+      // The client's sales so far this year, for the ₹50L TCS/TDS threshold.
+      const ytd = clientYearToDate(readAllFromDir('bills'), tpl.clientName, today);
+      const invoiceOptions = { ...(tpl.invoiceOptions || {}), tcsCumulativeThisYear: ytd, tdsCumulativeThisYear: ytd };
       const totals = computeInvoiceTotals({
         items: tpl.items || [],
         profile,
@@ -1584,11 +1601,25 @@ async function processDueRecurring() {
       writeJSON(path.join(DATA_DIR, 'bills', safeFileName(invoiceNumber) + '.json'), bill);
 
       // Advance the template
-      tpl.nextDate = advanceDate(tpl.nextDate, tpl.frequency, tpl.interval);
+      tpl.nextDate = advanceDate(tpl.nextDate || today, tpl.frequency, tpl.interval);
       tpl.lastGenerated = today;
       tpl.occurrencesCreated = (tpl.occurrencesCreated || 0) + 1;
       writeJSON(path.join(DATA_DIR, 'recurring', safeFileName(tpl.id) + '.json'), tpl);
+      return invoiceNumber;
+}
 
+async function processDueRecurring() {
+  const today = localToday();
+  const templates = readAllFromDir('recurring');
+  let fired = 0;
+  const yieldToLoop = () => new Promise(r => setImmediate(r));
+  for (const tpl of templates) {
+    await yieldToLoop();
+    if (!tpl || !templateIsActive(tpl)) continue;
+    if (!tpl.nextDate || tpl.nextDate > today) continue;
+    if (templateHasEnded(tpl, today)) continue;
+    try {
+      generateFromTemplate(tpl, today);
       fired += 1;
     } catch (err) {
       logFatal(err, 'recurring');
@@ -1602,6 +1633,25 @@ async function processDueRecurring() {
     writeJSON(META_PATH, meta);
   }
 }
+
+// "Generate Now" on the Recurring screen: one invoice from one template, now,
+// even if it is paused or not yet due (the user asked for it), but not after
+// the template has ended.
+app.post('/api/recurring/:id/generate', (req, res) => {
+  try {
+    const tpl = readAllFromDir('recurring').find(t => t && t.id === req.params.id);
+    if (!tpl) return res.status(404).json({ error: 'Recurring template not found' });
+    const today = localToday();
+    if (templateHasEnded(tpl, today)) {
+      return res.status(409).json({ error: 'This template has reached its end date or number of invoices' });
+    }
+    const invoiceNumber = generateFromTemplate(tpl, today);
+    res.json({ success: true, invoiceNumber });
+  } catch (err) {
+    logFatal(err, 'recurring-generate');
+    res.status(500).json({ error: err.message || 'Could not generate the invoice' });
+  }
+});
 
 startServer(STARTING_PORT);
 // Fire once after a short delay so the listener is up first; then once a day

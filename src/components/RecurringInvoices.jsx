@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Plus, Edit3, Trash2, Play, Pause, X, Save } from 'lucide-react';
-import { getAllRecurring, saveRecurring, deleteRecurring, getAllClients, saveBill, getNextInvoiceNumber, getProfile } from '../store';
+import { getAllRecurring, saveRecurring, deleteRecurring, getAllClients, getProfile, generateRecurringNow } from '../store';
 import { formatCurrency, INVOICE_TYPES, belongsToProfile, isUnassignedToBusiness } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
@@ -18,6 +18,21 @@ const emptyForm = {
   frequency: 'monthly', invoiceType: 'tax-invoice',
   items: [{ name: '', hsn: '', quantity: 1, rate: '', taxPercent: 18, discount: 0 }],
   notes: '', nextDate: '', active: true,
+  interval: 1, endMode: 'never', endDate: '', maxOccurrences: '',
+};
+
+// Today in the computer's own time zone (toISOString is UTC: "yesterday" in
+// India until 05:30).
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const UNIT_PLURAL = { weekly: 'weeks', monthly: 'months', quarterly: 'quarters', yearly: 'years' };
+const frequencyLabel = (tpl) => {
+  const n = Math.max(1, parseInt(tpl.interval, 10) || 1);
+  if (n === 1) return FREQUENCIES.find(f => f.value === tpl.frequency)?.label || 'Monthly';
+  return `Every ${n} ${UNIT_PLURAL[tpl.frequency] || 'months'}`;
 };
 
 export default function RecurringInvoices() {
@@ -27,6 +42,11 @@ export default function RecurringInvoices() {
   const [clients, setClients] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  // The whole template being edited. Saving replaces the record on the
+  // server, so anything this form does not show (invoice options, terms,
+  // tax-inclusive, business, client country, SEZ, occurrence count...) must
+  // be carried over from here, or an edit silently wipes it.
+  const [editingTpl, setEditingTpl] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
 
 
@@ -87,12 +107,17 @@ export default function RecurringInvoices() {
       notes: tpl.notes || '',
       nextDate: tpl.nextDate || '',
       active: tpl.active !== false,
+      interval: tpl.interval || 1,
+      endMode: tpl.endMode || 'never',
+      endDate: tpl.endDate || '',
+      maxOccurrences: tpl.maxOccurrences || '',
     });
+    setEditingTpl(tpl);
     setEditingId(tpl.id);
     setShowForm(true);
   };
 
-  const closeForm = () => { setShowForm(false); setEditingId(null); };
+  const closeForm = () => { setShowForm(false); setEditingId(null); setEditingTpl(null); };
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -131,8 +156,12 @@ export default function RecurringInvoices() {
     if (!form.items.some(i => i.name && i.rate)) { toast('Add at least one item with description and rate', 'warning'); return; }
     try {
       await saveRecurring({
+        ...(editingId && editingTpl ? editingTpl : {}),
         ...(editingId ? { id: editingId } : {}),
         ...form,
+        interval: Math.min(12, Math.max(1, parseInt(form.interval, 10) || 1)),
+        endDate: form.endMode === 'onDate' ? form.endDate : '',
+        maxOccurrences: form.endMode === 'afterN' ? (parseInt(form.maxOccurrences, 10) || null) : null,
         items: form.items.filter(i => i.name),
         // v1.10.65 (#58 item 3) — which business this template bills for.
         ownerGstin: ownerProfile?.gstin || '',
@@ -159,74 +188,24 @@ export default function RecurringInvoices() {
   };
 
   const toggleActive = async (tpl) => {
-    await saveRecurring({ ...tpl, active: !tpl.active });
-    toast(tpl.active ? 'Paused' : 'Activated', 'info');
+    const on = tpl.active !== false; // no flag = active, as the list shows it
+    await saveRecurring({ ...tpl, active: !on });
+    toast(on ? 'Paused' : 'Activated', 'info');
     load();
   };
 
   const generateNow = async (tpl) => {
     try {
-      const typeConfig = INVOICE_TYPES[tpl.invoiceType || 'tax-invoice'];
-      const invoiceNumber = await getNextInvoiceNumber(typeConfig.prefix);
-      const today = new Date().toISOString().split('T')[0];
-
-      const items = (tpl.items || []).map(i => ({
-        name: i.name,
-        hsn: i.hsn || '',
-        quantity: parseFloat(i.quantity) || 1,
-        rate: parseFloat(i.rate) || 0,
-        taxPercent: parseFloat(i.taxPercent) || 0,
-        discount: parseFloat(i.discount) || 0,
-      }));
-
-      const totalAmount = items.reduce((sum, i) => {
-        const base = i.quantity * i.rate - i.discount;
-        return sum + base + (base * i.taxPercent / 100);
-      }, 0);
-      const totalTaxAmount = items.reduce((sum, i) => {
-        const base = i.quantity * i.rate - i.discount;
-        return sum + (base * i.taxPercent / 100);
-      }, 0);
-
-      const bill = {
-        id: invoiceNumber,
-        invoiceNumber,
-        invoiceDate: today,
-        invoiceType: tpl.invoiceType || 'tax-invoice',
-        clientName: tpl.clientName,
-        totalAmount: Math.round(totalAmount * 100) / 100,
-        totalTaxAmount: Math.round(totalTaxAmount * 100) / 100,
-        status: 'unpaid',
-        paidAmount: 0,
-        payments: [],
-        data: {
-          details: { invoiceNumber, invoiceDate: today },
-          client: { name: tpl.clientName, state: tpl.clientState, gstin: tpl.clientGstin, address: tpl.clientAddress },
-          items,
-        },
-        generatedFrom: tpl.id,
-      };
-
-      await saveBill(bill);
-
-      // Advance next date
-      const next = new Date(tpl.nextDate || today);
-      if (tpl.frequency === 'weekly') next.setDate(next.getDate() + 7);
-      else if (tpl.frequency === 'monthly') next.setMonth(next.getMonth() + 1);
-      else if (tpl.frequency === 'quarterly') next.setMonth(next.getMonth() + 3);
-      else if (tpl.frequency === 'yearly') next.setFullYear(next.getFullYear() + 1);
-
-      await saveRecurring({ ...tpl, nextDate: next.toISOString().split('T')[0], lastGenerated: today });
-
+      const { invoiceNumber } = await generateRecurringNow(tpl.id);
       toast(`Invoice ${invoiceNumber} generated for ${tpl.clientName}`, 'success');
       load();
     } catch (err) {
-      toast('Failed to generate: ' + err.message, 'error');
+      toast('Failed to generate: ' + (err?.message || 'please try again'), 'error');
     }
   };
 
   const getDueTemplates = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localToday();
     return templates.filter(t => t.active !== false && t.nextDate && t.nextDate <= today);
   };
 
@@ -301,9 +280,36 @@ export default function RecurringInvoices() {
                 </select>
               </div>
               <div className="form-group">
+                <label className="form-label">Every</label>
+                <input type="number" min="1" max="12" className="form-input" value={form.interval}
+                  onChange={e => updateField('interval', e.target.value)}
+                  title="1 = every period. Monthly with 3 = every three months." />
+              </div>
+              <div className="form-group">
                 <label className="form-label">Next Due Date</label>
                 <input type="date" className="form-input" value={form.nextDate} onChange={e => updateField('nextDate', e.target.value)} />
               </div>
+              <div className="form-group">
+                <label className="form-label">Stop</label>
+                <select className="form-input" value={form.endMode} onChange={e => updateField('endMode', e.target.value)}>
+                  <option value="never">Never (until I stop it)</option>
+                  <option value="onDate">On a specific date</option>
+                  <option value="afterN">After N invoices</option>
+                </select>
+              </div>
+              {form.endMode === 'onDate' && (
+                <div className="form-group">
+                  <label className="form-label">Stop after this date</label>
+                  <input type="date" className="form-input" value={form.endDate} onChange={e => updateField('endDate', e.target.value)} />
+                </div>
+              )}
+              {form.endMode === 'afterN' && (
+                <div className="form-group">
+                  <label className="form-label">Number of invoices</label>
+                  <input type="number" min="1" className="form-input" value={form.maxOccurrences} placeholder="e.g. 12"
+                    onChange={e => updateField('maxOccurrences', e.target.value)} />
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Invoice Type</label>
                 <select className="form-input" value={form.invoiceType} onChange={e => updateField('invoiceType', e.target.value)}>
@@ -380,11 +386,11 @@ export default function RecurringInvoices() {
                     const base = (parseFloat(i.quantity) || 1) * (parseFloat(i.rate) || 0) - (parseFloat(i.discount) || 0);
                     return s + base + (base * (parseFloat(i.taxPercent) || 0) / 100);
                   }, 0);
-                  const isDue = tpl.active !== false && tpl.nextDate && tpl.nextDate <= new Date().toISOString().split('T')[0];
+                  const isDue = tpl.active !== false && tpl.nextDate && tpl.nextDate <= localToday();
                   return (
                     <tr key={tpl.id} className={isDue ? 'row-warning' : ''}>
                       <td className="font-medium">{tpl.clientName}</td>
-                      <td><span className="type-badge">{FREQUENCIES.find(f => f.value === tpl.frequency)?.label}</span></td>
+                      <td><span className="type-badge">{frequencyLabel(tpl)}</span></td>
                       <td className="text-muted">{INVOICE_TYPES[tpl.invoiceType || 'tax-invoice']?.label}</td>
                       <td style={{ textAlign: 'right' }} className="font-bold">{formatCurrency(total)}</td>
                       <td className={isDue ? 'font-bold' : 'text-muted'} style={isDue ? { color: '#d97706' } : {}}>

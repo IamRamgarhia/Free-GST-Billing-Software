@@ -62,6 +62,7 @@ async function cleanup(page) {
       await del('profiles');
       await del('expenses');
       await del('receipts');
+      await del('recurring');
       // The expense added through the form gets a generated id.
       const expenses = await (await fetch('/api/expenses')).json();
       await Promise.all((expenses || [])
@@ -1277,6 +1278,47 @@ try {
     on72.note !== -1 && on72.terms !== -1 && on72.note > on72.terms, JSON.stringify(on72));
   // Untick it again: display options are saved, and this must not leak.
   if (await box72.count() && await box72.isChecked()) { await box72.click(); await sleep(2500); }
+
+  // ---- v1.10.71: Generate Now uses the server's full invoice maths ---------
+  // It used to do its own simplified maths in the browser (no CGST/SGST/IGST
+  // split, interval and end conditions ignored). A delivery challan is used so
+  // the suite never takes a tax-invoice number from the real series.
+  const gen = await page.evaluate(async () => {
+    const prof = await (await fetch('/api/profile')).json();
+    await fetch('/api/recurring', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      id: 'smoketest-rec', clientName: 'Smoke Test Client', clientState: prof.state || 'Karnataka',
+      frequency: 'monthly', interval: 2, nextDate: '2099-01-01', invoiceType: 'delivery-challan', active: false,
+      items: [{ name: 'Smoke recurring item', quantity: 2, rate: 100, taxPercent: 18 }],
+      invoiceOptions: { showGST: true },
+    }) });
+    const r = await fetch('/api/recurring/smoketest-rec/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const out = await r.json();
+    const bill = out.invoiceNumber ? (await (await fetch('/api/bills')).json()).find((b) => b.id === out.invoiceNumber) : null;
+    const tpl = (await (await fetch('/api/recurring')).json()).find((t) => t.id === 'smoketest-rec');
+    return { ok: r.ok, invoiceNumber: out.invoiceNumber, totals: bill?.data?.totals || null, nextDate: tpl?.nextDate, count: tpl?.occurrencesCreated };
+  });
+  check('v71 Generate Now makes the invoice even for a paused template', gen.ok && !!gen.invoiceNumber, JSON.stringify(gen));
+  check('v71 Generate Now works the tax out properly (split into CGST+SGST or IGST)',
+    !!gen.totals && Math.abs((gen.totals.cgst || 0) + (gen.totals.sgst || 0) + (gen.totals.igst || 0) - 36) < 0.01, JSON.stringify(gen.totals));
+  check('v71 Generate Now honours "every 2 months" and counts the invoice',
+    gen.nextDate === '2099-03-01' && gen.count === 1, `${gen.nextDate} / ${gen.count}`);
+
+  // ---- v1.10.71: Bulk PDF on the Dashboard ----------------------------------
+  // The button passed its click event where the ticked invoices belonged, so
+  // it always said "Could not generate any PDFs".
+  if (gen.invoiceNumber) {
+    await openView('Dashboard');
+    await page.fill('input[placeholder="Search client or invoice..."]', gen.invoiceNumber);
+    await sleep(800);
+    const row = page.locator('tr', { hasText: gen.invoiceNumber }).first();
+    await row.locator('input[type="checkbox"]').check();
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60000 }).catch(() => null),
+      page.locator('button', { hasText: 'Bulk PDF' }).first().click(),
+    ]);
+    check('v71 Bulk PDF downloads a PDF of the ticked invoices', !!dl && /\.pdf$/i.test(dl.suggestedFilename()), dl ? dl.suggestedFilename() : 'no download');
+    await page.fill('input[placeholder="Search client or invoice..."]', '');
+  }
 
   // Put the real business details back.
   await page.evaluate(async (prof) => {

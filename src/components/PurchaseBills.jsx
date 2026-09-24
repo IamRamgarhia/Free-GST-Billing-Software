@@ -443,6 +443,7 @@ export default function PurchaseBills() {
         // Batch stock adjustments per product so we don't race on parallel saves.
         const stockDeltaById = new Map();
         const productsToUpsert = new Map();
+        const seenPriorKeys = new Set();
 
         for (const it of purchase.items.filter(x => x.name)) {
           const qty = Number(it.quantity) || 0;
@@ -458,6 +459,7 @@ export default function PurchaseBills() {
               ? it.productId
               : `name:${(it.name || '').trim().toLowerCase()}`;
             const priorQty = priorQtyByKey.get(priorKey) || 0;
+            seenPriorKeys.add(priorKey);
             const delta = qty - priorQty; // may be negative (line reduced) or zero (unchanged)
             stockDeltaById.set(existing.id, (stockDeltaById.get(existing.id) || 0) + delta);
             productsToUpsert.set(existing.id, {
@@ -486,6 +488,16 @@ export default function PurchaseBills() {
           }
         }
 
+        // Rows removed while editing: their stock was added when the bill was
+        // first saved, so take it back out (it used to stay in stock forever).
+        for (const [key, priorQty] of priorQtyByKey) {
+          if (seenPriorKeys.has(key)) continue;
+          const gone = key.startsWith('name:') ? byName.get(key.slice(5)) : byId.get(key);
+          if (!gone) continue;
+          stockDeltaById.set(gone.id, (stockDeltaById.get(gone.id) || 0) - priorQty);
+          if (!productsToUpsert.has(gone.id)) productsToUpsert.set(gone.id, { ...gone, _placeholderId: gone.id });
+        }
+
         // Apply deltas + write.
         const upserts = [];
         for (const [key, prod] of productsToUpsert) {
@@ -499,11 +511,12 @@ export default function PurchaseBills() {
           }
         }
         await Promise.all(upserts);
+        toast(editingId ? 'Purchase updated' : 'Purchase added — items synced to Products', 'success');
       } catch (e) {
         console.warn('Products auto-sync from purchase failed (non-fatal):', e);
+        toast('Purchase saved, but updating stock in Products failed - check them there', 'warning');
       }
 
-      toast(editingId ? 'Purchase updated' : 'Purchase added — items synced to Products', 'success');
       closeForm();
       loadPurchases();
       // v1.10.54 — saving a bill upserts its items into the product master
@@ -530,6 +543,25 @@ export default function PurchaseBills() {
     }
   };
 
+  // Take a deleted bill's quantities back out of product stock (never below 0).
+  // Matches products the same way saving does: productId, then name.
+  const revertPurchaseStock = async (bill) => {
+    const lines = (bill?.items || []).filter(it => it.name && Number(it.quantity) > 0);
+    if (!lines.length) return;
+    const products = await getAllProducts();
+    const byName = new Map(products.map(p => [(p.name || '').trim().toLowerCase(), p]));
+    const byId = new Map(products.map(p => [p.id, p]));
+    const minus = new Map();
+    for (const it of lines) {
+      const prod = (it.productId && byId.get(it.productId)) || byName.get(it.name.trim().toLowerCase());
+      if (prod) minus.set(prod.id, (minus.get(prod.id) || 0) + Number(it.quantity));
+    }
+    await Promise.all([...minus].map(([pid, qty]) => {
+      const prod = byId.get(pid);
+      return saveProduct({ ...prod, stock: Math.max(0, (Number(prod.stock) || 0) - qty) });
+    }));
+  };
+
   const handleDelete = async (id) => {
     if (await confirmAction({
       title: 'Delete this purchase bill?',
@@ -538,8 +570,13 @@ export default function PurchaseBills() {
       tone: 'danger',
     })) {
       try {
+        const bill = purchases.find(p => p.id === id);
         await deletePurchase(id);
-        toast('Purchase deleted', 'success');
+        // The confirm above promises this: the bill's quantities were added to
+        // stock when it was saved, so deleting it takes them back out.
+        let stockOk = true;
+        try { await revertPurchaseStock(bill); } catch (e) { stockOk = false; console.warn('Stock revert failed', e); }
+        toast(stockOk ? 'Purchase deleted' : 'Purchase deleted, but its stock could not be taken out of Products', stockOk ? 'success' : 'warning');
         loadPurchases();
       } catch {
         toast('Failed to delete', 'error');
@@ -772,7 +809,7 @@ export default function PurchaseBills() {
           <HelpButton title="Purchase Bills — how to use">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Add Purchase</strong> — record every supplier tax invoice you receive. The GST paid becomes your ITC (input tax credit) in GSTR-3B.</li>
-              <li><strong>Import from image (OCR)</strong> — snap the supplier's invoice with your phone. The app extracts supplier GSTIN, invoice number, date, and grand total. Line items still need manual entry (bill layouts vary too much for reliable auto-parsing).</li>
+              <li><strong>Import from image (OCR)</strong> — snap the supplier's invoice with your phone. The app reads the supplier, GSTIN, invoice number, date, total and the item lines it can find, all on your computer. Check every field before saving.</li>
               <li><strong>Interstate toggle</strong> — flip ON when the supplier is in a different state (they charged IGST) so ITC routes correctly.</li>
               <li><strong>Payment status</strong> — Unpaid / Partial / Paid drives the "amount payable to suppliers" report.</li>
               <li><strong>Export CSV</strong> — hand to your CA at return time.</li>
@@ -1040,7 +1077,7 @@ export default function PurchaseBills() {
                   {/* v1.6.8 (P2 #29): "Other…" for jeweller 3% / diamond 0.25% /
                        agriculture 0.1% and any bespoke rate. */}
                   <select className="form-input" value={
-                    ['0','0.1','0.25','3','5','12','18','28'].includes(String(item.taxPercent)) ? String(item.taxPercent) : '__custom__'
+                    ['0','0.1','0.25','3','5','12','18','28','40'].includes(String(item.taxPercent)) ? String(item.taxPercent) : '__custom__'
                   } onChange={async e => {
                     if (e.target.value === '__custom__') {
                       const v = await promptAction({
@@ -1065,7 +1102,8 @@ export default function PurchaseBills() {
                     <option value="12">12%</option>
                     <option value="18">18%</option>
                     <option value="28">28%</option>
-                    <option value="__custom__">Other…{['0','0.1','0.25','3','5','12','18','28'].includes(String(item.taxPercent)) ? '' : ` (${item.taxPercent}%)`}</option>
+                    <option value="40">40%</option>
+                    <option value="__custom__">Other…{['0','0.1','0.25','3','5','12','18','28','40'].includes(String(item.taxPercent)) ? '' : ` (${item.taxPercent}%)`}</option>
                   </select>
                 </div>
                 <div className="form-group" style={{ flex: 0.7, margin: 0 }}>

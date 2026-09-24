@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllBills, saveBill, getAllProducts, saveProduct, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill } from '../utils';
+import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
 import PageHeader from './PageHeader';
 import { toast } from './Toast';
@@ -399,6 +399,25 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   // deleted: its number has to stay in the books, gapless, for GST. Cancelling
   // keeps the document and takes it out of every total and return. Any other
   // status from the dropdown brings it back.
+  // Put an invoice's stock back (+1, on cancel) or take it out again (-1, on
+  // un-cancel). One place for the single-row and bulk paths: bulk cancel used
+  // to skip this, so stock went missing for invoices cancelled in bulk.
+  const adjustStockForBills = async (billList, sign) => {
+    const delta = new Map();
+    for (const b of billList) {
+      for (const item of b.data?.items || []) {
+        if (!item.productId) continue;
+        delta.set(item.productId, (delta.get(item.productId) || 0) + sign * (Number(item.quantity) || 0));
+      }
+    }
+    if (!delta.size) return;
+    const products = await getAllProducts();
+    for (const [pid, d] of delta) {
+      const product = products.find(p => p.id === pid);
+      if (product) await saveProduct({ ...product, stock: (Number(product.stock) || 0) + d });
+    }
+  };
+
   const handleCancelInvoice = async (bill) => {
     if (isCancelledBill(bill)) return;
     const ok = await confirmAction({
@@ -409,16 +428,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     });
     if (ok) {
       try {
-        // Restore stock for products used in this invoice
-        if (bill.data?.items) {
-          const products = await getAllProducts();
-          for (const item of bill.data.items) {
-            if (!item.productId) continue;
-            const product = products.find(p => p.id === item.productId);
-            if (!product) continue;
-            await saveProduct({ ...product, stock: (product.stock || 0) + (item.quantity || 0) });
-          }
-        }
+        await adjustStockForBills([bill], +1);
         await saveBill({ ...bill, status: 'cancelled', cancelledAt: new Date().toISOString() }, { overwrite: true });
         toast('Invoice cancelled & stock restored', 'success');
         loadBills();
@@ -437,34 +447,13 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     // bringing the invoice back has to take it out again. Without this the
     // stock count climbs by one invoice every cancel/un-cancel round trip.
     if (isCancelledBill(bill) && newStatus !== 'cancelled' && bill.data?.items?.length) {
-      try {
-        const products = await getAllProducts();
-        for (const item of bill.data.items) {
-          if (!item.productId) continue;
-          const product = products.find(p => p.id === item.productId);
-          if (!product) continue;
-          await saveProduct({ ...product, stock: (product.stock || 0) - (item.quantity || 0) });
-        }
-      } catch { /* non-fatal: the status change still applies */ }
+      try { await adjustStockForBills([bill], -1); } catch { /* non-fatal: the status change still applies */ }
       delete updated.cancelledAt;
     }
     if (newStatus === 'paid') {
-      updated.paidAmount = bill.totalAmount;
-      // When flipping to paid via the row menu, also push a synthetic payment
-      // so the payment-history modal and ReportsView cashflow both reflect
-      // it. Without this, "Mark as Paid" left `payments: []` and the two
-      // reports disagreed with the bill's status.
-      const already = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-      const outstanding = Math.max(0, Number(bill.totalAmount) - already);
-      if (outstanding > 0) {
-        updated.payments = [...(bill.payments || []), {
-          amount: outstanding,
-          date: new Date().toISOString().split('T')[0],
-          mode: 'other',
-          note: 'Marked paid',
-          recordedAt: new Date().toISOString(),
-        }];
-      }
+      // Also records a payment for the balance, so payment history and
+      // reports agree with the status (see markPaidPatch).
+      Object.assign(updated, markPaidPatch(bill));
     }
     await saveBill(updated, { overwrite: true });
     toast(`Marked as ${STATUS_CONFIG[newStatus].label}`, 'info');
@@ -679,32 +668,24 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     const sel = getSelectedBills();
     if (sel.length === 0) return;
     if (!await confirmAction({
-      title: `Mark ${sel.length} invoice${sel.length !== 1 ? 's' : ''} as ${newStatus}?`,
+      title: `Mark ${sel.length} invoice${sel.length !== 1 ? 's' : ''} as ${STATUS_CONFIG[newStatus]?.label || newStatus}?`,
       message: newStatus === 'paid'
-        ? 'A synthetic payment will be recorded for each so payment history + cashflow stay consistent.'
+        ? 'A payment for the balance is recorded on each, so payment history and reports stay right.'
         : 'The status change is reversible — you can flip it back any time.',
-      confirmLabel: `Mark as ${newStatus}`,
+      confirmLabel: `Mark as ${STATUS_CONFIG[newStatus]?.label || newStatus}`,
     })) return;
     setBulkBusy(true);
     try {
       // Bulk mark-paid must push synthetic payments per bill so payment
        // history and cashflow stay consistent — see changeStatus above for
        // the same fix on the single-row path (P1 #18).
-      const nowIso = new Date().toISOString();
-      const today = nowIso.slice(0, 10);
+      // Invoices being brought back from Cancelled take their stock out
+      // again, as on the single-row dropdown.
+      await adjustStockForBills(sel.filter(isCancelledBill), -1);
       const updates = sel.map(b => {
         const patch = { ...b, status: newStatus };
-        if (newStatus === 'paid') {
-          patch.paidAmount = b.totalAmount || 0;
-          const already = (b.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-          const outstanding = Math.max(0, Number(b.totalAmount) - already);
-          if (outstanding > 0) {
-            patch.payments = [...(b.payments || []), {
-              amount: outstanding, date: today, mode: 'other',
-              note: 'Marked paid (bulk)', recordedAt: nowIso,
-            }];
-          }
-        }
+        delete patch.cancelledAt;
+        if (newStatus === 'paid') Object.assign(patch, markPaidPatch(b, 'Marked paid (bulk)'));
         return saveBill(patch, { overwrite: true });
       });
       const results = await Promise.allSettled(updates);
@@ -722,13 +703,14 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     if (sel.length === 0) return;
     if (!await confirmAction({
       title: `Cancel ${sel.length} invoice${sel.length !== 1 ? 's' : ''}?`,
-      message: 'They keep their numbers but stop counting in totals, reports and GST returns. You can undo each one from its status dropdown.',
+      message: 'They keep their numbers but stop counting in totals, reports and GST returns. Stock is restored for any products on them. You can undo each one from its status dropdown.',
       confirmLabel: `Cancel ${sel.length}`,
       tone: 'danger',
     })) return;
     setBulkBusy(true);
     try {
       const at = new Date().toISOString();
+      await adjustStockForBills(sel, +1);
       const results = await Promise.allSettled(sel.map(b => saveBill({ ...b, status: 'cancelled', cancelledAt: at }, { overwrite: true })));
       const failed = results.filter(r => r.status === 'rejected').length;
       if (failed > 0) toast(`${sel.length - failed} cancelled, ${failed} failed`, 'warning');
@@ -1098,10 +1080,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
         <HelpButton title="Dashboard — how to use">
           <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
             <li><strong>New Invoice</strong> — start a fresh tax invoice / proforma / credit note / bill of supply / delivery challan.</li>
-            <li><strong>Filter row</strong> — search by client name, invoice #, or GSTIN; filter by type / status / financial year / date range.</li>
-            <li><strong>Row actions</strong> — Edit opens the invoice; MessageCircle sends via WhatsApp; Mail opens your email client; Record Payment logs a receipt; Trash soft-deletes for 30 days.</li>
-            <li><strong>WhatsApp share — mobile vs. desktop:</strong> on Android / iPhone the PDF attaches automatically via the OS share sheet (works with WhatsApp, Signal, Telegram, anywhere). On desktop, browsers block sending files to WhatsApp Web for security — we fall back to a text-only message with all invoice details. To send the PDF from desktop: click Download, then drag the file into WhatsApp Web.</li>
-            <li><strong>Bulk actions</strong> — select rows to export as one PDF or delete in a batch.</li>
+            <li><strong>Filter row</strong> — search by client name or invoice number; filter by financial year, type, status and date range. <strong>Columns</strong> picks what the list shows.</li>
+            <li><strong>Row actions</strong> — Edit, Duplicate, ₹ Payment (records a payment and prints a receipt), WhatsApp, reminder, Email, and Cancel. Cancelling keeps the invoice number but takes it out of totals and GST returns; undo it from the status dropdown.</li>
+            <li><strong>WhatsApp share — mobile vs. desktop:</strong> on Android / iPhone the PDF attaches automatically via the OS share sheet (works with WhatsApp, Signal, Telegram, anywhere). On desktop, browsers block sending files to WhatsApp Web for security — we fall back to a text-only message with all invoice details. To send the PDF from desktop: open the invoice, click Save &amp; Download, then drag the file into WhatsApp Web.</li>
+            <li><strong>Bulk actions</strong> — tick rows to mark them paid / unpaid / overdue, export them, combine them into one PDF, or cancel them. <strong>Quick print</strong> combines the filtered list into one PDF.</li>
             <li><strong>Overdue banner</strong> — click it to jump to overdue invoices with one tap.</li>
             <li><strong>Low-stock alert</strong> — appears when any product is at or below your threshold (Settings → Stock alert).</li>
           </ul>
@@ -1422,7 +1404,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}><AlertTriangle size={13} /> Mark overdue</button>
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkExportJSON}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}><FileText size={13} /> Export JSON</button>
-            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkExportPDF}
+            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={() => bulkExportPDF()}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} title="Combine selected invoices into one multi-page PDF — CAs love this for filing archives"><Download size={13} /> Bulk PDF</button>
             {/* v1.10.7 — Cancel button for the in-flight bulk export. The
                  underlying abort flag was wired in v1.10.3; this is the
@@ -1480,7 +1462,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                 {filtered.map(bill => {
                   const status = bill.status || 'unpaid';
                   const sc = STATUS_CONFIG[status] || STATUS_CONFIG.unpaid;
-                  const isOverdue = status !== 'paid' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
+                  const isOverdue = status !== 'paid' && status !== 'cancelled' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
                   const daysOverdue = isOverdue ? Math.floor((new Date() - new Date(bill.data.details.dueDate)) / 86400000) : 0;
                   const billCurrency = bill.currency || bill.data?.invoiceOptions?.currency || 'INR';
                   return (

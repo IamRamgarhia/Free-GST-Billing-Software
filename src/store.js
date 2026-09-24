@@ -281,6 +281,12 @@ export const saveRecurring = async (item) => {
   return item;
 };
 
+// "Generate Now": the server makes the invoice with the same code as the daily
+// auto-fire, so both give identical invoices. Resolves to { invoiceNumber }.
+export const generateRecurringNow = async (id) => {
+  return apiFetch(`${API}/recurring/${encodeURIComponent(id)}/generate`, { method: 'POST', body: JSON.stringify({}) });
+};
+
 export const deleteRecurring = async (id) => {
   return apiFetch(`${API}/recurring/${encodeURIComponent(id)}`, { method: 'DELETE' });
 };

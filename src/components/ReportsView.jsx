@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package } from 'lucide-react';
 import { getAllBills, getAllExpenses, getProfile } from '../store';
-import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales } from '../utils';
 import { toast } from './Toast';
 
 const MONTHS = [
@@ -66,7 +66,10 @@ export default function ReportsView() {
     }
   };
 
-  const allFilteredBills = bills.filter(bill => bill.data && filterByPeriod(bill.invoiceDate));
+  // Only real sales and credit notes, the same rule as the Dashboard: a
+  // proforma is a quote and a challan moves goods without selling them, so
+  // neither is revenue; a credit note reduces revenue (salesSign -1).
+  const allFilteredBills = bills.filter(bill => bill.data && salesSign(bill) !== 0 && filterByPeriod(bill.invoiceDate));
   // v1.10.1 — Filter expenses by the same currency as the P&L view.
   // Prior code left this unfiltered, so USD-invoice revenue got INR
   // expenses subtracted → nonsense net profit. Expenses without a
@@ -87,8 +90,8 @@ export default function ReportsView() {
   const plBills = allFilteredBills.filter(b => getBillCurrency(b) === currencyFilter);
 
   // P&L
-  const totalRevenue = plBills.reduce((s, b) => s + (b.totalAmount || 0), 0);
-  const totalTaxCollected = plBills.reduce((s, b) => s + (b.totalTaxAmount || 0), 0);
+  const totalRevenue = plBills.reduce((s, b) => s + salesSign(b) * (b.totalAmount || 0), 0);
+  const totalTaxCollected = plBills.reduce((s, b) => s + salesSign(b) * (b.totalTaxAmount || 0), 0);
   const revenueExTax = totalRevenue - totalTaxCollected;
   const totalExpenseAmount = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0);
   const totalExpenseGST = filteredExpenses.reduce((s, e) => s + (e.gstAmount || 0), 0);
@@ -101,8 +104,8 @@ export default function ReportsView() {
     if (!b.invoiceDate) return;
     const key = b.invoiceDate.substring(0, 7);
     if (!monthlyPL[key]) monthlyPL[key] = { revenue: 0, tax: 0, expense: 0, expGst: 0 };
-    monthlyPL[key].revenue += b.totalAmount || 0;
-    monthlyPL[key].tax += b.totalTaxAmount || 0;
+    monthlyPL[key].revenue += salesSign(b) * (b.totalAmount || 0);
+    monthlyPL[key].tax += salesSign(b) * (b.totalTaxAmount || 0);
   });
   filteredExpenses.forEach(e => {
     if (!e.date) return;
@@ -115,7 +118,9 @@ export default function ReportsView() {
 
   // ========== Outstanding & Aging ==========
   const today = new Date();
-  const unpaidBills = bills.filter(b => b.status !== 'paid');
+  // Money owed to you: only on sales (a quote, a challan or a credit note is
+  // never a receivable).
+  const unpaidBills = bills.filter(b => countsAsSales(b) && b.status !== 'paid');
   const agingData = unpaidBills.map(b => {
     // Guard against missing or invalid dates — `new Date(undefined)` returns Invalid Date
     // which propagates as NaN through the aging math and breaks the chart.
@@ -457,10 +462,13 @@ export default function ReportsView() {
         filteredBills.forEach(b => {
           const name = b.clientName || '—';
           if (!byClient[name]) byClient[name] = { name, revenue: 0, paid: 0, outstanding: 0, count: 0, lastInvoiceDate: '' };
-          byClient[name].revenue += (b.totalAmount || 0);
-          byClient[name].paid += (b.paidAmount || 0);
-          byClient[name].outstanding += Math.max(0, (b.totalAmount || 0) - (b.paidAmount || 0));
-          byClient[name].count += 1;
+          const sign = salesSign(b);
+          byClient[name].revenue += sign * (b.totalAmount || 0);
+          if (sign > 0) {
+            byClient[name].paid += (b.paidAmount || 0);
+            byClient[name].outstanding += b.status === 'paid' ? 0 : Math.max(0, (b.totalAmount || 0) - (b.paidAmount || 0));
+            byClient[name].count += 1;
+          }
           if (!byClient[name].lastInvoiceDate || b.invoiceDate > byClient[name].lastInvoiceDate) {
             byClient[name].lastInvoiceDate = b.invoiceDate;
           }
@@ -551,7 +559,8 @@ export default function ReportsView() {
             const name = (item.name || item.description || 'Unnamed').trim();
             if (!name || name === 'Unnamed') return;
             if (!byProduct[name]) byProduct[name] = { name, hsn: item.hsn || '', qty: 0, revenue: 0, txns: 0, lastSold: '' };
-            const qty = Number(item.quantity) || 0;
+            // A credit note takes returned quantities back off.
+            const qty = salesSign(b) * (Number(item.quantity) || 0);
             const rate = Number(item.rate) || 0;
             byProduct[name].qty += qty;
             byProduct[name].revenue += (qty * rate);

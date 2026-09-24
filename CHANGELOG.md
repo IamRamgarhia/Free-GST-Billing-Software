@@ -7,6 +7,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.71] - 2026-09-24
+
+**Ten fixes found while writing the new documentation: Bulk PDF works, Print
+saves the invoice, TDS/TCS and the 40% GST rate are right, and recurring
+invoices keep their settings.**
+
+### How to update
+
+**Current version:** 1.10.70 (or 1.10.69)  →  **New version:** 1.10.71
+
+#### If the in-app Update button works for you
+1. Open the Free GST Billing launcher.
+2. Click **More options → Update to the latest version**.
+3. Wait for it to finish, then click **Open App**.
+
+That is all — your data is not touched.
+
+#### If the Update button does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.71.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (click **Stop the app** in the launcher if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Linux / NAS
+The in-app **Control Panel → Update Now** works here too. It needs `unzip`
+(or python3). Restart the app, or its container, afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - invoices
+- **Print now saves the invoice** before printing, like Save & Download. It
+  used to print a numbered invoice that was never kept.
+- **The PDF always shows the saved number.** Save & Download used to make the
+  PDF before the number was taken, so on a busy day the two could differ.
+- **"Invoice saved" only appears when it was.** After a duplicate-number error
+  it used to appear anyway.
+- **Ctrl+S and "Save & leave" take items out of stock**, as Save does.
+- The save badge says **Not saved yet** on a new invoice, instead of "All
+  changes saved".
+
+### Fixed - Dashboard and Clients
+- **Bulk PDF works.** It always said "Could not generate any PDFs".
+- **Cancelling in bulk returns stock**, as cancelling one invoice does, and
+  bringing invoices back takes it out again.
+- **Marking Paid on the Clients screen records a payment**, as the Dashboard
+  does, and its receipt gets a proper number.
+- A cancelled invoice past its due date no longer shows as Overdue.
+
+### Fixed - GST and tax
+- **40% GST rate** (GST 2.0, from 22 September 2025) is offered on invoices and
+  purchases and accepted by the GSTR-1 export. 12% and 28% stay for older
+  invoices and the items still taxed at them.
+- **B2C Large starts above ₹1 lakh** for invoices from 1 August 2024 (₹2.5 lakh
+  before), as the GST rules changed.
+- **TDS and TCS were ₹0 on most invoices.** The ₹50 lakh limit now applies
+  only to 194Q and 206C(1H), and counts the client's earlier invoices this
+  year. Other sections (194C, 194J and so on) apply from the first rupee.
+- **Reports** no longer count estimates and delivery challans as sales, and
+  subtract credit notes.
+- **Income Tax**: capital gains labels show the rates actually used (20% and
+  12.5% over ₹1.25 lakh); asks your age, your parents' age and whether you
+  are a government employee, so the right limits apply; business income
+  leaves out GST, estimates and foreign-currency invoices; the ITR-4 PDF's 80D
+  line matches the tax; "office rent" in a bank statement is an expense; a
+  statement can only be pushed to the calculator once.
+
+### Fixed - purchases, recurring, setup
+- **Deleting a purchase bill takes its stock back out**, as its message always
+  said. Removing a row while editing a bill does too.
+- **Editing a recurring template keeps all its settings.** The form now has
+  "Every" and "Stop" (never, on a date, after N invoices).
+- **Generate Now** makes exactly the same invoice as the automatic run, with the
+  tax split, and follows "every N" and the end condition. Templates with no
+  on/off setting now run, and recurring invoice numbers use the financial year.
+- The **setup wizard** keeps the language you pick, and its paper size now
+  applies to new invoices.
+- In **Settings**, the save bar no longer covers the "Jump to" buttons.
+- Help texts across the app now describe what the app really does.
+
+---
+
 ## [1.10.70] - 2026-09-24
 
 **A page break could cut the company stamp in half. It now never splits the

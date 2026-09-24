@@ -21,6 +21,11 @@ import {
   stateNameForCode,
   INDIAN_STATES,
   safePageBoundaries,
+  clientYearToDate,
+  b2clThreshold,
+  GST_PORTAL_RATES,
+  markPaidPatch,
+  getCountryConfig,
 } from '../src/utils.js';
 import {
   compute44AE,
@@ -41,6 +46,8 @@ import {
   getNewRegimeSlabs,
   CURRENT_FY,
   NEW_REGIME_SLABS_FY_2025_26,
+  AUTO_CATEGORY_RULES,
+  buildITR4FieldMap,
 } from '../src/utils/itr.js';
 
 let passed = 0, failed = 0;
@@ -552,6 +559,70 @@ console.log('\n[V70-ERR-024] Where a PDF page may end');
 
   eq(safePageBoundaries([0, 300, 300, 600], []), [0, 300, 600], 'Duplicates are dropped and the list is sorted');
   eq(safePageBoundaries([500], [[400, 401]]), [500], 'Zero-height spans (hidden elements) are ignored');
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// v1.10.71 - fixes found while writing the documentation
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[V71] TDS / TCS threshold only for 194Q and 206C(1H)');
+{
+  const base = { items: [{ quantity: 1, rate: 100000, taxPercent: 18 }], profile: { country: 'India', state: 'Punjab' }, client: { state: 'Punjab' }, details: {}, showGST: true };
+  const tds194J = computeInvoiceTotals({ ...base, invoiceOptions: { showTDS: true, tdsSection: '194J', tdsRate: 10 } });
+  eq(tds194J.tdsAmount, 11800, '194J at 10% applies from the first rupee (was 0 below ₹50 lakh)');
+  const tcs1H = computeInvoiceTotals({ ...base, invoiceOptions: { showTCS: true, tcsSection: '206C(1H)', tcsRate: 0.1, tcsCumulativeThisYear: 0 } });
+  eq(tcs1H.tcsAmount, 0, '206C(1H) still waits for the ₹50 lakh threshold');
+  const tcs1Hover = computeInvoiceTotals({ ...base, invoiceOptions: { showTCS: true, tcsSection: '206C(1H)', tcsRate: 0.1, tcsCumulativeThisYear: 4950000 } });
+  eq(tcs1Hover.tcsAmount, 68, '206C(1H) charges only the part above ₹50 lakh (68,000 × 0.1%)');
+  const tcs52 = computeInvoiceTotals({ ...base, invoiceOptions: { showTCS: true, tcsSection: 'CGST52', tcsRate: 1 } });
+  eq(tcs52.tcsAmount, 1180, 'CGST section 52 TCS applies from the first rupee');
+}
+
+console.log("\n[V71] A client's sales so far this financial year");
+{
+  const bills = [
+    { id: 'a', clientName: 'Meera', invoiceDate: '2026-04-10', totalAmount: 100, invoiceType: 'tax-invoice' },
+    { id: 'b', clientName: 'meera ', invoiceDate: '2027-03-31', totalAmount: 200, invoiceType: 'tax-invoice' },
+    { id: 'c', clientName: 'Meera', invoiceDate: '2026-03-31', totalAmount: 400, invoiceType: 'tax-invoice' },
+    { id: 'd', clientName: 'Meera', invoiceDate: '2026-05-01', totalAmount: 800, invoiceType: 'proforma' },
+    { id: 'e', clientName: 'Meera', invoiceDate: '2026-05-01', totalAmount: 1600, invoiceType: 'tax-invoice', status: 'cancelled' },
+    { id: 'f', clientName: 'Meera', invoiceDate: '2026-05-01', totalAmount: 3200, invoiceType: 'tax-invoice', currency: 'USD' },
+    { id: 'g', clientName: 'Arjun', invoiceDate: '2026-05-01', totalAmount: 6400, invoiceType: 'tax-invoice' },
+  ];
+  eq(clientYearToDate(bills, 'Meera', '2026-09-24'), 300, 'Same client, same FY, rupee sales only (quotes, cancelled, USD, last FY and other clients left out)');
+  eq(clientYearToDate(bills, 'Meera', '2026-09-24', 'a'), 200, 'The invoice being edited is not counted twice');
+  eq(clientYearToDate(bills, '', '2026-09-24'), 0, 'No client name, nothing counted');
+}
+
+console.log('\n[V71] GST rates and the B2C Large limit');
+{
+  eq(b2clThreshold('2024-07-31'), 250000, 'Before 1 Aug 2024 B2C Large starts above ₹2.5 lakh');
+  eq(b2clThreshold('2024-08-01'), 100000, 'From 1 Aug 2024 it starts above ₹1 lakh');
+  truthy(GST_PORTAL_RATES.includes(40), 'The GSTR-1 export accepts the 40% rate');
+  truthy(getCountryConfig('India').taxRates.includes(40), 'Invoices offer the 40% rate');
+}
+
+console.log('\n[V71] Marking an invoice paid records the balance as a payment');
+{
+  const p = markPaidPatch({ totalAmount: 1000, payments: [{ amount: 400 }] });
+  eq(p.paidAmount, 1000, 'Paid amount becomes the total');
+  eq(p.payments.length, 2, 'One payment is added');
+  eq(p.payments[1].amount, 600, 'For exactly the balance');
+  truthy(!!p.payments[1].id, 'With an id, so its receipt gets a real number');
+  eq(markPaidPatch({ totalAmount: 1000, payments: [{ amount: 1000 }] }).payments.length, 1, 'Nothing added when already fully paid');
+}
+
+console.log('\n[V71] Income tax: bank categories and the ITR-4 80D line');
+{
+  const cat = (d) => (AUTO_CATEGORY_RULES.find((r) => r.pattern.test(d)) || {}).category;
+  eq(cat('OFFICE RENT SEPT'), 'business_out', 'Office rent is an expense, not rent received');
+  eq(cat('NEFT RENT FROM TENANT'), 'rent_received', 'Rent from a tenant is still rent received');
+  const inputs = { salary: 1200000, deductions: { '80D': 90000 }, age: 0, parentsSenior: false };
+  const row = buildITR4FieldMap(inputs, computeTax({ ...inputs, regime: 'old' }), null, inputs.deductions).find((r) => r.field.startsWith('§80D'));
+  eq(row.value, 50000, 'The PDF shows the same ₹50,000 limit the tax used (was ₹1 lakh)');
+  const senior = { ...inputs, age: 60, selfSenior: true, parentsSenior: true };
+  const row2 = buildITR4FieldMap(senior, computeTax({ ...senior, regime: 'old' }), null, senior.deductions).find((r) => r.field.startsWith('§80D'));
+  eq(row2.value, 90000, 'Senior self and parents allow up to ₹1 lakh, so all 90,000 counts');
 }
 
 console.log('\n────────────────────────────────────────');

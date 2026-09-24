@@ -2,6 +2,23 @@ import { useState } from 'react';
 import { X, ChevronRight, Check } from 'lucide-react';
 import { getPrintSettings, savePrintSettings, BUSINESS_PRESETS, applyBusinessPreset } from '../utils/printSettings';
 import { toast } from './Toast';
+import { getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
+
+const PAPER_LABELS = { a4: 'A4', a5: 'A5', thermal80: '80mm thermal', thermal58: '58mm thermal' };
+
+// The invoice screen takes its paper size from the invoice defaults (browser
+// copy + server copy, server wins), not from print settings. Writing it only
+// to print settings, as before, meant the choice made here did nothing.
+const setDefaultPaperSize = async (paperSize) => {
+  try {
+    const local = JSON.parse(localStorage.getItem('freegstbill_invoiceOptions') || '{}');
+    localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify({ ...local, paperSize }));
+  } catch { /* private window: server copy below still applies */ }
+  try {
+    const server = (await getInvoiceDisplayOptions()) || {};
+    await saveInvoiceDisplayOptions({ ...server, paperSize });
+  } catch { /* offline: the browser copy above still applies */ }
+};
 
 // ============================================================================
 // v1.9.3 — First-run Setup Wizard
@@ -28,10 +45,14 @@ export default function SetupWizard({ onClose }) {
     const current = getPrintSettings();
     // v1.10.33 — Clear onboardingSkipped when the user actually
     // completes setup, so the "Finish setup" pill hides for good.
-    let next = { ...current, onboardingComplete: true, onboardingSkipped: false, labelLanguage: language };
+    let next = { ...current, onboardingComplete: true, onboardingSkipped: false };
+    // Preset first, THEN the language picked on step 2: four presets set
+    // English, which used to overwrite a Hindi / Tamil / ... choice.
     if (selectedBiz) next = applyBusinessPreset(next, selectedBiz);
+    next.labelLanguage = language;
     if (paperSize) next.paperSize = paperSize;
     savePrintSettings(next);
+    if (paperSize) setDefaultPaperSize(paperSize);
     toast('Setup complete! Your defaults are configured.', 'success');
     onClose();
   };
@@ -78,7 +99,7 @@ export default function SetupWizard({ onClose }) {
           <>
             <h3 style={{ marginTop: 0 }}>What kind of business do you run?</h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Pick one and we'll auto-configure 15+ settings (paper size · template · font · features) that work for that industry. You can change anything later.
+              Pick one and we'll set the invoice style, receipt options and features that suit that kind of business. You can change anything later.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.6rem' }}>
               {Object.entries(BUSINESS_PRESETS).map(([key, preset]) => (
@@ -179,12 +200,12 @@ export default function SetupWizard({ onClose }) {
           <>
             <h3 style={{ marginTop: 0 }}>Ready to go 🚀</h3>
             <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
-              We'll apply these defaults to every new invoice. You can change any of them later in <strong>Settings → Thermal Printer Settings → PDF & universal print features</strong>.
+              We'll apply these defaults to every new invoice. You can change any of them later in <strong>Settings → Print & PDF</strong>.
             </p>
 
             <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '0.9rem' }}>
               <Row label="Business type" value={selectedBiz ? BUSINESS_PRESETS[selectedBiz]?.label : '(none — manual config)'} />
-              <Row label="Default paper size" value={paperSize} />
+              <Row label="Default paper size" value={PAPER_LABELS[paperSize] || paperSize} />
               <Row label="Section label language" value={
                 { en: 'English', hi: 'हिन्दी', ta: 'தமிழ்', mr: 'मराठी', bn: 'বাংলা' }[language]
               } />

@@ -94,13 +94,13 @@ export default function ControlPanel() {
       />
 
       {scriptsUnavailable && (
-        <div className="notice notice-warning" style={{ marginBottom: '1rem' }}>
+        <div className="notice notice-warn" style={{ marginBottom: '1rem' }}>
           <AlertCircle size={18} />
           <div>
             <strong>Launcher scripts not detected.</strong> This app appears to be running from a dev clone (npm start)
             rather than an installer ZIP. Update / Backup / Restore / Move buttons need the launcher scripts under
             <code> _system-scripts/</code>. Download the latest release from GitHub to unlock them, or use
-            <em> Settings → Backup & Restore</em> for a data-only backup.
+            <em> Settings → Data Management → Export Backup</em> for a data-only backup.
           </div>
         </div>
       )}

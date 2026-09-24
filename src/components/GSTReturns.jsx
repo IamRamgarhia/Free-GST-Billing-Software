@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill } from '../utils';
+import { formatCurrency, INVOICE_TYPES, calculateLineItemTax, getStateCode, formatDateGST, getFilingPeriod, getUnitUQC, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -224,18 +224,18 @@ TIP: Use the "GSTR-1 JSON" export from this app and upload via offline tool to s
 COMMON ERROR: "Invoice number already exists" — each invoice number must be unique within the period.`
   },
   {
-    title: 'Table 5 — B2C Large (Inter-state > ₹2.5 Lakh)',
-    details: `This table is ONLY for inter-state invoices to UNREGISTERED persons (no GSTIN) where invoice value EXCEEDS ₹2,50,000.
+    title: 'Table 5 — B2C Large (Inter-state > ₹1 Lakh)',
+    details: `This table is ONLY for inter-state invoices to UNREGISTERED persons (no GSTIN) where invoice value EXCEEDS ₹1,00,000 (₹2,50,000 for invoices before 1 Aug 2024).
 1. Click "5A, 5B — B2C (Large) Invoices" tile.
 2. Click "+ ADD INVOICE".
 3. Enter: Place of Supply (buyer's state), Invoice Number, Invoice Date, Invoice Value, Taxable Value, IGST Amount, Cess (if any).
 4. Only IGST applies here (never CGST/SGST) since these are inter-state.
 5. Click "SAVE".
-NOTE: If you have no inter-state B2C invoices above ₹2.5L, skip this table entirely.`
+NOTE: If you have no inter-state B2C invoices above ₹1 lakh, skip this table entirely.`
   },
   {
     title: 'Table 7 — B2C Small (All Other B2C)',
-    details: `This covers ALL remaining B2C invoices: intra-state B2C of any value + inter-state B2C below ₹2.5 lakh.
+    details: `This covers ALL remaining B2C invoices: intra-state B2C of any value + inter-state B2C up to ₹1 lakh.
 1. Click "7 — B2C (Others)" tile.
 2. Data is entered in AGGREGATE (not individual invoices). Group by: Supply Type (Intra/Inter), Place of Supply, and Tax Rate.
 3. For each combination, enter: Type (Intra-State/Inter-State), Place of Supply, Rate (e.g., 18%), Taxable Value, CGST/SGST or IGST.
@@ -633,11 +633,11 @@ export default function GSTReturns() {
   const b2cRegular = regularBills.filter(b => !b.data?.client?.gstin && !isExportBill(b));
   const b2cLarge = b2cRegular.filter(b => {
     const isInter = billIsInterstate(b);
-    return isInter && (b.totalAmount || 0) > 250000;
+    return isInter && (b.totalAmount || 0) > b2clThreshold(b.invoiceDate);
   });
   const b2cSmall = b2cRegular.filter(b => {
     const isInter = billIsInterstate(b);
-    return !(isInter && (b.totalAmount || 0) > 250000);
+    return !(isInter && (b.totalAmount || 0) > b2clThreshold(b.invoiceDate));
   });
 
   // v1.10.31 — Helper: is this bill intra-UT (business + client in same Union
@@ -1126,7 +1126,7 @@ export default function GSTReturns() {
   //
   // This function returns { blocked, warnings } so callers can decide
   // whether to abort (`blocked` non-empty) or just toast (`warnings`).
-  const GST_STANDARD_RATES = [0, 0.25, 3, 5, 12, 18, 28];
+  const GST_STANDARD_RATES = GST_PORTAL_RATES;
   const INUM_REGEX = /^[A-Za-z0-9\-/]{1,16}$/;
   const validateGSTR1 = (bills) => {
     const blocked = [];

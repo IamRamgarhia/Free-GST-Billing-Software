@@ -66,6 +66,19 @@ export default function SettingsView({ onSaved }) {
   // anywhere on the page and unsaved work is never silent.
   const savedProfileRef = useRef(null);
   const [profileDirty, setProfileDirty] = useState(false);
+  // Both the save bar and the "Jump to" bar stick to the top. They used to
+  // share top: 0, so the save bar sat on top of the jump bar and hid it. The
+  // jump bar now sticks just below the save bar, measured live because the
+  // save bar wraps to two lines on narrow screens.
+  const saveBarRef = useRef(null);
+  const [saveBarH, setSaveBarH] = useState(56);
+  useEffect(() => {
+    const el = saveBarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setSaveBarH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // v1.10.56 — reported (#44, @sangwanmail-eng): "Firm profile setting not
   // saved. every time show popup".
@@ -279,7 +292,7 @@ export default function SettingsView({ onSaved }) {
   const removeAccount = async (acc) => {
     if (!await confirmAction({
       title: `Delete payment account "${acc.label || acc.bankName || 'this account'}"?`,
-      message: 'Existing invoices that used this account keep their frozen bank-detail snapshots (v1.10.19 invariant) — the PDFs stay exactly as printed.',
+      message: 'Existing invoices that used this account keep their bank details as they were saved, so their PDFs stay exactly as printed.',
       confirmLabel: 'Delete account',
       tone: 'danger',
     })) return;
@@ -352,7 +365,7 @@ export default function SettingsView({ onSaved }) {
       const reader = new FileReader();
       reader.onload = (ev) => {
         setProfile(prev => ({ ...prev, [field]: ev.target.result }));
-        toast(`${field === 'logo' ? 'Logo' : 'Signature'} uploaded — click Save Profile to keep it.`, 'success', 4000);
+        toast(`${({ logo: 'Logo', signature: 'Signature', stamp: 'Stamp' })[field] || 'Image'} uploaded — click Save Profile to keep it.`, 'success', 4000);
       };
       reader.onerror = () => toast('Could not read the SVG file.', 'error');
       reader.readAsDataURL(file);
@@ -391,7 +404,7 @@ export default function SettingsView({ onSaved }) {
       const preservesAlpha = /png|webp|svg/i.test(file.type) && field !== 'logo';
       const dataUrl = canvas.toDataURL(preservesAlpha ? 'image/png' : 'image/jpeg', 0.92);
       setProfile(prev => ({ ...prev, [field]: dataUrl }));
-      toast(`${field === 'logo' ? 'Logo' : 'Signature'} uploaded — click Save Profile to keep it.`, 'success', 4000);
+      toast(`${({ logo: 'Logo', signature: 'Signature', stamp: 'Stamp' })[field] || 'Image'} uploaded — click Save Profile to keep it.`, 'success', 4000);
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -730,7 +743,7 @@ export default function SettingsView({ onSaved }) {
            has one Save at the top instead of a button 450 lines down. It turns
            amber only when Company Details has unsaved edits; every other
            section still saves the moment it is changed. */}
-      <div style={{
+      <div ref={saveBarRef} style={{
           position: 'sticky',
           top: 0,
           zIndex: 30,
@@ -749,7 +762,7 @@ export default function SettingsView({ onSaved }) {
           <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>
             {profileDirty
               ? <>You have unsaved changes in <strong>Company Details</strong>.</>
-              : <>Everything is saved. Sections other than <strong>Company Details</strong> save as you change them.</>}
+              : <>Everything is saved. Bank accounts, Features and Region save as you change them; Invoice Number Format, Low-stock alerts and Terms have their own Save buttons.</>}
           </span>
           <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {profileDirty && <button
@@ -808,13 +821,13 @@ export default function SettingsView({ onSaved }) {
           <HelpButton title="Settings — how to use">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Company Details</strong> — this is the header block on every invoice. GSTIN drives place-of-supply detection.</li>
-              <li><strong>Multi-business profiles</strong> — Save as Profile keeps the current form as a switchable profile; switch between them from the invoice generator.</li>
+              <li><strong>Multi-business profiles</strong> — Save as Profile keeps the current form as a switchable profile; switch between them from the business name at the top of the sidebar.</li>
               <li><strong>Payment Accounts</strong> — add multiple bank / UPI accounts; ⭐ marks the default. Every inline change (add / edit / ⭐ / reorder / delete) auto-saves.</li>
               <li><strong>Invoice Number Settings</strong> — brand prefix, financial-year suffix, padding. Live preview at the bottom.</li>
               <li><strong>Print Settings</strong> — templates, colors, watermark, thermal font size, per-type prefix overrides.</li>
               <li><strong>Backup Management</strong> — daily auto-backups kept 30 days. Restore any date, or Delete to reclaim disk. Trash bin keeps deleted invoices for 30 days.</li>
-              <li><strong>Google Drive sync</strong> — connect once to auto-upload every backup to your own Drive.</li>
-              <li><strong>Import / Export</strong> — CSV import for products/clients; JSON export for full backup portability.</li>
+              <li><strong>Google Drive</strong> — easiest: install Google Drive for Desktop and sync the Saved Invoices folder. Advanced: connect your own Google Client ID to upload each downloaded invoice PDF.</li>
+              <li><strong>Data Management</strong> — export all or part of your data to one backup file, and import it here or on another computer. Clients and products import from CSV on their own screens.</li>
             </ul>
           </HelpButton>
         </div>
@@ -831,7 +844,7 @@ export default function SettingsView({ onSaved }) {
            line". Now: nowrap + overflow-x auto, thin custom
            scrollbar, edge-fade masks so users know there's more. */}
       <nav className="settings-jumpnav" aria-label="Settings sections" style={{
-        position: 'sticky', top: 0, zIndex: 20,
+        position: 'sticky', top: saveBarH + 6, zIndex: 20,
         background: 'rgba(var(--card-bg-rgb, 255, 255, 255), 0.82)',
         backdropFilter: 'saturate(1.5) blur(12px)',
         WebkitBackdropFilter: 'saturate(1.5) blur(12px)',
@@ -855,7 +868,13 @@ export default function SettingsView({ onSaved }) {
               onClick={(e) => {
                 e.preventDefault();
                 const el = document.getElementById(id);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Stop below both sticky bars, not underneath them.
+                if (el) {
+                  const nav = e.currentTarget.closest('nav');
+                  const offset = saveBarH + (nav?.offsetHeight || 50) + 20;
+                  el.style.scrollMarginTop = `${offset}px`;
+                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
               }}
               style={{
                 fontSize: '0.76rem',
@@ -1514,7 +1533,7 @@ export default function SettingsView({ onSaved }) {
                 </div>
               ) : (
                 <button type="button" className="upload-btn" onClick={() => logoInputRef.current?.click()}>
-                  <ImageIcon size={20} /><span>Upload Logo</span><span className="upload-hint">PNG or JPG, square or wide (max 500KB)</span>
+                  <ImageIcon size={20} /><span>Upload Logo</span><span className="upload-hint">PNG or JPG, square or wide (up to 5 MB)</span>
                 </button>
               )}
               <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('logo', e)} />
@@ -1542,7 +1561,7 @@ export default function SettingsView({ onSaved }) {
                 </div>
               ) : (
                 <button type="button" className="upload-btn" onClick={() => sigInputRef.current?.click()}>
-                  <PenTool size={20} /><span>Upload Signature</span><span className="upload-hint">PNG, JPG (max 500KB)</span>
+                  <PenTool size={20} /><span>Upload Signature</span><span className="upload-hint">PNG or JPG (up to 5 MB)</span>
                 </button>
               )}
               <input ref={sigInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('signature', e)} />
@@ -1570,7 +1589,7 @@ export default function SettingsView({ onSaved }) {
                 </div>
               ) : (
                 <button type="button" className="upload-btn" onClick={() => stampInputRef.current?.click()}>
-                  <ImageIcon size={20} /><span>Upload Stamp</span><span className="upload-hint">PNG with a transparent background looks best (max 500KB)</span>
+                  <ImageIcon size={20} /><span>Upload Stamp</span><span className="upload-hint">PNG with a transparent background looks best (up to 5 MB)</span>
                 </button>
               )}
               <input ref={stampInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload('stamp', e)} />
@@ -2066,7 +2085,7 @@ function BackupAndTrashPanel() {
             💾 Backup Management + 🗑 Trash Bin
           </h3>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
-            Automatic daily snapshots kept for 30 days · Deleted invoices soft-trash for 30 days (v1.9.5+).
+            Automatic daily snapshots kept for 30 days · Deleted invoices stay in the trash for 30 days.
           </p>
         </div>
         <button className="btn btn-secondary" style={{ fontSize: '0.82rem' }}

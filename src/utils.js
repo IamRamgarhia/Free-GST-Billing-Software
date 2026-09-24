@@ -329,8 +329,17 @@ export function computeInvoiceTotals(opts) {
   // cumulative for this counterparty exceeds ₹50L. Caller passes
   // `tcsCumulativeThisYear` / `tdsCumulativeThisYear` (from a per-
   // client running total maintained in the Clients module).
-  const tcsCumBefore = Number(invoiceOptions.tcsCumulativeThisYear) || 0;
-  const tdsCumBefore = Number(invoiceOptions.tdsCumulativeThisYear) || 0;
+  //
+  // The ₹50L threshold belongs to 194Q and 206C(1H) only. Other sections
+  // (194C, 194J, 194I, 194H, 194O, 195, CGST 52, 206C(1)) have their own small
+  // thresholds or none, and the user ticks TDS/TCS when it applies, so they
+  // are worked out from rupee one. Applying ₹50L to them made TDS 0 on every
+  // ordinary 194J invoice. No section given = the threshold sections (their
+  // defaults), which keeps older saved invoices computing as before.
+  const tcsThresholded = !invoiceOptions.tcsSection || invoiceOptions.tcsSection === '206C(1H)';
+  const tdsThresholded = !invoiceOptions.tdsSection || invoiceOptions.tdsSection === '194Q';
+  const tcsCumBefore = tcsThresholded ? (Number(invoiceOptions.tcsCumulativeThisYear) || 0) : Infinity;
+  const tdsCumBefore = tdsThresholded ? (Number(invoiceOptions.tdsCumulativeThisYear) || 0) : Infinity;
 
   // The base at portal-facing gross (including GST).
   const receiptIncludingGst = r2(taxableAmount + taxTotal + cessTotal);
@@ -502,6 +511,52 @@ export const isCreditNote = (bill) => (bill?.invoiceType || '') === 'credit-note
 // +1 for a sale, -1 for a credit note, 0 for quotes, challans and anything cancelled.
 export const salesSign = (bill) => (countsAsSales(bill) ? 1 : (isCreditNote(bill) ? -1 : 0));
 
+// What this client has already been billed in the financial year of
+// `invoiceDate` (sales only, rupees, including GST), for the ₹50L threshold of
+// sections 194Q / 206C(1H). `excludeId` leaves out the invoice being edited.
+// Used by the invoice screen and the server's recurring invoices, so both
+// count the same way (the invoice screen used to always pass 0, which made
+// TCS/TDS 0 on any invoice under ₹50L however much the client had bought).
+export const clientYearToDate = (bills, clientName, invoiceDate, excludeId = null) => {
+  const name = String(clientName || '').trim().toLowerCase();
+  if (!name) return 0;
+  const fy = getFinancialYearLabel(invoiceDate ? new Date(invoiceDate) : new Date());
+  return (bills || []).reduce((sum, b) => {
+    if (!b || b.id === excludeId || !countsAsSales(b)) return sum;
+    if ((b.currency || 'INR') !== 'INR') return sum;
+    if (String(b.clientName || '').trim().toLowerCase() !== name) return sum;
+    if (!b.invoiceDate || getFinancialYearLabel(new Date(b.invoiceDate)) !== fy) return sum;
+    return sum + (Number(b.totalAmount) || 0);
+  }, 0);
+};
+
+// Marking an invoice Paid by hand: record a payment for whatever is still
+// owed, so payment history, receipts and reports agree with the status. Used
+// by the Dashboard and the Clients screen (Clients used to set the paid amount
+// only, with no payment). The id gives the payment a real receipt number.
+export const markPaidPatch = (bill, note = 'Marked paid') => {
+  const payments = Array.isArray(bill.payments) ? bill.payments : [];
+  const already = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const outstanding = Math.max(0, (Number(bill.totalAmount) || 0) - already);
+  const now = new Date();
+  return {
+    paidAmount: Number(bill.totalAmount) || 0,
+    payments: outstanding > 0.005
+      ? [...payments, { id: `pay_${now.getTime()}`, amount: Math.round(outstanding * 100) / 100, date: now.toISOString().split('T')[0], mode: 'other', note, recordedAt: now.toISOString() }]
+      : payments,
+  };
+};
+
+// GSTR-1 B2C Large: an inter-state sale to an unregistered buyer above this
+// invoice value is reported invoice by invoice. The limit fell from ₹2.5 lakh
+// to ₹1 lakh for invoices from 1 August 2024 (Notification 12/2024-CT).
+export const b2clThreshold = (invoiceDate) =>
+  (String(invoiceDate || '') >= '2024-08-01' ? 100000 : 250000);
+
+// GST rates the GST portal accepts in GSTR-1. 40% is the GST 2.0 rate from
+// 22 Sep 2025; 12% and 28% stay for older invoices and the items still taxed so.
+export const GST_PORTAL_RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40];
+
 // Indian states list for dropdowns
 export const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -554,7 +609,7 @@ export const getStatesForCountry = (countryName) => {
 // taxRates: common rates for that country's tax dropdown (always allow custom entry)
 // taxIdRegex: optional pattern for soft validation (warning only, never blocks save)
 export const COUNTRIES = [
-  { name: 'India', code: 'IN', currency: 'INR', currencySymbol: '₹', taxLabel: 'GST', taxIdLabel: 'GSTIN', taxIdPlaceholder: '22AAAAA0000A1Z5', bankLabel: 'IFSC Code', postalLabel: 'PIN Code', stateLabel: 'State', hasStates: true, taxRates: [0, 0.1, 0.25, 3, 5, 12, 18, 28], taxIdRegex: /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z][A-Z\d]$/ },
+  { name: 'India', code: 'IN', currency: 'INR', currencySymbol: '₹', taxLabel: 'GST', taxIdLabel: 'GSTIN', taxIdPlaceholder: '22AAAAA0000A1Z5', bankLabel: 'IFSC Code', postalLabel: 'PIN Code', stateLabel: 'State', hasStates: true, taxRates: [0, 0.1, 0.25, 3, 5, 12, 18, 28, 40], taxIdRegex: /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z][A-Z\d]$/ },
   { name: 'United Arab Emirates', code: 'AE', currency: 'AED', currencySymbol: 'AED', taxLabel: 'VAT', taxIdLabel: 'TRN', taxIdPlaceholder: '100123456700003', bankLabel: 'IBAN', postalLabel: 'Postal Code', stateLabel: 'Emirate', hasStates: false, taxRates: [0, 5], taxIdRegex: /^\d{15}$/ },
   { name: 'United States', code: 'US', currency: 'USD', currencySymbol: '$', taxLabel: 'Sales Tax', taxIdLabel: 'EIN / TIN', taxIdPlaceholder: '12-3456789', bankLabel: 'Routing Number', postalLabel: 'ZIP Code', stateLabel: 'State', hasStates: false, taxRates: [0, 4, 6, 7, 8, 9, 10], taxIdRegex: /^\d{2}-?\d{7}$/ },
   { name: 'United Kingdom', code: 'GB', currency: 'GBP', currencySymbol: '£', taxLabel: 'VAT', taxIdLabel: 'VAT Number', taxIdPlaceholder: 'GB123456789', bankLabel: 'Sort Code', postalLabel: 'Postcode', stateLabel: 'County', hasStates: false, taxRates: [0, 5, 20], taxIdRegex: /^GB\d{9}(\d{3})?$/i },

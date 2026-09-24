@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES } from '../utils';
+import { formatCurrency, INVOICE_TYPES, markPaidPatch } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
@@ -593,7 +593,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const handleDeleteBill = async (id) => {
     if (await confirmAction({
       title: 'Delete this invoice?',
-      message: 'The invoice will be moved to Trash for 30 days. Can be restored from Settings → Trash.',
+      message: 'The invoice will be moved to Trash for 30 days. Restore it from Settings → Backup Management → Trash bin.',
       confirmLabel: 'Delete',
       tone: 'danger',
     })) {
@@ -604,7 +604,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
 
   const changeStatus = async (bill, newStatus) => {
     const updated = { ...bill, status: newStatus };
-    if (newStatus === 'paid') updated.paidAmount = bill.totalAmount;
+    if (newStatus === 'paid') Object.assign(updated, markPaidPatch(bill));
     await saveBill(updated, { overwrite: true });
     toast(`Marked as ${STATUS_COLORS[newStatus]?.label || newStatus}`, 'info');
     loadData();
@@ -713,7 +713,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
               <li><strong>Statement PDF</strong> — a full account ledger with running balance. Send it when a client disputes a bill.</li>
               <li><strong>Aging PDF</strong> — outstanding invoices bucketed by 0-30 / 31-60 / 61-90 / 90+ days. Use it for collection calls.</li>
               <li><strong>Aging strip</strong> — the same buckets inline so you can see who's slow to pay at a glance.</li>
-              <li><strong>Import / Export CSV</strong> — bulk-load or back up your client list.</li>
+              <li><strong>Import CSV</strong> — bulk-load clients from a spreadsheet (columns: name, address, state, gstin, email, phone). To back up clients, use Settings → Data Management → Export Backup.</li>
               <li><strong>WhatsApp / Email</strong> — quick outreach without leaving the app.</li>
             </ul>
           </HelpButton>
@@ -723,7 +723,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
           <button className="btn btn-secondary" onClick={() => csvInputRef.current?.click()}>
             <Upload size={16} /> Import CSV
           </button>
-          <button className="btn btn-secondary" onClick={openAddClient}>
+          <button className="btn btn-secondary" onClick={() => openAddClient()}>
             <Plus size={18} /> Add Client
           </button>
           <button className="btn btn-primary" onClick={onNew}>
@@ -751,7 +751,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
           <div className="empty-state">
             <Users size={48} />
             <p>No clients found.</p>
-            <button className="btn btn-secondary" onClick={openAddClient} style={{ marginTop: '0.5rem' }}>
+            <button className="btn btn-secondary" onClick={() => openAddClient()} style={{ marginTop: '0.5rem' }}>
               <Plus size={16} /> Add Your First Client
             </button>
           </div>

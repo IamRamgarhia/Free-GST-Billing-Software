@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, htmlHasText, decodeGstin, safePageBoundaries } from '../utils';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, decodeGstin, safePageBoundaries } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -699,12 +699,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     : [];
   const baseCountryRates = sellerCountryConfig.taxRates && sellerCountryConfig.taxRates.length
     ? sellerCountryConfig.taxRates
-    : [0, 5, 12, 18, 28];
+    : [0, 5, 12, 18, 28, 40];
   const countryTaxRates = useMemo(
     () => [...new Set([...baseCountryRates, ...customRates])].sort((a, b) => a - b),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [baseCountryRates.join(','), customRates.join(',')]
   );
+  // Rate for a new row: 18% where it exists (India's standard rate), else the
+  // second-highest rate. Was always second-highest, which turns into 28% once
+  // 40% is in the list.
+  const defaultTaxRate = countryTaxRates.includes(18) ? 18 : (countryTaxRates[countryTaxRates.length - 2] ?? 0);
   const taxLabel = sellerCountryConfig.taxLabel || 'GST';
 
   // Clamp a numeric input to non-negative (and finite). Used for qty/rate/discount.
@@ -855,11 +859,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // NEW-bill guard: skip server auto-save until the user has explicitly
     // saved once. The sessionStorage draft is still auto-persisted via the
     // separate effect below, so nothing is lost if the tab crashes.
-    if (!editingBill && !hasBeenSaved.current) {
-      setAutoSaveStatus('saved');
-      setTimeout(() => setAutoSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
-      return;
-    }
+    // Nothing is stored yet, so the badge must not say "All changes saved"
+    // (it used to flash that here); it reads "Not saved yet" instead.
+    if (!editingBill && !hasBeenSaved.current) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
@@ -900,7 +902,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     saveAndExit: async () => {
       try {
         setAutoSaveStatus('saving');
-        await saveInvoiceToDB(true);
+        const no = await saveInvoiceToDB();
+        if (!no) { setAutoSaveStatus('idle'); return; }
         toast('Invoice saved', 'success');
         clearDraft();
         setLeaveModal(false);
@@ -1187,10 +1190,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // profile.gstin stand in for a missing state. All three must be listed:
   // switching only the country left the old CGST + SGST split on screen, and
   // that stale split is what Save stored.
+  // This client's sales so far this financial year, for the ₹50L threshold of
+  // 194Q / 206C(1H). Not stored in invoiceOptions (it changes with every
+  // invoice); fed to the calculation only.
+  const clientYtd = useMemo(
+    () => clientYearToDate(allBillsForCredit, client?.name, details?.invoiceDate, editingBill?.id),
+    [allBillsForCredit, client?.name, details?.invoiceDate, editingBill?.id],
+  );
   const totals = useMemo(() => computeInvoiceTotals({
     items, profile, client, details, showGST, taxInclusive,
-    invoiceOptions,
-  }), [items, client.state, client?.country, client?.gstin, client?.isSEZ, profile?.state, profile?.country, profile?.gstin, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, details?.placeOfSupply]);
+    invoiceOptions: { ...invoiceOptions, tcsCumulativeThisYear: clientYtd, tdsCumulativeThisYear: clientYtd },
+  }), [clientYtd, invoiceOptions.tcsSection, invoiceOptions.tdsSection, items, client.state, client?.country, client?.gstin, client?.isSEZ, profile?.state, profile?.country, profile?.gstin, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, details?.placeOfSupply]);
 
   // v1.10.24 — Compute available client credit from prior overpayments.
   // Excludes the bill we're editing (that would double-count our own
@@ -1256,7 +1266,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       hsn: product.hsn || '',
       rate: salePrice,
       unit: product.unit || item.unit || 'Nos',
-      taxPercent: product.taxPercent ?? (countryTaxRates[countryTaxRates.length - 2] ?? 18),
+      taxPercent: product.taxPercent ?? defaultTaxRate,
       productId: product.id,
     } : item));
     setProductSearch({ itemId: null, query: '' });
@@ -1281,7 +1291,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const newId = Date.now().toString();
     setItems(prev => [...prev, {
       id: newId, name: '', hsn: '', quantity: 1, unit: defaultUnit, rate: 0, discount: 0,
-      taxPercent: showGST ? (countryTaxRates[countryTaxRates.length - 2] ?? 18) : 0,
+      taxPercent: showGST ? defaultTaxRate : 0,
       cessPercent: 0,
     }]);
     // Move keyboard focus to the new row's Description field so users who
@@ -1594,6 +1604,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // otherwise 409). NEW bill on first save → no overwrite, so a typo
     // hitting an existing invoice number gets caught by the server.
     const shouldOverwrite = !!editingBill || hasBeenSaved.current;
+    // The number this bill actually ended up under: the 409 retry below can
+    // move it, and the recurring template + callers must use the real one.
+    let savedNumber = bill.id;
     try {
       await saveBill(bill, { overwrite: shouldOverwrite });
       // v1.10.24 — Follow-up: write the `credit-transferred-out` entries
@@ -1696,6 +1709,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               retryBill.data = { ...retryBill.data, details: { ...retryBill.data.details, invoiceNumber: nextNum } };
               await saveBill(retryBill, { overwrite: false });
               success = true;
+              savedNumber = nextNum;
               // Push the new number back into the form so the preview + any
               // subsequent save operate on the resolved id.
               setDetails(prev => ({ ...prev, invoiceNumber: nextNum }));
@@ -1712,11 +1726,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           }
           if (!success) {
             toast(`Could not find a free invoice number after 20 attempts. Please change the number manually.`, 'error');
-            return;
+            return null;
           }
         } else {
           toast(`Invoice number ${bill.id} already exists. Change it before saving.`, 'error');
-          return;
+          return null;
         }
       } else {
         throw err;
@@ -1730,10 +1744,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (invoiceOptions.recurring?.enabled) {
       try {
         const rec = invoiceOptions.recurring;
-        const templateId = `tpl_${details.invoiceNumber}`; // stable: tied to source invoice number
+        const templateId = `tpl_${savedNumber}`; // stable: tied to source invoice number
         await saveRecurring({
           id: templateId,
-          sourceInvoiceId: details.invoiceNumber,
+          sourceInvoiceId: savedNumber,
           active: true,
           frequency: rec.frequency || 'monthly',
           interval: rec.interval || 1,
@@ -1802,6 +1816,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         toast(warning, 'warning');
       }
     }
+    return savedNumber;
   };
 
   // Upload PDF to Google Drive if configured
@@ -2507,7 +2522,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       if (e.key === 's' || e.key === 'S') {
         if (!isMeaningfulInvoice()) return; // nothing to save
         e.preventDefault();
-        saveInvoiceToDB(true).then(() => toast('Invoice saved', 'success')).catch(() => toast('Save failed', 'error'));
+        saveInvoiceToDB().then((no) => { if (no) toast('Invoice saved', 'success'); }).catch(() => toast('Save failed', 'error'));
       } else if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
         // Defer to the next tick so the keydown doesn't race the PDF render.
@@ -2732,10 +2747,30 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // v1.10.35 bug — a re-serialized iframe DOM diverged from the on-
   // screen render because of dropped cross-origin fonts + max-width
   // caps beating inline widths). See PrintPreviewModal.jsx for details.
+  // Save before any PDF or print is made, counting it as printed once more.
+  // A new invoice gets its real number here (the form only shows a peek until
+  // the first save), so the PDF must be built AFTER this, once the preview has
+  // re-rendered with that number. Returns the saved number, or null.
+  const saveForOutput = async () => {
+    const prevPrinted = Number(editingBill?.printedCount) || 0;
+    const no = await saveInvoiceToDB(false, {
+      printedCount: prevPrinted + 1,
+      lastPrintedAt: new Date().toISOString(),
+    });
+    if (!no) return null;
+    clearDraft();
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    return no;
+  };
+
   const executePrint = async () => {
     if (!printRef.current) return;
     setSaving(true);
     try {
+      // Printing hands the client a numbered invoice, so it is saved first,
+      // like Save & Download (it used to print without saving at all).
+      const saved = await saveForOutput();
+      if (!saved) return;
       await withPreviewOnScreen(async () => {
         try {
           // v1.10.42 — Thermal + user hasn't opted out of direct print?
@@ -2790,24 +2825,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (problem) { toast(problem, 'warning'); return; }
     try {
       setSaving(true);
+      // Save first so the PDF shows the number the invoice was saved under.
+      const savedNumber = await saveForOutput();
+      if (!savedNumber) return;
       // v1.10.26 — force preview on-screen so html2canvas can snapshot it.
-      // Wrapped around buildPDF only (the rest of the flow can happen with
-      // preview back to collapsed state).
       const pdf = await withPreviewOnScreen(() => buildPDF());
-      const fileName = `${typeConfig.prefix}_${details.invoiceNumber.replace(/\//g, '-')}.pdf`;
+      const fileName = `${typeConfig.prefix}_${savedNumber.replace(/\//g, '-')}.pdf`;
       pdf.save(fileName);
-
-      // v1.9.0 — bump print history + save. Both the local bill record and
-      // the server copy get updated so the reprint indicator + history
-      // views stay accurate. printedCount defaults to 0 and increments
-      // once per PDF generated.
-      const prevPrinted = Number(editingBill?.printedCount) || 0;
-      const printedPatch = {
-        printedCount: prevPrinted + 1,
-        lastPrintedAt: new Date().toISOString(),
-      };
-      await saveInvoiceToDB(false, printedPatch);
-      clearDraft();
 
       const pdfBlob = pdf.output('blob');
 
@@ -2885,10 +2909,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <li><strong>Invoice type</strong> — Tax Invoice / Proforma / Bill of Supply / Composition / Credit Note / Delivery Challan. Switching type refreshes the number to that type's counter (or your custom prefix from Print Settings).</li>
               <li><strong>Line items</strong> — start typing to auto-complete from your Products list. HSN autofills the GST rate for common codes. Click "+ Add description" for a detailed note under the item name.</li>
               <li><strong>Discount</strong> — per line: pick ₹ (fixed) or % of the line. Below the items: whole-bill discount, applied after tax.</li>
-              <li><strong>Customize</strong> — toggle columns and sections on/off, pick paper size (A4 / A5 / 58mm / 80mm thermal), change the invoice title and PDF style.</li>
-              <li><strong>Focus mode</strong> — the ▶/◀ button at the top hides the preview so the editor takes the full screen for heavy data entry.</li>
+              <li><strong>Customize</strong> — toggle columns and sections on/off, pick paper size (A4, A5, Letter, Legal, B5, thermal rolls or a custom size), currency, TDS / TCS, recurring, the invoice title and PDF style. Changes are remembered for your next invoice.</li>
+              <li><strong>Hide Preview</strong> — gives the form the full width for long invoices. Show Preview brings it back.</li>
               <li><strong>Keyboard</strong> — Ctrl+S save · Ctrl+P PDF · Ctrl+Enter add row · Ctrl+Shift+D duplicate last row · Esc close leave modal.</li>
-              <li><strong>Auto-save</strong> — every 2s once the invoice is meaningful (client + at least one item). Back button is safe if you haven't touched anything.</li>
+              <li><strong>Saving</strong> — a new invoice is stored when you first click Save, Save &amp; Download or Print. After that, changes save automatically. Leaving with unsaved changes asks first.</li>
             </ul>
           </HelpButton>
           {/* v1.10.37 — Auto-save status pill. Reported: prior plain
@@ -2909,6 +2933,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             const label = saving ? 'Saving…'
               : saved ? 'All changes saved'
               : isDraft ? 'Draft — click to complete'
+              : (!editingBill && !hasBeenSaved.current) ? 'Not saved yet'
               : 'Ready';
             const onClick = () => {
               if (!isDraft) return;
@@ -2970,7 +2995,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             if (problem) { toast(problem, 'warning'); return; }
             try {
               setSaving(true);
-              await saveInvoiceToDB();
+              const no = await saveInvoiceToDB();
+              if (!no) return;
               clearDraft();
               toast('Invoice saved', 'success');
             } catch (err) {
@@ -3491,7 +3517,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                               <span>
                                 <strong>Compact mode</strong>
                                 <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                  Skip HSN + per-item rate line; use two-line item rows. Saves paper on long orders.
+                                  Tighter item rows, to save paper on long orders. Whether HSN and the quantity × rate line print is set in Print Settings.
                                 </span>
                               </span>
                             </label>
@@ -3503,7 +3529,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                               <span>
                                 <strong>Cut mark at bottom</strong>
                                 <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                  Adds "— cut here —" line for auto-cutter thermal printers. Turn off if your printer feeds paper automatically.
+                                  Prints a CUT HERE line to tear against. Turn it off if your printer cuts the paper itself.
                                 </span>
                               </span>
                             </label>
@@ -4122,11 +4148,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 borderRadius: 999,
                 overflow: 'hidden',
               }}>
-                <button type="button" title="Zoom out (Ctrl+−)"
+                <button type="button" title="Zoom out"
                   onClick={() => setPreviewZoom(z => Math.max(50, z - 10))}
                   style={{ padding: '0.25rem 0.7rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>−</button>
                 <span style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)', minWidth: 42, textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>{previewZoom}%</span>
-                <button type="button" title="Zoom in (Ctrl+=)"
+                <button type="button" title="Zoom in"
                   onClick={() => setPreviewZoom(z => Math.min(200, z + 10))}
                   style={{ padding: '0.25rem 0.7rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>+</button>
               </div>
