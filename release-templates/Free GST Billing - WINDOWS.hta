@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Free GST Billing</title>
+  <HTA:APPLICATION
+    ID="fgstbill"
+    APPLICATIONNAME="FreeGSTBillLauncher"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+    CONTEXTMENU="no"
+    BORDER="thin"
+    INNERBORDER="no"
+    SCROLL="auto"
+    MAXIMIZEBUTTON="no"
+    ICON="_system\app-icon.ico" />
+  <style>
+    /* Trident (IE11) renders this window: no CSS variables, no grid, no flex
+       gap. Centred blocks and floats look identical on Windows 7 to 11.
+
+       This screen is for a shop owner who has never installed anything that
+       was not an .exe, so it is deliberately large and short of words: one
+       thing to read, one thing to click, everything else behind a link. */
+    html, body {
+      margin: 0; padding: 0;
+      background: #0d1526;
+      color: #eef3fa;
+      font-family: "Segoe UI", Arial, sans-serif;
+      text-align: center;
+    }
+
+    /* ---- brand ---- */
+    #brand { padding: 30px 30px 0; }
+    #brand .mark, #brand .markFb {
+      width: 64px; height: 64px;
+      border-radius: 15px;
+    }
+    #brand .markFb {
+      display: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 32px; font-weight: 700;
+      line-height: 64px;
+    }
+    h1 {
+      margin: 14px 0 0;
+      font-size: 27px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    #tagline {
+      margin: 5px 0 0;
+      font-size: 13px;
+      color: #8ba0c0;
+    }
+
+    /* ---- what is going on ---- */
+    #state { padding: 26px 34px 0; }
+    #stateTitle {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    #stateBody {
+      margin: 8px 0 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #9db1cf;
+    }
+    #stateBody b { color: #e3ecf8; font-weight: 600; }
+    .ok   #stateTitle { color: #5ee9a0; }
+    .warn #stateTitle { color: #fbbf24; }
+    .err  #stateTitle { color: #fb7185; }
+
+    /* ---- the one thing to click ---- */
+    #primaryWrap { padding: 24px 34px 0; }
+    .big {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 20px 16px;
+      font-family: inherit;
+      font-size: 19px;
+      font-weight: 600;
+      color: #fff;
+      background: #16a34a;
+      border: 0;
+      border-radius: 13px;
+      cursor: pointer;
+    }
+    .big:hover { background: #15803d; }
+    .big.blue { background: #2563eb; }
+    .big.blue:hover { background: #1d4ed8; }
+    .big .sub {
+      display: block;
+      margin-top: 5px;
+      font-size: 12.5px;
+      font-weight: 400;
+      color: #e0f5e8;
+    }
+    .big.blue .sub { color: #dde8ff; }
+
+    /* ---- steps, only where they are the whole answer ---- */
+    #steps {
+      margin: 22px 34px 0;
+      padding: 16px 18px;
+      background: #121d33;
+      border: 1px solid #1f2d48;
+      border-radius: 12px;
+      text-align: left;
+      font-size: 13.5px;
+      line-height: 1.75;
+      color: #a5b8d4;
+    }
+    #steps b { color: #e3ecf8; font-weight: 600; }
+    #steps ol { margin: 0; padding-left: 20px; }
+    #steps li { margin-bottom: 6px; }
+
+    /* ---- everything else ---- */
+    #moreToggle {
+      display: inline-block;
+      margin: 18px 0 0;
+      font-size: 13px;
+      color: #7fa8ee;
+      cursor: pointer;
+    }
+    #moreToggle:hover { text-decoration: underline; }
+    #more { display: none; padding: 12px 34px 0; }
+    .small {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 7px;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 13.5px;
+      color: #dce6f4;
+      background: #182440;
+      border: 1px solid #26344f;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+    .small:hover { background: #20304f; border-color: #3a4e76; }
+
+    /* ---- footer ---- */
+    footer {
+      margin-top: 26px;
+      padding: 12px 30px 14px;
+      border-top: 1px solid #1a2438;
+      font-size: 11.5px;
+      color: #5f7191;
+    }
+    footer a { color: #7fa8ee; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    #where {
+      display: block;
+      margin-top: 6px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10px;
+      color: #47566f;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+<div id="brand">
+  <img class="mark" id="mark" alt=""
+       onerror="this.style.display='none'; document.getElementById('markFb').style.display='inline-block';" />
+  <div class="markFb" id="markFb">B</div>
+  <h1>Free GST Billing</h1>
+  <p id="tagline">Free and offline. Your invoices stay on this computer.</p>
+</div>
+
+<div id="state">
+  <p id="stateTitle">Checking&hellip;</p>
+  <p id="stateBody"></p>
+</div>
+
+<div id="primaryWrap"></div>
+
+<div id="steps"></div>
+
+<span id="moreToggle" onclick="toggleMore(); return false;"></span>
+<div id="more"></div>
+
+<footer>
+  <a href="#" onclick="openFolder(); return false;">Open this folder</a>
+  &nbsp;&middot;&nbsp;
+  <a href="#" onclick="openGitHub(); return false;">Get help</a>
+  <span id="where"></span>
+</footer>
+
+<script>
+  // Free GST Billing - HTA Launcher (v1.10.69)
+  //
+  // The one file a Windows user ever double-clicks. It installs the app,
+  // opens it, and updates it - so it only ever shows what makes sense now:
+  //   * opened from inside the ZIP    -> tell them to extract it
+  //   * Node.js missing               -> "Install"
+  //   * extracted but never installed -> "Install"
+  //   * installed                     -> "Open App", the rest behind More
+  //
+  // Design decisions:
+  //   * IE-era JScript (no arrow functions, no let/const, no template
+  //     strings) because HTA runs on the Trident engine.
+  //   * One headline, one button. Backup, Restore, Move and Stop are real
+  //     but rare, so they live behind "More options" instead of making the
+  //     first screen look like a control panel.
+  //   * All the real work is done by PowerShell scripts in _system/. This
+  //     file is a front door, not the app.
+  //   * The logo is the real _system/app-icon.ico, with a CSS-drawn square
+  //     behind it for when that file is not there - which is exactly the
+  //     state a worried user is staring at, and a broken-image glyph there
+  //     reads as a broken download. (A base64 data: URI was tried first;
+  //     mshta blocks data: URIs in img, so it rendered nothing at all.)
+  //   * The folder path appears once, in the footer. It used to be pasted
+  //     into the error message too, where a long path wrapped over three
+  //     lines and made the window look broken.
+
+  var shell = new ActiveXObject("WScript.Shell");
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+  // Resolve the folder this HTA lives in. location.pathname is
+  // "file:///C:/path/to/Free%20GST%20Billing%20-%20WINDOWS.hta" - we strip
+  // the filename, url-decode, and normalize slashes.
+  function launcherFolder() {
+    var p = location.pathname;
+    p = p.replace(/^\/*/, '');
+    p = decodeURIComponent(p);
+    p = p.replace(/\//g, '\\');
+    var idx = p.lastIndexOf('\\');
+    return idx === -1 ? '' : p.substring(0, idx);
+  }
+  var ROOT = launcherFolder();
+  var SYSTEM = ROOT + '\\_system';
+
+  // The launcher sits next to _system/, so the icon has a known absolute
+  // path. A relative src would resolve against the current directory,
+  // which is not always this folder.
+  document.getElementById('mark').src = 'file:///' + (SYSTEM + '\\app-icon.ico').replace(/\\/g, '/');
+
+  function fileExists(rel) { return fso.FileExists(ROOT + '\\' + rel); }
+  function folderExists(rel) { return fso.FolderExists(ROOT + '\\' + rel); }
+
+  // Windows lets you double-click a file INSIDE a .zip without extracting
+  // anything: it copies that ONE file to %TEMP%\Temp1_<name>.zip\... and
+  // runs it there, with no siblings. The launcher then truthfully reports
+  // that _system is missing while Explorer, still showing the ZIP, plainly
+  // lists it - which reads as a bug. Reported 2026-09-23.
+  function runningFromZip() {
+    return ROOT.toLowerCase().indexOf('\\appdata\\local\\temp\\') !== -1;
+  }
+
+  // Paths can contain & and < ; the footer line is innerHTML.
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  }
+
+  // Runs a PowerShell script under _system/ with UAC-neutral defaults.
+  // Style 1 = visible window (the user watches the install happen),
+  // false = don't wait, so this window stays alive and keeps polling.
+  function runScript(name) {
+    var scriptPath = SYSTEM + '\\' + name;
+    if (!fso.FileExists(scriptPath)) {
+      alert('Missing file: ' + name + '\n\nPlease download the app again from GitHub.');
+      return false;
+    }
+    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + scriptPath + '"';
+    try { shell.Run(cmd, 1, false); return true; }
+    catch (e) { alert('Could not start ' + name + ':\n' + e.message); return false; }
+  }
+
+  function openFolder() { shell.Run('explorer.exe "' + ROOT + '"', 1, false); }
+  function openDownloads() {
+    shell.Run('explorer.exe "' + shell.ExpandEnvironmentStrings('%USERPROFILE%\\Downloads') + '"', 1, false);
+  }
+  function openReadme() {
+    var readmePath = SYSTEM + '\\README.md';
+    if (fso.FileExists(readmePath)) shell.Run('notepad.exe "' + readmePath + '"', 1, false);
+    else openGitHub();
+  }
+  function openGitHub() { shell.Run('https://github.com/IamRamgarhia/Free-GST-Billing-Software', 1, false); }
+
+  // Is node.exe on PATH, or in the usual place?
+  //
+  // This used to shell out to `node --version`, which flashed a black
+  // console window across the screen every time the launcher rendered -
+  // and rendering now happens on a timer. Reading PATH is silent, and
+  // just as true.
+  function nodePresent() {
+    try {
+      // v1.10.69 - the installer can keep Node.js inside the app folder so it
+      // needs no administrator rights, so look there before trusting PATH.
+      if (fso.FileExists(SYSTEM + '\\node\\node.exe')) return true;
+      var dirs = String(shell.ExpandEnvironmentStrings('%PATH%')).split(';');
+      dirs.push(shell.ExpandEnvironmentStrings('%ProgramFiles%\\nodejs'));
+      dirs.push(shell.ExpandEnvironmentStrings('%ProgramFiles(x86)%\\nodejs'));
+      dirs.push(shell.ExpandEnvironmentStrings('%LOCALAPPDATA%\\Programs\\nodejs'));
+      for (var i = 0; i < dirs.length; i++) {
+        var d = dirs[i];
+        if (!d) continue;
+        if (d.charAt(d.length - 1) === '\\') d = d.substring(0, d.length - 1);
+        if (fso.FileExists(d + '\\node.exe')) return true;
+      }
+    } catch (e) { }
+    return false;
+  }
+
+  // The install is "ready" when we have _system/ and its node_modules.
+  // node_modules can only exist because npm ran, which means Node was
+  // there - so it is checked first and a stale PATH cannot make a working
+  // install look broken.
+  function installState() {
+    if (!fso.FolderExists(SYSTEM)) return 'no-system';
+    if (!fileExists('_system\\package.json')) return 'no-system';
+    if (folderExists('_system\\node_modules')) return 'ready';
+    if (!nodePresent()) return 'no-node';
+    return 'no-app';
+  }
+
+  // ---- painting -------------------------------------------------------
+  function setState(title, body, kind) {
+    document.getElementById('stateTitle').innerHTML = title;
+    document.getElementById('stateBody').innerHTML = body || '';
+    document.getElementById('state').className = kind || '';
+  }
+
+  function setSteps(html) {
+    var el = document.getElementById('steps');
+    if (!html) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.innerHTML = html;
+  }
+
+  function setPrimary(label, sub, onclickFn, blue) {
+    var wrap = document.getElementById('primaryWrap');
+    clearChildren(wrap);
+    if (!label) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    var b = document.createElement('button');
+    b.className = 'big' + (blue ? ' blue' : '');
+    b.appendChild(document.createTextNode(label));
+    if (sub) {
+      var s = document.createElement('span');
+      s.className = 'sub';
+      s.appendChild(document.createTextNode(sub));
+      b.appendChild(s);
+    }
+    b.onclick = onclickFn;
+    wrap.appendChild(b);
+  }
+
+  // Everything that is real but rare. Hidden until asked for, so the first
+  // screen is one sentence and one button.
+  var moreOpen = false;
+  function setMore(items) {
+    var more = document.getElementById('more');
+    var toggle = document.getElementById('moreToggle');
+    clearChildren(more);
+    if (!items || !items.length) {
+      toggle.style.display = 'none';
+      more.style.display = 'none';
+      return;
+    }
+    toggle.style.display = 'inline-block';
+    for (var i = 0; i < items.length; i++) {
+      var b = document.createElement('button');
+      b.className = 'small';
+      b.appendChild(document.createTextNode(items[i].label));
+      b.onclick = items[i].run;
+      more.appendChild(b);
+    }
+    moreOpen = false;
+    more.style.display = 'none';
+    toggle.innerHTML = 'More options &#9662;';
+  }
+
+  function toggleMore() {
+    moreOpen = !moreOpen;
+    document.getElementById('more').style.display = moreOpen ? 'block' : 'none';
+    document.getElementById('moreToggle').innerHTML =
+      moreOpen ? 'Fewer options &#9652;' : 'More options &#9662;';
+    fitWindow();
+  }
+
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  // ---- install watch --------------------------------------------------
+  // The installer runs in its own PowerShell window and this one has no
+  // way of being told when it finished. Before v1.10.69 the launcher kept
+  // offering "Install" until it was closed and reopened, which looks
+  // exactly like an install that did not work. So poll for the thing the
+  // install actually creates. Cheap filesystem checks only - this runs
+  // every two seconds.
+  var watchTimer = null;
+  var watchTicks = 0;
+  function watchForInstall() {
+    if (watchTimer) return;
+    watchTicks = 0;
+    watchTimer = window.setInterval(function () {
+      watchTicks++;
+      if (folderExists('_system\\node_modules')) {
+        stopWatching();
+        render();
+        return;
+      }
+      // Never strand the user on a screen with no buttons. If the install
+      // window was closed, or npm died, give them their choices back.
+      if (watchTicks > 300) {          // 10 minutes
+        stopWatching();
+        render();
+        setState('That did not finish',
+          'If the black window has closed, the install did not complete. Try again below.', 'warn');
+      }
+    }, 2000);
+  }
+
+  function stopWatching() {
+    if (watchTimer) { window.clearInterval(watchTimer); watchTimer = null; }
+  }
+
+  function startInstall() {
+    if (!runScript('install-windows.ps1')) return;
+    setState('Installing&hellip;',
+      'A black window is doing the work. Leave it alone - it closes by itself, and the app ' +
+      'opens in your browser when it is done.', 'warn');
+    setPrimary(null);
+    setSteps('');
+    setMore(null);
+    watchForInstall();
+    fitWindow();
+  }
+
+  function render() {
+    draw();
+    fitWindow();
+  }
+
+  function draw() {
+    var state = installState();
+    document.getElementById('where').innerHTML = esc(ROOT);
+
+    if (state === 'no-system') {
+      if (runningFromZip()) {
+        setState('Please extract the ZIP first',
+          'Windows opened this file straight out of the ZIP, so the rest of the app did not ' +
+          'come with it.', 'err');
+        setPrimary('Open my Downloads folder', 'The ZIP is in there', openDownloads, true);
+        setSteps(
+          '<ol>' +
+          '<li>Close this window.</li>' +
+          '<li>Right-click the <b>Free-GST-Billing</b> ZIP and choose <b>Extract All&hellip;</b>.</li>' +
+          '<li>Open the new folder and double-click <b>Free GST Billing - WINDOWS</b>.</li>' +
+          '</ol>');
+        setMore([{ label: 'Download the app again', run: openGitHub }]);
+        return;
+      }
+      setState('Some files are missing',
+        'The <b>_system</b> folder is not next to this launcher, so there is nothing to start. ' +
+        'The usual cause is a ZIP that was only half extracted.', 'err');
+      setPrimary('Download the app again', 'Opens the download page', openGitHub, true);
+      setSteps('');
+      setMore([{ label: 'Open this folder and look', run: openFolder }]);
+      return;
+    }
+
+    if (state === 'no-node' || state === 'no-app') {
+      var needsNode = (state === 'no-node');
+      setState('Ready to install',
+        'One click. It sets everything up and opens the app by itself - about ' +
+        (needsNode ? 'three minutes' : 'a minute') + '.', 'warn');
+      setPrimary('Install', 'Nothing to fill in', startInstall, false);
+      setSteps('');
+      setMore([{ label: 'Read the guide first', run: openReadme }]);
+      return;
+    }
+
+    setState('Ready',
+      'Your app is installed. It opens in your browser.', 'ok');
+    setPrimary('Open App', 'Starts the app', function () { runScript('start-windows.ps1'); }, false);
+    setSteps('');
+    setMore([
+      { label: 'Update to the latest version', run: function () { runScript('update-windows.ps1'); } },
+      { label: 'Back up my data', run: function () { runScript('backup-windows.ps1'); } },
+      { label: 'Restore a backup', run: function () { runScript('restore-windows.ps1'); } },
+      { label: 'Move to another PC', run: function () { runScript('move-windows.ps1'); } },
+      { label: 'Stop the app', run: function () { runScript('stop-windows.ps1'); } }
+    ]);
+  }
+
+  // Size the window to whatever this state is showing, so nothing is ever
+  // behind a scrollbar. HTA opens at a size of its own choosing and the
+  // states differ in height by 300px, so measure: ask for a known height,
+  // see how much of it the client area got, and the difference is the
+  // title bar and borders.
+  function fitWindow() {
+    try {
+      var w = 480;
+      window.resizeTo(w, 700);
+      var chrome = 700 - document.documentElement.clientHeight;
+      var need = document.body.offsetHeight + chrome + 4;
+      var max = screen.availHeight - 40;
+      if (need > max) need = max;
+      if (need < 320) need = 320;
+      window.resizeTo(w, need);
+      window.moveTo(Math.max(0, (screen.availWidth - w) / 2),
+                    Math.max(0, (screen.availHeight - need) / 2));
+    } catch (e) { }
+  }
+
+  window.onload = function () { render(); };
+</script>
+
+</body>
+</html>

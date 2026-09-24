@@ -1065,6 +1065,116 @@ try {
   check('#68 a mistyped GSTIN is caught by its own checksum',
     /checksum/i.test(typoWarning), typoWarning || 'no warning shown');
 
+  // ---- v1.10.69: the getting-started checklist -------------------------
+  // It has to read the real saved data, not "have you seen this screen",
+  // and it has to retire itself once there is nothing left to do.
+  await page.evaluate(() => { try { localStorage.removeItem('freegstbill_startedDismissed'); } catch { /* private mode */ } });
+  const setBank = async (withBank) => {
+    await page.evaluate(async ({ withBank, prof }) => {
+      const body = { ...prof };
+      if (withBank) { body.paymentAccounts = [{ id: 'smk', label: 'Test', bankName: 'Test Bank', accountNumber: '1', ifsc: 'X', isDefault: true, isActive: true }]; body.upiId = 'x@y'; }
+      else { body.paymentAccounts = []; body.upiId = ''; body.accountNumber = ''; }
+      await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    }, { withBank, prof: originalProfile });
+    // The app holds the business profile in React state and only fetches it
+    // on load, so a POST made behind its back is invisible until a reload.
+    // (In real use, saving in Settings updates that state directly.)
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await openView('Dashboard');
+  };
+  const checklist = () => page.evaluate(() => {
+    const head = [...document.querySelectorAll('.section-title')].find((h) => h.innerText.trim() === 'Getting started');
+    if (!head) return null;
+    const card = head.closest('.glass-panel');
+    return { shown: true, text: card.innerText.replace(/\s+/g, ' ') };
+  });
+
+  await setBank(false);
+  const noBank = await checklist();
+  check('v1.10.69 the getting-started card is shown while something is still to do',
+    !!noBank && /Add bank details or UPI/.test(noBank.text),
+    noBank ? noBank.text.slice(0, 140) : 'card not shown');
+
+  await setBank(true);
+  const withBank = await checklist();
+  const doneOf = (c) => (c ? Number((c.text.match(/(\d) of 4 done/) || [0, -1])[1]) : 4);
+  check('v1.10.69 it ticks itself off from the saved data, not from having been seen',
+    doneOf(withBank) === doneOf(noBank) + 1,
+    `without bank ${doneOf(noBank)}/4, with bank ${doneOf(withBank)}/4`);
+
+  // ---- #71 (@sangwanmail-eng) -------------------------------------------
+  // 1. Customize belongs in the sticky toolbar, right before Show Preview.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke 71 Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: 'India', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-71/1', invoiceDate: today },
+    items: draftItems,
+    taxInclusive: false,
+  });
+  const bar71 = await page.evaluate(() => {
+    const el = document.querySelector('.generator-toolbar');
+    return el ? [...el.querySelectorAll('button')].map((b) => b.innerText.trim().replace(/\s+/g, ' ')).filter(Boolean) : null;
+  });
+  const cIdx = bar71 ? bar71.findIndex((t) => /Customize|Hide Options/.test(t)) : -1;
+  const pIdx = bar71 ? bar71.findIndex((t) => /Show Preview|Hide Preview/.test(t)) : -1;
+  check('#71.1 Customize sits in the toolbar, immediately before the preview button',
+    cIdx !== -1 && pIdx === cIdx + 1, JSON.stringify(bar71));
+  const cCount = await page.evaluate(() =>
+    [...document.querySelectorAll('button')].filter((b) => /^(Customize|Hide Options)$/.test(b.innerText.trim())).length);
+  check('#71.1 and there is only one of it', cCount === 1, `found ${cCount}`);
+
+  // 2. Qty / Rate / Cess replace their contents when you click and type.
+  await openView('Purchases');
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Add Purchase/i.test(x.innerText));
+    if (b) b.click();
+  });
+  await sleep(2500);
+  for (const label of ['Qty', 'Rate', 'Cess %']) {
+    const field = page.locator(`.form-group:has(.form-label:text-is("${label}")) input[type=number]`).first();
+    const was = await field.inputValue();
+    await field.click();
+    await page.keyboard.type('7');
+    const now = await field.inputValue();
+    // selectionStart is null on <input type=number>, so ask what a user sees.
+    check(`#71.2 typing in ${label} replaces what was there`, now === '7', `was "${was}", got "${now}"`);
+  }
+
+  // 3. The Status column is a dropdown that saves, like the Dashboard.
+  await openView('Purchases');
+  const st71 = await page.evaluate(() => {
+    const heads = [...document.querySelectorAll('th')].map((th) => th.textContent.trim().toLowerCase());
+    const idx = heads.indexOf('status');
+    const row = document.querySelector('tbody tr');
+    if (idx === -1 || !row) return { idx, rows: 0 };
+    const sel = row.children[idx]?.querySelector('select');
+    // Which purchase is this row? The list is filtered and sorted, so the
+    // first row is not necessarily the one this suite created.
+    const invIdx = heads.indexOf('invoice no');
+    const invoiceNumber = invIdx === -1 ? null : row.children[invIdx].innerText.trim();
+    return { idx, invoiceNumber, isSelect: !!sel, value: sel?.value, options: sel ? [...sel.options].map((o) => o.value) : null };
+  });
+  check('#71.3 the Status column is a dropdown offering Unpaid / Paid / Partial',
+    st71.isSelect === true && JSON.stringify(st71.options) === JSON.stringify(['Unpaid', 'Paid', 'Partial']),
+    JSON.stringify(st71));
+  if (st71.isSelect) {
+    await page.evaluate((idx) => {
+      const sel = document.querySelector('tbody tr').children[idx].querySelector('select');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      setter.call(sel, 'Paid');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, st71.idx);
+    await sleep(2500);
+    const saved71 = await page.evaluate(async (invoiceNumber) => {
+      const rows = await (await fetch('/api/purchases')).json();
+      const r = rows.find((x) => String(x.invoiceNumber).trim() === invoiceNumber);
+      return r ? r.paymentStatus : null;
+    }, st71.invoiceNumber);
+    check('#71.3 changing it saves against the purchase', saved71 === 'Paid',
+      `invoice ${st71.invoiceNumber} saved as "${saved71}"`);
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {

@@ -15,7 +15,7 @@ import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
-import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill } from '../store';
+import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill, runUpdateNow } from '../store';
 
 // v1.10.36 — Section order for the jump-nav pill bar. Keeping this at
 // module scope so the scroll-spy effect below can reference it without
@@ -137,6 +137,17 @@ export default function SettingsView({ onSaved }) {
   const [invNumSaving, setInvNumSaving] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  // v1.10.69 - see runUpdateNow() in store.js: this used to be a link to a URL
+  // protocol that no current install registers, so it did nothing at all.
+  const [updatingNow, setUpdatingNow] = useState(false);
+  const handleSettingsUpdateNow = async () => {
+    setUpdatingNow(true);
+    toast('Updating… your data is backed up first. This takes about a minute.', 'info', 8000);
+    const result = await runUpdateNow();
+    setUpdatingNow(false);
+    toast(result.ok ? 'Update finished. Reload the page to use the new version.' : `Update failed — ${result.error}`,
+      result.ok ? 'success' : 'error', 10000);
+  };
   const [regionMode, setRegionModeState] = useState(getRegionMode());
   const [enabledModules, setEnabledModulesState] = useState(getEnabledModules());
   const [stockAlerts, setStockAlerts] = useState({ enabled: true, threshold: 5 });
@@ -1820,10 +1831,10 @@ export default function SettingsView({ onSaved }) {
         {updateInfo?.updateAvailable && (
           <div className="update-available-box">
             <p><strong>New version v{updateInfo.latest} is available!</strong></p>
-            <p>Your data will not be affected. Click below to update:</p>
-            <a href="freegstbill-update://run" className="btn btn-primary" style={{ marginTop: '0.5rem', display: 'inline-flex', textDecoration: 'none' }}>
-              <Download size={18} /> Update Now
-            </a>
+            <p>Your data is backed up first and is not affected. Click below to update:</p>
+            <button type="button" className="btn btn-primary" disabled={updatingNow} onClick={handleSettingsUpdateNow} style={{ marginTop: '0.5rem', display: 'inline-flex' }}>
+              <Download size={18} /> {updatingNow ? 'Updating…' : 'Update Now'}
+            </button>
           </div>
         )}
       </div>

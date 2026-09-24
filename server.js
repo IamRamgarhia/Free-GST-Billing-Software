@@ -838,9 +838,9 @@ app.get('/api/check-update', async (req, res) => {
 // ============================================================
 // v1.10.44 — In-app Control Panel API
 // Powers /control-panel in the app. Each endpoint shells out to
-// a platform-appropriate script under `_system-scripts/` (when
-// the app is installed via the HTA launcher release ZIP) or the
-// equivalent .bat / .sh in the dev repo root as a fallback.
+// a platform-appropriate script under `_system-scripts/` — the copy inside
+// `_system/` in a release install, or `release-templates/_system-scripts/`
+// when running from the source repo.
 // ============================================================
 import { spawn } from 'child_process';
 
@@ -1401,9 +1401,9 @@ function startServer(port) {
   });
 }
 
-// Graceful shutdown — taskkill /f from Stop FreeGSTBill.bat can interrupt a
-// sync write mid-flight. SIGINT (Ctrl+C in foreground) and SIGTERM (clean
-// kill) get a 3-second window to flush.
+// Graceful shutdown — the launcher's Stop Server runs taskkill /f, which can
+// interrupt a sync write mid-flight. SIGINT (Ctrl+C in foreground) and SIGTERM
+// (clean kill) get a 3-second window to flush.
 function gracefulShutdown(signal) {
   console.log(`\n  Received ${signal}, closing connections...`);
   if (!activeServer) { process.exit(0); return; }

@@ -30,6 +30,14 @@ const BillOCR = lazy(() => import('./BillOCR'));
 
 const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Partial'];
 
+// v1.10.69 (#71 item 3) - the same three colours the pill used, now shared
+// with the dropdown in the records table.
+const PAYMENT_STATUS_COLORS = {
+  Unpaid:  { bg: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b' },
+  Paid:    { bg: 'rgba(5, 150, 105, 0.14)',  color: '#059669' },
+  Partial: { bg: 'rgba(139, 92, 246, 0.14)', color: '#8b5cf6' },
+};
+
 // cessPercent added in v1.6.8 (P1 #16) — suppliers of tobacco / aerated
 // drinks / motor vehicles / coal charge GST + Cess. Without a slot for it,
 // we couldn't reclaim ITC on the cess in GSTR-3B Table 4(A).
@@ -505,6 +513,20 @@ export default function PurchaseBills() {
       loadProducts();
     } catch {
       toast('Failed to save purchase', 'error');
+    }
+  };
+
+  // v1.10.69 (#71 item 3) - change the payment status straight from the list.
+  // Saves the whole record back, so nothing else about the bill is disturbed;
+  // the list is reloaded afterwards so the supplier-payable totals follow.
+  const changePaymentStatus = async (purchase, paymentStatus) => {
+    if ((purchase.paymentStatus || 'Unpaid') === paymentStatus) return;
+    try {
+      await savePurchase({ ...purchase, paymentStatus });
+      toast(`Marked ${paymentStatus.toLowerCase()}`, 'success');
+      loadPurchases();
+    } catch {
+      toast('Could not change the status', 'error');
     }
   };
 
@@ -999,12 +1021,18 @@ export default function PurchaseBills() {
                 <div className="form-group" style={{ flex: 0.7, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Qty</label>}
                   {/* v1.6.8 (P2 #30): decimal quantity for 2.5 kg / 0.5 hr / etc. */}
+                  {/* v1.10.69 - requested (#71 item 2, @sangwanmail-eng): the
+                      number fields here now select their contents on focus, as
+                      the invoice screen has since v1.10.67. Without it, typing
+                      into a field showing 0 gave you 018 rather than 18. */}
                   <input type="number" className="form-input" value={item.quantity} min="0" step="any"
+                    onFocus={e => e.target.select()}
                     onChange={e => updateItem(idx, 'quantity', e.target.value)} />
                 </div>
                 <div className="form-group" style={{ flex: 1, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Rate</label>}
                   <input type="number" className="form-input" value={item.rate} min="0" step="any"
+                    onFocus={e => e.target.select()}
                     onChange={e => updateItem(idx, 'rate', e.target.value)} />
                 </div>
                 <div className="form-group" style={{ flex: 0.75, margin: 0 }}>
@@ -1043,6 +1071,7 @@ export default function PurchaseBills() {
                 <div className="form-group" style={{ flex: 0.7, margin: 0 }}>
                   {idx === 0 && <label className="form-label" title="Compensation Cess — for tobacco, aerated, motor vehicles, coal, etc.">Cess %</label>}
                   <input type="number" className="form-input" value={item.cessPercent ?? 0} min="0" step="any"
+                    onFocus={e => e.target.select()}
                     onChange={e => updateItem(idx, 'cessPercent', e.target.value)} />
                 </div>
                 <div style={{ flex: '0 0 auto', marginBottom: idx === 0 ? 0 : 0 }}>
@@ -1126,12 +1155,18 @@ export default function PurchaseBills() {
                       <td style={{ textAlign: 'right' }}>{formatCurrency(t.taxable)}</td>
                       <td style={{ textAlign: 'right' }} className="text-muted">{formatCurrency(t.tax)}</td>
                       <td style={{ textAlign: 'right' }} className="font-bold">{formatCurrency(t.finalTotal)}</td>
+                      {/* v1.10.69 - requested (#71 item 3, @sangwanmail-eng):
+                          "the Status column should have a drop-down option,
+                          similar to the Status drop-down available on the
+                          Dashboard." Marking a supplier bill paid took
+                          opening it, changing one field and saving. */}
                       <td>
-                        <span style={{
-                          padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 600,
-                          background: p.paymentStatus === 'Paid' ? '#ecfdf5' : p.paymentStatus === 'Partial' ? '#f5f3ff' : '#fffbeb',
-                          color: p.paymentStatus === 'Paid' ? '#059669' : p.paymentStatus === 'Partial' ? '#8b5cf6' : '#f59e0b',
-                        }}>{p.paymentStatus || 'Unpaid'}</span>
+                        <select className="status-select"
+                          value={p.paymentStatus || 'Unpaid'}
+                          style={{ background: PAYMENT_STATUS_COLORS[p.paymentStatus || 'Unpaid'].bg, color: PAYMENT_STATUS_COLORS[p.paymentStatus || 'Unpaid'].color, borderColor: PAYMENT_STATUS_COLORS[p.paymentStatus || 'Unpaid'].color + '44' }}
+                          onChange={e => changePaymentStatus(p, e.target.value)}>
+                          {PAYMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
                       </td>
                       <td>
                         <div className="table-actions">

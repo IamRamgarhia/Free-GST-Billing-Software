@@ -65,7 +65,7 @@ Write-Host '  Extracting...'
 Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
 
 # The extract may contain either the pretty release structure
-# (root has Free GST Billing.hta + _system/) or the source zipball
+# (root has Free GST Billing - WINDOWS.hta + _system/) or the source zipball
 # (root has IamRamgarhia-Free-GST-Billing-Software-HASH/).
 $extracted = Get-ChildItem -Path $tmp -Directory | Select-Object -First 1
 $candidateSystem = Join-Path $extracted.FullName '_system'
@@ -93,6 +93,9 @@ Get-ChildItem -Path $sourceRoot -File | Where-Object { $_.Extension -match '\.(h
 # --- Step 5: Reinstall dependencies (safest - new package.json may add packages) ---
 Write-Host '  Re-installing dependencies...'
 Push-Location $SystemDir
+# v1.10.69 - Node.js may live inside the app folder (see install-windows.ps1).
+$updNodeDir = Join-Path $SystemDir 'node'
+if (Test-Path (Join-Path $updNodeDir 'node.exe')) { $env:Path = "$updNodeDir;$env:Path" }
 npm install --omit=dev --no-audit --no-fund --loglevel=error
 Pop-Location
 

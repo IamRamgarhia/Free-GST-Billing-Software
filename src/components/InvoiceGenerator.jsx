@@ -2975,6 +2975,19 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               Moved here beside E-Way Bill, and this whole toolbar is now
               sticky (see .generator-toolbar), so it — and Save, Print and the
               rest — stay reachable from anywhere on a long invoice. */}
+          {/* v1.10.69 - requested (#71 item 1, @sangwanmail-eng): "Can we move
+              the Customize button so that it appears before the Show Preview
+              button?"
+              It used to sit in the Invoice Type card, which scrolls away. Here
+              it is in the sticky toolbar, next to the preview toggle it pairs
+              with - both change how the invoice looks, so both are reachable
+              from anywhere on a long invoice. The options panel it opens has
+              not moved. */}
+          <button className="btn btn-secondary" type="button"
+            onClick={() => setShowOptions(!showOptions)}
+            title={showOptions ? 'Hide the layout and column options' : 'Choose columns, sections, paper size and PDF style'}>
+            <Settings size={18} /> {showOptions ? 'Hide Options' : 'Customize'}
+          </button>
           <button className="btn btn-secondary" type="button"
             onClick={() => setPreviewCollapsed(v => !v)}
             title={previewCollapsed ? 'Show the live preview' : 'Hide the preview and use the full width for entry'}>
@@ -2992,12 +3005,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               company other than the one on screen. */}
           {/* Invoice Type */}
           <div className="glass-panel p-6 mb-6">
+            {/* v1.10.69 (#71 item 1) - Customize moved up to the sticky
+                toolbar. Two buttons doing the same thing would only raise the
+                question of whether they do. */}
             <div className="flex justify-between items-center">
               <h3 className="section-title" style={{ margin: 0 }}>Invoice Type</h3>
-              <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
-                onClick={() => setShowOptions(!showOptions)}>
-                <Settings size={15} /> {showOptions ? 'Hide Options' : 'Customize'}
-              </button>
             </div>
             <div className="type-selector" style={{ marginTop: '0.75rem' }}>
               {Object.entries(INVOICE_TYPES).map(([key, val]) => (

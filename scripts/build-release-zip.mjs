@@ -7,9 +7,9 @@
 // with the "one visible file" flat layout the user asked for:
 //
 //   Free-GST-Billing/
-//   ├── 🚀 Free GST Billing.hta
-//   ├── 🚀 Free GST Billing.command
-//   ├── 🚀 Free GST Billing.sh
+//   ├── Free GST Billing - WINDOWS.hta
+//   ├── Free GST Billing - MAC.command
+//   ├── Free GST Billing - LINUX.sh
 //   └── _system/
 //       ├── package.json
 //       ├── server.js
@@ -205,6 +205,38 @@ function assertServerImportsResolve() {
   console.log(`  → Verified ${seen.size} server file(s) resolve inside _system/`);
 }
 assertServerImportsResolve();
+
+// v1.10.69 - the "Update Now" buttons were links to freegstbill-update://run,
+// a URL protocol that only the OLD Install FreeGSTBill.bat ever registered.
+// The HTA launcher replaced that installer in v1.10.44 and registers nothing,
+// so on every install since then the button did nothing whatsoever - no
+// error, no window. Nothing in the packaged app may depend on a protocol we
+// do not register (see ERR-019).
+function assertNoDeadProtocolLinks() {
+  const PROTOCOLS = ['freegstbill-update:', 'freegstbill:'];
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) { walk(p); continue; }
+      if (!/[.](js|jsx|html|css)$/i.test(entry.name)) continue;
+      const text = readFileSync(p, 'utf8');
+      for (const proto of PROTOCOLS) {
+        if (text.includes(proto)) offenders.push(`    ${p.replace(SYSTEM, '_system')}  ->  ${proto}`);
+      }
+    }
+  };
+  walk(join(SYSTEM, 'dist'));
+  if (offenders.length) {
+    console.error('\n  x The packaged app links to a URL protocol nothing registers:');
+    console.error([...new Set(offenders)].join('\n'));
+    console.error('\n    Clicking it does nothing at all, silently. Call the server');
+    console.error('    endpoint instead - see runUpdateNow() in src/store.js.\n');
+    process.exit(1);
+  }
+  console.log('  → No dead URL-protocol links in the packaged app');
+}
+assertNoDeadProtocolLinks();
 
 // --- ZIP it up ---
 const zipName = `Free-GST-Billing-v${version}.zip`;

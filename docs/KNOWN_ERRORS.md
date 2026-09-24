@@ -651,6 +651,237 @@ and a credit note do.
 
 ---
 
+## ERR-017 - Launcher said "_system folder is missing" while Explorer showed it
+
+**Version:** shipped with the one-launcher layout in v1.10.44 · explained in v1.10.69
+**Reported by:** the maintainer, with a photo of the screen (2026-09-23)
+
+**Symptom** - the launcher opens and says *"`_system` folder is missing - Please
+re-extract the ZIP or re-download from GitHub Releases"*, while the Explorer
+window right behind it is listing `_system` in the very folder the user just
+double-clicked in. It reads as a broken download.
+
+**Cause** - Windows lets you double-click a file **inside** a ZIP without
+extracting anything. It copies that one file to
+`%TEMP%\Temp1_<name>.zip\<inner folder>\` and runs it from there, with no
+siblings. The launcher was reporting the truth about the temp folder it had
+been copied into; the folder the user was looking at was a different one. The
+message named a cause ("re-extract") without ever naming the folder it had
+checked, so there was no way to tell the two apart.
+
+**Rule** - when a program reports that a file is missing, it names the folder it
+looked in. A path the user can compare against what is on screen ends the
+argument in one glance; "a file is missing" starts it.
+
+**Guard** - the launcher now detects a `%LOCALAPPDATA%\Temp\` location and says
+so in its own words ("Windows opened this file straight out of the ZIP"), with
+numbered steps and a button that opens the Downloads folder. Any other missing
+`_system` prints the folder it checked. Verified by running the launcher from a
+simulated `Temp1_*.zip` folder and screenshotting both states; there is no
+automated check, because nothing can drive `mshta` headlessly.
+
+---
+
+## ERR-018 - "Open App" never opened the browser, on any machine
+
+**Version:** broke in v1.10.44, when the HTA launcher replaced the .bat files · fixed in v1.10.69
+**Reported by:** found by installing the real release ZIP end to end (2026-09-23)
+
+**Symptom** - the installer finishes, the server starts, and the console then
+says *"Server did not respond in 15s. Check for errors in this window."* The
+browser never opens. The app is running the whole time: paste the address in
+by hand and it answers immediately.
+
+**Cause** - `start-windows.ps1` decided whether the server was up with
+`Invoke-WebRequest -Uri http://localhost:$p/api/profile -TimeoutSec 1`. Windows
+PowerShell 5.1 runs the system proxy auto-detect (WPAD) on every web request,
+including requests to `127.0.0.1`, and that costs about two seconds on a
+machine with a proxy, a VPN or a corporate network. With a one-second timeout
+the check could never return true - measured on a real install: `-TimeoutSec 1`
+always times out, `-TimeoutSec 10` succeeds in 2.07s, and the same request with
+`DefaultWebProxy = $null` succeeds in **0.03s**. Meanwhile the server itself was
+accepting TCP connections 0.6 seconds after launch. So the script also believed
+no server was running when one was, and started a second copy every time.
+
+**Rule** - a loopback health check sets `[System.Net.WebRequest]::DefaultWebProxy
+= $null` and addresses `127.0.0.1`, never `localhost` behind a system proxy.
+And a timeout is a bound on how long the *other* end may take, never a bet on
+how fast the local HTTP stack starts: give it seconds, not one second.
+
+**Rule (second)** - a packaged installer is tested by installing the package.
+The release gate boots `server.js` with node directly, which is why it passed
+65 checks a release while the thing every Windows user actually double-clicks
+was broken. Run the real `install-windows.ps1` from a real extracted ZIP
+before shipping a release that touches the launcher or the scripts.
+
+**Guard** - none automated (it needs a real Windows desktop session and a
+browser). Verified by hand: extract the ZIP, run `_system\install-windows.ps1`,
+and confirm the browser opens on `http://localhost:47371` with no warning.
+
+---
+
+## ERR-023 - The app icon was unreadable at the size Windows actually draws it
+
+**Version:** artwork unchanged since v1.10.7 · icon first shipped, and fixed, in v1.10.69
+**Reported by:** the maintainer, from a screenshot of the extracted folder (2026-09-24)
+
+**Symptom** - *"it looks very bad or corrupted"*. On the Desktop shortcut and
+in the launcher title bar the icon was a blurry blue blob with something
+indistinct inside it.
+
+**Cause** - the icon was rendered by shrinking `public/favicon.svg`, which is
+built for a browser tab and a 512px PWA tile: a #1e40af rounded square, a
+#2563eb rounded square inset 4px inside it, a white panel at 15% opacity, a
+26px letter and a 3px bar. At 16 pixels the two blues merge into a fuzzy
+edge, the panel becomes a grey ghost, the bar becomes a smudge, and the letter
+gets about six pixels of height. Nothing was corrupt; there was simply four
+times more detail than the canvas could hold.
+
+**Rule** - an icon is drawn at 16px far more often than at 256, so it is
+designed at 16px and allowed extra detail as it grows, not the other way
+round. Below 64px this one is a solid square and a single letter.
+
+**Rule (second)** - build the .ico out of uncompressed BGRA bitmaps, not PNGs.
+Windows 11 reads PNG-in-ICO, but .NET quietly hands back a smaller image when
+asked for a PNG-compressed 256 (observed here), and older shells skip such
+entries entirely. PNG is kept only for 256px, where a bitmap would be 256 KB.
+
+**Guard** - none automated (it is a judgement about legibility). Verified by
+rendering 16/24/32/48 from the shipped .ico, enlarging each with nearest-
+neighbour, and looking; and by asking the Windows shell itself, through
+SHGetFileInfo, what it draws for a shortcut and for the installed folder.
+
+---
+
+## ERR-022 - Every install re-downloaded 3.9 MB it already had
+
+**Version:** shipped with the packaged release since v1.10.33 · fixed in v1.10.69
+**Reported by:** the maintainer asking whether everything in the ZIP is really needed (2026-09-23)
+
+**Symptom** - during install, on a user machine, the console prints
+*"fetching eng.traineddata from jsDelivr..."* and pulls 3.9 MB down. The ZIP
+they just downloaded already contains that exact file.
+
+**Cause** - `bundle-tesseract-assets.mjs` is wired to `postinstall`, so it runs
+wherever `npm install` runs - including on the user machine. It rebuilds
+`public/tesseract/` from node_modules and downloads the English OCR data. In a
+source checkout that is right: `public/` is what `vite build` copies into
+`dist/`. In an installed copy it is pure waste - a release install serves
+`dist/`, and `dist/tesseract/` already holds all 18 files including the 3.9 MB
+language data. The download also added a network dependency, and a few more
+seconds, to an install that did not need either.
+
+**Rule** - a `postinstall` hook runs on every machine that installs the
+package, not just yours. Anything in it that only makes sense in a source
+checkout has to detect that it is in one. Here: a source checkout has
+`public/` (it is in git), an installed copy does not.
+
+**Guard** - none automated. Verified by hand: with `node_modules` present and
+`public/` renamed away - the exact shape of a release install - the script now
+prints "Installed copy - OCR files already ship in dist/. Nothing to do." and
+creates nothing.
+
+---
+
+## ERR-021 - The installer needed administrator rights it could never ask for
+
+**Version:** broke in v1.10.44, with the HTA launcher · fixed in v1.10.69
+**Reported by:** found while answering "can you confirm there will be no installation error" (2026-09-23)
+
+**Symptom** - on a PC without Node.js, the install appears to run and then
+stops with *"ERROR: npm install failed. See above."* Nothing above it explains
+anything. On a PC that already had Node.js, the same installer worked - so it
+looked fine in every test done on a developer machine.
+
+**Cause** - `install-windows.ps1` fetched the official Node.js **.msi** and ran
+`msiexec /i ... /qn`. That MSI installs per-machine into `C:\Program Files\`,
+which requires elevation, and `/qn` means fully silent - so Windows cannot even
+show the UAC prompt that would grant it. On a standard account it installed
+nothing. The exit code was never checked and `node -v` was never re-tested, so
+the script walked straight into `npm install`, which failed because npm did not
+exist, and reported that instead of the real cause.
+
+**Rule** - an installer for non-technical users asks for no privileges it
+cannot obtain, and a step that can fail is followed by a check that it did not.
+Node.js now comes from the official portable **.zip**, unpacked into
+`_system\node\`: no admin, no UAC, no registry, nothing written outside the app
+folder, and an existing system Node.js is left untouched and preferred.
+
+**Rule (second)** - the machine that builds the release already has every
+dependency, so it can never exercise the branch that installs them. Test the
+install with the dependency hidden.
+
+**Guard** - none automated (a real install takes three minutes and 30 MB).
+Verified by hand: extract the ZIP, run `install-windows.ps1` from a shell whose
+PATH has had every folder containing `node.exe` removed, and confirm
+`_system\node\node.exe` appears, `npm install` completes, and the app serves
+HTTP 200. Done 2026-09-23: 164 seconds, no prompts.
+
+---
+
+## ERR-020 - Launcher buttons ran edge to edge, touching both window sides
+
+**Version:** broke in v1.10.44, with the HTA launcher itself · fixed in v1.10.69
+**Reported by:** the maintainer, from a screenshot (2026-09-23)
+
+**Symptom** - every button in the launcher window stretched from the far left
+edge to the far right edge, with no margin at all, as if the stylesheet had
+not loaded.
+
+**Cause** - the buttons lived in `<main>`, styled `main { padding: 16px 24px }`.
+`<main>` is the one HTML5 sectioning element Internet Explorer never
+implemented - `<header>`, `<footer>`, `<section>` and `<nav>` all arrived in
+IE9, `<main>` never did. Trident treats it as an unknown inline element, so
+the padding was dropped and the full-width buttons sized against `<body>`. The
+same markup is correct in every other browser, which is why it read as fine in
+review.
+
+**Rule** - the HTA renders in Trident, not in a modern browser. Use `<div>` for
+layout containers there, and treat anything added to HTML after 2011 as absent
+until proven otherwise on the real engine. Screenshot the window; do not read
+the markup and assume.
+
+**Guard** - none automated (nothing can drive `mshta` headlessly). Verified by
+launching the packaged launcher in all three states and looking at each one.
+
+---
+
+## ERR-019 - "Update Now" and "Open GST Billing" did nothing at all, silently
+
+**Version:** broke in v1.10.44, when the HTA launcher replaced the .bat installer · fixed in v1.10.69
+**Reported by:** found while auditing the repo for stale install instructions (2026-09-23)
+
+**Symptom** - three buttons inside the app did nothing when clicked. No error,
+no window, no toast, no console message: **Settings → Check for Updates →
+Update Now**, the **Update Now** button in the update-available dialog, and
+**Open GST Billing** on the "server needs a quick start" screen.
+
+**Cause** - all three were `<a href="freegstbill://…">` links. Those custom URL
+protocols were registered in the Windows registry by the old
+`Install FreeGSTBill.bat`. The HTA launcher replaced that installer in v1.10.44
+and registers no protocol at all, so from that release on the links resolved to
+nothing. A browser silently ignores an unregistered protocol - there is no
+error to notice, which is why it survived 25 releases. The ⚙ Control Panel was
+unaffected: it posts to `/api/control-panel/launch-script`, which works.
+
+**Rule** - a click always produces a visible result: an action, or a message
+saying why not. Anything a page hands to the operating system - a custom
+protocol, a `mailto:`, a file association - can fail without telling anybody,
+so it is never the only path to a feature the app depends on. Where the app
+already has a server endpoint that does the job, use that.
+
+**Rule (second)** - when an installer is replaced, every registry key, protocol
+handler and shortcut the old one created is a dependency the new one silently
+dropped. List them and re-home each one before the old installer stops
+shipping.
+
+**Guard** - `scripts/build-release-zip.mjs` `assertNoDeadProtocolLinks()` scans
+the packaged `dist/` for `freegstbill:` and `freegstbill-update:` and refuses to
+build a ZIP that still contains either. Verified red: re-adding the string to
+`src/App.jsx` fails the build.
+
+---
+
 <!--
 Adding an entry? Copy this skeleton.
 

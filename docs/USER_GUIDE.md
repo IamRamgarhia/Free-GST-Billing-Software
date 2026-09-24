@@ -4,9 +4,9 @@ A plain-language guide for everyone who uses this app — no coding background
 needed. If you only have 2 minutes, jump to [Quick Start](#quick-start).
 
 > **TL;DR**
-> 1. Double-click **Install FreeGSTBill.bat** once. That's it — installer handles the rest.
-> 2. A desktop icon appears called *Free GST Billing Software*. Use it to open the app.
-> 3. Your data lives in the `data/` folder next to the app. Back that folder up and you've backed up everything.
+> 1. Download the ZIP from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest), **extract it**, and double-click **Free GST Billing - WINDOWS** once.
+> 2. Click **Install Node & App**, then **Open App**. A desktop icon appears called *Free GST Billing*. Use it from then on.
+> 3. Your data lives in the `_system\data\` folder inside the app folder. Back that folder up and you have backed up everything.
 
 ---
 
@@ -54,21 +54,43 @@ internet, your data stays on your machine, and there is no monthly fee — ever.
 
 ### If you've never installed Node.js before — that's fine.
 
-1. **Download** the project as a ZIP from
-   <https://github.com/IamRamgarhia/Free-GST-Billing-Software> (green *Code*
-   button → *Download ZIP*) and unzip it somewhere you'll remember (e.g.
-   `Documents\FreeGSTBill`).
+1. **Download the release ZIP** from
+   <https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest>
+   and save it somewhere you'll remember (e.g. `Documents\FreeGSTBill`).
 
-2. **Double-click `Install FreeGSTBill.bat`.** That's it.
-   - It installs Node.js for you if it isn't already on your computer.
+   > Use the **Releases** page, not the green *Code → Download ZIP* button.
+   > The green button gives you the source code without the built app.
+
+2. **Right-click the ZIP → Extract All.** This matters: everything the app
+   needs sits next to the launcher, so the launcher has to be opened from the
+   extracted folder, not from inside the ZIP. (If you double-click it while
+   still browsing inside the ZIP, Windows copies only that one file to a temp
+   folder and the launcher will tell you the `_system` folder is missing —
+   even though you can plainly see it in the window behind. Extract first.)
+
+3. **Open the extracted folder and double-click `Free GST Billing - WINDOWS`.**
+   (Each launcher is named after the system it is for, so there is nothing to
+   work out — Mac and Linux users pick theirs.)
+   A small window opens with buttons. Click **Install Node & App**.
+   - It installs Node.js for you if it is not already on your computer.
    - It installs the app's dependencies (one-time, takes ~2 minutes).
-   - It builds the app.
-   - It creates a *Free GST Billing Software* shortcut on your Desktop and in
-     the Start Menu.
-   - It sets the server to start automatically when you log in to Windows.
+   - It creates a *Free GST Billing* shortcut on your Desktop and in the
+     Start Menu.
 
-3. **From now on, just double-click the Desktop icon.** Your browser opens
-   straight to the app.
+4. **Click `Open App`.** Your browser opens straight to the app. From now on,
+   just double-click the Desktop icon.
+
+### Or, one command in PowerShell
+
+If you are comfortable with a terminal, this does all of the above by itself.
+It needs no admin rights and writes nothing outside your own user folder:
+
+```powershell
+irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex
+```
+
+It installs to `%LOCALAPPDATA%\Programs\Free GST Billing`. To pick your own
+folder, run `$env:FREEGSTBILL_DIR = 'D:\Apps\Free GST Billing'` first.
 
 > **First-run wizard:** The first time you open the app, a 4-step wizard asks
 > for your business name, country, bank details, and so on. Pick *India*,
@@ -76,7 +98,8 @@ internet, your data stays on your machine, and there is no monthly fee — ever.
 > adapts to your choice.
 
 ### macOS / Linux users
-The `.bat` files are Windows-only, but the app itself works on any OS:
+The `.hta` launcher is Windows-only — use `Free GST Billing - MAC.command` or
+`Free GST Billing - LINUX.sh` from the same ZIP, or run it from source:
 ```bash
 git clone https://github.com/IamRamgarhia/Free-GST-Billing-Software.git
 cd Free-GST-Billing-Software
@@ -157,7 +180,9 @@ tax label they had when you created them.
 
 **Everything you create is stored in two places:**
 
-1. **The `data/` folder** next to the app. Contains:
+1. **The `_system\data\` folder** inside the app folder. (Before v1.10.44 this
+   was `data/` at the top level. The installer hides `_system`, so switch on
+   *View → Hidden items* in Explorer to see it.) Contains:
    - `bills.json` — every invoice
    - `clients.json` — your client list
    - `products.json` — your inventory
@@ -181,7 +206,7 @@ To restore: **Settings → Import Data** reads the file back.
 
 ### The manual way (techies)
 
-Just copy the entire app folder somewhere safe. The `data/` and `Saved
+Just copy the entire app folder somewhere safe. The `_system\data\` and `Saved
 Invoices/` folders are the only thing that matters — `node_modules/` and
 `dist/` can always be regenerated.
 
@@ -189,8 +214,8 @@ Invoices/` folders are the only thing that matters — `node_modules/` and
 
 In *Settings → Google Drive*, follow the wizard to connect your Google account
 once. From then on, every PDF you generate is automatically uploaded to your
-Drive in a folder of your choosing. Your `data/` JSON files stay local — only
-the PDFs go to Drive.
+Drive in a folder of your choosing. Your `_system\data\` JSON files stay local
+— only the PDFs go to Drive.
 
 ---
 
@@ -207,7 +232,8 @@ On the **old** computer:
    somewhere portable (USB drive, email to yourself, Google Drive).
 
 On the **new** computer:
-1. Install the app fresh (run `Install FreeGSTBill.bat`).
+1. Install the app fresh (extract the ZIP, run `Free GST Billing - WINDOWS`, click
+   **Install Node & App**).
 2. Skip or fill in the welcome wizard — doesn't matter, the import will
    overwrite.
 3. Go to **Settings → Import Data**, pick the `.json` file.
@@ -220,21 +246,21 @@ On the **new** computer:
 ### Option B — Copy the data folder
 
 On the **old** computer, copy these two folders to a USB drive:
-- `data/`
+- `_system\data\`
 - `Saved Invoices/` (only if you want the PDF archive)
 
 On the **new** computer:
 1. Install the app fresh.
-2. **Stop the server first** (close the app, then run *Stop FreeGSTBill.bat*
-   if it's running in the background — or just reboot).
-3. Replace the new install's `data/` folder with the copied one.
+2. **Stop the server first** — open the launcher and click **Stop Server**
+   (or just reboot).
+3. Replace the new install's `_system\data\` folder with the copied one.
 4. Restart the app.
 
 ### Option C — Keep the same files (advanced)
 
 If you have OneDrive / Google Drive Desktop / Dropbox installed on both
-computers, just put the entire `Free-GST-Billing-Software` folder inside the
-synced folder. Both machines now see the same `data/` files. **Don't run the
+computers, just put the entire app folder inside the
+synced folder. Both machines now see the same `_system\data\` files. **Don't run the
 app on both machines at the same time** — that can corrupt files.
 
 ---
@@ -243,8 +269,9 @@ app on both machines at the same time** — that can corrupt files.
 ## 7. Common questions
 
 **Q: Where exactly is my data?**
-A: In the `data/` folder next to where you installed the app. Plain JSON
-files — you can open them in Notepad if you ever want to inspect them.
+A: In the `_system\data\` folder inside where you installed the app. Plain
+JSON files — you can open them in Notepad if you ever want to inspect them.
+`_system` is hidden after install, so switch on *View → Hidden items*.
 
 **Q: Is anything sent to the internet?**
 A: Only if you turn on Google Drive backup, or click *Update* to fetch a new
@@ -309,8 +336,9 @@ in the address bar and Windows treats it like any other desktop app —
 appears in Start Menu, has its own window, no browser chrome.
 
 **Q: How do I update to a new version?**
-A: Run *Update FreeGSTBill.bat*. It pulls the latest from GitHub without
-touching your `data/` folder.
+A: In the app, **⚙ Control Panel → Update Now** — or **Update Software** in
+the launcher. Either one backs your data up first, then fetches the latest
+release. Your invoices, clients and settings are not touched.
 
 **Q: I want a feature that's missing.**
 A: Open an issue at
@@ -330,8 +358,8 @@ installer is plain text — you can open it in Notepad and read every line
 before running. To proceed:
 
 - **SmartScreen blue screen** → click **More info** → **Run anyway**
-- **"File came from another computer"** → right-click `Install
-  FreeGSTBill.bat` → **Properties** → tick **Unblock** at the bottom → OK
+- **"File came from another computer"** → right-click `Free GST Billing - WINDOWS`
+  → **Properties** → tick **Unblock** at the bottom → OK
 - **Antivirus quarantine** → add the project folder to your AV's exclusion
   list, then re-run the installer
 
@@ -343,22 +371,37 @@ the signed MSI yourself).
 Full source: <https://github.com/IamRamgarhia/Free-GST-Billing-Software>
 
 ### "Cannot connect to server" / blank page
-The local server isn't running. Run *Start FreeGSTBill.bat* again, or reboot
-(the server is set to auto-start on login). The Desktop shortcut always
-opens the correct URL automatically — you never need to type a port number.
-If you want to check which port the app is using, open `data/port.txt` next
-to the install folder (it usually says `47371`, but the server picks a free
-port automatically if that one is in use).
+The local server isn't running. Open the launcher (Desktop shortcut) and click
+**Open App** — it starts the server if it is not already up. The shortcut
+always opens the correct URL, so you never need to type a port number. If you
+want to check which port the app is using, open `_system\data\port.txt` (it
+usually says `47371`, but the server picks a free port automatically if that
+one is in use).
 
 ### Installer says Node.js install failed
-Install Node.js manually from <https://nodejs.org> (pick *LTS*), then run
-*Install FreeGSTBill.bat* again.
+Install Node.js manually from <https://nodejs.org> (pick *LTS*), then open the
+launcher again and click **Install App**.
 
 ### Update broke something
-The previous `data/` folder is untouched, so your bills are safe. Either:
-1. Run *Update FreeGSTBill.bat* again — most updates self-heal on second run.
-2. Or restore the previous version from Git:
-   `git -C "<path-to-app>" checkout v1.2.0` (replace with the version you want).
+Your data folder is untouched, so your bills are safe — and the updater took a
+backup to `Documents\FreeGSTBill Backups\` before it started. Either:
+1. Run the update again — most updates self-heal on a second run.
+2. Or download the previous version from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+   and extract it over the app folder (your `_system\data\` is not in the ZIP,
+   so it survives).
+
+### The launcher says "`_system` folder is missing"
+You opened `Free GST Billing - WINDOWS` while still looking **inside** the ZIP.
+Windows unpacks just that one file to a temp folder and runs it there, so the
+rest of the app really is missing — from the temp folder, not from your
+download. Close the launcher, right-click the ZIP in your Downloads folder,
+choose **Extract All**, and open the launcher from the extracted folder.
+
+If you did extract it and still see this, the extraction stopped early (a
+partial download, or antivirus removing files mid-extract). Download the ZIP
+again and re-extract. From v1.10.69 the launcher prints the folder it is
+actually looking in, which tells the two cases apart at a glance.
 
 ### I see "GST" labels but I'm in the UAE / UK / US
 You're on the *India only* region preference. Switch in *Settings → Region

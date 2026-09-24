@@ -7,6 +7,254 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.69] - 2026-09-23
+
+**The Windows launcher is now the only thing you ever open: it installs the
+app, opens it by itself when the install finishes, and updates it later. It
+has an icon instead of a blank white page, explains itself in plain English,
+and says what to do when you open it from inside the ZIP. There is also a
+one-command install for anyone who prefers a terminal.**
+
+### How to update
+
+**Current version:** 1.10.68  →  **New version:** 1.10.69
+
+#### If the in-app Update button works for you
+1. Open the Free GST Billing launcher.
+2. Click **Update**.
+3. Wait for "Update complete", then click **Stop Server**, then **Open App**.
+
+That is all — your data is not touched.
+
+#### If the Update button does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.69.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app completely (click **Stop Server** first if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open the launcher from inside
+   the ZIP — Windows unpacks only that one file and the app cannot start.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click the launcher again.
+
+#### Linux / NAS
+The in-app **Control Panel → Update Now** works here too. It needs `unzip`
+(or python3). Restart the app, or its container, afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - the launcher had no icon, so Windows drew a blank white page
+
+The launcher and the Desktop shortcut both pointed at `_system\app-icon.ico`,
+a file that was never built. Windows falls back to the generic blank-document
+icon, which on an unsigned download from the internet looks exactly like a
+corrupt file. The icon now ships in every release, so it appears on the
+launcher window, the taskbar, the Desktop and Start-Menu shortcuts, and on the
+installed folder itself.
+
+The mark is also redrawn for small sizes. The full logo is a rounded square
+inside another rounded square, with a translucent panel behind the letter -
+which reads as depth at 48 pixels and as a smudge at 16, the size Explorer
+uses in a list and Windows uses in a title bar. Below 64px the icon is now one
+solid square and one large letter: the same brand, actually legible.
+
+One limit worth writing down: a `.hta`, `.sh`, `.command` or `.txt` file cannot
+carry its own icon. Windows gives a file whatever icon its *type* is registered
+with, and only `.exe`, `.ico`, `.lnk` and folders can override that. So the
+files inside the extracted folder still show generic Windows icons - while the
+folder itself, the shortcut you actually use every day, and the app window all
+show ours.
+
+### Fixed - "the install finished but the launcher still says Install"
+
+The installer runs in its own PowerShell window, and the launcher had no way
+of knowing when it closed — so it went on offering **Install App** until it
+was closed and reopened. That looks exactly like an install that failed.
+The launcher now watches for the install to land and switches itself to
+**Open App**, and the installer opens the app in your browser the moment it
+is done, instead of leaving you at a console saying "now go and click".
+
+### Fixed - "_system folder is missing", while Explorer was showing it
+
+Windows lets you double-click a file **inside** a ZIP without extracting
+anything: it quietly copies that one file to a temp folder and runs it there,
+with nothing next to it. The launcher was telling the truth about a folder
+the user could not see. It now recognises that situation and says so —
+*"Windows opened this file straight out of the ZIP"* — with numbered steps and
+a button that opens your Downloads folder. In any other case it prints the
+folder it actually looked in, so the two can be told apart at a glance.
+
+### Fixed - "Open App" started the app but never opened the browser
+
+This one had been broken since v1.10.44 and hit every Windows user. After an
+install, or whenever you clicked **Open App**, the app started correctly and
+then a console window said *"Server did not respond in 15s"* and stopped.
+Nothing opened. Pasting `http://localhost:47371` into a browser by hand always
+worked.
+
+The script checked whether the app was up by asking it for a page with a
+one-second limit. Windows PowerShell runs a proxy look-up before every such
+request - even for an address on your own machine - and on a work network or
+a VPN that look-up alone takes about two seconds, so the check could never
+succeed. It now skips the proxy for a request that never leaves the machine:
+the same check went from "always fails" to answering in 0.03 seconds. The app
+itself was ready 0.6 seconds after starting, all along.
+
+While it was wrong, clicking **Open App** also started a *second* copy of the
+app each time, because it could not see the first one.
+
+### Fixed - "Update Now" did nothing when you clicked it
+
+Also broken since v1.10.44, and just as quiet: **Settings → Check for Updates
+→ Update Now**, and the **Update Now** button on the "new version available"
+dialog, did nothing at all. No error, no window, nothing to notice.
+
+Both were links to `freegstbill-update://run`, a Windows protocol that only
+the old `.bat` installer ever registered. The launcher that replaced it in
+v1.10.44 registers nothing, so the links led nowhere. They now run the update
+through the app itself — the same path the ⚙ Control Panel has been using all
+along, which was never affected — and tell you what is happening while it
+runs.
+
+The **Open GST Billing** button on the "the app needs a quick start" screen was
+dead for the same reason, and has been removed: a web page cannot start a
+program on your computer, and that screen appears precisely because the app is
+not running. The instructions underneath it are the real answer, so they are no
+longer the fallback.
+
+### Changed - three things @sangwanmail-eng asked for in #71
+
+**Customize moved up to the toolbar**, sitting just before Show Preview. It
+used to live in the Invoice Type card, which scrolls out of sight on a long
+invoice; the toolbar is sticky, so it is now reachable from anywhere - the same
+reason Show Preview moved there in v1.10.65. The options it opens are unchanged.
+
+**Qty, Rate and Cess % in Add Purchase now select their contents when you click**
+them, as the invoice screen has since v1.10.67. Typing into a field showing 0
+used to give you 018 instead of 18.
+
+**The Status column in Purchase Records is now a dropdown**, like the one on the
+Dashboard. Marking a supplier bill paid took opening it, changing a field and
+saving; it is one click now, and the supplier-payable totals follow immediately.
+
+### Fixed - installing on a PC without Node.js needed admin rights it could never ask for
+
+If you already had Node.js, the installer worked. If you did not - which is
+most people - it downloaded the official Node.js installer and ran it silently.
+That installer writes to `C:\Program Files\`, which needs administrator rights,
+and running it silently means Windows cannot even show the prompt that would
+grant them. On a normal account it quietly installed nothing, and you were then
+told *"npm install failed"*, which explains nothing.
+
+Node.js now comes as the official portable ZIP and is unpacked **inside the app
+folder**. No administrator rights, no prompt, nothing written anywhere else on
+your PC, and if you already have Node.js it is used and left alone. The
+installer also checks that it worked before carrying on, instead of failing
+later with a message about something else.
+
+Verified on this machine by installing from the real ZIP with Node.js hidden:
+three minutes, no prompts, app open in the browser at the end.
+
+### Fixed - the install downloaded 3.9 MB it had already given you
+
+Part of the setup rebuilt the OCR files from scratch and fetched the English
+language data from the internet - into a folder the installed app never reads.
+Everything it was fetching is already in the download. That step now recognises
+an installed copy and does nothing, so the install is smaller, quicker, and has
+one less thing that can fail on a slow connection.
+
+### Added - a plain-English READ ME FIRST in the download
+
+The ZIP now carries `READ ME FIRST.txt` at the top level: extract, open the
+launcher for your system, click Install - then your first invoice in five
+steps, where your data lives, how to back it up, and what to do about the
+handful of things that can go wrong. Written for a shop owner, not a developer.
+
+### Added - a Getting started checklist on the Dashboard
+
+The welcome wizard ended with a list of what to do next, then vanished forever.
+A new user landed on a dashboard that said "No invoices yet." and nothing else.
+
+There is now a short checklist on the Dashboard: business details, first
+invoice, products, bank/UPI. Each line ticks itself off from what you have
+actually saved - not from whether you have seen the screen - and each unfinished
+line has a button that takes you straight there. It removes itself once all four
+are done, and there is an X if you would rather not see it at all.
+
+### Changed - the launchers say which system they are for
+
+The ZIP used to hold three files called `Free GST Billing` with three
+extensions most people never see, because Windows hides them. They are now:
+
+```
+Free GST Billing - WINDOWS.hta
+Free GST Billing - MAC.command
+Free GST Billing - LINUX.sh
+```
+
+Nothing to work out, and nothing to click by mistake.
+
+### Changed - the launcher explains itself
+
+It is one file, and it is the only one you need: install, open, update,
+back up, restore, move to another PC. It now says that, sizes itself to its
+own content instead of hiding buttons behind a scrollbar, and labels every
+button with what will happen rather than which script it runs. Checking for
+Node.js no longer flashes a black console window across your screen.
+
+The window itself was redrawn for someone who has never installed anything but
+an .exe: the app icon at the top, one headline, one sentence, and **one big
+button**. Update, Backup, Restore, Move and Stop are real but rare, so they sit
+behind **More options** instead of making the first screen look like a control
+panel. The folder path is shown once at the bottom, instead of being pasted
+into the middle of an error message where a long path wrapped across three
+lines and made the whole window look broken.
+
+The buttons also used to run edge to edge, touching both sides of the window,
+because they sat in a `<main>` element - the one HTML5 element Internet
+Explorer never implemented, and the launcher renders in Internet Explorer.
+
+### Added - install with one PowerShell command
+
+```powershell
+irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex
+```
+
+Fetches the latest release, extracts it to `%LOCALAPPDATA%\Programs\Free GST
+Billing`, installs Node.js if you do not have it, makes the shortcuts, and
+opens the app. No admin rights; nothing is written outside your own user
+folder. Set `$env:FREEGSTBILL_DIR` first to choose a different folder. If the
+app is already installed there with data in it, the command stops and points
+you at **Control Panel → Update Now** rather than writing over your books.
+
+### Fixed - the README, the user guide and the in-app Help were describing an installer that no longer exists
+
+Both told you to double-click `Install FreeGSTBill.bat`, and to stop and update
+the app with `Stop FreeGSTBill.bat` and `Update FreeGSTBill.bat`. Those files
+stopped shipping in v1.10.44, when the ZIP became one launcher plus a hidden
+`_system` folder. The user guide also sent you to the green *Code → Download
+ZIP* button, which gives the source code without the built app. Both documents
+now describe what is actually in the ZIP, and point at `_system\data\` as the
+folder to back up.
+
+The seven leftover files from that installer — `Install FreeGSTBill.bat`,
+`Start`, `Stop`, `Update`, `start-freegstbill.bat`, `start-server-silent.bat`
+and `START HERE.txt` — are gone from the repository too. They had not shipped
+in a download since v1.10.44, but they were still the first thing anyone saw
+on the GitHub page.
+
+The same stale steps were inside the app, on the **Help → User Guide** screen,
+and they are corrected there too. The README's "Recently Delivered" list had
+stopped at v1.10.42 and now covers everything through this release.
+
+---
+
 ## [1.10.68] - 2026-09-23
 
 **Type a client's GSTIN and their State fills in by itself — and a mistyped

@@ -278,7 +278,7 @@ Being honest about the trade-offs:
 - **Cost.** Local mode is free forever. Online paths range from free (D) to ~$5–$25/month (A/B/C).
 - **Uptime.** Local mode is up whenever your PC is on. Online adds a dependency on the hosting provider's uptime.
 - **Compliance.** Some CAs and auditors specifically want your GST records on-premise. Check before moving to Vercel/Supabase — Indian data-localization rules (Digital Personal Data Protection Act 2023) may require data-in-India hosting for certain business sizes.
-- **Auto-update.** Local install has `Update FreeGSTBill.bat` — one click to pull the latest release. Online deploys need CI/CD or manual redeploys per push.
+- **Auto-update.** A local install updates itself from the launcher, or from **⚙ Control Panel → Update Now** inside the app — one click to fetch the latest release. Online deploys need CI/CD or manual redeploys per push.
 
 ---
 

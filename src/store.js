@@ -393,6 +393,27 @@ const getAppVersion = async () => {
 //
 // `selection` shape: { profile, profiles, bills, clients, products, expenses,
 //   purchases, recurring, receipts, termsTemplates, meta, localStorage } — each bool.
+// v1.10.69 - starting an update. The "Update Now" buttons used to be links to
+// freegstbill-update://run, a URL protocol that the OLD Install FreeGSTBill.bat
+// registered in the registry. The HTA launcher replaced that installer in
+// v1.10.44 and registers no protocol, so on every install made since then the
+// button did nothing at all - no error, no window, nothing. The Control Panel
+// already ran the update properly through the server; these now do the same.
+export const runUpdateNow = async () => {
+  try {
+    const res = await fetch('/api/control-panel/launch-script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update' }),
+    });
+    const data = await res.json();
+    if (!data.ok) return { ok: false, error: data.error || data.stderr || 'The update script did not finish.' };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+};
+
 export const exportAllData = async (selection) => {
   const [all, version] = await Promise.all([apiFetch(`${API}/export`), getAppVersion()]);
   const sel = selection || { profile: true, profiles: true, bills: true, clients: true, products: true, expenses: true, purchases: true, recurring: true, receipts: true, termsTemplates: true, meta: true, localStorage: true };

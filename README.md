@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#quick-start--installation)
-[![Version](https://img.shields.io/badge/Version-1.10.68-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![Version](https://img.shields.io/badge/Version-1.10.69-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](#install-as-a-desktop-app-pwa)
 [![GitHub Stars](https://img.shields.io/github/stars/IamRamgarhia/Free-GST-Billing-Software?style=social)](https://github.com/IamRamgarhia/Free-GST-Billing-Software)
 [![Countries](https://img.shields.io/badge/Countries-22-blue.svg)](#key-features)
@@ -24,16 +24,42 @@ Your data never leaves your computer. No cloud. No signup. No tracking. No limit
 
 ## ⚡ Install in 60 Seconds — one launcher per platform
 
-**As of v1.10.44**, the download ZIP has **one clean file** at the root (the launcher for your OS) and everything else tucked into a hidden `_system/` folder. Extract the ZIP, double-click the launcher, done.
+The download ZIP holds a **launcher for each system**, a plain-English **`READ ME FIRST.txt`**, and a `_system/` folder with everything else. Extract the ZIP, double-click the launcher for your computer, click **Install** — it sets itself up, needs no administrator rights, and opens the app in your browser when it is done.
+
+```
+Free-GST-Billing/
+├── Free GST Billing - WINDOWS.hta    ← Windows: double-click this
+├── Free GST Billing - MAC.command    ← macOS
+├── Free GST Billing - LINUX.sh       ← Linux / NAS
+├── READ ME FIRST.txt                 ← step-by-step, in plain English
+└── _system/                          ← the app (hidden after install)
+```
 
 ```
 1. Download the release ZIP → https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest
 2. Right-click the ZIP → Extract All → pick a folder you'll remember
-3. Double-click the launcher for your OS:
-       Windows:  🚀 Free GST Billing.hta     (opens a real UI with buttons)
-       macOS:    🚀 Free GST Billing.command (opens Terminal)
-       Linux:    🚀 Free GST Billing.sh      (opens Terminal — chmod +x first if needed)
+3. Open the EXTRACTED folder. Each launcher is named after the system it is for
+   — double-click yours:
+       Free GST Billing - WINDOWS.hta     (opens a window with buttons)
+       Free GST Billing - MAC.command     (opens Terminal)
+       Free GST Billing - LINUX.sh        (opens Terminal — chmod +x first if needed)
 ```
+
+> ⚠ **Extract the ZIP first.** Windows lets you double-click the launcher
+> while you are still looking *inside* the ZIP — but then it unpacks that one
+> file on its own to a temp folder, and the launcher correctly reports
+> **`_system` folder is missing** even though Explorer is showing it to you.
+
+**Prefer one command?** Paste this into PowerShell — no admin rights needed:
+
+```powershell
+irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex
+```
+
+It fetches the latest release, installs it to
+`%LOCALAPPDATA%\Programs\Free GST Billing`, installs Node.js if you do not have
+it, and creates the Desktop shortcut. See [Option 1b](#option-1b-windows--one-powershell-command)
+for how to choose a different folder.
 
 The launcher:
 - Detects if Node.js is installed; installs it on Windows automatically if missing
@@ -41,7 +67,7 @@ The launcher:
 - Creates a **Desktop shortcut** + **Start-Menu entry** so you never open the folder again
 - Starts the server and opens your browser at **http://localhost:47371**
 
-From then on, click the Desktop shortcut. To update / backup / restore / move to another PC / stop the server — use the new in-app **⚙ Control Panel** in the sidebar. No batch files, no CMD windows.
+From then on, click the Desktop shortcut. To update / backup / restore / move to another PC / stop the server — use the buttons in that same launcher, or the in-app **⚙ Control Panel** in the sidebar. No batch files, no CMD windows.
 
 > **☁ Want to run it online instead (access from multiple devices)?** See the full **[Online Deployment Guide → docs/DEPLOY_ONLINE.md](./docs/DEPLOY_ONLINE.md)** — four paths compared (Railway lift-and-shift, Vercel + Supabase serverless, own VPS, free Cloudflare Tunnel) with costs, trade-offs, SQL schema, and code snippets. Read the trade-offs first — the local install is still the right answer for ~95% of users.
 
@@ -101,9 +127,12 @@ You need: Windows 10/11 PC, ~50 MB free disk, your business name + bank details 
 1. Download `Free-GST-Billing-vX.Y.Z.zip` from the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
    (Do **not** use the green *Code -> Download ZIP* button — that gives the source code without the built app.)
 2. Right-click the downloaded ZIP → **Extract All** → pick a folder you'll remember (e.g. `Documents\FreeGSTBill`)
-3. Open that folder → **double-click `Install FreeGSTBill.bat`**
-4. Let it run — it installs Node.js automatically if you don't have it, then sets everything up. Takes 1–2 minutes the first time
-5. The app opens in your browser at `http://localhost:47371` when done
+3. Open the **extracted** folder → double-click **`Free GST Billing - WINDOWS`** (each launcher is named after the system it is for)
+4. Click **Install Node & App**. It installs Node.js for you if you do not have it, then sets everything up. Takes 1–2 minutes the first time
+5. Click **Open App** — the app opens in your browser at `http://localhost:47371`, and a Desktop shortcut is waiting for you next time
+
+> **In a hurry?** One PowerShell command does steps 1–4 for you:
+> `irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex`
 
 > 💡 **Tip:** Click the small **Install App** icon in your browser's address bar to make the app open in its own window like Tally or Word — no browser chrome, looks and feels native.
 
@@ -388,14 +417,40 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 - ~50 MB free disk space
 - No internet after install (except for optional Google Drive backup / update check)
 
-### Option 1: Windows One-Click Installer (recommended — no terminal, no commands)
+### Option 1: Windows — extract, then double-click the launcher (recommended — no terminal)
 
 1. **Download the ZIP** → [click here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) or grab the latest from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
-2. **Extract** it anywhere (e.g. `Documents\FreeGSTBill`)
-3. **Double-click** `Install FreeGSTBill.bat`
-4. The app opens at **http://localhost:47371** — a **Desktop shortcut** and **Start-Menu entry** are created for you
+2. **Extract** it anywhere (e.g. `Documents\FreeGSTBill`) — right-click the ZIP → *Extract All*
+3. Open the extracted folder and **double-click** `Free GST Billing - WINDOWS.hta`
+4. Click **Install Node & App** once. When it finishes, click **Open App** — the app opens at **http://localhost:47371**, and a **Desktop shortcut** and **Start-Menu entry** are created for you
 
-That's it. The installer auto-installs Node.js if you don't have it. From then on, click the Desktop shortcut to launch. Use `Stop FreeGSTBill.bat` to shut the server down and `Update FreeGSTBill.bat` to pull the latest release without losing your data.
+That's it. The launcher installs Node.js if you don't have it. From then on, click the Desktop shortcut. Update, Backup, Restore, Move to another PC and Stop Server are buttons in that same launcher — and in the app's in-built **⚙ Control Panel**.
+
+> **Do not run the launcher from inside the ZIP.** Windows will let you
+> double-click it while you are still browsing the compressed folder, but it
+> unpacks only that one file to a temp folder — so the launcher reports
+> **`_system` folder is missing**, which is true of the temp folder it was
+> copied into. Extract the ZIP, then open the launcher from the extracted
+> folder.
+
+### Option 1b: Windows — one PowerShell command
+
+For anyone comfortable with a terminal. No admin rights, nothing written outside your own user profile:
+
+```powershell
+irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex
+```
+
+It finds the latest release, downloads and extracts it to `%LOCALAPPDATA%\Programs\Free GST Billing`, installs Node.js if missing, runs `npm install`, and creates the Desktop and Start-Menu shortcuts.
+
+To install somewhere else, set the folder first:
+
+```powershell
+$env:FREEGSTBILL_DIR = 'D:\Apps\Free GST Billing'
+irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex
+```
+
+If the app is already installed in that folder with data in it, the command stops and points you at **Control Panel → Update Now** rather than writing over your books.
 
 > **Why port 47371?** IANA-unassigned range, well above the 3000-range that every dev server fights over. If it's ever busy, the server auto-scans upward and writes the chosen port to `data/port.txt` — the Start launcher always opens the right URL. Always use the Desktop shortcut.
 
@@ -496,6 +551,21 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ### :white_check_mark: Recently Delivered (v1.10 series — 2026)
 
+- [x] **One launcher for everything on Windows** — install, open and update from a single file, with its own icon and an auto-refreshing status (v1.10.69), plus a one-command PowerShell install
+- [x] **Install needs no administrator rights** — Node.js is set up inside the app folder if the PC does not have it, and the app opens in the browser by itself (v1.10.69)
+- [x] **Getting started checklist** on the Dashboard that ticks itself off from what you have actually set up (v1.10.69)
+- [x] **Purchase status dropdown**, Customize in the toolbar, and click-to-replace number fields in purchases (v1.10.69, #71)
+- [x] **A GSTIN fills in the client's state** and catches its own typos, offline (v1.10.68)
+- [x] **Cancel Invoice instead of deleting one** — the number stays in the books, the PDF is stamped CANCELLED, and it drops out of every total and return (v1.10.67)
+- [x] **Totals count only real sales** — proforma and delivery challans no longer inflate turnover; credit notes subtract (v1.10.67)
+- [x] **Company stamp beside the signature**, each with its own size slider (v1.10.67)
+- [x] **Separate books per business** — invoices, expenses, purchases, receipts, recurring templates, reports, GST returns and Income Tax all follow the selected company (v1.10.64–1.10.66)
+- [x] **Linux / NAS in-app updater** — Control Panel → Update Now works outside Windows (v1.10.66)
+- [x] **Mobile sidebar** — the menu hides behind ☰ on a phone so pages get the full width (v1.10.66)
+- [x] **Notifications can be cleared** and return when something new happens (v1.10.62)
+- [x] **Blank invoices and empty purchase bills can no longer be saved** (v1.10.58)
+- [x] **Purchase bills remember your suppliers and items** (v1.10.50)
+- [x] **One-file launcher per OS + in-app ⚙ Control Panel** — update, backup, restore, move PC, stop server (v1.10.44)
 - [x] **Direct-HTML vector thermal print with PDF fallback toggle** (v1.10.42)
 - [x] **Payment/receipt reconciliation** — orphaned receipts auto-heal on Dashboard load (v1.10.41)
 - [x] **REPRINT badge** repositioned + default OFF for non-retail (v1.10.41)
@@ -726,7 +796,7 @@ Yes. Free GST Billing Software supports **22 countries** with locale-correct cur
 Yes. You can add unlimited business profiles (each with its own GSTIN, bank accounts, logo, signature, and country setting). Switch between them with one click in the header.
 
 ### Does it run on Mac or Linux?
-The `.bat` installers are Windows-only, but the app itself works on macOS and Linux — a NAS included — from the release ZIP (`Free GST Billing.sh`) or via `npm install` + `npm start`. See the [Quick Start](#quick-start--installation) section. From v1.10.66, **Control Panel → Update Now** also works on Linux / NAS installs made from the release ZIP (it needs `unzip` or python3); restart the app, or its container, afterwards.
+The `.hta` launcher is Windows-only, but the app itself works on macOS and Linux — a NAS included — from the release ZIP (`Free GST Billing - LINUX.sh`) or via `npm install` + `npm start`. See the [Quick Start](#quick-start--installation) section. From v1.10.66, **Control Panel → Update Now** also works on Linux / NAS installs made from the release ZIP (it needs `unzip` or python3); restart the app, or its container, afterwards.
 
 ### What happens to my data when the app updates?
 Updates only refresh the app code and dependencies. Your `data/` folder (invoices, clients, products, settings) and `Saved Invoices/` PDF archive are **never touched**. The updater also backs them up to `%TEMP%` as a third safety net before pulling new code.

@@ -11,6 +11,7 @@ overview and feature list — everything below is the deep-dive material.
 
 > Looking for the version history? [CHANGELOG.md](../CHANGELOG.md) at the project root.
 > Looking for licence terms? [LICENSE](../LICENSE) at the project root.
-> Looking for installation? [START HERE.txt](../START%20HERE.txt) at the project root.
+> Looking for installation? [Quick Start](../README.md#quick-start--installation) in the main README,
+> or the [User Guide](./USER_GUIDE.md#quick-start) for the step-by-step version.
 
 If you spot something stale in here, [open an issue](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues) — docs drift faster than code.

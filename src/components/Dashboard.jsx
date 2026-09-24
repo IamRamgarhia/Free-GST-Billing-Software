@@ -146,7 +146,7 @@ function ReceiptModal({ target, onClose }) {
   );
 }
 
-export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts, activeProfile }) {
+export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts, onOpenSettings, onOpenGuide, activeProfile }) {
   // v1.10.64 — requested (#55, @sangwanmail-eng): "An invoice belonging to one
   // company should not appear under the other."
   //
@@ -242,6 +242,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   const [paymentInput, setPaymentInput] = useState({ amount: '', date: '', mode: 'bank-transfer', note: '' });
   const [showRemindAll, setShowRemindAll] = useState(false);
   const [clients, setClients] = useState([]);
+  const [productCount, setProductCount] = useState(null);   // null = not loaded yet
+  const [guideDismissed, setGuideDismissed] = useState(() => {
+    try { return localStorage.getItem('freegstbill_startedDismissed') === '1'; } catch { return false; }
+  });
   const [lowStockProducts, setLowStockProducts] = useState([]);
 
   // v1.10.4 — audit M14. getFYOptions is date-based (only changes across
@@ -364,6 +368,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
       getAllProducts().catch(() => []),
       getStockAlertSettings().catch(() => ({ enabled: true, threshold: 5 })),
     ]).then(([prods, cfg]) => {
+      setProductCount(prods.length);
       if (cfg?.enabled === false) { setLowStockProducts([]); return; }
       const threshold = Number(cfg?.threshold ?? 5);
       setLowStockProducts(prods.filter(p => (p.stock ?? 0) <= threshold));
@@ -1059,6 +1064,30 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   }, [overdueBills]);
   const overdueStr = Object.entries(overdueByCurrency).map(([cur, amt]) => formatCurrency(amt, cur)).join(' + ');
 
+  // The four things a shop owner has to do before this app is useful to them,
+  // each answered from what is actually saved - never from "did you look at
+  // this screen". null while the data is still loading, so the card cannot
+  // flash up half-ticked; null once it is all done, so it retires itself.
+  const startedSteps = useMemo(() => {
+    if (guideDismissed || productCount === null || !profile) return null;
+    const hasBank = !!(profile.paymentAccounts?.length || profile.upiId || profile.accountNumber);
+    const steps = [
+      { key: 'business', done: !!profile.businessName?.trim(),
+        title: 'Add your business details', hint: 'Name, address and GSTIN - these print on every invoice',
+        cta: 'Open Settings', go: onOpenSettings },
+      { key: 'invoice', done: allBills.length > 0,
+        title: 'Make your first invoice', hint: 'Client, what you sold, and the GST is worked out for you',
+        cta: 'Start', go: onNew },
+      { key: 'products', done: productCount > 0,
+        title: 'Add your products or services', hint: 'Saves typing - pick them from a list on every invoice',
+        cta: 'Open', go: onOpenProducts },
+      { key: 'bank', done: hasBank,
+        title: 'Add bank details or UPI', hint: 'So clients can pay you, with a UPI QR on the invoice',
+        cta: 'Open Settings', go: onOpenSettings },
+    ];
+    return steps.every(s => s.done) ? null : steps;
+  }, [guideDismissed, productCount, profile, allBills.length, onNew, onOpenProducts, onOpenSettings]);
+
   return (
     <div className="dashboard-container">
       <PageHeader
@@ -1079,6 +1108,52 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
         </HelpButton>
         <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> New Invoice</button>
       </PageHeader>
+
+      {/* v1.10.69 - a new user used to land here on "No invoices yet." and
+          nothing else. The welcome wizard does end with a list of what to do,
+          but it is shown once and then gone forever, which is no help on day
+          two. This stays until the work is actually done, ticks itself off
+          from real data rather than from "have you seen this screen", and
+          removes itself for good once everything is set up. */}
+      {startedSteps && (
+        <div className="glass-panel p-6 mb-6">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
+            <span style={{ fontSize: '1.15rem' }}>👋</span>
+            <h3 className="section-title" style={{ margin: 0, flex: 1 }}>Getting started</h3>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              {startedSteps.filter(s => s.done).length} of {startedSteps.length} done
+            </span>
+            <button type="button" className="btn-link" title="Hide this"
+              onClick={() => { try { localStorage.setItem('freegstbill_startedDismissed', '1'); } catch { /* private mode */ } setGuideDismissed(true); }}
+              style={{ background: 'none', border: 0, color: 'var(--text-muted)', cursor: 'pointer', padding: '0 0.25rem', lineHeight: 1 }}>
+              <X size={16} />
+            </button>
+          </div>
+          {startedSteps.map((s) => (
+            <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderTop: '1px solid var(--border-color)' }}>
+              <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                background: s.done ? 'rgba(5, 150, 105, 0.16)' : 'transparent', border: s.done ? 'none' : '1.5px solid var(--border-color)' }}>
+                {s.done && <CheckCircle size={15} style={{ color: '#059669' }} />}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.88rem', color: s.done ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: s.done ? 'line-through' : 'none' }}>{s.title}</div>
+                {!s.done && <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{s.hint}</div>}
+              </div>
+              {!s.done && (
+                <button type="button" className="btn btn-secondary" onClick={s.go}
+                  style={{ flexShrink: 0, padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>{s.cta}</button>
+              )}
+            </div>
+          ))}
+          <div style={{ marginTop: '0.9rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            New to this?{' '}
+            <button type="button" onClick={onOpenGuide}
+              style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer' }}>
+              Read the 5-minute guide
+            </button>
+          </div>
+        </div>
+      )}
 
       {overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}

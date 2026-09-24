@@ -1,0 +1,145 @@
+===========================================================
+  FREE GST BILLING SOFTWARE
+  By DiceCodes - free, and yours to keep
+===========================================================
+
+  Your invoices, clients and data stay on THIS computer.
+  Nothing is uploaded. No account. No monthly fee.
+
+
+-----------------------------------------------------------
+  STEP 1 - EXTRACT THIS FOLDER FIRST
+-----------------------------------------------------------
+
+  If you are reading this INSIDE the ZIP file, stop and
+  extract it first. The app cannot run from inside a ZIP.
+
+    1. Close this window.
+    2. Right-click the ZIP file you downloaded.
+    3. Choose "Extract All..." then "Extract".
+    4. Open the new folder that appears.
+
+  Keep every file together in that folder. The launcher
+  needs the "_system" folder that sits next to it.
+
+
+-----------------------------------------------------------
+  STEP 2 - OPEN THE LAUNCHER FOR YOUR COMPUTER
+-----------------------------------------------------------
+
+  Double-click the one that matches your computer:
+
+    Windows ..... Free GST Billing - WINDOWS
+    Mac ......... Free GST Billing - MAC
+    Linux / NAS . Free GST Billing - LINUX
+
+  A small window opens with one button.
+
+
+-----------------------------------------------------------
+  STEP 3 - CLICK INSTALL, THEN WAIT
+-----------------------------------------------------------
+
+  Click "Install". There is nothing to fill in.
+
+  It downloads what the app needs (about 30 MB the first
+  time), sets everything up, and then opens the app in your
+  web browser by itself. Takes 1 to 3 minutes.
+
+  A black window appears while it works. Leave it alone -
+  it closes on its own.
+
+  You do NOT need administrator rights. Nothing is added to
+  Windows outside this folder.
+
+  Windows may warn "Windows protected your PC" because this
+  app is not code-signed (a certificate costs about $300 a
+  year, which would defeat the word "free"). Click
+  "More info", then "Run anyway".
+
+
+-----------------------------------------------------------
+  FROM NOW ON
+-----------------------------------------------------------
+
+  A "Free GST Billing" shortcut is put on your Desktop.
+  Use that to open the app every day.
+
+  You can also open the launcher again any time. It is your
+  Open button, your Update button and your Backup button,
+  all in one file:
+
+    Open App .......... starts the app
+    More options ...... Update, Back up, Restore,
+                        Move to another PC, Stop
+
+
+-----------------------------------------------------------
+  YOUR FIRST INVOICE, IN 5 MINUTES
+-----------------------------------------------------------
+
+  1. The first time it opens, a short wizard asks for your
+     business name, address and GSTIN. Fill it in - this is
+     what prints at the top of every invoice. You can change
+     it later in Settings.
+
+  2. Click "+ New Invoice" at the top.
+
+  3. Type your client's name. Enter their GSTIN and the
+     state fills in by itself.
+
+  4. Add what you sold: description, quantity, rate, tax %.
+     The GST is worked out for you - CGST + SGST inside your
+     state, IGST outside it.
+
+  5. Click "Download PDF". The invoice is saved and numbered
+     automatically.
+
+  That is a complete, GST-compliant tax invoice.
+
+
+-----------------------------------------------------------
+  WHERE IS MY DATA?
+-----------------------------------------------------------
+
+  In the "_system\data" folder, inside this folder. Plain
+  files on your own disk - you can copy them anywhere.
+
+  Back it up with "More options -> Back up my data", which
+  writes a ZIP to:
+
+    Documents\FreeGSTBill Backups
+
+  Updating the app NEVER touches your data, and the updater
+  takes its own backup before it starts.
+
+
+-----------------------------------------------------------
+  IF SOMETHING GOES WRONG
+-----------------------------------------------------------
+
+  "Some files are missing"
+      The ZIP was not fully extracted, or the launcher was
+      opened from inside the ZIP. Go back to STEP 1.
+
+  "Cannot connect to server" / a blank page
+      The app is not running. Open the Desktop shortcut and
+      click "Open App".
+
+  The installer cannot download anything
+      It needs internet for the first install only. Check
+      your connection, or a work proxy, and click Install
+      again - it carries on from where it stopped.
+
+  Anything else
+      Open an issue, with a screenshot if you can:
+      https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+      The full guide is inside the app, under Help, and at:
+      https://github.com/IamRamgarhia/Free-GST-Billing-Software/blob/main/docs/USER_GUIDE.md
+
+
+===========================================================
+  This software is free and open source (MIT licence).
+  If it saves you money, tell another shop owner about it.
+===========================================================

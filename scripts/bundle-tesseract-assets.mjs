@@ -86,6 +86,25 @@ async function main() {
     return;
   }
 
+  // v1.10.69 - do nothing in an installed copy.
+  //
+  // This runs from `postinstall`, so it also ran on every user's machine when
+  // the launcher installed the app. There it rebuilt public/tesseract/ from
+  // scratch - including a 3.9 MB download of eng.traineddata from jsDelivr -
+  // into a folder the packaged app never serves: a release install serves
+  // dist/, and dist/tesseract already carries every one of those files. So
+  // every user paid a few megabytes and an extra network round trip that
+  // could fail, for files they already had.
+  //
+  // A source checkout has public/ (it is in git). An installed copy does not.
+  // That is the difference, and it needs no new flag to detect.
+  const PUBLIC_ROOT = join(REPO_ROOT, 'public');
+  const isSourceCheckout = await stat(PUBLIC_ROOT).then((s) => s.isDirectory()).catch(() => false);
+  if (!isSourceCheckout) {
+    console.log('Installed copy - OCR files already ship in dist/. Nothing to do.');
+    return;
+  }
+
   console.log('Bundling tesseract assets into public/tesseract/');
   await ensureDir(PUBLIC_DIR);
   await ensureDir(CORE_OUT);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu } from 'lucide-react';
-import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients } from './store';
+import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow } from './store';
 import { isModuleEnabled, getUpcomingFilings, isCancelledBill } from './utils';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
@@ -19,7 +19,7 @@ import { isModuleEnabled, getUpcomingFilings, isCancelledBill } from './utils';
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SetupWizard from './components/SetupWizard';
-import ToastContainer from './components/Toast';
+import ToastContainer, { toast } from './components/Toast';
 import ConfirmModalContainer from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
 const SettingsView = lazy(() => import('./components/SettingsView'));
@@ -262,6 +262,21 @@ function App() {
   // `navItems` and `handleNewInvoice` exist. Declaring them up here would
   // throw "Cannot access 'X' before initialization" at render time because
   // useMemo's dependency array is evaluated synchronously every render.
+
+  // v1.10.69 - see runUpdateNow() in store.js for why this is no longer a link.
+  const [updating, setUpdating] = useState(false);
+  const handleUpdateNow = async () => {
+    setUpdating(true);
+    toast('Updating… your data is backed up first. This takes about a minute.', 'info', 8000);
+    const result = await runUpdateNow();
+    setUpdating(false);
+    if (result.ok) {
+      setShowUpdateModal(false);
+      toast('Update finished. Reload the page to use the new version.', 'success', 10000);
+    } else {
+      toast(`Update failed — ${result.error}`, 'error', 10000);
+    }
+  };
 
   const dismissUpdate = () => {
     if (updateInfo?.latest) {
@@ -645,14 +660,19 @@ function App() {
             Your data is <strong>100% safe</strong> on your computer — nothing is lost.
             The app just needs to be started once.
           </p>
-          <a href="freegstbill://start" className="server-start-btn">
-            Open GST Billing
-          </a>
+          {/* v1.10.69 - there was an "Open GST Billing" button here, linking to
+              freegstbill://start. Only the old Install FreeGSTBill.bat ever
+              registered that protocol, and it stopped shipping in v1.10.44, so
+              on every current install the button did nothing at all. There is
+              also nothing it could do: a web page cannot start a program, and
+              this screen is being served from the offline cache precisely
+              because the server is not running. The steps below are the only
+              real answer, so they are no longer the fallback. See ERR-019. */}
           <div className="server-down-steps">
-            <p className="server-down-hint">Or start manually:</p>
+            <p className="server-down-hint">How to start it:</p>
             <ol>
-              <li>Double-click <strong>Free GST Billing Software</strong> on your Desktop</li>
-              <li>Or search <strong>"Free GST Billing"</strong> in Start Menu</li>
+              <li>Double-click <strong>Free GST Billing</strong> on your Desktop, then click <strong>Open App</strong></li>
+              <li>Or search <strong>"Free GST Billing"</strong> in the Start Menu</li>
             </ol>
           </div>
           <p className="server-down-safe">All your invoices, clients, and data are safely stored on your computer. They are never deleted or shared.</p>
@@ -879,7 +899,7 @@ function App() {
       )}
       <div className="main-content">
         {currentView === 'dashboard' && (
-          <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onConvert={handleConvertToInvoice} onOpenProducts={() => setCurrentView('inventory')} activeProfile={profile} />
+          <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onConvert={handleConvertToInvoice} onOpenProducts={() => setCurrentView('inventory')} onOpenSettings={() => setCurrentView('settings')} onOpenGuide={() => setCurrentView('guide')} activeProfile={profile} />
         )}
         {currentView === 'new' && (
           <InvoiceGenerator
@@ -1151,12 +1171,12 @@ function App() {
                   View on GitHub
                 </a>
               )}
-              <a href="freegstbill-update://run" className="btn btn-primary" style={{ textDecoration: 'none' }}>
-                <Download size={16} /> Update Now
-              </a>
+              <button type="button" className="btn btn-primary" disabled={updating} onClick={handleUpdateNow}>
+                <Download size={16} /> {updating ? 'Updating…' : 'Update Now'}
+              </button>
             </div>
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.6rem', marginBottom: 0 }}>
-              <em>Update Now</em> launches <code>Update FreeGSTBill.bat</code> in a window. Wait for it to finish (~30 seconds), then refresh this page.
+              <em>Update Now</em> backs up your data, then fetches the newest release. It takes about a minute — leave this window open, then reload the page when it finishes.
             </p>
           </div>
         </div>
