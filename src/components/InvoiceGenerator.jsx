@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, htmlHasText, decodeGstin } from '../utils';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, htmlHasText, decodeGstin, safePageBoundaries } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -1985,24 +1985,36 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // The set collected here is DOM pixels relative to printRef.current.
     // We convert to canvas pixels below (× domToCanvasScale) once html2canvas
     // has returned and we know the true canvas.width.
+    //
+    // v1.10.70 - an edge is only offered if no row, footer block, signature
+    // block or image straddles it (see safePageBoundaries). The footer is two
+    // columns, and the gap between bank details and terms on the left ran
+    // straight through the stamp on the right: the stamp printed half on
+    // page 1 and half on page 2 (ERR-024).
     const collectRowBoundaries = (container) => {
-      const containerRect = container.getBoundingClientRect();
-      const nodes = container.querySelectorAll(
-        '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
-        '.inv-footer-block, .inv-totals, [data-pdf-page-boundary]'
-      );
-      const set = new Set([0]);
-      nodes.forEach(el => {
+      const top = container.getBoundingClientRect().top;
+      const span = (el) => {
         const r = el.getBoundingClientRect();
-        set.add(Math.max(0, r.bottom - containerRect.top));
-        set.add(Math.max(0, r.top - containerRect.top));
-      });
-      return [...set].sort((a, b) => a - b);
+        return [Math.max(0, r.top - top), Math.max(0, r.bottom - top)];
+      };
+      const edges = [0];
+      container.querySelectorAll(
+        '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
+        '.inv-footer, .inv-footer-block, .inv-signature, .inv-totals, [data-pdf-page-boundary]'
+      ).forEach(el => edges.push(...span(el)));
+      const keepWhole = [...container.querySelectorAll(
+        '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
+        '.inv-footer-block, .inv-signature, .inv-totals, img'
+      )].map(span);
+      return safePageBoundaries(edges, keepWhole);
     };
+    // v1.10.70 - hide the extra pages BEFORE measuring, not after. The
+    // separate-terms page sits inside the footer row, so measuring with it
+    // still visible laid the footer out differently from the capture.
+    extraPages.forEach(el => el.style.display = 'none');
     const domBoundariesPx = collectRowBoundaries(printRef.current);
     const domContainerWidth = printRef.current.getBoundingClientRect().width;
 
-    extraPages.forEach(el => el.style.display = 'none');
     const mainCanvas = await html2canvas(printRef.current, {
       ...captureOptions(printRef.current),
       onclone: (clonedDoc) => {
@@ -2108,6 +2120,26 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // so aspect ratio stays correct after margins are applied.
     const scaledImgHeight = (mainCanvas.height * contentWidth) / mainCanvas.width;
 
+    // Test hook for tests/smoke.mjs (ERR-024): where each PDF page ends, and
+    // where the things a page must never cut through sit - all in the same
+    // DOM pixels. Read-only, and costs nothing to anyone else.
+    try {
+      const t = printRef.current.getBoundingClientRect().top;
+      const rel = (el) => { const r = el.getBoundingClientRect(); return [r.top - t, r.bottom - t]; };
+      const firstRow = printRef.current.querySelector('.inv-table tbody tr');
+      const sig = printRef.current.querySelector('.inv-signature');
+      window.__lastPdfLayout = {
+        pageHeight: contentHeightMulti * domContainerWidth / contentWidth,
+        fullHeight: contentHeightFull * domContainerWidth / contentWidth,
+        total: mainCanvas.height * domContainerWidth / mainCanvas.width,
+        ends: [],
+        rowHeight: firstRow ? rel(firstRow)[1] - rel(firstRow)[0] : 0,
+        signature: sig ? rel(sig) : null,
+        blocks: [...printRef.current.querySelectorAll('.inv-footer-block')].map(rel).filter(([a, b]) => b - a > 2),
+        atoms: [...printRef.current.querySelectorAll('.inv-signature, img')].map(rel).filter(([a, b]) => b - a > 2),
+      };
+    } catch { /* test hook only */ }
+
     if (scaledImgHeight <= contentHeightFull + 2) {
       // Single-page fits — no cropping needed. Page 1 has no header/footer
       // bands so we can use the full page height (no v1.10.45 reserve).
@@ -2183,6 +2215,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         if (safeEnd === null) safeEnd = naiveEnd;
         pageSplits.push({ start: pageStart, end: safeEnd });
         pageStart = safeEnd;
+      }
+
+      if (window.__lastPdfLayout) {
+        window.__lastPdfLayout.ends = pageSplits.slice(0, -1).map(s => s.end / domToCanvasScale);
       }
 
       // 4. For each page, crop mainCanvas → temp canvas → data URL → PDF.
@@ -3367,6 +3403,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showSignatoryText', 'Show "Authorized Signatory" caption'],
                     ['showTerms', 'Terms & Conditions'],
                     ['showNotes', 'Notes / Remarks'],
+                    ['showSystemGeneratedNote', 'Note: system-generated invoice, no signature or stamp required'],
                   ]},
                 ].map(section => {
                   if (section.group === '__PAPER_SIZE__') {
@@ -3481,8 +3518,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                       <div className="options-grid">
                         {section.items.map(([key, label]) => {
                           // These default to OFF; everything else defaults to ON.
+                          // v1.10.70 - showSystemGeneratedNote added: without it the box
+                          // showed ticked while the invoice printed no note.
                           const offByDefault = key === 'showRoundOff' || key === 'showAccountLabel'
-                            || key === 'showCess' || key === 'reverseCharge';
+                            || key === 'showCess' || key === 'reverseCharge' || key === 'showSystemGeneratedNote';
                           const checked = offByDefault ? !!invoiceOptions[key] : invoiceOptions[key] !== false;
                           return (
                             <label key={key} className="option-toggle">

@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.70] - 2026-09-24
+
+**A page break could cut the company stamp in half. It now never splits the
+signature block — and you can add a "system-generated invoice" note (#72).**
+
+### How to update
+
+**Current version:** 1.10.69  →  **New version:** 1.10.70
+
+#### If the in-app Update button works for you
+1. Open the Free GST Billing launcher.
+2. Click **More options → Update to the latest version**.
+3. Wait for it to finish, then click **Open App**.
+
+That is all — your data is not touched.
+
+#### If the Update button does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.70.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (click **Stop the app** in the launcher if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Linux / NAS
+The in-app **Control Panel → Update Now** works here too. It needs `unzip`
+(or python3). Restart the app, or its container, afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - the stamp could be cut in half across two pages
+
+Reported with a photo: on a two-page invoice, the top of the company stamp
+printed at the foot of page 1 and the rest of it at the top of page 2.
+
+The bottom of an invoice is two columns side by side — bank details and terms on
+the left, the signature and stamp on the right. When an invoice runs onto a
+second page, the app looks for a clean place to end page 1, and it treated the
+gap between **bank details** and **terms** as one. On the left it is; on the
+right, that same line runs straight through the stamp.
+
+A page now only ends where nothing on *either* side is cut: not a table row,
+not a footer block, not the signature block, and not any image. When the
+signature block would straddle the page edge, the whole footer moves to the
+next page together.
+
+Tested by building exactly that invoice — enough rows to put the page edge
+inside the signature block — and making a real PDF from the old code and the
+new. Old: page 1 ended inside the signature. New: page 1 ends above the footer,
+and the footer prints whole on page 2.
+
+### Added - "system-generated invoice" note (#72)
+
+Asked for by @sangwanmail-eng: an optional line below Terms & Conditions —
+
+> **Note:** This is a system-generated invoice. No signature or stamp is required.
+
+Turn it on under **Customize → Footer**. It is off unless you choose it, since
+most invoices are signed and the line would contradict a signature.
+
+---
+
 ## [1.10.69] - 2026-09-23
 
 **The Windows launcher is now the only thing you ever open: it installs the

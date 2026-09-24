@@ -1182,6 +1182,102 @@ try {
       `invoice ${st71.invoiceNumber} saved as "${saved71}"`);
   }
 
+  // ---- ERR-024: a page break must never cut through the signature --------
+  // Reported with a photo: the stamp printed half at the foot of page 1 and
+  // half at the top of page 2. The footer is two columns - bank details and
+  // terms on the left, signature and stamp on the right - and the paginator
+  // broke at the gap between bank details and terms, which runs straight
+  // through the stamp. This builds that exact invoice: it adds item rows until
+  // the page-1 seam falls between the bottom of the bank-details block and the
+  // bottom of the signature block (the only window in which the old code cut
+  // the stamp), makes a real PDF, and checks where the page actually ended.
+  const tallStamp = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 100; c.height = 300;
+    const g = c.getContext('2d');
+    g.strokeStyle = '#1d4ed8'; g.lineWidth = 8;
+    g.strokeRect(8, 8, 84, 284);
+    return c.toDataURL('image/png');
+  });
+  await page.evaluate(async ({ png, prof }) => {
+    await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...prof, stamp: png, stampHeight: 160, signature: png, signatureHeight: 90,
+        bankName: prof.bankName || 'Smoke Bank', accountNumber: prof.accountNumber || '000111222333',
+        ifsc: prof.ifsc || 'SMOK0000001' }) });
+  }, { png: tallStamp, prof: originalProfile });
+  const seamDraft = (n) => ({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: 'India', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: `SMOKE-SEAM/${n}`, invoiceDate: today, placeOfSupply: 'Punjab' },
+    items: Array.from({ length: n }, (_, i) => ({ ...draftItems[0], id: `smk-seam-${i}`, name: `Seam item ${i + 1}` })),
+    taxInclusive: false,
+    customTerms: '<p>1. Goods once sold will not be taken back.</p><p>2. Subject to local jurisdiction.</p><p>3. Payment is due within 15 days.</p>',
+  });
+  const pdfLayout = async (n) => {
+    await openDraft(seamDraft(n));
+    await page.evaluate(() => { window.__lastPdfLayout = null; });
+    try {
+      await Promise.all([
+        page.waitForEvent('download', { timeout: 90_000 }),
+        page.getByRole('button', { name: /save & download/i }).first().click(),
+      ]);
+    } catch { /* judged below */ }
+    await sleep(800);
+    return page.evaluate(() => window.__lastPdfLayout);
+  };
+  // The danger window: a real multi-page PDF (the invoice is taller than one
+  // page), with the page-1 seam below the bank-details block but above the
+  // bottom of the signature block beside it.
+  const inWindow = (L) => !!(L && L.signature && L.blocks?.length
+    && L.total > L.fullHeight + 2
+    && L.blocks[0][1] < L.pageHeight && L.pageHeight < L.signature[1]);
+
+  const probe = await pdfLayout(1);
+  let seam = null;
+  if (probe?.signature && probe.blocks?.length && probe.rowHeight > 0) {
+    // Aim the seam just under the bank-details block: that leaves the most of
+    // the invoice below it, which is what makes the PDF spill onto page 2.
+    const k0 = Math.max(0, Math.floor((probe.pageHeight - 12 - probe.blocks[0][1]) / probe.rowHeight));
+    for (const k of [k0, k0 - 1, k0 + 1, k0 - 2]) {
+      if (k < 0) continue;
+      const L = await pdfLayout(1 + k);
+      if (inWindow(L)) { seam = { ...L, items: 1 + k }; break; }
+    }
+  }
+  check('ERR-024 test setup: the page seam lands inside the signature block (the case that broke)',
+    !!seam, seam ? `${seam.items} items, seam at ${Math.round(seam.pageHeight)}px, signature ${seam.signature.map(Math.round).join('-')}px`
+      : `could not place it - probe ${JSON.stringify(probe && { H: probe.pageHeight, full: probe.fullHeight, total: probe.total, row: probe.rowHeight, sig: probe.signature, first: probe.blocks?.[0] })}`);
+  if (seam) {
+    const cutInto = seam.ends.filter((e) => seam.atoms.some(([a, b]) => e > a + 1 && e < b - 1));
+    check('ERR-024 no PDF page ends inside the signature, stamp or any image',
+      seam.ends.length > 0 && cutInto.length === 0,
+      `page ends at ${seam.ends.map(Math.round).join(', ')}px${cutInto.length ? ` - CUTS THROUGH at ${cutInto.map(Math.round).join(', ')}` : ''}`);
+  }
+
+  // ---- #72: "system-generated, no signature required" note ----------------
+  // Driven through Customize, the way a person turns it on. (Options passed in
+  // a draft are replaced by the server-saved display options on load.)
+  await openDraft({ ...seamDraft(1), details: { invoiceNumber: 'SMOKE-72/1', invoiceDate: today, placeOfSupply: 'Punjab' } });
+  const notePos = () => page.evaluate(() => {
+    const t = document.querySelector('#invoice-preview')?.innerText || '';
+    return { note: t.search(/system-generated invoice/i), terms: t.search(/terms/i) };
+  });
+  const off72 = await notePos();
+  check('#72 the system-generated note is off unless chosen', off72.note === -1, JSON.stringify(off72));
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('.generator-toolbar button')].find((x) => /^Customize$/.test(x.innerText.trim()));
+    if (b) b.click();
+  });
+  await sleep(1000);
+  const box72 = page.locator('label.option-toggle', { hasText: /system-generated invoice/i }).locator('input[type=checkbox]');
+  const shownTicked = (await box72.count()) ? await box72.isChecked() : null;
+  check('#72 its Customize box shows unticked while the note is off', shownTicked === false, `ticked=${shownTicked}`);
+  if (await box72.count()) { await box72.click(); await sleep(1000); }
+  const on72 = await notePos();
+  check('#72 ticking it prints the note below the Terms & Conditions',
+    on72.note !== -1 && on72.terms !== -1 && on72.note > on72.terms, JSON.stringify(on72));
+  // Untick it again: display options are saved, and this must not leak.
+  if (await box72.count() && await box72.isChecked()) { await box72.click(); await sleep(2500); }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {

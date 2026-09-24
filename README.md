@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#quick-start--installation)
-[![Version](https://img.shields.io/badge/Version-1.10.69-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
+[![Version](https://img.shields.io/badge/Version-1.10.70-orange.svg)](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](#install-as-a-desktop-app-pwa)
 [![GitHub Stars](https://img.shields.io/github/stars/IamRamgarhia/Free-GST-Billing-Software?style=social)](https://github.com/IamRamgarhia/Free-GST-Billing-Software)
 [![Countries](https://img.shields.io/badge/Countries-22-blue.svg)](#key-features)
@@ -558,6 +558,8 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ### :white_check_mark: Recently Delivered (v1.10 series — 2026)
 
+- [x] **A page break never cuts through the signature or stamp** — the whole footer moves to the next page instead (v1.10.70)
+- [x] **Optional "system-generated invoice, no signature required" note** below Terms & Conditions (v1.10.70, #72)
 - [x] **One launcher for everything on Windows** — install, open and update from a single file, with its own icon and an auto-refreshing status (v1.10.69), plus a one-command PowerShell install
 - [x] **Install needs no administrator rights** — Node.js is set up inside the app folder if the PC does not have it, and the app opens in the browser by itself (v1.10.69)
 - [x] **Getting started checklist** on the Dashboard that ticks itself off from what you have actually set up (v1.10.69)

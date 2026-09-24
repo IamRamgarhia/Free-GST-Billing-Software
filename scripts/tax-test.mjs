@@ -20,6 +20,7 @@ import {
   gstinChecksumOk,
   stateNameForCode,
   INDIAN_STATES,
+  safePageBoundaries,
 } from '../src/utils.js';
 import {
   compute44AE,
@@ -526,6 +527,31 @@ console.log('\n[V68-#68] Reading a GSTIN offline');
 
   eq(decodeGstin(''), null, 'Empty input decodes to null');
   eq(decodeGstin('27AAPFU0939F1Z'), null, 'A short string decodes to null');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// v1.10.70 (ERR-024) - a PDF page may never end inside the signature block
+// or an image. The footer is two columns; an edge that is safe on the left
+// (between bank details and terms) cut the stamp on the right in half.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[V70-ERR-024] Where a PDF page may end');
+{
+  // The footer from the reported invoice, in pixels from the top:
+  //   left column:  bank details 1000-1150, terms 1150-1400
+  //   right column: signature block 1000-1250, stamp image 1080-1220
+  const edges = [0, 1000, 1150, 1250, 1400];
+  const keepWhole = [[1000, 1150], [1150, 1400], [1000, 1250], [1080, 1220]];
+  const safe = safePageBoundaries(edges, keepWhole);
+  truthy(!safe.includes(1150), 'The gap between bank details and terms is NOT a place to break - the stamp is beside it');
+  truthy(!safe.includes(1250), 'Nor is the bottom of the signature block, while terms still run beside it');
+  eq(safe, [0, 1000, 1400], 'Only the top of the footer and the bottom of the whole footer are safe');
+
+  // Items-table rows sit edge to edge; every row edge must stay usable.
+  const rows = [[100, 150], [150, 200], [200, 250]];
+  eq(safePageBoundaries([100, 150, 200, 250], rows), [100, 150, 200, 250], 'Row edges between adjacent rows are all still safe');
+
+  eq(safePageBoundaries([0, 300, 300, 600], []), [0, 300, 600], 'Duplicates are dropped and the list is sorted');
+  eq(safePageBoundaries([500], [[400, 401]]), [500], 'Zero-height spans (hidden elements) are ignored');
 }
 
 console.log('\n────────────────────────────────────────');

@@ -70,6 +70,9 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   const showSignatoryText = opt('showSignatoryText');
   const showTerms = opt('showTerms');
   const showNotes = opt('showNotes');
+  // v1.10.70 - requested (#72, @sangwanmail-eng). OFF unless chosen: most
+  // invoices are signed, and this line would contradict a signature.
+  const showSystemGeneratedNote = opt('showSystemGeneratedNote', false);
   const showAmountWords = opt('showAmountWords');
   const showDueDate = opt('showDueDate');
   const showItemQty = opt('showItemQty');
@@ -1249,6 +1252,14 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               </div>
             ) : null;
           })()}
+          {/* v1.10.70 (#72) - below Terms & Conditions, as asked. */}
+          {showSystemGeneratedNote && (
+            <div className="inv-footer-block inv-system-note">
+              <p className="inv-terms" style={{ margin: 0, fontStyle: 'italic' }}>
+                <strong>Note:</strong> This is a system-generated invoice. No signature or stamp is required.
+              </p>
+            </div>
+          )}
         </div>
         {/* v1.10.5 — Separate T&C page. Uses the same data-pdf-page
              attribute the extraSections feature uses, so buildPDF's

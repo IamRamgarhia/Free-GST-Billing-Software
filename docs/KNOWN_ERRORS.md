@@ -720,6 +720,43 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-024 - A page break cut the company stamp in half
+
+**Version:** latent since page breaks learned to respect rows (v1.10.8); made likely by the stamp (v1.10.67) · fixed in v1.10.70
+**Reported by:** the maintainer, with a photo of a customer's printed invoice (2026-09-24)
+
+**Symptom** - on a two-page invoice, the top arc of the round company stamp
+printed at the foot of page 1 under "Authorized Signatory", with blank space
+below it, and the rest of the stamp at the top of page 2 beside the terms.
+
+**Cause** - the PDF is one tall capture sliced into pages. To avoid cutting
+through text, buildPDF only ends a page at the top or bottom of a table row or
+a `.inv-footer-block`. But the footer is two columns: bank details and terms
+are stacked on the left, and the signature block sits beside them on the right.
+The bottom of the bank-details block is a clean edge in the left column and
+passes straight through the stamp in the right one. Nothing checked the column
+next door. The stamp made it likely: a signature block with a 120px stamp is
+far taller than a signature alone, so the page edge lands inside it far more
+often.
+
+**Rule** - an edge is only a place to break if *nothing* straddles it. Collect
+the candidate edges, then drop every one that falls inside anything that must
+stay whole: rows, footer blocks, the signature block, and every image.
+`safePageBoundaries()` in `src/utils.js` does exactly that. And measure the
+layout that is actually captured: the extra pages are now hidden *before* the
+edges are measured, not after.
+
+**Guard** - `scripts/tax-test.mjs` `[V70-ERR-024]` models the reported footer.
+`tests/smoke.mjs` builds the dangerous invoice for real: it adds rows until the
+page-1 edge falls between the bottom of the bank details and the bottom of the
+signature, makes a real multi-page PDF, and fails if any page ends inside the
+signature block or any image. It reads a read-only test hook,
+`window.__lastPdfLayout`. Verified red: against v1.10.69 it failed with "page
+ends at 1024px - CUTS THROUGH"; against v1.10.70 page 1 ends at 880px, above
+the signature.
+
+---
+
 ## ERR-023 - The app icon was unreadable at the size Windows actually draws it
 
 **Version:** artwork unchanged since v1.10.7 · icon first shipped, and fixed, in v1.10.69

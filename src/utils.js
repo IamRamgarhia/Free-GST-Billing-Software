@@ -474,6 +474,21 @@ export const INVOICE_TYPES = {
   },
 };
 
+// v1.10.70 - where a PDF page is allowed to end.
+//
+// `edges` are candidate y positions (the tops and bottoms of table rows and
+// footer blocks). `keepWhole` are [top, bottom] spans a page edge must never
+// pass through. An edge that is safe in one column is not safe in the column
+// beside it: the invoice footer puts bank details and terms on the left and
+// the signature and stamp on the right, so the gap between bank details and
+// terms runs straight through the stamp. The page broke there, printing the
+// top of the stamp at the foot of page 1 and the rest on page 2 (ERR-024).
+export const safePageBoundaries = (edges, keepWhole) => {
+  const spans = (keepWhole || []).filter(([t, b]) => b - t > 2);
+  const inside = (y) => spans.some(([t, b]) => y > t + 1 && y < b - 1);
+  return [...new Set(edges)].filter((y) => !inside(y)).sort((a, b) => a - b);
+};
+
 // v1.10.67 (#66 item 7, @sangwanmail-eng) — which documents are actual sales.
 // A proforma/estimate is only a quote and a delivery challan moves goods
 // without selling them, so neither is turnover. A credit note reduces it. A
