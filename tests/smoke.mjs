@@ -140,6 +140,13 @@ const browser = await firefox.launch({ headless: true });
 // 1366x768 is the resolution the preview-clipping bug needed (ERR-005).
 // It is also the most common laptop size among this app's users.
 const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, acceptDownloads: true });
+// Playwright gives a page 30 s to load. On a busy machine - another dev
+// server pinning three cores was enough - a reload under the release gate ran
+// past that and aborted the whole suite, twice in a row, with code that had
+// just passed 76/76. A timeout bounds how long we wait, not whether the page
+// is right, so it gets room; every assertion stays exactly as strict.
+ctx.setDefaultNavigationTimeout(120000);
+ctx.setDefaultTimeout(60000);
 const page = await ctx.newPage();
 
 const cspViolations = [];
