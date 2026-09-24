@@ -40,3 +40,6 @@ public/tesseract/
 
 # Session scratch from other agent tooling — not part of the project
 .zcode
+
+# Built documentation site (regenerate with: node docs-site/build.mjs)
+docs-site/out/

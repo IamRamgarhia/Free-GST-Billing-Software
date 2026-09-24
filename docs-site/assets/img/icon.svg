@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#1e40af"/>
+  <rect x="4" y="4" width="56" height="56" rx="10" fill="#2563eb"/>
+  <path d="M18 16h28a2 2 0 012 2v28a2 2 0 01-2 2H18a2 2 0 01-2-2V18a2 2 0 012-2z" fill="#fff" opacity="0.15"/>
+  <text x="32" y="44" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="26" fill="#fff">B</text>
+  <rect x="14" y="50" width="36" height="3" rx="1.5" fill="#60a5fa"/>
+</svg>
