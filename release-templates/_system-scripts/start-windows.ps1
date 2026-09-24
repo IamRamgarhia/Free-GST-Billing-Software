@@ -11,6 +11,51 @@ $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Server'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SystemDir = $ScriptDir
 
+# v1.10.69 - the Windows launcher was renamed from "Free GST Billing.hta" to
+# "Free GST Billing - WINDOWS.hta". An update to this version is carried out
+# by the PREVIOUS version's updater, which copies the new launcher in but
+# knows nothing of the rename: it leaves the old file beside the new one, and
+# the Desktop and Start-Menu shortcuts still pointing at the old one. That
+# works, but it leaves two launchers in the folder and the user on the old
+# screen. This script is the first new code to run after such an update -
+# both launchers call it for Open App - so it tidies up here, once.
+#
+# It only touches shortcuts whose target is exactly the old launcher in THIS
+# folder, and it deletes the old launcher only when no shortcut points at it
+# any more. If anything fails it leaves everything as it was: the old
+# launcher still works, so the worst case is a missed tidy-up, never a
+# broken shortcut.
+function Move-ToRenamedLauncher {
+  $RootDir = Split-Path -Parent $SystemDir
+  $oldHta = Join-Path $RootDir 'Free GST Billing.hta'
+  $newHta = Join-Path $RootDir 'Free GST Billing - WINDOWS.hta'
+  if (-not ((Test-Path -LiteralPath $oldHta) -and (Test-Path -LiteralPath $newHta))) { return }
+  try {
+    $wsh = New-Object -ComObject WScript.Shell
+    $icon = Join-Path $SystemDir 'app-icon.ico'
+    $dirs = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))
+    $stillOld = 0
+    foreach ($dir in $dirs) {
+      if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { continue }
+      foreach ($lnk in Get-ChildItem -LiteralPath $dir -Filter '*.lnk' -File -ErrorAction SilentlyContinue) {
+        $sc = $wsh.CreateShortcut($lnk.FullName)
+        $lnkArgs = [string]$sc.Arguments
+        if ($lnkArgs.Trim('"') -ne $oldHta) { continue }
+        $sc.Arguments = '"' + $newHta + '"'
+        if (Test-Path -LiteralPath $icon) { $sc.IconLocation = "$icon,0" }
+        $sc.Save()
+        $check = $wsh.CreateShortcut($lnk.FullName)
+        if (([string]$check.Arguments).Trim('"') -eq $oldHta) { $stillOld++ }
+      }
+    }
+    if ($stillOld -eq 0) { Remove-Item -LiteralPath $oldHta -Force -ErrorAction Stop }
+  } catch {
+    # The old launcher may be open right now (it is often what called this),
+    # in which case Windows will not delete it. The next Open App will.
+  }
+}
+Move-ToRenamedLauncher
+
 # Read persisted port (server writes this after successful bind).
 $portFile = Join-Path $SystemDir 'data\port.txt'
 $port = 47371

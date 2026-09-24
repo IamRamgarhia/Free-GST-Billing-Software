@@ -200,6 +200,12 @@ Free GST Billing - LINUX.sh
 
 Nothing to work out, and nothing to click by mistake.
 
+**Already installed?** The update copies the new launcher in beside the old
+one. The first time you click **Open App** afterwards, your Desktop and
+Start-Menu shortcuts are moved over to the new launcher and the old
+`Free GST Billing.hta` is removed. Only shortcuts pointing at *this*
+install are touched, and nothing is removed while a shortcut still needs it.
+
 ### Changed - the launcher explains itself
 
 It is one file, and it is the only one you need: install, open, update,
