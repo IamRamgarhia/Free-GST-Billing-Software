@@ -4,7 +4,7 @@ A plain-language guide for everyone who uses this app — no coding background
 needed. If you only have 2 minutes, jump to [Quick Start](#quick-start).
 
 > **TL;DR**
-> 1. Download the ZIP from [Releases](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest), **extract it**, and double-click **Free GST Billing - WINDOWS** once.
+> 1. [Download the ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip), **extract it**, and double-click **Free GST Billing - WINDOWS** once.
 > 2. Click **Install Node & App**, then **Open App**. A desktop icon appears called *Free GST Billing*. Use it from then on.
 > 3. Your data lives in the `_system\data\` folder inside the app folder. Back that folder up and you have backed up everything.
 
