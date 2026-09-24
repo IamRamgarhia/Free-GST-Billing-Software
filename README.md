@@ -35,6 +35,13 @@ Free-GST-Billing/
 └── _system/                          ← the app (hidden after install)
 ```
 
+<p align="center">
+  <img src="docs/screenshots/v1.10.69/launcher-install.png" width="300" alt="The Windows launcher before install: one Install button">
+  &nbsp;
+  <img src="docs/screenshots/v1.10.69/launcher-ready.png" width="300" alt="The Windows launcher after install: one Open App button">
+  <br><sub>The Windows launcher — one button to install, then one button to open. Everything else is under <i>More options</i>.</sub>
+</p>
+
 ```
 1. Download the release ZIP → https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest
 2. Right-click the ZIP → Extract All → pick a folder you'll remember
