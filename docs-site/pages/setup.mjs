@@ -270,8 +270,10 @@ export default [
 </section>
 
 <section id="scripts-missing">
-<h2>"Launcher scripts not detected"</h2>
-<p>This appears when the app was started from source code rather than the downloaded ZIP. Update, backup, restore, move and stop then do not work. Install from the <a href="install.html#download">downloaded ZIP</a> to use them, or use <a href="backup.html#export-import">Export Backup</a> in Settings for your data.</p>
+<h2>"Update and backup scripts not found"</h2>
+<p>The Control Panel runs scripts that come with the downloaded ZIP, in the <code>_system</code> folder. This message appears when they are missing, for example when the app was started from source code or copied without them. Install from the <a href="install.html#download">downloaded ZIP</a> to get them, or use <a href="backup.html#export-import">Export Backup</a> in Settings for your data.</p>
+<p>Versions 1.10.44 to 1.10.71 showed this message, then called "Launcher scripts not detected", on every installed copy by mistake. Update to 1.10.72 or later using the launcher's <b>Update to the latest version</b>.</p>
+<p>On Linux and macOS only Update and Backup have scripts, so Restore, Move and Stop show <b>Not available here</b>.</p>
 </section>
 `,
 },

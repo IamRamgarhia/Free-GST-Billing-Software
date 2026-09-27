@@ -14,7 +14,7 @@
 // sitemap.xml, robots.txt, llms.txt and llms-full.txt. Those need full
 // addresses, taken from SITE.url.
 
-import { mkdirSync, writeFileSync, copyFileSync, rmSync, readdirSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, copyFileSync, rmSync, readdirSync, existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
@@ -66,6 +66,23 @@ for (const p of PAGES) {
   }
   for (const m of p.body.matchAll(/src="assets\/img\/([^"]+)"/g)) {
     if (!existsSync(join(IMG_SRC, m[1]))) throw new Error(`${p.slug}: missing image ${m[1]}`);
+  }
+}
+
+// The app's Help buttons link here with doc="page" or doc="page#section".
+// A typo there is a Help button that opens a missing page, so check them all.
+{
+  const SRC = join(HERE, '..', 'src');
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (
+    e.isDirectory() ? walk(join(dir, e.name)) : /\.jsx$/.test(e.name) ? [join(dir, e.name)] : []));
+  for (const file of walk(SRC)) {
+    for (const m of readFileSync(file, 'utf8').matchAll(/\bdoc="([a-z0-9-]+)(?:#([a-z0-9-]+))?"/g)) {
+      const target = bySlug.get(m[1]);
+      if (!target) throw new Error(`${file}: Help button links to missing docs page "${m[1]}"`);
+      if (m[2] && !sectionsOf(target).some((s) => s.id === m[2])) {
+        throw new Error(`${file}: Help button links to missing docs section "${m[1]}#${m[2]}"`);
+      }
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Download, RefreshCw, Package, FolderOpen, HardDrive, StopCircle, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import PageHeader from './PageHeader';
 import { toast } from './Toast';
+import HelpButton from './HelpButton';
 
 // v1.10.44 — In-app Control Panel.
 //
@@ -83,6 +84,10 @@ export default function ControlPanel() {
   };
 
   const scriptsUnavailable = status && !status.controlScriptsAvailable;
+  // Per action: Linux / macOS ship only the update and backup scripts.
+  // Older servers send no `actions`; fall back to the all-or-nothing flag.
+  const can = (a) => (status?.actions ? !!status.actions[a] : !scriptsUnavailable);
+  const label = (a, idle, working) => (busy === a ? working : (status && !can(a) ? 'Not available here' : idle));
 
   return (
     <div className="dashboard-container">
@@ -91,16 +96,25 @@ export default function ControlPanel() {
         title="Control Panel"
         subtitle="Manage the app — update, backup, restore, move to another PC — without touching batch files."
         meta={status?.launcherType ? `${status.launcherType.toUpperCase()} launcher` : null}
-      />
+      >
+        <HelpButton title="Control Panel — how to use" doc="control-panel">
+          <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+            <li><strong>Update Now</strong> backs up your data, then installs the latest version.</li>
+            <li><strong>Create Backup</strong> saves your data as a ZIP in Documents → FreeGSTBill Backups.</li>
+            <li><strong>Export for Move</strong> and <strong>Choose Backup ZIP</strong> move your books to another PC.</li>
+            <li><strong>Stop Server</strong> stops the app; open it again from the launcher.</li>
+          </ul>
+        </HelpButton>
+      </PageHeader>
 
       {scriptsUnavailable && (
         <div className="notice notice-warn" style={{ marginBottom: '1rem' }}>
           <AlertCircle size={18} />
           <div>
-            <strong>Launcher scripts not detected.</strong> This app appears to be running from a dev clone (npm start)
-            rather than an installer ZIP. Update / Backup / Restore / Move buttons need the launcher scripts under
-            <code> _system-scripts/</code>. Download the latest release from GitHub to unlock them, or use
-            <em> Settings → Data Management → Export Backup</em> for a data-only backup.
+            <strong>Update and backup scripts not found.</strong> They come with the downloaded ZIP, in the
+            <code> _system</code> folder next to the app. If you started the app from source code, or copied it
+            without those files, download the latest ZIP from GitHub. Your data can still be saved from
+            <em> Settings → Data Management → Export Backup</em>.
           </div>
         </div>
       )}
@@ -120,8 +134,8 @@ export default function ControlPanel() {
           icon={<RefreshCw size={22} />}
           title="Update Software"
           body="Pull the latest release from GitHub. Your data folder is snapshotted first and never touched."
-          buttonLabel={busy === 'update' ? 'Updating…' : 'Update Now'}
-          disabled={!!busy || scriptsUnavailable}
+          buttonLabel={label('update', 'Update Now', 'Updating…')}
+          disabled={!!busy || !can('update')}
           onClick={() => launchScript('update')}
           variant="primary"
         />
@@ -129,24 +143,24 @@ export default function ControlPanel() {
           icon={<Download size={22} />}
           title="Backup Data"
           body="Zips your data folder into ~/Documents/FreeGSTBill Backups/ with a timestamp."
-          buttonLabel={busy === 'backup' ? 'Backing up…' : 'Create Backup'}
-          disabled={!!busy || scriptsUnavailable}
+          buttonLabel={label('backup', 'Create Backup', 'Backing up…')}
+          disabled={!!busy || !can('backup')}
           onClick={() => runAction('backup')}
         />
         <ActionCard
           icon={<Upload size={22} />}
           title="Restore Backup"
           body="Pick a previous backup ZIP. Current data is snapshotted first as a safety net before restore."
-          buttonLabel={busy === 'restore' ? 'Restoring…' : 'Choose Backup ZIP'}
-          disabled={!!busy || scriptsUnavailable}
+          buttonLabel={label('restore', 'Choose Backup ZIP', 'Restoring…')}
+          disabled={!!busy || !can('restore')}
           onClick={() => launchScript('restore')}
         />
         <ActionCard
           icon={<Package size={22} />}
           title="Move to Another PC"
           body="Exports data + settings as one ZIP on your Desktop. Copy it to the new PC, install the app, then Restore."
-          buttonLabel={busy === 'move' ? 'Exporting…' : 'Export for Move'}
-          disabled={!!busy || scriptsUnavailable}
+          buttonLabel={label('move', 'Export for Move', 'Exporting…')}
+          disabled={!!busy || !can('move')}
           onClick={() => launchScript('move')}
         />
         <ActionCard
@@ -169,8 +183,8 @@ export default function ControlPanel() {
           icon={<StopCircle size={22} />}
           title="Stop Server"
           body="Shuts down the local Node server. The app will stop responding until you re-open it from the launcher / shortcut."
-          buttonLabel={busy === 'stop' ? 'Stopping…' : 'Stop Server'}
-          disabled={!!busy || scriptsUnavailable}
+          buttonLabel={label('stop', 'Stop Server', 'Stopping…')}
+          disabled={!!busy || !can('stop')}
           onClick={() => launchScript('stop')}
           variant="danger"
         />

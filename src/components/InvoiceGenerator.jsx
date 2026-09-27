@@ -2904,7 +2904,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       <div className="generator-toolbar">
         <div className="flex gap-2 items-center">
           <button className="btn btn-secondary" onClick={handleBack}><ArrowLeft size={18} /> Back</button>
-          <HelpButton title="Invoice Generator — how to use">
+          <HelpButton title="Invoice Generator — how to use" doc="invoices">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Invoice type</strong> — Tax Invoice / Proforma / Bill of Supply / Composition / Credit Note / Delivery Challan. Switching type refreshes the number to that type's counter (or your custom prefix from Print Settings).</li>
               <li><strong>Line items</strong> — start typing to auto-complete from your Products list. HSN autofills the GST rate for common codes. Click "+ Add description" for a detailed note under the item name.</li>

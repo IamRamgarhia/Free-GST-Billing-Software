@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Download, Search, X } from 'lucide-react';
+import { Download, Search, X, BookOpen } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { GUIDE_CONTENT } from '../userGuideContent';
 import { toast } from './Toast';
+import { DOCS_URL } from '../utils';
 
 // Searchable User Guide. The on-screen render and the PDF use the same content
 // array so they can never drift. The PDF is built with jsPDF.text() (real text
@@ -187,9 +188,15 @@ export default function UserGuideView() {
           <h1 className="page-title">User Guide</h1>
           <p className="page-subtitle">Everything from install to backup. Use the search box or download as a searchable PDF.</p>
         </div>
-        <button className="btn btn-primary" onClick={downloadPDF} disabled={generating}>
-          <Download size={16} /> {generating ? 'Generating…' : 'Download PDF'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* The full, searchable documentation online; this page stays as the offline copy. */}
+          <a className="btn btn-secondary" href={DOCS_URL} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+            <BookOpen size={16} /> Online documentation
+          </a>
+          <button className="btn btn-primary" onClick={downloadPDF} disabled={generating}>
+            <Download size={16} /> {generating ? 'Generating…' : 'Download PDF'}
+          </button>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ padding: '0.75rem 1rem', marginBottom: '1rem' }}>

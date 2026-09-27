@@ -818,7 +818,7 @@ export default function SettingsView({ onSaved }) {
               </span>
             </p>
           </div>
-          <HelpButton title="Settings — how to use">
+          <HelpButton title="Settings — how to use" doc="settings">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Company Details</strong> — this is the header block on every invoice. GSTIN drives place-of-supply detection.</li>
               <li><strong>Multi-business profiles</strong> — Save as Profile keeps the current form as a switchable profile; switch between them from the business name at the top of the sidebar.</li>

@@ -852,25 +852,39 @@ const isMac = process.platform === 'darwin';
 // in dev the same relative path lands us at `release-templates/_system-scripts/`
 // which also holds them. If neither exists we degrade gracefully —
 // the Control Panel just shows the buttons as disabled.
+// v1.10.72 (#73) — the release ZIP has always FLATTENED the scripts into
+// _system/, right next to this file (build-release-zip.mjs copies
+// _system-scripts/* into _system/). None of the old candidates existed in a
+// ZIP install, so every user since v1.10.44 got "Launcher scripts not
+// detected", and Update / Backup / Restore / Move / Stop failed with
+// "Script not found". A folder now only counts if it really holds the update
+// script, so an unrelated folder with the right name can't be picked either.
+const SCRIPT_SUFFIX = isWindows ? '-windows.ps1' : '-unix.sh';
 const CONTROL_SCRIPT_CANDIDATES = [
-  path.join(__dirname, '_system-scripts'),         // shipped ZIP layout
-  path.join(__dirname, 'release-templates', '_system-scripts'), // dev repo
-  path.join(__dirname, '..', '_system-scripts'),   // sibling to root when app is under _system/
+  __dirname,                                                     // release ZIP: _system/
+  path.join(__dirname, 'release-templates', '_system-scripts'), // source repo
+  path.join(__dirname, '_system-scripts'),                       // older layouts
+  path.join(__dirname, '..', '_system-scripts'),
 ];
-const controlScriptDir = CONTROL_SCRIPT_CANDIDATES.find(p => {
-  try { return fs.statSync(p).isDirectory(); } catch { return false; }
-}) || null;
+const controlScriptDir = CONTROL_SCRIPT_CANDIDATES.find(
+  p => fs.existsSync(path.join(p, `update${SCRIPT_SUFFIX}`)),
+) || null;
 
 function pickScript(name) {
   if (!controlScriptDir) return null;
-  const suffix = isWindows ? '-windows.ps1' : '-unix.sh';
-  const p = path.join(controlScriptDir, name + suffix);
+  const p = path.join(controlScriptDir, name + SCRIPT_SUFFIX);
   return fs.existsSync(p) ? p : null;
 }
 
+// Which Control Panel actions have a script on this platform. Linux / macOS
+// ship update + backup only, so Restore / Move / Stop are shown as not
+// available there instead of failing when clicked.
+const CONTROL_ACTIONS = ['update', 'backup', 'restore', 'move', 'stop'];
+const controlActions = () => Object.fromEntries(CONTROL_ACTIONS.map(a => [a, !!pickScript(a)]));
+
 function runControlScript(scriptPath) {
   return new Promise((resolve) => {
-    if (!scriptPath) { resolve({ ok: false, error: 'Script not found for this platform' }); return; }
+    if (!scriptPath) { resolve({ ok: false, error: 'Not available here: the script for this action is not in the app folder. Download the latest ZIP to get it.' }); return; }
     // v1.10.66 (#59) — update-unix.sh is plain POSIX sh, so it runs under `sh`
     // and therefore also where bash does not exist (Alpine / BusyBox NAS
     // images). The other Unix scripts use bash features and keep running under
@@ -921,6 +935,7 @@ app.get('/api/control-panel/status', (req, res) => {
     platform: process.platform,
     node: process.version,
     controlScriptsAvailable: !!controlScriptDir,
+    actions: controlActions(),
     dataFolder: DATA_DIR,
     dataSizeBytes: dataSize,
     port: activePort,

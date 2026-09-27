@@ -1279,6 +1279,20 @@ try {
   // Untick it again: display options are saved, and this must not leak.
   if (await box72.count() && await box72.isChecked()) { await box72.click(); await sleep(2500); }
 
+  // ---- v1.10.72 (#73): the Control Panel finds its scripts ---------------------
+  // The release ZIP puts them next to server.js in _system/; the server looked
+  // only in _system-scripts folders, so every ZIP install reported "Launcher
+  // scripts not detected" and Update / Backup failed. Status only: the suite
+  // must never actually run an update or a backup.
+  const cp = await page.evaluate(async () => (await fetch('/api/control-panel/status')).json());
+  check('#73 the Control Panel finds its update and backup scripts',
+    cp.controlScriptsAvailable === true && cp.actions?.update === true && cp.actions?.backup === true,
+    JSON.stringify({ available: cp.controlScriptsAvailable, actions: cp.actions }));
+  if (cp.platform === 'win32') {
+    check('#73 on Windows every Control Panel action has its script',
+      ['update', 'backup', 'restore', 'move', 'stop'].every((k) => cp.actions?.[k] === true), JSON.stringify(cp.actions));
+  }
+
   // ---- v1.10.71: Generate Now uses the server's full invoice maths ---------
   // It used to do its own simplified maths in the browser (no CGST/SGST/IGST
   // split, interval and end conditions ignored). A delivery challan is used so

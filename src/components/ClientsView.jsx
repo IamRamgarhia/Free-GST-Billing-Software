@@ -707,7 +707,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
             <h1 className="page-title">Clients</h1>
             <p className="page-subtitle">Client-wise invoice ledger and outstanding</p>
           </div>
-          <HelpButton title="Clients — how to use">
+          <HelpButton title="Clients — how to use" doc="clients">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Click a client name</strong> to see every invoice, payment, and credit note in one place.</li>
               <li><strong>Statement PDF</strong> — a full account ledger with running balance. Send it when a client disputes a bill.</li>

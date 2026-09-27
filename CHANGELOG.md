@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.72] - 2026-09-27
+
+**The in-app Update Now, Backup, Restore, Move and Stop buttons work again
+(#73).**
+
+### How to update
+
+**Current version:** 1.10.71 or older  →  **New version:** 1.10.72
+
+#### Use the launcher for this update
+The in-app **Update Now** button is the thing this version fixes, so on your
+current version it cannot update itself. Use the launcher instead:
+1. Open the Free GST Billing launcher.
+2. Click **More options → Update to the latest version**.
+3. Wait for it to finish, then click **Open App**.
+
+From 1.10.72 on, **Update Now** inside the app works again.
+
+#### If the launcher update does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.72.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (click **Stop the app** in the launcher if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app, or its container, afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` (on Linux `~/Documents/FreeGSTBill Backups/`)
+before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - "Launcher scripts not detected" (#73)
+Reported by @deppen12. The Control Panel said the launcher scripts were
+missing on every installed copy, and its Update, Backup, Restore, Move and Stop
+buttons failed with "Script not found". The Update Now button in Settings and
+in the sidebar failed the same way.
+
+The downloaded ZIP keeps these scripts in the `_system` folder, next to the
+app. The app was looking for them in a folder that the ZIP has never had. It
+now looks in the right place.
+
+On Linux and macOS, where only the update and backup scripts exist, Restore,
+Move and Stop now say **Not available here** instead of failing when clicked.
+
+---
+
 ## [1.10.71] - 2026-09-24
 
 **Ten fixes found while writing the new documentation: Bulk PDF works, Print

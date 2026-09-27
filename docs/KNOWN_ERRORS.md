@@ -720,6 +720,40 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-035 - Control Panel: "Launcher scripts not detected" on every install
+
+**Version:** broke in v1.10.44 (Control Panel) and v1.10.69 (Update Now uses it) · fixed in v1.10.72
+**Reported by:** @deppen12 (GitHub #73)
+
+**Symptom**
+
+```
+Launcher scripts not detected. This app appears to be running from a dev clone
+(npm start) rather than an installer ZIP. Update / Backup / Restore / Move
+buttons need the launcher scripts under _system-scripts/.
+```
+
+Every button behind it answered `Script not found for this platform`,
+including Update Now in Settings and the sidebar.
+
+**Cause** - `scripts/build-release-zip.mjs` has always FLATTENED
+`release-templates/_system-scripts/*` into `_system/`, next to `server.js`.
+`server.js` looked only for folders named `_system-scripts` (inside
+`_system`, in `release-templates`, and beside `_system`). None of them exists
+in a ZIP install, so the lookup found nothing. The release test never touched
+the Control Panel, so no check noticed.
+
+**Rule** - when the packager moves a file, every path that reads it moves in
+the same change. A folder is chosen because it contains the file needed, never
+because a folder of that name exists.
+
+**Guard** - `tests/smoke.mjs` "#73 the Control Panel finds its update and
+backup scripts" (and, on Windows, all five). `verify-release.mjs` runs the
+suite on a fresh install of the ZIP, so the real layout is what is tested.
+Verified red: the v1.10.70 ZIP install reports `controlScriptsAvailable: false`.
+
+---
+
 ## ERR-034 - Settings: the save bar sat on top of the "Jump to" bar
 
 **Version:** broke in v1.10.67 · fixed in v1.10.71

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { HelpCircle, X } from 'lucide-react';
+import { HelpCircle, X, BookOpen } from 'lucide-react';
+import { docsLink } from '../utils';
 
 /*
  * v1.10.22 — Per-view help button.
@@ -11,8 +12,11 @@ import { HelpCircle, X } from 'lucide-react';
  * The button sits inline where dropped (typically next to a page title);
  * clicking opens a small modal explaining how to use the current view.
  * Esc closes.
+ *
+ * `doc` ("page" or "page#section") adds a link to that part of the online
+ * documentation, which opens in a new tab.
  */
-export default function HelpButton({ title, body, children, size = 18 }) {
+export default function HelpButton({ title, body, children, doc, size = 18 }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -43,6 +47,12 @@ export default function HelpButton({ title, body, children, size = 18 }) {
                 <div style={{ whiteSpace: 'pre-wrap' }}>{body}</div>
               )}
             </div>
+            {doc && (
+              <a href={docsLink(doc)} target="_blank" rel="noopener noreferrer" className="btn btn-secondary"
+                style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+                <BookOpen size={16} /> Read the full guide
+              </a>
+            )}
           </div>
         </div>
       )}

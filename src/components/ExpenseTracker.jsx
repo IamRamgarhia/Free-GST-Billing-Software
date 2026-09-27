@@ -5,6 +5,7 @@ import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness,
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
+import HelpButton from './HelpButton';
 
 // Each category is tagged with its ITR (Income Tax Return) head so the
 // v1.7.0+ ITR Filing Summary can auto-aggregate expenses under the correct
@@ -239,9 +240,19 @@ export default function ExpenseTracker() {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Expenses</h1>
-          <p className="page-subtitle">Track business expenses for P&L and ITC claims</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Expenses</h1>
+            <p className="page-subtitle">Track business expenses for P&L and ITC claims</p>
+          </div>
+          <HelpButton title="Expenses — how to use" doc="expenses">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li>For costs that are not stock: rent, electricity, internet, software, travel, fees.</li>
+              <li><strong>Amount</strong> is what you paid, including GST. Enter the <strong>GST %</strong> and the GST inside it is worked out and counted as input tax credit.</li>
+              <li>Tick <strong>Inter-state expense</strong> when the vendor charged IGST.</li>
+              <li><strong>Export CSV</strong> gives your CA the list for the year shown.</li>
+            </ul>
+          </HelpButton>
         </div>
         <div className="flex gap-2">
           <button className="btn btn-secondary" onClick={exportCSV}><Download size={16} /> Export CSV</button>

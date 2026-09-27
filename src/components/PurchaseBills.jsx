@@ -806,7 +806,7 @@ export default function PurchaseBills() {
             <h1 className="page-title">Purchase Bills</h1>
             <p className="page-subtitle">Track supplier invoices for ITC claims in GSTR-3B</p>
           </div>
-          <HelpButton title="Purchase Bills — how to use">
+          <HelpButton title="Purchase Bills — how to use" doc="purchases">
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Add Purchase</strong> — record every supplier tax invoice you receive. The GST paid becomes your ITC (input tax credit) in GSTR-3B.</li>
               <li><strong>Import from image (OCR)</strong> — snap the supplier's invoice with your phone. The app reads the supplier, GSTIN, invoice number, date, total and the item lines it can find, all on your computer. Check every field before saving.</li>

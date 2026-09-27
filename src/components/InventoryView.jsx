@@ -4,6 +4,7 @@ import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSe
 import { getAllUnits, getCountryConfig, formatCurrency } from '../utils';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
+import HelpButton from './HelpButton';
 
 // v1.10.29 — reported: "here purchase price and selling price need".
 // Product now carries BOTH: `purchasePrice` (what we paid the supplier) and
@@ -190,9 +191,19 @@ export default function InventoryView() {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Inventory</h1>
-          <p className="page-subtitle">Manage your products and services catalog</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Inventory</h1>
+            <p className="page-subtitle">Manage your products and services catalog</p>
+          </div>
+          <HelpButton title="Products — how to use" doc="products">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li><strong>Add Product</strong>: name, HSN/SAC, purchase and selling price, GST %, unit and stock. Typing the name on an invoice fills the rest in.</li>
+              <li><strong>Stock</strong> goes down when you save an invoice and up when you save a purchase bill.</li>
+              <li><strong>Import CSV</strong>: columns <code>name, hsn, rate, gst%, unit, stock</code>.</li>
+              <li><strong>Low stock</strong> shows in amber, none in red. Set the level in Settings → Low-stock alerts.</li>
+            </ul>
+          </HelpButton>
         </div>
         <div className="flex gap-2">
           <input type="file" accept=".csv" ref={csvInputRef} style={{ display: 'none' }} onChange={handleCSVImport} />

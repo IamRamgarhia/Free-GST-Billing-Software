@@ -5,6 +5,7 @@ import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
+import HelpButton from './HelpButton';
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
 
@@ -280,9 +281,18 @@ export default function ReceiptVoucher() {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Receipts</h1>
-          <p className="page-subtitle">Generate payment receipts for clients</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div>
+            <h1 className="page-title">Receipts</h1>
+            <p className="page-subtitle">Generate payment receipts for clients</p>
+          </div>
+          <HelpButton title="Receipts — how to use" doc="receipts">
+            <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+              <li><strong>New Receipt</strong>: pick an unpaid invoice to fill in the client, amount and invoice number.</li>
+              <li>When <strong>Against Invoice</strong> matches one of your invoice numbers, the payment is also recorded on that invoice.</li>
+              <li>Payments recorded on the Dashboard make their own receipt; print it from the invoice's payment history.</li>
+            </ul>
+          </HelpButton>
         </div>
         <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> New Receipt</button>
       </div>

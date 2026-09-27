@@ -5,6 +5,7 @@ import { confirmAction } from './ConfirmModal';
 import InvoicePreview from './InvoicePreview';
 import { getProfile } from '../store';
 import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampleInvoice, BUSINESS_PRESETS, applyBusinessPreset, LABEL_PRESETS } from '../utils/printSettings';
+import HelpButton from './HelpButton';
 
 // v1.9.9 — Visual design presets. Each is a starting point that flips
 // the pdfTemplate + color palette + thermal typography + a couple of
@@ -365,6 +366,16 @@ export default function PrintSettings() {
           <h3 className="section-title" style={{ marginTop: 0, marginBottom: '0.25rem' }}>
             <Printer size={18} style={{ display: 'inline', verticalAlign: -3, marginRight: 6 }} />
             Print & PDF Settings
+            <span style={{ marginLeft: 6, verticalAlign: -2, display: 'inline-block' }}>
+              <HelpButton title="Print & PDF settings — how to use" doc="print-settings" size={16}>
+                <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+                  <li><strong>Business type</strong> sets about a dozen settings for your kind of business in one click.</li>
+                  <li><strong>Visual style</strong> picks a design; everything below fine-tunes it.</li>
+                  <li>Changes save as you make them; the live preview shows the result.</li>
+                  <li>Each invoice can still change its own options under Customize.</li>
+                </ul>
+              </HelpButton>
+            </span>
           </h3>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
             App-wide defaults for every printed / PDF invoice. 70+ settings — every one dynamic. Each invoice can override via its Customize panel.
