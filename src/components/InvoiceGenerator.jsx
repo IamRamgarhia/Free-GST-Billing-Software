@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, decodeGstin, safePageBoundaries } from '../utils';
+import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -142,8 +142,8 @@ const DEFAULT_OPTIONS = {
   // exist; a future feature can auto-populate them from prior bills.
   tdsCumulativeThisYear: 0,
   showTCS: false,
-  tcsSection: '206C(1H)',
-  tcsRate: 0.1,
+  tcsSection: '52',
+  tcsRate: 1,
   tcsCumulativeThisYear: 0,
   customTitle: '',
   currency: 'INR',
@@ -182,6 +182,8 @@ const PDF_STYLES = [
   { id: 'classic', label: 'Classic', desc: 'Clean with top accent bar' },
   { id: 'modern', label: 'Modern', desc: 'Bold header with color block' },
   { id: 'minimal', label: 'Minimal', desc: 'Simple, borderless layout' },
+  { id: 'boxed', label: 'Boxed grid', desc: 'Every section in ruled boxes, item table filled to a fixed height' },
+  { id: 'tally', label: 'Tally style', desc: 'The Tally layout: order and dispatch boxes, HSN tax summary, declaration' },
 ];
 
 // v1.10.7 — audit H14. Extracted from the inline `items.map(...)` block
@@ -1179,7 +1181,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   };
 
   const toggleOption = (key) => {
-    setInvoiceOptions(prev => ({ ...prev, [key]: !prev[key] }));
+    setInvoiceOptions(prev => ({ ...prev, [key]: !invoiceOptionOn(prev, key) }));
   };
 
   // v1.10.4 — useMemo replaces the prior useEffect+setTotals pair. Same
@@ -2019,7 +2021,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ).forEach(el => edges.push(...span(el)));
       const keepWhole = [...container.querySelectorAll(
         '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
-        '.inv-footer-block, .inv-signature, .inv-totals, img'
+        // v1.10.73 - [data-pdf-page-boundary] too: the Boxed grid and Tally
+        // designs mark every block with it (signature included), and a page
+        // must end at those blocks' edges, never through one.
+        '.inv-footer-block, .inv-signature, .inv-totals, [data-pdf-page-boundary], img'
       )].map(span);
       return safePageBoundaries(edges, keepWhole);
     };
@@ -2142,7 +2147,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       const t = printRef.current.getBoundingClientRect().top;
       const rel = (el) => { const r = el.getBoundingClientRect(); return [r.top - t, r.bottom - t]; };
       const firstRow = printRef.current.querySelector('.inv-table tbody tr');
-      const sig = printRef.current.querySelector('.inv-signature');
+      const sig = printRef.current.querySelector('.inv-signature, [data-pdf-signature]');
       window.__lastPdfLayout = {
         pageHeight: contentHeightMulti * domContainerWidth / contentWidth,
         fullHeight: contentHeightFull * domContainerWidth / contentWidth,
@@ -2151,7 +2156,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         rowHeight: firstRow ? rel(firstRow)[1] - rel(firstRow)[0] : 0,
         signature: sig ? rel(sig) : null,
         blocks: [...printRef.current.querySelectorAll('.inv-footer-block')].map(rel).filter(([a, b]) => b - a > 2),
-        atoms: [...printRef.current.querySelectorAll('.inv-signature, img')].map(rel).filter(([a, b]) => b - a > 2),
+        atoms: [...printRef.current.querySelectorAll('.inv-signature, img, [data-pdf-page-boundary]')].map(rel).filter(([a, b]) => b - a > 2),
       };
     } catch { /* test hook only */ }
 
@@ -3250,19 +3255,30 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   <div className={`form-group${invoiceOptions.showTCS ? ' notice notice-warn' : ''}`} style={{ marginBottom: '0.75rem', padding: '0.6rem', borderRadius: '6px', display: 'block' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!invoiceOptions.showTCS}
-                        onChange={() => setInvoiceOptions(prev => ({ ...prev, showTCS: !prev.showTCS }))}
+                        onChange={() => setInvoiceOptions(prev => {
+                          // Turning TCS on for an invoice whose remembered section can no
+                          // longer be chosen (206C(1H)) starts from the first current one.
+                          const turningOn = !prev.showTCS;
+                          const valid = TCS_SECTIONS.some(s => s.code === prev.tcsSection);
+                          return turningOn && !valid
+                            ? { ...prev, showTCS: true, tcsSection: TCS_SECTIONS[0].code, tcsRate: TCS_SECTIONS[0].rate }
+                            : { ...prev, showTCS: turningOn };
+                        })}
                         style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
                       <strong>TCS — Tax Collected at Source</strong>
                       <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>(Adds to invoice total)</span>
                     </label>
                     {invoiceOptions.showTCS && (
                       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <select className="form-input" value={invoiceOptions.tcsSection || '206C(1H)'}
+                        <select className="form-input" value={invoiceOptions.tcsSection || TCS_SECTIONS[0].code}
                           onChange={(e) => {
                             const code = e.target.value;
                             const section = TCS_SECTIONS.find(s => s.code === code);
                             setInvoiceOptions(prev => ({ ...prev, tcsSection: code, tcsRate: code === 'custom' ? prev.tcsRate : section?.rate ?? prev.tcsRate }));
                           }}>
+                          {REMOVED_TCS_SECTIONS[invoiceOptions.tcsSection] && (
+                            <option value={invoiceOptions.tcsSection} disabled>{REMOVED_TCS_SECTIONS[invoiceOptions.tcsSection]}</option>
+                          )}
                           {TCS_SECTIONS.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
                         </select>
                         <input type="number" step="any" min="0" max="100" className="form-input"
@@ -3413,6 +3429,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showSubtotal', 'Subtotal row'],
                     ['showAmountWords', 'Amount in words'],
                     ['showRoundOff', 'Round-off line'],
+                    ['showHsnSummary', 'HSN/SAC tax summary table'],
+                    ['showTaxInWords', 'Tax amount in words'],
                   ]},
                   { group: 'Compliance flags (India)', items: [
                     ['reverseCharge', 'Reverse Charge applies (Section 9(3)/9(4)) — recipient pays GST'],
@@ -3430,6 +3448,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showTerms', 'Terms & Conditions'],
                     ['showNotes', 'Notes / Remarks'],
                     ['showSystemGeneratedNote', 'Note: system-generated invoice, no signature or stamp required'],
+                    ['showDeclaration', 'Declaration'],
+                    ['showCustomerSeal', "\"Customer's Seal and Signature\" box (Boxed grid / Tally style)"],
                   ]},
                 ].map(section => {
                   if (section.group === '__PAPER_SIZE__') {
@@ -3546,9 +3566,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                           // These default to OFF; everything else defaults to ON.
                           // v1.10.70 - showSystemGeneratedNote added: without it the box
                           // showed ticked while the invoice printed no note.
-                          const offByDefault = key === 'showRoundOff' || key === 'showAccountLabel'
-                            || key === 'showCess' || key === 'reverseCharge' || key === 'showSystemGeneratedNote';
-                          const checked = offByDefault ? !!invoiceOptions[key] : invoiceOptions[key] !== false;
+                          const checked = invoiceOptionOn(invoiceOptions, key);
                           return (
                             <label key={key} className="option-toggle">
                               <input type="checkbox" checked={checked} onChange={() => toggleOption(key)} />
@@ -3560,6 +3578,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     </div>
                   );
                 })}
+                {invoiceOptionOn(invoiceOptions, 'showDeclaration') && (
+                  <div className="form-group" style={{ marginTop: '0.4rem' }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Declaration text</label>
+                    <textarea className="form-input" rows={2}
+                      value={invoiceOptions.declarationText ?? DEFAULT_DECLARATION}
+                      onChange={e => setInvoiceOptions(prev => ({ ...prev, declarationText: e.target.value }))} />
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
                   <button type="button" className="btn btn-secondary"
                     onClick={() => {
@@ -3891,6 +3917,37 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   </div>
                 )}
               </div>
+
+              {/* v1.10.73 - order, dispatch and reference details: the boxes on a
+                  Tally-style invoice. Optional; closed unless one is filled. */}
+              {(() => {
+                const filled = ORDER_DETAIL_FIELDS.filter(f => String(details[f.key] || '').trim()).length;
+                const periodBackwards = details.periodFrom && details.periodTo && details.periodTo < details.periodFrom;
+                return (
+                  <details className="form-group full-width" open={filled > 0 || undefined}
+                    style={{ padding: '0.6rem 0.85rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.88rem', userSelect: 'none' }}>
+                      <strong>Order, dispatch &amp; reference details</strong>
+                      <span style={{ color: 'var(--text-muted)' }}> (optional{filled ? `, ${filled} filled` : ''}) - buyer's order no, vehicle no, service period, work details</span>
+                    </summary>
+                    <div className="grid grid-cols-2 gap-3" style={{ marginTop: '0.6rem' }}>
+                      {ORDER_DETAIL_FIELDS.map(f => (
+                        <div key={f.key} className={`form-group${f.wide ? ' full-width' : ''}`}>
+                          <label className="form-label" style={{ fontSize: '0.78rem' }}>{f.label}</label>
+                          <input type={f.type || 'text'} className="form-input" value={details[f.key] || ''}
+                            placeholder={f.placeholder || ''}
+                            onChange={e => setDetails({ ...details, [f.key]: e.target.value })} />
+                        </div>
+                      ))}
+                    </div>
+                    {periodBackwards && (
+                      <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--warn-text, #b45309)' }}>
+                        ⚠ The service period ends before it starts. Check the two dates.
+                      </p>
+                    )}
+                  </details>
+                );
+              })()}
             </div>
           </div>
 

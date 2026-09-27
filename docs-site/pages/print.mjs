@@ -182,7 +182,7 @@ export default [
 
 <section id="template">
 <h2>PDF layout template</h2>
-<p>Modern (a coloured header, the default), Classic (conservative), Minimal (lots of white space), Corporate and Minimalist. Corporate and Minimalist are variations of Classic and Minimal. A design chosen under <a href="#visual-style">Visual style</a> sets this for you.</p>
+<p>Modern (a coloured header, the default), Classic (conservative), Minimal (lots of white space), Corporate, Minimalist, Boxed grid and Tally style. Corporate and Minimalist are variations of Classic and Minimal. A design chosen under <a href="#visual-style">Visual style</a> sets this for you.</p>
 </section>
 
 <section id="colours">

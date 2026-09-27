@@ -49,13 +49,14 @@ export default [
 <div class="table-wrap"><table>
   <tr><th>Type</th><th>Prints as</th><th>Use it for</th><th>GST</th><th>Counts as a sale?</th></tr>
   <tr><td>Tax Invoice</td><td>TAX INVOICE</td><td>A normal sale by a GST-registered business</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Quotation</td><td>QUOTATION</td><td>A priced offer for work or supply, numbered QUO/…. Convert it to a tax invoice when the client accepts.</td><td>Shown</td><td>No</td></tr>
   <tr><td>Proforma / Estimate</td><td>PROFORMA INVOICE</td><td>A quote before the sale. Prints "This is not a tax invoice" and a faint ESTIMATE watermark.</td><td>Shown</td><td>No</td></tr>
   <tr><td>Bill of Supply (No GST)</td><td>BILL OF SUPPLY</td><td>Exempt goods or services</td><td>No</td><td>Yes</td></tr>
   <tr><td>Composition (Bill of Supply)</td><td>BILL OF SUPPLY</td><td>Sales under the composition scheme. The declaration required by Rule 46A prints automatically.</td><td>No</td><td>Yes</td></tr>
   <tr><td>Credit Note</td><td>CREDIT NOTE</td><td>Returns, a price cut after the sale, or a correction. Its total is subtracted from your sales.</td><td>Yes</td><td>Subtracted</td></tr>
   <tr><td>Delivery Challan</td><td>DELIVERY CHALLAN</td><td>Moving goods without a sale, such as to a job worker or on approval</td><td>No</td><td>No</td></tr>
 </table></div>
-<p>Changing the type also changes the invoice number to that type's series, replacing any number you typed.</p>
+<p>There are seven types. Changing the type also changes the invoice number to that type's series, replacing any number you typed.</p>
 <p><strong>Once an invoice is saved, its type is locked.</strong> The other chips are greyed out, because the number and the tax already issued to your client must not change. To make a different document from it, use ${ui('Duplicate')} on the Dashboard.</p>
 </section>
 
@@ -117,6 +118,13 @@ export default [
 </table></div>
 </section>
 
+<section id="order-details">
+<h2>Order, dispatch and reference details</h2>
+<p>Under Invoice Details, <b>Order, dispatch &amp; reference details</b> opens a set of optional fields, the boxes a Tally invoice carries:</p>
+<p>work details, revision no, vehicle no, service period from and to, buyer's order no and order date, reference no &amp; date, other references, delivery note and its date, dispatch doc no, dispatched through, destination, mode or terms of payment, and terms of delivery.</p>
+<p>Only what you fill in prints. The <a href="invoice-options.html#style">Tally style</a> design shows them in its reference boxes; the other designs list them under Bill To. The section stays open on an invoice that has any of them.</p>
+</section>
+
 <section id="items">
 <h2>Line items</h2>
 <p>Each row has these fields:</p>
@@ -176,12 +184,12 @@ export default [
 <h2>TDS and TCS</h2>
 <p>Both are under ${ui('Customize')}, for Indian businesses. Turn on <b>TDS / TCS on invoices</b> in <a href="settings.html#modules">Settings, Modules</a> first; it is off to begin with.</p>
 <ul>
-  <li><strong>TCS</strong>, tax you collect: tick it and pick the section. 206C(1H) at 0.1% is the default; CGST section 52 (1%), 206C(1) and a custom rate are also offered. TCS is added to the invoice total.</li>
+  <li><strong>TCS</strong>, tax you collect: tick it and pick the section: CGST section 52 (1%, e-commerce operators), 206C(1), or a custom rate. TCS is added to the invoice total. Section 206C(1H), TCS on sale of goods, was removed from 1 April 2025, so new invoices cannot choose it; invoices already made with it keep it.</li>
   <li><strong>TDS</strong>, tax your client deducts: tick it and pick the section, such as 194Q, 194C, 194J, 194I, 194H, 194O or 195. It is for information: the invoice shows <b>Less: TDS</b> and the <b>Net Receivable</b>, and the total does not change.</li>
 </ul>
 <p>Both are worked out on the amount including GST.</p>
 <ul>
-  <li><strong>194Q and 206C(1H)</strong> only apply above ₹50 lakh a year with that client. The app adds up what you have already billed the client this financial year, and charges only the part above ₹50 lakh.</li>
+  <li><strong>194Q</strong> (and 206C(1H) on invoices before April 2025) only applies above ₹50 lakh a year with that client. The app adds up what you have already billed the client this financial year, and charges only the part above ₹50 lakh.</li>
   <li><strong>Every other section</strong>, such as 194C, 194J or CGST section 52, applies from the first rupee. Tick it only when the rules say it applies to this client.</li>
 </ul>
 <p>Invoices with TDS or TCS are summed in <a href="gst-returns.html#tds-tcs">the TDS / TCS report</a>. Have your CA confirm which sections apply to you.</p>
@@ -297,7 +305,7 @@ export default [
 
 <section id="proforma-to-invoice">
 <h2>Turning a quote into an invoice</h2>
-<p>When a client accepts a Proforma / Estimate, click ${ui('Convert to Tax Invoice')} on it in the Dashboard. A new tax invoice opens with the same client and items, and gets its own number when you save it. The same works for a delivery challan.</p>
+<p>When a client accepts a Quotation or a Proforma / Estimate, click ${ui('Convert to Tax Invoice')} on it in the Dashboard. A new tax invoice opens with the same client and items, and gets its own number when you save it. The same works for a delivery challan.</p>
 </section>
 
 <section id="cancel">
@@ -359,7 +367,14 @@ export default [
   <tr><td>Classic</td><td>Clean, with a coloured bar across the top. The default.</td></tr>
   <tr><td>Modern</td><td>A solid colour block behind your business name, with the logo in white.</td></tr>
   <tr><td>Minimal</td><td>Simple, with no borders.</td></tr>
+  <tr><td>Boxed grid</td><td>Every section in ruled boxes: your name large at the top, seller and document details side by side, Billing To and Shipping To, a Work Details line, and an item table filled with empty rows to a fixed height, like a printed quotation pad.</td></tr>
+  <tr><td>Tally style</td><td>The Tally layout: reference and dispatch boxes beside your details, state names with their codes, taxes inside the item table, amount in words with E. &amp; O.E, an HSN/SAC tax summary, tax amount in words, your PAN, a declaration, and a "Customer's Seal and Signature" box.</td></tr>
 </table>
+<figure class="pair">
+  <img src="assets/img/design-tally.png" alt="A tax invoice in Tally style" loading="lazy">
+  <img src="assets/img/design-boxed.png" alt="A quotation in the Boxed grid design" loading="lazy">
+  <figcaption>Tally style (left) and Boxed grid (right), with a made-up business.</figcaption>
+</figure>
 <p><b>Accent Color</b>: <b>Auto</b> gives each type its own colour, such as blue for tax invoices, purple for proformas, teal for bills of supply and red for credit notes. You can also choose one of eight fixed colours: blue, purple, teal, red, orange, green, sky or dark.</p>
 </section>
 
@@ -372,9 +387,9 @@ export default [
   <tr><td>Client / Bill-to</td><td>Client address, phone, email, Place of Supply</td><td></td></tr>
   <tr><td>Invoice meta</td><td>Invoice number, invoice date, due date</td><td></td></tr>
   <tr><td>Items table</td><td>HSN/SAC column, Qty column, unit next to the quantity, Rate column, Discount column, Tax % column, GST Cess % column</td><td>GST Cess</td></tr>
-  <tr><td>Totals</td><td>Subtotal row, amount in words, round-off line</td><td>Round-off</td></tr>
+  <tr><td>Totals</td><td>Subtotal row, amount in words, round-off line, HSN/SAC tax summary table, tax amount in words</td><td>Round-off. The HSN summary and tax in words are on only in Tally style.</td></tr>
   <tr><td>Compliance flags</td><td>Reverse Charge applies</td><td>Reverse Charge</td></tr>
-  <tr><td>Footer</td><td>Bank details, "Pay via" account label, UPI QR, signature block, "Authorized Signatory" caption, Terms &amp; Conditions, Notes, system-generated note</td><td>"Pay via" label, system-generated note</td></tr>
+  <tr><td>Footer</td><td>Bank details, "Pay via" account label, UPI QR, signature block, "Authorized Signatory" caption, Terms &amp; Conditions, Notes, system-generated note, Declaration, "Customer's Seal and Signature" box</td><td>"Pay via" label, system-generated note. Declaration and the seal box are on only in Tally style.</td></tr>
 </table></div>
 <p>A few options do more than show or hide:</p>
 <ul>
@@ -385,6 +400,7 @@ export default [
   <li><strong>GST Cess % column</strong> adds a Cess box to each row of the form. The printed invoice shows cess as one line in the totals.</li>
   <li>Hiding HSN, Discount, Place of Supply, state or Tax ID also hides the matching box in the form.</li>
 </ul>
+<p>When <b>Declaration</b> is on, a box appears to change its wording. It starts as the standard "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."</p>
 <p>${ui('Hide all')} turns off everything in the header, client, invoice, items, totals and footer groups at once. ${ui('Reset to default')} puts <em>every</em> option back as it was on a fresh install, including currency, paper size, recurring, TDS, TCS and reverse charge.</p>
 </section>
 

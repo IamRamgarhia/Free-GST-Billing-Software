@@ -25,7 +25,7 @@ export const GUIDE_CONTENT = [
     'Auto GST math — CGST + SGST or IGST for India; VAT / SST / TVA / MwSt / Sales Tax for 21 other countries.',
     'Generate professional PDFs (3 styles), share over WhatsApp, email, or upload to Google Drive.',
     'Track inventory with units (kg, ltr, mtr, hrs, pcs, …) including custom units.',
-    'TDS / TCS line items on invoices (Section 194Q, 206C(1H), etc.).',
+    'TDS / TCS line items on invoices (Section 194Q, 194J, CGST 52, etc.).',
     'GSTR-1 / GSTR-3B CSV and JSON exports for the GST portal offline tool.',
     'GSTR-2B reconciliation — match purchases against the GSTN-generated 2B file.',
     'E-Way Bill JSON for the NIC portal.',
@@ -132,7 +132,7 @@ export const GUIDE_CONTENT = [
   { type: 'h2', text: '9. TDS / TCS on invoices' },
   { type: 'p', text: 'In Customize → TDS or TCS:' },
   { type: 'kv', rows: [
-    ['TCS — collected by you', 'Adds to the invoice total. Section 206C(1H) for sales > Rs 50 L, ecommerce 52, custom rate.'],
+    ['TCS — collected by you', 'Adds to the invoice total. CGST section 52 (e-commerce), 206C(1) or a custom rate. 206C(1H) was removed from 1 April 2025.'],
     ['TDS — deducted by the buyer', 'Informational only — shows below "Total Due" with a "Net Receivable" line. Sections 194Q, 194C, 194J, 194I, 194H, 194O, 195, custom.'],
   ]},
   { type: 'p', text: 'Aggregated reports are at GST Returns → TDS / TCS Report tab. Export per-quarter CSVs as input for Form 26Q (TDS) and Form 27EQ (TCS) quarterly returns.' },

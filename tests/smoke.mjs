@@ -1254,6 +1254,41 @@ try {
       `page ends at ${seam.ends.map(Math.round).join(', ')}px${cutInto.length ? ` - CUTS THROUGH at ${cutInto.map(Math.round).join(', ')}` : ''}`);
   }
 
+  // ---- v1.10.73: Boxed grid and Tally style designs ----------------------
+  // Chosen through Customize, the way a person does it. The choice is saved
+  // as the default for new invoices, so it is put back to Classic at the end.
+  const pickStyle = async (label) => {
+    const custom = page.getByRole('button', { name: /^customize$/i }).first();
+    if (await custom.count()) { await custom.click(); await sleep(700); }
+    await page.locator('button.type-chip', { hasText: label }).first().click();
+    await sleep(1500); // display options save after 800 ms
+    const hide = page.getByRole('button', { name: /hide options/i }).first();
+    if (await hide.count()) { await hide.click(); await sleep(400); }
+  };
+  await openDraft(seamDraft(1));
+  await pickStyle('Tally style');
+  const TL = await pdfLayout(45);
+  const tallyText = await page.locator('#invoice-preview').innerText().catch(() => '');
+  check('v73 Tally style prints the HSN/SAC tax summary, the declaration and the seal box',
+    /Total Tax Amount/i.test(tallyText) && /Declaration/i.test(tallyText) && /Customer.s Seal and Signature/i.test(tallyText)
+      && /Amount Chargeable \(in words\)/i.test(tallyText),
+    tallyText ? '' : 'preview had no text');
+  {
+    const ok = !!(TL && TL.total > TL.fullHeight + 2 && TL.ends.length > 0);
+    const cutInto = ok ? TL.ends.filter((e) => TL.atoms.some(([a, b]) => e > a + 1 && e < b - 1)) : [];
+    check('v73 Tally style: a 45-item invoice runs onto more pages and no page ends inside a row, block or the signature',
+      ok && cutInto.length === 0,
+      ok ? `page ends at ${TL.ends.map(Math.round).join(', ')}px${cutInto.length ? ` - CUTS THROUGH at ${cutInto.map(Math.round).join(', ')}` : ''}`
+        : `no multi-page PDF: ${JSON.stringify(TL && { total: TL.total, full: TL.fullHeight })}`);
+  }
+  await pickStyle('Boxed grid');
+  await openDraft(seamDraft(1));
+  const boxedRows = await page.locator('#invoice-preview table.grid-items tbody tr').count();
+  const boxedText = await page.locator('#invoice-preview').innerText().catch(() => '');
+  check('v73 Boxed grid fills the item table to a fixed height and prints Grand Total',
+    boxedRows >= 8 && /Grand Total/.test(boxedText), `${boxedRows} rows`);
+  await pickStyle('Classic');
+
   // ---- #72: "system-generated, no signature required" note ----------------
   // Driven through Customize, the way a person turns it on. (Options passed in
   // a draft are replaced by the server-saved display options on load.)
@@ -1348,6 +1383,11 @@ try {
   // a guessing game.
   const detail = err.message.split('\n').filter((l) => l.trim()).slice(0, 4).join(' | ');
   check('suite ran to completion', false, detail);
+  // A screenshot of the moment it stopped, when asked for: a timeout says
+  // what was awaited, not what was on screen instead (a dialog in the way?).
+  if (process.env.SMOKE_FAIL_SHOT) {
+    try { await page.screenshot({ path: process.env.SMOKE_FAIL_SHOT, fullPage: true }); } catch { /* best effort */ }
+  }
   try { await cleanup(page); } catch { /* ignore */ }
 } finally {
   if (profileAtStart) {

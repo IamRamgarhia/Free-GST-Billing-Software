@@ -2077,7 +2077,7 @@ export default function GSTReturns() {
             <div className="glass-panel" style={{ padding: '0.85rem 1rem', marginBottom: '0.75rem', borderLeft: '3px solid var(--primary)' }}>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                 <strong>What this is:</strong> Aggregates TDS (tax deducted by your clients on payments to you — Section 194C/194J/194Q etc.)
-                and TCS (tax collected by you from clients — Section 206C(1H)/52 etc.) across the selected period.
+                and TCS (tax collected by you from clients — CGST section 52, 206C(1), or 206C(1H) on invoices before April 2025) across the selected period.
                 Use the CSV exports as input for <strong>Form 26Q</strong> (TDS) and <strong>Form 27EQ</strong> (TCS) quarterly returns,
                 or hand the file to your CA. Filed at <a href="https://www.tin-nsdl.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>tin-nsdl.com</a>.
               </p>

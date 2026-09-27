@@ -720,6 +720,28 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-036 - "Needs a Quick Start" appeared while the app was running
+
+**Version:** since the continuous server check · fixed in v1.10.73
+**Reported by:** found by the release test on a machine at 100% CPU
+
+**Symptom** - mid-session, the whole app was replaced by "Free GST Billing
+Software Needs a Quick Start ... Starting..." although the server was running
+and answered in milliseconds a moment later.
+
+**Cause** - `App.jsx` polls `/api/profile` every 5 s with a 3 s timeout, and a
+single slow reply set `serverDown`, which swaps the whole app for the notice.
+On a loaded PC one reply can take longer than 3 s.
+
+**Rule** - a liveness check that can take the whole screen away needs more
+than one failure: judge "down" on consecutive misses, and only trust a single
+miss before the app has ever loaded.
+
+**Guard** - none automated (needs a controlled slow server). By hand: pause
+the server process for ~6 s mid-session; the app must stay on screen.
+
+---
+
 ## ERR-035 - Control Panel: "Launcher scripts not detected" on every install
 
 **Version:** broke in v1.10.44 (Control Panel) and v1.10.69 (Update Now uses it) · fixed in v1.10.72

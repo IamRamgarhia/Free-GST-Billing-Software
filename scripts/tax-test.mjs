@@ -26,6 +26,12 @@ import {
   GST_PORTAL_RATES,
   markPaidPatch,
   getCountryConfig,
+  invoiceOptionOn,
+  filledOrderDetails,
+  formatShortDate,
+  docsLink,
+  TCS_SECTIONS,
+  INVOICE_TYPES,
 } from '../src/utils.js';
 import {
   compute44AE,
@@ -623,6 +629,30 @@ console.log('\n[V71] Income tax: bank categories and the ITR-4 80D line');
   const senior = { ...inputs, age: 60, selfSenior: true, parentsSenior: true };
   const row2 = buildITR4FieldMap(senior, computeTax({ ...senior, regime: 'old' }), null, senior.deductions).find((r) => r.field.startsWith('§80D'));
   eq(row2.value, 90000, 'Senior self and parents allow up to ₹1 lakh, so all 90,000 counts');
+}
+
+
+console.log('\n[V73] Customize options, order details, Quotation, docs links');
+{
+  eq(invoiceOptionOn({}, 'showLogo'), true, 'An option never saved is on by default');
+  eq(invoiceOptionOn({}, 'showRoundOff'), false, 'Round-off is off unless chosen');
+  eq(invoiceOptionOn({ pdfStyle: 'tally' }, 'showHsnSummary'), true, 'Tally style shows the HSN summary by default');
+  eq(invoiceOptionOn({ pdfStyle: 'classic' }, 'showHsnSummary'), false, 'Other designs do not, unless chosen');
+  eq(invoiceOptionOn({ pdfStyle: 'tally', showHsnSummary: false }, 'showHsnSummary'), false, 'A saved choice always wins');
+  // The first click must flip what the box shows (it took two clicks for never-saved options).
+  const flipped = { showBusinessName: !invoiceOptionOn({}, 'showBusinessName') };
+  eq(invoiceOptionOn(flipped, 'showBusinessName'), false, 'One click turns a default-on option off');
+
+  eq(formatShortDate('2026-08-31'), '31-Aug-26', 'Dates print the Tally way');
+  const od = filledOrderDetails({ buyerOrderNo: ' PO/118 ', vehicleNo: '', buyerOrderDate: '2026-08-02' });
+  eq(od.map((f) => [f.key, f.value]), [['buyerOrderNo', 'PO/118'], ['buyerOrderDate', '02-Aug-26']], 'Only filled order details print, dates formatted');
+
+  eq(INVOICE_TYPES.quotation.prefix, 'QUO', 'Quotations number as QUO');
+  eq(salesSign({ invoiceType: 'quotation', totalAmount: 100 }), 0, 'A quotation is not a sale');
+
+  eq(docsLink('invoices#toolbar'), 'https://dicecodes.com/free-gst-software-documentation/invoices.html#toolbar', 'Help links go to the docs section');
+  eq(docsLink('index'), 'https://dicecodes.com/free-gst-software-documentation/', 'The docs home link');
+  eq(TCS_SECTIONS.some((t) => t.code === '206C(1H)'), false, '206C(1H) (omitted from 1 April 2025) is not offered on new invoices');
 }
 
 console.log('\n────────────────────────────────────────');

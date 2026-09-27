@@ -923,6 +923,7 @@ export default function PrintSettings() {
             </p>
             {[
               { key: 'tax-invoice',     label: 'Tax Invoice',       def: 'INV'  },
+              { key: 'quotation',       label: 'Quotation',         def: 'QUO'  },
               { key: 'proforma',        label: 'Proforma / Estimate', def: 'EST' },
               { key: 'bill-of-supply',  label: 'Bill of Supply',    def: 'BOS'  },
               { key: 'composition',     label: 'Composition',       def: 'COMP' },
@@ -1044,6 +1045,8 @@ export default function PrintSettings() {
                 ['minimal', 'Minimal (clean / whitespace)'],
                 ['corporate', 'Corporate (formal blue/navy)'],
                 ['minimalist', 'Minimalist (grayscale + Inter)'],
+                ['boxed', 'Boxed grid (ruled boxes, like a quotation pad)'],
+                ['tally', 'Tally style (order boxes, HSN tax summary, declaration)'],
               ]}
               hint="Changes the header block and table styling of the A4/A5 PDF. Thermal receipts use their own compact template." />
           </SettingGroup>

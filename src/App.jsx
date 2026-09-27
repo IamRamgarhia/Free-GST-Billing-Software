@@ -292,12 +292,19 @@ function App() {
   // Check if server is running — continuously monitors
   useEffect(() => {
     let cancelled = false;
+    // v1.10.73 - a busy or older PC can take a few seconds to answer. One
+    // slow reply used to replace the whole app with "Needs a Quick Start"
+    // mid-invoice. Once the app has loaded, it now takes 3 missed checks in a
+    // row (about 15 s) before saying the app is not running; before the first
+    // load it still says so straight away.
+    let misses = 0;
 
     const checkServer = async () => {
       try {
-        const res = await fetch('/api/profile', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('/api/profile', { signal: AbortSignal.timeout(8000) });
         if (res.ok) {
           if (cancelled) return;
+          misses = 0;
           setServerDown(false);
           setServerStatus('online');
           if (!profileLoaded.current) {
@@ -312,7 +319,9 @@ function App() {
         }
         throw new Error('not ok');
       } catch {
-        if (!cancelled) {
+        if (cancelled) return;
+        misses += 1;
+        if (!profileLoaded.current || misses >= 3) {
           setServerDown(true);
           setServerStatus('offline');
         }

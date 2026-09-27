@@ -446,6 +446,16 @@ export const INVOICE_TYPES = {
     showGST: true,
     description: 'Standard GST tax invoice',
   },
+  // v1.10.73 - a priced offer for work or supply (QUO/26-27/080 style). Like a
+  // proforma it is not a sale and never reaches GST returns; convert it to a
+  // tax invoice once the client accepts.
+  'quotation': {
+    label: 'Quotation',
+    prefix: 'QUO',
+    title: 'QUOTATION',
+    showGST: true,
+    description: 'Priced offer for work or supply — not a tax document. Convert it to a tax invoice when accepted',
+  },
   'proforma': {
     label: 'Proforma / Estimate',
     prefix: 'EST',
@@ -482,6 +492,56 @@ export const INVOICE_TYPES = {
     description: 'For goods transport, job work, or supply on approval — not a tax document',
   },
 };
+
+// v1.10.73 - optional order / dispatch / reference details on an invoice,
+// the boxes a Tally-style invoice carries. One list drives the editor and
+// every PDF design, so a field can never be typed in but not printed.
+export const ORDER_DETAIL_FIELDS = [
+  { key: 'workDetails', label: 'Work details', wide: true, placeholder: 'e.g. Supply and installation of high mast lights, scope as per annexure' },
+  { key: 'revisionNo', label: 'Revision No', placeholder: 'e.g. Rev-1' },
+  { key: 'vehicleNo', label: 'Vehicle No', placeholder: 'e.g. TS09AB1234' },
+  { key: 'periodFrom', label: 'Service period from', type: 'date' },
+  { key: 'periodTo', label: 'Service period to', type: 'date' },
+  { key: 'buyerOrderNo', label: "Buyer's Order No", placeholder: 'PO / work order number' },
+  { key: 'buyerOrderDate', label: 'Order date', type: 'date' },
+  { key: 'referenceNo', label: 'Reference No & Date' },
+  { key: 'otherReferences', label: 'Other references' },
+  { key: 'deliveryNote', label: 'Delivery Note' },
+  { key: 'deliveryNoteDate', label: 'Delivery note date', type: 'date' },
+  { key: 'dispatchDocNo', label: 'Dispatch Doc No' },
+  { key: 'dispatchedThrough', label: 'Dispatched through', placeholder: 'e.g. VRL Logistics, by road' },
+  { key: 'destination', label: 'Destination' },
+  { key: 'paymentTerms', label: 'Mode / Terms of payment', placeholder: 'e.g. 30 days, NEFT' },
+  { key: 'deliveryTerms', label: 'Terms of delivery', wide: true },
+];
+// Whether a Customize option is on. Most are on unless switched off; a few are
+// off unless chosen; the Tally-style extras are on by default only in that
+// design. The Customize panel and the printed invoice both use this, so a tick
+// box can never show one thing while the invoice prints another (and the first
+// click always flips what you see - it used to take two clicks for options
+// that had never been saved).
+export const OPTIONS_OFF_BY_DEFAULT = ['showRoundOff', 'showAccountLabel', 'showCess', 'reverseCharge', 'showSystemGeneratedNote'];
+export const OPTIONS_ON_FOR_TALLY = ['showHsnSummary', 'showTaxInWords', 'showDeclaration', 'showCustomerSeal'];
+export const invoiceOptionOn = (options, key, style = options?.pdfStyle) => {
+  const v = options?.[key];
+  if (v !== undefined && v !== null) return !!v;
+  if (OPTIONS_OFF_BY_DEFAULT.includes(key)) return false;
+  if (OPTIONS_ON_FOR_TALLY.includes(key)) return style === 'tally';
+  return true;
+};
+export const DEFAULT_DECLARATION = 'We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.';
+
+// dd-Mon-yy for printing (31-Aug-26), the way Tally prints dates.
+export const formatShortDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-');
+};
+// The filled-in order details, ready to print as label / value pairs.
+export const filledOrderDetails = (details = {}) => ORDER_DETAIL_FIELDS
+  .filter((f) => String(details[f.key] || '').trim())
+  .map((f) => ({ ...f, value: f.type === 'date' ? formatShortDate(details[f.key]) : String(details[f.key]).trim() }));
 
 // v1.10.70 - where a PDF page is allowed to end.
 //
@@ -1861,8 +1921,12 @@ export const TDS_SECTIONS = [
 
 // TCS (Section 206C) is collected BY the seller from the buyer and added to the
 // invoice total. Common cases:
+//
+// v1.10.73 - 206C(1H) (TCS on sale of goods) was omitted from 1 April 2025 by
+// the Finance Act 2025, so new invoices can no longer pick it. Invoices saved
+// with it keep it and reprint unchanged (see REMOVED_TCS_SECTIONS).
+export const REMOVED_TCS_SECTIONS = { '206C(1H)': '206C(1H) — removed from 1 April 2025 (older invoices only)' };
 export const TCS_SECTIONS = [
-  { code: '206C(1H)', label: '206C(1H) — Sale of goods (seller turnover > ₹10cr)', rate: 0.1 },
   { code: '52',       label: 'CGST 52 — E-commerce operator', rate: 1 },
   { code: '206C(1)',  label: '206C(1) — Tendu leaves / scrap / minerals (varies)', rate: 1 },
   { code: 'custom',   label: 'Custom rate', rate: 0 },

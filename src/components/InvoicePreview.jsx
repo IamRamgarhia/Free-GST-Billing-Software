@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import DOMPurify from 'dompurify';
-import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount, htmlHasText, splitNumberedTerms } from '../utils';
+import { numberToWords, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount, htmlHasText, splitNumberedTerms, invoiceOptionOn, DEFAULT_DECLARATION, filledOrderDetails, formatShortDate } from '../utils';
 import { getPrintSettings, getLabel } from '../utils/printSettings';
+import InvoiceGridLayout, { HsnSummaryTable } from './InvoiceGridLayout';
 
 // v1.10.36 — Optional `previewOnly` prop suppresses the internal
 // `id="invoice-preview"`. The parent's on-screen preview keeps the id
@@ -188,6 +189,43 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
 
   // Check if any item has discount
   const hasAnyDiscount = showDiscount && items.some(item => (item.discount || 0) > 0);
+
+  // v1.10.73 - one per-line calculation for every design, the item table and
+  // the HSN/SAC summary, so they can never disagree with each other.
+  // v1.10.29 - resolveLineDiscount respects discountType + discountBase, as
+  // computeInvoiceTotals does for the totals.
+  const lineCalc = (item) => {
+    const discount = resolveLineDiscount(item);
+    const grossAfterDiscount = Math.max(0, (Number(item.quantity) || 0) * (Number(item.rate) || 0) - discount);
+    const rate = Number(item.taxPercent) || 0;
+    const inclusive = totals.taxInclusive && showGST;
+    const taxable = inclusive ? grossAfterDiscount / (1 + rate / 100) : grossAfterDiscount;
+    const tax = !showGST ? 0 : (inclusive ? grossAfterDiscount - taxable : taxable * rate / 100);
+    return { discount, taxable, tax, rate };
+  };
+  // HSN/SAC-wise tax summary (Tally's table under the items). A line counts
+  // if it has an HSN/SAC or carries tax; untaxed reimbursements without a
+  // code (fuel, courier) are left out, as Tally does.
+  const hsnRows = (() => {
+    const map = new Map();
+    for (const item of items) {
+      const l = lineCalc(item);
+      if (!item.hsn && !(l.tax > 0)) continue;
+      const k = `${item.hsn || ''}|${l.rate}`;
+      const r = map.get(k) || { hsn: item.hsn || '', rate: l.rate, taxable: 0, tax: 0 };
+      r.taxable += l.taxable; r.tax += l.tax;
+      map.set(k, r);
+    }
+    return [...map.values()];
+  })();
+  const pdfStyleForOptions = pdfStyleRaw;
+  const showHsnSummary = showGST && invoiceOptionOn(options, 'showHsnSummary', pdfStyleForOptions);
+  const showTaxInWords = showGST && invoiceOptionOn(options, 'showTaxInWords', pdfStyleForOptions);
+  const showDeclaration = invoiceOptionOn(options, 'showDeclaration', pdfStyleForOptions);
+  const showCustomerSeal = invoiceOptionOn(options, 'showCustomerSeal', pdfStyleForOptions);
+  const declarationText = options.declarationText ?? DEFAULT_DECLARATION;
+  const totalTax = Number(totals.totalTaxAmount) || ((totals.cgst || 0) + (totals.sgst || 0) + (totals.utgst || 0) + (totals.igst || 0) + (totals.cess || 0));
+  const orderDetails = filledOrderDetails(details || {});
 
   // Header renderers per style
   const renderModernHeader = () => (
@@ -868,6 +906,70 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
     position: 'relative',
   };
 
+  // v1.10.73 - Boxed grid / Tally style get everything already worked out
+  // above, so their numbers are the same as every other design's.
+  const isGrid = pdfStyle === 'boxed' || pdfStyle === 'tally';
+  const sanitizedTerms = customTerms ? splitNumberedTerms(DOMPurify.sanitize(customTerms)) : '';
+  const sanitizedNotes = customNotes ? splitNumberedTerms(DOMPurify.sanitize(customNotes)) : '';
+  const taxedRates = [...new Set(items.map((it) => lineCalc(it)).filter((l) => l.tax > 0).map((l) => l.rate))];
+  const gridSig = (() => {
+    const sigImg = profile?.signature || (_ps.signatureShow !== false ? _ps.signatureImage : null);
+    const stampImg = profile?.stamp || null;
+    return {
+      show: showSignature && !!(sigImg || stampImg), sigImg, stampImg,
+      sigHeight: Number(profile?.signatureHeight) || 60, stampHeight: Number(profile?.stampHeight) || 70,
+    };
+  })();
+  const shipToParty = details?.shipToSameAsBilling === false
+    && (details?.shippingAddress || details?.shippingCity || details?.shippingState)
+    ? { name: client?.name, address: details.shippingAddress, city: details.shippingCity, pin: details.shippingPin, state: details.shippingState }
+    : null;
+  const gridNotices = (
+    <>
+      {options.reverseCharge && isIndia && showGST && (
+        <div data-pdf-page-boundary="" style={{ margin: '2px 0 6px', fontSize: '0.92em' }}>
+          <strong>Reverse Charge applicable.</strong> GST is payable by the recipient under Section 9(3)/9(4) of the CGST Act.
+        </div>
+      )}
+      {invoiceType === 'composition' && (
+        <div data-pdf-page-boundary="" style={{ margin: '2px 0 6px', fontStyle: 'italic', fontSize: '0.92em' }}>
+          &quot;Composition taxable person, not eligible to collect tax on supplies.&quot; (Rule 46A, CGST Rules)
+        </div>
+      )}
+      {options.exchangeRate && currencySymbol !== 'INR' && (
+        <div data-pdf-page-boundary="" style={{ margin: '2px 0 6px', fontSize: '0.92em' }}>
+          {formatExchangeRateLine(currencySymbol, options.exchangeRate, profile?.country === 'India' || !profile?.country ? 'INR' : sellerCC.currency)}
+        </div>
+      )}
+    </>
+  );
+  const gridCtx = isGrid ? {
+    style: pdfStyle, profile, client, details, items, totals, options, invoiceType, accent, fmt, lineCalc, hsnRows,
+    invoiceTitle: customTitle, isIndia, isInterstate, taxLabel, sellerCC, account,
+    showGST, hasAnyDiscount, showAmountWords, showBankDetails, showSignatoryText, showSystemGeneratedNote,
+    showReverseChargeLine, reverseChargeText, qrDataUrl, upiId,
+    showHsnSummary, showTaxInWords, showDeclaration, showCustomerSeal, declarationText, totalTax,
+    singleRate: taxedRates.length === 1 ? taxedRates[0] : null,
+    words: (n) => (currencySymbol === 'INR' ? `INR ${numberToWords(n)}` : amountInWords(n)),
+    shortDate: formatShortDate,
+    isServices: (options.invoiceMode || 'goods') === 'services',
+    docLabel: ({ quotation: 'Quotation', proforma: 'Proforma', 'credit-note': 'Credit Note', 'delivery-challan': 'Challan' })[invoiceType] || 'Invoice',
+    placeOfSupply: details?.placeOfSupply || client?.state || '',
+    shipTo: shipToParty,
+    sig: gridSig,
+    notices: gridNotices,
+    termsHtml: !_ps.termsSeparatePage && showTerms && htmlHasText(sanitizedTerms) ? sanitizedTerms : '',
+    notesHtml: !_ps.termsSeparatePage && showNotes && htmlHasText(sanitizedNotes) ? sanitizedNotes : '',
+    termsClassMod,
+    t: {
+      logo: showLogo, businessName: showBusinessName, businessAddress: showBusinessAddress,
+      businessPhone: showBusinessPhone, businessEmail: showBusinessEmail, gstin: showGSTIN, state: showState,
+      clientAddress: showClientAddress, clientPhone: showClientPhone, clientEmail: showClientEmail,
+      placeOfSupply: showPlaceOfSupply, invoiceNumber: showInvoiceNumber, invoiceDate: showInvoiceDate, dueDate: showDueDate,
+      hsn: showHSN, itemQty: showItemQty, itemUnit: showItemUnit, rate: showRateColumn,
+    },
+  } : null;
+
   return (
     <div
       className={`invoice-preview-container ${paperCfg.cssClass} template-${pdfStyleVariant}`}
@@ -890,11 +992,41 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           }}>CANCELLED</span>
         </div>
       )}
+      {isGrid && <InvoiceGridLayout ctx={gridCtx} />}
+      {isGrid && _ps.termsSeparatePage && (htmlHasText(sanitizedTerms) || htmlHasText(sanitizedNotes)) && (
+        <div data-pdf-page="terms" style={{ padding: '2rem', pageBreakBefore: 'always', breakBefore: 'page' }}>
+          {showTerms && htmlHasText(sanitizedTerms) && (
+            <div className="inv-footer-block">
+              <h4 className="inv-section-label">{getLabel(_ps_labels, 'terms')}</h4>
+              <div className={`inv-terms inv-rich ${termsClassMod}`} dangerouslySetInnerHTML={{ __html: sanitizedTerms }} />
+            </div>
+          )}
+          {showNotes && htmlHasText(sanitizedNotes) && (
+            <div className="inv-footer-block" style={{ marginTop: '2rem' }}>
+              <h4 className="inv-section-label">{getLabel(_ps_labels, 'notes')}</h4>
+              <div className={`inv-terms inv-rich ${termsClassMod}`} dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
+            </div>
+          )}
+        </div>
+      )}
+      {!isGrid && (<>
       {!hideHeaderBecauseLetterhead && pdfStyle === 'modern' && renderModernHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'minimal' && renderMinimalHeader()}
       {!hideHeaderBecauseLetterhead && pdfStyle === 'classic' && renderClassicHeader()}
 
       {renderParties()}
+
+      {/* v1.10.73 - order / dispatch / reference details, when any are filled */}
+      {orderDetails.length > 0 && (
+        <div className="inv-parties inv-order-details" data-pdf-page-boundary=""
+          style={{ margin: pdfStyle === 'classic' ? '0 0 0.75rem' : '0 2rem 0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '0.25rem 1rem', fontSize: '0.75rem' }}>
+          {orderDetails.map((f) => (
+            <div key={f.key} style={f.wide ? { gridColumn: '1 / -1' } : undefined}>
+              <span style={{ color: '#475569' }}>{f.label}: </span><strong>{f.value}</strong>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Items table */}
       <table className="inv-table" style={{ tableLayout: 'auto', ...(pdfStyle === 'modern' ? { margin: '0 2rem', width: 'calc(100% - 4rem)' } : pdfStyle === 'minimal' ? { margin: '0 2rem', width: 'calc(100% - 4rem)', borderTop: 'none' } : {}) }}>
@@ -970,21 +1102,8 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         </thead>
         <tbody>
           {items.map((item, index) => {
-            const lineAmount = item.quantity * item.rate;
-            // v1.10.29 — reported: Unit-base and Price-With-Tax discounts
-            // showed the wrong per-line tax breakdown while the totals bar
-            // showed the correct number. Root cause: per-line render used
-            // `item.discount` (raw value) instead of `resolveLineDiscount`
-            // which respects discountType + discountBase. computeInvoiceTotals
-            // (used by the totals bar) already routed through resolveLineDiscount,
-            // so totals and per-line were computed with different discount
-            // values → GST mismatch inside a single PDF. Now both paths agree.
-            const discount = resolveLineDiscount(item);
-            const grossAfterDiscount = Math.max(0, lineAmount - discount);
-            const taxRate = item.taxPercent || 0;
-            const isTaxInclusive = totals.taxInclusive;
-            const afterDiscount = isTaxInclusive && showGST ? grossAfterDiscount / (1 + taxRate / 100) : grossAfterDiscount;
-            const taxAmount = isTaxInclusive && showGST ? grossAfterDiscount - afterDiscount : afterDiscount * taxRate / 100;
+            // Shared with the grid designs and the HSN summary (lineCalc).
+            const { discount, taxable: afterDiscount, tax: taxAmount, rate: taxRate } = lineCalc(item);
             const halfRate = taxRate / 2;
             const halfTax = taxAmount / 2;
             return (
@@ -1157,6 +1276,19 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         </div>
       </div>
 
+      {(showHsnSummary && hsnRows.length > 0) || (showTaxInWords && totalTax > 0) ? (
+        <div style={{ margin: pdfStyle === 'classic' ? '0 0 0.75rem' : '0 2rem 0.75rem', fontSize: '0.75rem' }}>
+          {showHsnSummary && hsnRows.length > 0 && (
+            <HsnSummaryTable ctx={{ hsnRows, isIndia, isInterstate, taxLabel, totals }} />
+          )}
+          {showTaxInWords && totalTax > 0 && (
+            <p data-pdf-page-boundary="" style={{ margin: '0.35rem 0 0' }}>
+              Tax amount (in words): <strong>{currencySymbol === 'INR' ? numberToWords(totalTax) : amountInWords(totalTax)}</strong>
+            </p>
+          )}
+        </div>
+      ) : null}
+
       {/* Reverse-charge declaration (India) — printed prominently between the
           tax block and the footer when the seller has flagged this invoice as
           RCM. The buyer is responsible for paying GST under Section 9(3)/9(4). */}
@@ -1260,6 +1392,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
               </p>
             </div>
           )}
+          {showDeclaration && (
+            <div className="inv-footer-block">
+              <h4 className="inv-section-label">DECLARATION</h4>
+              <p className="inv-terms" style={{ margin: 0 }}>{declarationText}</p>
+            </div>
+          )}
         </div>
         {/* v1.10.5 — Separate T&C page. Uses the same data-pdf-page
              attribute the extraSections feature uses, so buildPDF's
@@ -1318,6 +1456,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           );
         })()}
       </div>
+      </>)}
 
       {/* Extra Sections - each starts on new page */}
       {(() => {

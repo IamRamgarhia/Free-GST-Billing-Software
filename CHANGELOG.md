@@ -7,6 +7,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.73] - 2026-09-27
+
+**Two new invoice designs, Boxed grid and Tally style; a Quotation document;
+order and dispatch details; an HSN tax summary; Help buttons that open the
+online guide.**
+
+### How to update
+
+**Current version:** 1.10.71 or older  →  **New version:** 1.10.73
+
+#### Use the launcher for this update
+Versions up to 1.10.71 cannot update themselves from inside the app (fixed
+in 1.10.72, below). Use the launcher:
+1. Open the Free GST Billing launcher.
+2. Click **More options → Update to the latest version**.
+3. Wait for it to finish, then click **Open App**.
+
+#### If the launcher update does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.73.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (click **Stop the app** in the launcher if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### New - two invoice designs
+Under **Customize → PDF Style** (or Settings → Print & PDF for every invoice):
+
+- **Tally style** - the layout Indian businesses and their clients know from
+  Tally: Invoice No, Delivery Note, Buyer's Order No, Dispatch Doc No,
+  Dispatched through, Destination and Terms of Delivery boxes; state names
+  with their codes; taxes and round-off inside the item table; "Amount
+  Chargeable (in words)" with E. & O.E; an HSN/SAC tax summary; the tax amount
+  in words; company PAN; a declaration; bank details; and a "Customer's Seal
+  and Signature" box beside "for your business / Authorised Signatory".
+- **Boxed grid** - every section in ruled boxes: your name large at the top,
+  seller and document details side by side, Billing To and Shipping To, a
+  Work Details line, and an item table filled with empty ruled rows to a fixed
+  height, like a printed quotation pad.
+
+Long invoices in both designs are split between rows and blocks, never
+through one, and never through the signature.
+
+### New - Quotation
+A **Quotation** document type (QUO/…), for priced offers. Like a proforma it
+is not a sale and never reaches GST returns; **Convert to Tax Invoice** on the
+Dashboard turns it into an invoice when the client accepts.
+
+### New - order, dispatch and reference details
+The invoice screen has an optional **Order, dispatch & reference details**
+section: work details, revision no, vehicle no, service period, buyer's order
+no and date, reference, delivery note, dispatch doc no, dispatched through,
+destination, payment terms and terms of delivery. Whatever you fill in prints
+on every design.
+
+### New - HSN tax summary, tax in words, declaration
+Customize has three new switches: **HSN/SAC tax summary table**, **Tax amount
+in words** and **Declaration** (with your own wording). They are on by
+default in Tally style and available in every design.
+
+### New - Help opens the full guide
+Every screen's **?** Help now has **Read the full guide**, which opens that
+screen's section of the online documentation. Eight screens that had no Help
+button have one now, and the User Guide links to the online docs.
+
+### Fixed
+- Customize tick boxes that had never been changed needed two clicks to turn
+  off. One click now always flips what you see.
+- **TCS section 206C(1H)** (TCS on sale of goods) was removed from 1 April 2025
+  by the Finance Act 2025, so new invoices no longer offer it; TCS now starts
+  on CGST section 52. Invoices already made with 206C(1H) keep it and reprint
+  unchanged.
+- On a busy or older computer, one slow reply from the app's engine replaced
+  the whole screen with "Needs a Quick Start" in the middle of your work. It
+  now waits for three missed checks in a row (about 15 seconds) first.
+
+---
+
 ## [1.10.72] - 2026-09-27
 
 **The in-app Update Now, Backup, Restore, Move and Stop buttons work again

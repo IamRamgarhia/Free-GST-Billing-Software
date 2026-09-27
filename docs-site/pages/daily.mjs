@@ -96,7 +96,7 @@ export default [
 <table>
   <tr><td>Edit</td><td>Opens it on the invoice screen.</td></tr>
   <tr><td>Duplicate</td><td>A new invoice with the same client and items, a new number and today's date.</td></tr>
-  <tr><td>Convert to Tax Invoice</td><td>Proformas and delivery challans only. See <a href="invoices.html#proforma-to-invoice">Turning a quote into an invoice</a>.</td></tr>
+  <tr><td>Convert to Tax Invoice</td><td>Quotations, proformas and delivery challans only. See <a href="invoices.html#proforma-to-invoice">Turning a quote into an invoice</a>.</td></tr>
   <tr><td>₹ Payment</td><td>Record a payment, as above.</td></tr>
   <tr><td>WhatsApp</td><td>On a phone, attaches the PDF through your phone's share menu. On a computer, WhatsApp does not let websites attach files, so it sends the details as text; download the PDF and drop it into the chat.</td></tr>
   <tr><td>Send reminder</td><td>Shown for unpaid, part-paid and overdue invoices. Opens WhatsApp with a reminder suited to the situation.</td></tr>

@@ -241,6 +241,7 @@ export const DEFAULT_PRINT_SETTINGS = {
   // Tax Invoice → 'INV' to 'RTL' resets the counter for RTL.
   customPrefixes: {
     'tax-invoice': '',      // default 'INV'
+    'quotation': '',        // default 'QUO'
     'proforma': '',         // default 'EST'
     'bill-of-supply': '',   // default 'BOS'
     'composition': '',      // default 'COMP'

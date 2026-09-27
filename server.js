@@ -1526,6 +1526,7 @@ function generateFromTemplate(tpl, today) {
                  || readJSON(PROFILE_PATH, {});
 
       const prefix = (tpl.invoiceType === 'proforma' ? 'EST'
+                   : tpl.invoiceType === 'quotation' ? 'QUO'
                    : tpl.invoiceType === 'credit-note' ? 'CN'
                    : tpl.invoiceType === 'bill-of-supply' ? 'BOS'
                    : tpl.invoiceType === 'composition' ? 'COMP'
