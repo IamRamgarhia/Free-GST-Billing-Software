@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package } from 'lucide-react';
 import { getAllBills, getAllExpenses, getProfile } from '../store';
-import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, calculateLineItemTax } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -204,9 +204,9 @@ export default function ReportsView() {
         </button>
       </div>
 
-      {activeTab === 'pl' && (
-        <>
-          {/* Period + Currency Selector */}
+      {/* v1.10.74 - Period + Currency Selector, shared by P&L, Client Analytics
+          and Product Performance (they all read the same period/currency). */}
+      {activeTab !== 'aging' && (
           <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ margin: 0 }}>
@@ -249,7 +249,10 @@ export default function ReportsView() {
               )}
             </div>
           </div>
+      )}
 
+      {activeTab === 'pl' && (
+        <>
           {/* P&L Summary Cards */}
           <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1.5rem' }}>
             <div className="stat-card">
@@ -266,7 +269,8 @@ export default function ReportsView() {
               </div>
               <div>
                 <p className="stat-label">Net {netProfit >= 0 ? 'Profit' : 'Loss'}</p>
-                <h2 className="stat-value" style={{ color: netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(Math.abs(netProfit), currencyFilter)}</h2>
+                {/* v1.10.74 - a loss shows a minus sign, not just red colour */}
+                <h2 className="stat-value" style={{ color: netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(netProfit, currencyFilter)}</h2>
               </div>
             </div>
             <div className="stat-card">
@@ -317,7 +321,7 @@ export default function ReportsView() {
                       Net {netProfit >= 0 ? 'Profit' : 'Loss'}
                     </td>
                     <td style={{ padding: '1rem 0', textAlign: 'right', fontWeight: 800, fontSize: '1.25rem', color: netProfit >= 0 ? '#059669' : '#dc2626' }}>
-                      {formatCurrency(Math.abs(netProfit), currencyFilter)}
+                      {formatCurrency(netProfit, currencyFilter)}
                     </td>
                   </tr>
                 </tbody>
@@ -350,7 +354,7 @@ export default function ReportsView() {
                           <td style={{ textAlign: 'right' }}>{formatCurrency(rev, currencyFilter)}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(exp, currencyFilter)}</td>
                           <td style={{ textAlign: 'right', fontWeight: 700, color: pl >= 0 ? '#059669' : '#dc2626' }}>
-                            {formatCurrency(Math.abs(pl), currencyFilter)}
+                            {formatCurrency(pl, currencyFilter)}
                           </td>
                         </tr>
                       );
@@ -572,9 +576,11 @@ export default function ReportsView() {
             if (!byProduct[name]) byProduct[name] = { name, hsn: item.hsn || '', qty: 0, revenue: 0, txns: 0, lastSold: '' };
             // A credit note takes returned quantities back off.
             const qty = salesSign(b) * (Number(item.quantity) || 0);
-            const rate = Number(item.rate) || 0;
+            // v1.10.74 - revenue is the line's taxable value (after discount,
+            // tax backed out of tax-inclusive prices) so it matches the invoices.
+            const { afterDiscount } = calculateLineItemTax(item, !!b.data?.taxInclusive);
             byProduct[name].qty += qty;
-            byProduct[name].revenue += (qty * rate);
+            byProduct[name].revenue += salesSign(b) * afterDiscount;
             byProduct[name].txns += 1;
             if (!byProduct[name].lastSold || b.invoiceDate > byProduct[name].lastSold) byProduct[name].lastSold = b.invoiceDate;
             if (item.hsn && !byProduct[name].hsn) byProduct[name].hsn = item.hsn;

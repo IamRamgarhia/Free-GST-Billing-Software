@@ -43,8 +43,15 @@ const PAYMENT_STATUS_COLORS = {
 // we couldn't reclaim ITC on the cess in GSTR-3B Table 4(A).
 const emptyItem = { name: '', hsn: '', quantity: 1, rate: 0, taxPercent: 18, cessPercent: 0 };
 
+// v1.10.74 - today's LOCAL date (toISOString is UTC, so before 05:30 IST it
+// gave yesterday). Called when the form opens, not once at load.
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const emptyForm = {
-  date: new Date().toISOString().split('T')[0],
+  date: '', // v1.10.74 - set to localToday() when the form opens
   supplierName: '',
   // v1.10.29 — supplier address for the PDF header. Optional; blank
   // pre-v1.10.29 records fall through gracefully.
@@ -130,13 +137,17 @@ export default function PurchaseBills() {
     } else {
       items = [{ ...emptyItem }];
     }
+    // v1.10.74 - IGST on the bill and no CGST means the supplier is in
+    // another state, so open the form with Inter-state ticked.
+    const tb = extracted.taxBreakdown || {};
     setForm({
       ...emptyForm,
-      date: extracted.date || emptyForm.date,
+      date: extracted.date || localToday(),
       supplierName: extracted.supplierName || '',
       supplierGstin: extracted.supplierGstin || '',
       invoiceNumber: extracted.invoiceNumber || '',
       items,
+      interstate: Number(tb.igst) > 0 && !Number(tb.cgst),
     });
     setShowForm(true);
     const msg = Array.isArray(extracted.items) && extracted.items.length > 0
@@ -220,7 +231,7 @@ export default function PurchaseBills() {
   }, { taxable: 0, tax: 0, total: 0 });
 
   const openAdd = () => {
-    setForm({ ...emptyForm, items: [{ ...emptyItem }] });
+    setForm({ ...emptyForm, date: localToday(), items: [{ ...emptyItem }] });
     setEditingId(null);
     setShowForm(true);
   };
@@ -334,7 +345,13 @@ export default function PurchaseBills() {
       doc.line(marginL + 100, y, marginR, y); y += 6;
       doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80);
       doc.text('Taxable', marginL + 100, y); doc.text(fmt(t.taxable), marginR, y, { align: 'right' }); y += 5;
-      doc.text('Tax (CGST+SGST or IGST)', marginL + 100, y); doc.text(fmt(t.tax), marginR, y, { align: 'right' }); y += 5;
+      // v1.10.74 - show the tax split instead of one combined line.
+      if (purchase.interstate) {
+        doc.text('IGST', marginL + 100, y); doc.text(fmt(t.tax), marginR, y, { align: 'right' }); y += 5;
+      } else {
+        doc.text('CGST', marginL + 100, y); doc.text(fmt(t.tax / 2), marginR, y, { align: 'right' }); y += 5;
+        doc.text('SGST', marginL + 100, y); doc.text(fmt(t.tax / 2), marginR, y, { align: 'right' }); y += 5;
+      }
       if (t.cess > 0.005) { doc.text('Cess', marginL + 100, y); doc.text(fmt(t.cess), marginR, y, { align: 'right' }); y += 5; }
       if (Math.abs(t.roundOff) > 0.005) { doc.text('Round-off', marginL + 100, y); doc.text((t.roundOff > 0 ? '+' : '') + fmt(t.roundOff), marginR, y, { align: 'right' }); y += 5; }
       y += 2; doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(marginL + 100, y, marginR, y); y += 6;
@@ -780,13 +797,14 @@ export default function PurchaseBills() {
 
   const exportCSV = () => {
     if (filtered.length === 0) { toast('No purchases to export', 'warning'); return; }
-    const headers = ['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'Tax', 'Round-off', 'Total', 'Status', 'Note'];
+    // v1.10.74 - Cess and Inter-state columns; Tax never included cess.
+    const headers = ['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'Tax (excl. cess)', 'Cess', 'Inter-state', 'Round-off', 'Total', 'Status', 'Note'];
     // v1.10.66 (#63) — toCsvLine neutralises formula-like text and quotes
     // line breaks, which the old local escape let split a row in two.
     const lines = [toCsvLine(headers)];
     filtered.forEach(p => {
       const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
-      lines.push(toCsvLine([p.date, p.supplierName, p.supplierGstin, p.invoiceNumber, t.taxable.toFixed(2), t.tax.toFixed(2), t.roundOff.toFixed(2), t.finalTotal.toFixed(2), p.paymentStatus, p.note]));
+      lines.push(toCsvLine([p.date, p.supplierName, p.supplierGstin, p.invoiceNumber, t.taxable.toFixed(2), t.tax.toFixed(2), t.cess.toFixed(2), p.interstate ? 'Y' : 'N', t.roundOff.toFixed(2), t.finalTotal.toFixed(2), p.paymentStatus, p.note]));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -890,8 +908,15 @@ export default function PurchaseBills() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.35rem 1rem', fontSize: '0.9rem', maxWidth: 320, marginLeft: 'auto' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Taxable</span>
                 <span style={{ textAlign: 'right' }}>{formatCurrency(t.taxable)}</span>
-                <span style={{ color: 'var(--text-muted)' }}>Tax</span>
-                <span style={{ textAlign: 'right' }}>{formatCurrency(t.tax)}</span>
+                {/* v1.10.74 - tax split: IGST, or CGST + SGST half each. */}
+                {p.interstate ? (
+                  <><span style={{ color: 'var(--text-muted)' }}>IGST</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.tax)}</span></>
+                ) : (
+                  <>
+                    <span style={{ color: 'var(--text-muted)' }}>CGST</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.tax / 2)}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>SGST</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.tax / 2)}</span>
+                  </>
+                )}
                 {t.cess > 0.005 && <><span style={{ color: 'var(--text-muted)' }}>Cess</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.cess)}</span></>}
                 {Math.abs(t.roundOff) > 0.005 && <><span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Round-off</span><span style={{ textAlign: 'right', fontStyle: 'italic' }}>{(t.roundOff > 0 ? '+' : '') + formatCurrency(t.roundOff)}</span></>}
                 <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, fontWeight: 700 }}>TOTAL</span>
@@ -945,6 +970,8 @@ export default function PurchaseBills() {
               onChange={e => setSearch(e.target.value)} className="search-input" />
           </div>
           <select className="filter-select" value={fyFilter} onChange={e => setFyFilter(e.target.value)}>
+            {/* v1.10.74 - '' already means no FY filter below. */}
+            <option value="">All years</option>
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
           </select>
           {search && (
@@ -1129,7 +1156,8 @@ export default function PurchaseBills() {
                 {formTotals.cess > 0 && (
                   <span>Cess: <strong>{formatCurrency(formTotals.cess)}</strong></span>
                 )}
-                {form.applyRoundOff && (
+                {/* v1.10.74 - hide when there is nothing to round, like View/PDF. */}
+                {form.applyRoundOff && Math.abs(formTotals.roundOff) > 0.005 && (
                   <span style={{ color: '#475569' }}>
                     Round-off: <strong>{(formTotals.roundOff >= 0 ? '+' : '') + formatCurrency(formTotals.roundOff)}</strong>
                   </span>

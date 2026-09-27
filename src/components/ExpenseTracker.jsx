@@ -42,8 +42,15 @@ const CATEGORY_NAMES = EXPENSE_CATEGORIES.map(c => c.name);
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
 
+// v1.10.74 - today's LOCAL date (toISOString is UTC, so before 05:30 IST it
+// gave yesterday). Called when the form opens, not once at load.
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const emptyForm = {
-  date: new Date().toISOString().split('T')[0],
+  date: '', // v1.10.74 - set to localToday() when the form opens
   description: '',
   category: 'Other',
   amount: '',
@@ -75,6 +82,7 @@ export default function ExpenseTracker() {
   const [form, setForm] = useState({ ...emptyForm });
 
   const fyOptions = getFYOptions();
+  const defaultFy = fyOptions[0]?.value || '';
 
 
   // v1.10.65 (#58 item 3) — assign records saved before businesses were kept
@@ -129,7 +137,7 @@ export default function ExpenseTracker() {
   const totalGST = filtered.reduce((s, e) => s + (e.gstAmount || 0), 0);
 
   const openAdd = () => {
-    setForm({ ...emptyForm });
+    setForm({ ...emptyForm, date: localToday() });
     setEditingId(null);
     setShowForm(true);
   };
@@ -162,6 +170,9 @@ export default function ExpenseTracker() {
   const handleSave = async () => {
     if (!form.description.trim()) { toast('Description is required', 'warning'); return; }
     if (!form.amount || parseFloat(form.amount) <= 0) { toast('Enter a valid amount', 'warning'); return; }
+    // v1.10.74 - GST % must be 0 to 100 (40% is a real rate, so no 28 cap).
+    const gstPct = form.gstPercent === '' ? 0 : parseFloat(form.gstPercent);
+    if (!(gstPct >= 0 && gstPct <= 100)) { toast('GST % must be between 0 and 100', 'warning'); return; }
     try {
       const expense = {
         ...(editingId ? { id: editingId } : {}),
@@ -211,23 +222,24 @@ export default function ExpenseTracker() {
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const handleGSTCalc = (val) => {
-    updateField('gstPercent', val);
-    if (val && form.amount) {
-      const base = parseFloat(form.amount);
-      const gst = (base * parseFloat(val)) / (100 + parseFloat(val));
-      updateField('gstAmount', Math.round(gst * 100) / 100);
-    }
-  };
+  // v1.10.74 - recompute GST from the NEW amount and GST % on every change
+  // of either (it used the old amount), and zero it when either is empty/0.
+  const updateAmountOrGST = (field, value) => setForm(prev => {
+    const next = { ...prev, [field]: value };
+    const base = parseFloat(next.amount) || 0;
+    const pct = parseFloat(next.gstPercent) || 0;
+    const gst = base > 0 && pct > 0 ? (base * pct) / (100 + pct) : 0;
+    return { ...next, gstAmount: Math.round(gst * 100) / 100 };
+  });
 
   const exportCSV = () => {
     if (filtered.length === 0) { toast('No expenses to export', 'warning'); return; }
-    const headers = ['Date', 'Description', 'Category', 'Amount', 'GST Amount', 'GST %', 'Vendor', 'Vendor GSTIN', 'Invoice No', 'Payment Mode', 'Note'];
+    const headers = ['Date', 'Description', 'Category', 'Amount', 'GST Amount', 'GST %', 'Vendor', 'Vendor GSTIN', 'Invoice No', 'Payment Mode', 'Inter-state', 'Note']; // v1.10.74 - Inter-state (Y/N) added
     // v1.10.66 (#63) — toCsvLine neutralises formula-like text and quotes
     // line breaks, which the old local escape let split a row in two.
     const lines = [toCsvLine(headers)];
     filtered.forEach(e => {
-      lines.push(toCsvLine([e.date, e.description, e.category, e.amount, e.gstAmount || 0, e.gstPercent || 0, e.vendorName, e.vendorGstin, e.invoiceNo, e.paymentMode, e.note]));
+      lines.push(toCsvLine([e.date, e.description, e.category, e.amount, e.gstAmount || 0, e.gstPercent || 0, e.vendorName, e.vendorGstin, e.invoiceNo, e.paymentMode, e.interstate ? 'Y' : 'N', e.note]));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -296,10 +308,13 @@ export default function ExpenseTracker() {
             {CATEGORY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select className="filter-select" value={fyFilter} onChange={e => setFyFilter(e.target.value)}>
+            {/* v1.10.74 - '' already means no FY filter. */}
+            <option value="">All years</option>
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
           </select>
-          {(search || categoryFilter !== 'all') && (
-            <button className="icon-btn icon-btn-red" onClick={() => { setSearch(''); setCategoryFilter('all'); }} title="Clear filters" aria-label="Clear filters"><X size={15} /></button>
+          {/* v1.10.74 - Clear filters also puts the FY back to the current one. */}
+          {(search || categoryFilter !== 'all' || fyFilter !== defaultFy) && (
+            <button className="icon-btn icon-btn-red" onClick={() => { setSearch(''); setCategoryFilter('all'); setFyFilter(defaultFy); }} title="Clear filters" aria-label="Clear filters"><X size={15} /></button>
           )}
         </div>
       </div>
@@ -328,13 +343,13 @@ export default function ExpenseTracker() {
               <div className="form-group">
                 <label className="form-label">Amount (incl. GST) *</label>
                 <input type="number" className="form-input" value={form.amount}
-                  onChange={e => { updateField('amount', e.target.value); if (form.gstPercent) handleGSTCalc(form.gstPercent); }}
+                  onChange={e => updateAmountOrGST('amount', e.target.value)}
                   placeholder="0.00" min="0" />
               </div>
               <div className="form-group">
                 <label className="form-label">GST % (for ITC)</label>
                 <input type="number" className="form-input" value={form.gstPercent}
-                  onChange={e => handleGSTCalc(e.target.value)} placeholder="18" min="0" max="28" />
+                  onChange={e => updateAmountOrGST('gstPercent', e.target.value)} placeholder="18" min="0" max="100" />
                 {form.gstAmount > 0 && <p className="field-hint">GST: {formatCurrency(form.gstAmount)}</p>}
               </div>
               <div className="form-group">

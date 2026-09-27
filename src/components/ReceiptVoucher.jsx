@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Receipt, Plus, Trash2, Search, Printer, Pencil } from 'lucide-react';
 import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
-import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness, isCancelledBill } from '../utils';
+import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness, countsAsSales } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
@@ -31,6 +31,9 @@ export default function ReceiptVoucher() {
   const [previewReceipt, setPreviewReceipt] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const receiptRef = useRef(null);
+  // v1.10.74 - the number previewed when the form opened, so save can tell
+  // whether the user typed their own.
+  const previewedNoRef = useRef('');
 
   const loadData = async () => {
     try {
@@ -76,6 +79,7 @@ export default function ReceiptVoucher() {
 
   const openAdd = async () => {
     const receiptNo = await getNextReceiptNo();
+    previewedNoRef.current = receiptNo;
     setForm({ ...emptyForm, receiptNo });
     setEditingId(null);
     setShowForm(true);
@@ -126,10 +130,12 @@ export default function ReceiptVoucher() {
       // the server upserts in place. Only new receipts reserve a fresh
       // atomic number from the RCP counter.
       let receiptNo = form.receiptNo;
-      if (!editingId) {
+      // v1.10.74 - a number the user typed is kept; only the auto number
+      // (or an empty field) is swapped for a freshly reserved one.
+      if (!editingId && (!receiptNo.trim() || receiptNo.trim() === previewedNoRef.current)) {
         try {
           receiptNo = await getNextInvoiceNumber('RCP');
-        } catch { /* fall back to peeked number */ }
+        } catch { receiptNo = receiptNo.trim() || previewedNoRef.current; /* fall back to peeked number */ }
       }
 
       // v1.10.66 (#64 item 2) — a NEW receipt is stamped with the business
@@ -182,9 +188,11 @@ export default function ReceiptVoucher() {
           }
         } catch { /* non-fatal */ }
       }
+      let unmatchedRef = '';
       if (form.againstInvoice && form.againstInvoice.trim()) {
         try {
           const bill = bills.find(b => b.invoiceNumber === form.againstInvoice.trim() || b.id === form.againstInvoice.trim());
+          if (!bill) unmatchedRef = form.againstInvoice.trim(); // v1.10.74 - tell the user below
           if (bill) {
             const priorPayments = bill.payments || [];
             const priorIdx = priorPayments.findIndex(p => p.receiptNo === receiptNo);
@@ -207,6 +215,7 @@ export default function ReceiptVoucher() {
       }
 
       toast('Receipt saved', 'success');
+      if (unmatchedRef) toast(`No invoice numbered ${unmatchedRef} was found, so this receipt is saved on its own.`, 'info');
       closeForm();
       loadData();
     } catch {
@@ -232,6 +241,12 @@ export default function ReceiptVoucher() {
       const el = receiptRef.current;
       if (!el) return;
       const printWindow = window.open('', '_blank');
+      // v1.10.74 - a blocked pop-up returns null; this used to fail silently.
+      if (!printWindow) {
+        toast('Your browser blocked the print window. Allow pop-ups for this app and try again.', 'warning');
+        setPreviewReceipt(null);
+        return;
+      }
       printWindow.document.write(`
         <html><head><title>Receipt ${receipt.receiptNo}</title>
         <style>
@@ -263,7 +278,8 @@ export default function ReceiptVoucher() {
   };
 
   // v1.10.67 (#66 item 12) — no money is owed on a cancelled invoice.
-  const unpaidBills = bills.filter(b => b.status !== 'paid' && !isCancelledBill(b));
+  // v1.10.74 - nor on quotes, challans or credit notes: real sales only.
+  const unpaidBills = bills.filter(b => b.status !== 'paid' && countsAsSales(b));
 
   // v1.10.66 (#64 item 2) — receipts saved before this release carry no
   // business. As with expenses they are never assigned automatically: only the
@@ -323,7 +339,8 @@ export default function ReceiptVoucher() {
                     underneath. Adding overflow makes the cap actually mean
                     something. */}
                 <div className="client-picker" style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                  {unpaidBills.slice(0, 10).map(bill => (
+                  {/* v1.10.74 - was 10; the box scrolls, so show more. */}
+                  {unpaidBills.slice(0, 50).map(bill => (
                     <button key={bill.id} className="client-picker-item" onClick={() => selectInvoice(bill)}>
                       <div>
                         <strong>{bill.clientName}</strong>
@@ -397,6 +414,8 @@ export default function ReceiptVoucher() {
             <div className="receipt-row"><span className="receipt-label">Receipt No:</span><span className="receipt-value">{previewReceipt.receiptNo}</span></div>
             <div className="receipt-row"><span className="receipt-label">Date:</span><span className="receipt-value">{new Date(previewReceipt.date).toLocaleDateString('en-IN')}</span></div>
             <div className="receipt-row"><span className="receipt-label">Received From:</span><span className="receipt-value">{previewReceipt.clientName}</span></div>
+            {/* v1.10.74 - the address was saved but never printed. */}
+            {previewReceipt.clientAddress && <div className="receipt-row"><span className="receipt-label">Address:</span><span className="receipt-value">{previewReceipt.clientAddress}</span></div>}
             <div className="receipt-row"><span className="receipt-label">Payment Mode:</span><span className="receipt-value">{previewReceipt.paymentMode}</span></div>
             {previewReceipt.referenceNo && <div className="receipt-row"><span className="receipt-label">Reference No:</span><span className="receipt-value">{previewReceipt.referenceNo}</span></div>}
             {previewReceipt.againstInvoice && <div className="receipt-row"><span className="receipt-label">Against Invoice:</span><span className="receipt-value">{previewReceipt.againstInvoice}</span></div>}

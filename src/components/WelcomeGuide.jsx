@@ -8,14 +8,15 @@ const STEPS = [
   { id: 'welcome', title: 'Welcome', icon: FileText },
   { id: 'business', title: 'Business Details', icon: Building2 },
   { id: 'bank', title: 'Bank & UPI', icon: Shield },
-  { id: 'ready', title: 'You\'re Ready!', icon: BarChart3 },
+  { id: 'ready', title: 'You\'re All Set!', icon: BarChart3 },
 ];
 
 export default function WelcomeGuide({ onComplete }) {
   const [step, setStep] = useState(0);
-  const detectedCountry = detectCountryFromBrowser();
+  // v1.10.74 - region starts as India (below), so the country must too; the
+  // browser country is only used when "Outside India" is picked.
   const [profile, setProfile] = useState({
-    businessName: '', address: '', city: '', pin: '', state: '', country: detectedCountry, gstin: '', pan: '',
+    businessName: '', address: '', city: '', pin: '', state: '', country: 'India', gstin: '', pan: '',
     email: '', phone: '', bankName: '', accountNumber: '', ifsc: '', swift: '',
     logo: '', signature: '', upiId: '', googleClientId: '', googleDriveFolder: 'GST Billing Invoices',
   });
@@ -251,7 +252,7 @@ export default function WelcomeGuide({ onComplete }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
-                    <label className="form-label">IFSC Code</label>
+                    <label className="form-label">{cc.bankLabel || 'IFSC Code'}</label>
                     <input type="text" name="ifsc" className="form-input" value={profile.ifsc} onChange={handleChange}
                       placeholder="e.g. HDFC0001234" style={{ textTransform: 'uppercase' }} />
                   </div>

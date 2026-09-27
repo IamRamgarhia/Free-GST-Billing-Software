@@ -65,7 +65,8 @@ function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view');
-      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'incometax', 'guide', 'settings'];
+      // v1.10.74 - 'controlpanel' added so ?view=controlpanel deep links work too.
+      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'incometax', 'guide', 'settings', 'controlpanel'];
       if (v && valid.includes(v)) {
         // Strip the query string so a refresh doesn't keep snapping back to
         // the shortcut target — only the *first* navigation honours it.
@@ -513,6 +514,8 @@ function App() {
       acts.push({ label: `Go to ${item.label}`, hint: '', category: 'nav', run: item.onClick || (() => setCurrentView(item.id)) });
     });
     acts.push({ label: 'Go to Settings', hint: '', category: 'nav', run: () => setCurrentView('settings') });
+    // v1.10.74 - Control Panel has its own sidebar button but was missing here.
+    acts.push({ label: 'Go to Control Panel', hint: '', category: 'nav', run: () => setCurrentView('controlpanel') });
     acts.push({ label: 'Toggle dark mode', hint: '', category: 'action', run: () => setDarkMode(d => !d) });
     acts.push({ label: 'Show keyboard shortcuts', hint: 'Ctrl+/', category: 'help', run: () => setShowShortcutsHelp(true) });
     if (updateInfo?.updateAvailable) {
@@ -550,14 +553,31 @@ function App() {
       });
     });
     // Settings sections (jump to specific area)
+    // v1.10.74 - these all used to just open Settings at the top. Each now
+    // names its section id; after Settings mounts (it's lazy-loaded, so retry
+    // briefly) we click that section's "Jump to" chip, which already scrolls
+    // below the sticky bars.
+    const openSettingsAt = (sectionId) => {
+      setCurrentView('settings');
+      let tries = 0;
+      const jump = () => {
+        const chip = document.querySelector(`.settings-jumpnav a[href="#${sectionId}"]`);
+        if (chip && document.getElementById(sectionId)) chip.click();
+        else if (++tries < 30) setTimeout(jump, 100);
+      };
+      setTimeout(jump, 50);
+    };
     const settingsJumps = [
-      'Company profile', 'Payment accounts', 'Print & PDF Settings', 'PDF Style Editor',
-      'Business type presets', 'Section labels', 'Watermarks', 'Multi-copy print',
-      'Digital signature', 'Company letterhead', 'Modules', 'Region preference',
-      'Google Drive backup', 'App updates',
+      ['Company profile', 'section-company'], ['Payment accounts', 'section-company'],
+      ['Print & PDF Settings', 'section-print'], ['PDF Style Editor', 'section-print'],
+      ['Business type presets', 'section-print'], ['Section labels', 'section-print'],
+      ['Watermarks', 'section-print'], ['Multi-copy print', 'section-print'],
+      ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
+      ['Modules', 'section-modules'], ['Region preference', 'section-region'],
+      ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
     ];
-    settingsJumps.forEach(s => {
-      acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => setCurrentView('settings') });
+    settingsJumps.forEach(([s, sectionId]) => {
+      acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => openSettingsAt(sectionId) });
     });
     return acts;
   }, [navItems, updateInfo, handleNewInvoice, searchCorpus]);

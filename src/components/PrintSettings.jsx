@@ -369,7 +369,7 @@ export default function PrintSettings() {
             <span style={{ marginLeft: 6, verticalAlign: -2, display: 'inline-block' }}>
               <HelpButton title="Print & PDF settings — how to use" doc="print-settings" size={16}>
                 <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
-                  <li><strong>Business type</strong> sets about a dozen settings for your kind of business in one click.</li>
+                  <li><strong>Business type</strong> sets up to a dozen settings for your kind of business in one click.</li>
                   <li><strong>Visual style</strong> picks a design; everything below fine-tunes it.</li>
                   <li>Changes save as you make them; the live preview shows the result.</li>
                   <li>Each invoice can still change its own options under Customize.</li>
@@ -426,7 +426,7 @@ export default function PrintSettings() {
         marginBottom: '1rem',
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '0.9rem' }}>⚡ Business type <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>picks 15+ settings that match your workflow</span></strong>
+          <strong style={{ fontSize: '0.9rem' }}>⚡ Business type <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>sets up to a dozen settings to match your workflow</span></strong>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Pick this first. Every setting below is still editable.</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
@@ -789,8 +789,9 @@ export default function PrintSettings() {
 
           {/* PAGE NUMBERS + HEADER */}
           <SettingGroup title="Multi-page invoices">
-            <ToggleRow label="Page numbers on every page" value={settings.pageNumbersEnabled} onChange={v => set({ pageNumbersEnabled: v })}
-              hint='Shows "Page 2 of 5" bottom-right on pages 2+.' />
+            {/* v1.10.74 - the PDF numbers page 2 onwards only; page 1 has no number */}
+            <ToggleRow label="Page numbers on pages 2+" value={settings.pageNumbersEnabled} onChange={v => set({ pageNumbersEnabled: v })}
+              hint='Shows "Page 2 of 5" bottom-right on pages 2+. The first page is not numbered.' />
             <ToggleRow label="Business name header on pages 2+" value={settings.pageHeaderEnabled} onChange={v => set({ pageHeaderEnabled: v })}
               hint="Repeats your business name at the top so multi-page invoices look professional." />
           </SettingGroup>
@@ -957,8 +958,8 @@ export default function PrintSettings() {
             <SelectRow label="Print quality" value={settings.pdfQuality} onChange={v => set({ pdfQuality: v })}
               options={[
                 ['draft', 'Draft — smallest file (email-friendly)'],
-                ['standard', 'Standard — default balance'],
-                ['hd', 'HD — archival quality (largest file)'],
+                ['standard', 'Standard — balanced'],
+                ['hd', 'HD — sharpest, largest file (default)'],
               ]}
               hint="Draft = ~50% smaller PDFs, fine for emailing. HD = crisper text at 100% zoom, larger file, better for physical archive." />
           </SettingGroup>

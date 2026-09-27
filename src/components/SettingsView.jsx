@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getInvoiceNumberSettings, saveInvoiceNumberSettings, getRegionMode, setRegionMode, getEnabledModules, setEnabledModules, getStockAlertSettings, saveStockAlertSettings, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
-import { getCountryConfig, getStatesForCountry, validateTaxId, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, getCountriesForRegion, FEATURE_GROUPS, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId, getFinancialYearLabel } from '../utils';
 // v1.10.36 — lucide's `Image` icon was imported as `Image`, which
 // SHADOWED the browser's `HTMLImageElement` constructor. Reported:
 // "Uncaught TypeError: et is not a constructor at onChange" on logo
@@ -175,7 +175,8 @@ export default function SettingsView({ onSaved }) {
   const resetModules = () => {
     setEnabledModulesState({});
     setEnabledModules({});
-    toast('Reset to default — all features visible', 'success');
+    // v1.10.74 - defaults keep some features off (e.g. TDS/TCS), so don't say "all visible"
+    toast('Features reset to default', 'success');
   };
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
@@ -491,9 +492,8 @@ export default function SettingsView({ onSaved }) {
       return `${pfx}${sep}A3X9K2`;
     }
     if (s.showFinYear) {
-      const yr = new Date().getFullYear();
-      const ny = (yr + 1).toString().slice(-2);
-      return `${pfx}${sep}${yr}-${ny}${sep}${padded}`;
+      // v1.10.74 - financial year, not calendar year (Jan-Mar belongs to the previous FY)
+      return `${pfx}${sep}${getFinancialYearLabel()}${sep}${padded}`;
     }
     return `${pfx}${sep}${padded}`;
   };
@@ -553,7 +553,8 @@ export default function SettingsView({ onSaved }) {
   const toggleExport = (id) => setExportSel(prev => ({ ...prev, [id]: !prev[id] }));
   const toggleImport = (id) => setImportSel(prev => ({ ...prev, [id]: !prev[id] }));
   const exportToggleAll = (val) => setExportSel(Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, val])));
-  const importToggleAll = (val) => setImportSel(Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, val])));
+  // v1.10.74 - "Select all (with data)" ticks only categories that have data in the file
+  const importToggleAll = (val) => setImportSel(Object.fromEntries(ALL_BACKUP_PARTS.map(p => [p.id, val && (importInspection?.counts?.[p.id] || 0) > 0])));
 
   const runExport = async () => {
     try {
@@ -615,12 +616,20 @@ export default function SettingsView({ onSaved }) {
   const runImport = async () => {
     try {
       const result = await importData(importJsonText, importSel);
+      // v1.10.74 - list every restored category, not just five of them
       const parts = [];
       if (result.billCount) parts.push(`${result.billCount} invoice(s)`);
       if (result.hasProfile) parts.push('profile');
+      if (result.profileCount) parts.push(`${result.profileCount} business profile(s)`);
       if (result.templateCount) parts.push(`${result.templateCount} template(s)`);
       if (result.clientCount) parts.push(`${result.clientCount} client(s)`);
       if (result.productCount) parts.push(`${result.productCount} product(s)`);
+      if (result.expenseCount) parts.push(`${result.expenseCount} expense(s)`);
+      if (result.purchaseCount) parts.push(`${result.purchaseCount} purchase bill(s)`);
+      if (result.recurringCount) parts.push(`${result.recurringCount} recurring invoice(s)`);
+      if (result.receiptCount) parts.push(`${result.receiptCount} receipt(s)`);
+      const lsCount = importSel.localStorage ? (importInspection?.counts?.localStorage || 0) : 0;
+      if (lsCount) parts.push(`${lsCount} local preference(s)`);
       toast(parts.length ? `Restored: ${parts.join(', ')}` : 'Restore complete', 'success');
       if (importSel.profile) { const p = await getProfile(); setProfile(p); if (onSaved) onSaved(p); }
       if (importSel.termsTemplates) loadTemplates();
@@ -1421,7 +1430,7 @@ export default function SettingsView({ onSaved }) {
             <label className="form-label">Format Style</label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {[
-                { id: 'branded', label: 'Branded Sequential', desc: 'PREFIX/2026-27/0001' },
+                { id: 'branded', label: 'Branded Sequential', desc: `PREFIX/${getFinancialYearLabel()}/0001` },
                 { id: 'sequential', label: 'Simple Sequential', desc: 'PREFIX/0001' },
                 { id: 'random', label: 'Random', desc: 'PREFIX/A3X9K2' },
               ].map(f => (
@@ -1459,8 +1468,8 @@ export default function SettingsView({ onSaved }) {
               <label className="form-label">Brand Prefix</label>
               <input type="text" className="form-input" value={invNumSettings.brandPrefix}
                 onChange={e => handleInvNumChange('brandPrefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                placeholder="e.g. ACME, BK (leave empty for INV/EST/CN)" maxLength={10} />
-              <p className="field-hint">Your brand name or abbreviation. Leave empty to use default type prefix (INV, EST, CN, BOS).</p>
+                placeholder="e.g. ACME, BK (leave empty for INV/QUO/EST/BOS/COMP/CN/DC)" maxLength={10} />
+              <p className="field-hint">Your brand name or abbreviation. Leave empty to use default type prefix (INV, QUO, EST, BOS, COMP, CN, DC).</p>
             </div>
             <div className="form-group">
               <label className="form-label">Separator</label>
@@ -1482,7 +1491,7 @@ export default function SettingsView({ onSaved }) {
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: 4 }}>
                     <button type="button"
                       className={`type-chip ${invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
-                      onClick={() => handleInvNumChange('showFinYear', true)}>Yes (2026-27)</button>
+                      onClick={() => handleInvNumChange('showFinYear', true)}>Yes ({getFinancialYearLabel()})</button>
                     <button type="button"
                       className={`type-chip ${!invNumSettings.showFinYear ? 'type-chip-active' : ''}`}
                       onClick={() => handleInvNumChange('showFinYear', false)}>No</button>
@@ -1702,7 +1711,7 @@ export default function SettingsView({ onSaved }) {
                   placeholder="xxxx.apps.googleusercontent.com" />
                 <p className="field-hint">
                   <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer"
-                    style={{ color: 'var(--primary)' }}>Open Google Cloud Console</a> &rarr; Create Project &rarr; Enable Drive API &rarr; Create OAuth Client ID (Web app) &rarr; Add <code>http://localhost:5173</code> as origin.
+                    style={{ color: 'var(--primary)' }}>Open Google Cloud Console</a> &rarr; Create Project &rarr; Enable Drive API &rarr; Create OAuth Client ID (Web app) &rarr; Add <code>{window.location.origin}</code> as origin.
                 </p>
               </div>
               <div className="form-group">
@@ -1759,6 +1768,8 @@ export default function SettingsView({ onSaved }) {
                 { name: 'Freelancer (Simple)', content: '1. Payment due within 7 days of invoice via UPI/NEFT/IMPS.\n2. Late payments attract interest @ 2% per month.\n3. 50% advance required before project commencement.\n4. Scope changes after agreement will be quoted and billed separately.\n5. All work remains property of the freelancer until full payment is received.\n6. Cancellation after work begins: completed portion will be billed proportionally.\n7. TDS (if applicable) to be deducted at source. Share Form 16A within 15 days of deduction.\n8. Subject to jurisdiction of courts in the freelancer\'s city.\n9. This is a computer-generated invoice.' },
               ].map((qt, i) => (
                 <button key={i} type="button" className="quick-template-btn" onClick={async () => {
+                  // v1.10.74 - don't add a second copy when clicked twice
+                  if (termsTemplates.some(t => t.name === qt.name)) { toast('You already have this template', 'info'); return; }
                   await saveTermsTemplate({ name: qt.name, content: qt.content });
                   toast(`Added: ${qt.name}`, 'success');
                   loadTemplates();
@@ -2090,9 +2101,14 @@ function BackupAndTrashPanel() {
         </div>
         <button className="btn btn-secondary" style={{ fontSize: '0.82rem' }}
           onClick={async () => {
-            await triggerBackup();
-            toast('Manual backup triggered', 'success');
-            loadAll();
+            // v1.10.74 - show an error instead of failing silently
+            try {
+              await triggerBackup();
+              toast('Manual backup triggered', 'success');
+              loadAll();
+            } catch (err) {
+              toast('Backup failed: ' + (err.message || 'unknown error'), 'error');
+            }
           }}>
           <SaveIcon size={14} /> Backup now
         </button>

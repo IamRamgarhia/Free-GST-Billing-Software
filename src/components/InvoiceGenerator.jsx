@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronU
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, saveProduct, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllBills } from '../store';
-import { INVOICE_TYPES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries } from '../utils';
+import { INVOICE_TYPES, COUNTRIES, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -206,6 +206,11 @@ const PDF_STYLES = [
 //
 // Perf win: typing "Widget" (6 chars) in row 1 of an invoice with 20
 // items used to trigger 20 × 6 = 120 row re-renders. Now: 6 (just row 1).
+// v1.10.74 - the fixed-discount pickers showed "₹" on every invoice; show
+// the invoice currency's own symbol (falls back to the code, e.g. "AED").
+const currencySymbolFor = (code) =>
+  COUNTRIES.find(c => c.currency === (code || 'INR'))?.currencySymbol || code || '₹';
+
 // v1.10.37 — Sub-component: the Description input + product-suggestion
 // dropdown, with keyboard navigation. Extracted so LineItem stays lean
 // and the local `activeIdx` state doesn't cause other row fields to
@@ -243,6 +248,7 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
   return (
     <>
       <input type="text" className="form-input" value={item.name}
+        placeholder="Item"
         onChange={(e) => onFieldChange(item.id, 'name', e.target.value)}
         onBlur={() => setTimeout(() => onSetProductSearch({ itemId: null, query: '' }), 200)}
         onKeyDown={handleKey}
@@ -274,7 +280,7 @@ const LineItem = memo(function LineItem({
   currency, profileCountry, suggestions,
   onFieldChange, onSelectProduct, onSetProductSearch,
   onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
-  isLastRow, onAddRow,
+  isLastRow, onAddRow, isOnlyRow,
 }) {
   // v1.10.37 — Keyboard shortcut: Enter on any input inside the LAST
   // row adds a new row. Muscle-memory for POS users — reported: "if
@@ -295,7 +301,8 @@ const LineItem = memo(function LineItem({
   return (
     <div className="line-item-row" data-item-id={item.id} onKeyDown={handleRowKeyDown}>
       <div className="line-item-field" style={{ flex: 2.5, position: 'relative' }}>
-        <label className="form-label">Description</label>
+        {/* v1.10.74 - was "Description", which clashed with "+ Add description" below. */}
+        <label className="form-label">Item</label>
         {/* v1.10.37 — Keyboard nav on product suggestions. Reported:
             "20 invoices/day is slow because product picker forces the
             mouse." Now: ArrowDown / ArrowUp cycles suggestions, Enter
@@ -402,7 +409,7 @@ const LineItem = memo(function LineItem({
               onChange={(e) => onFieldChange(item.id, 'discountType', e.target.value)}
               style={{ width: 52, padding: '0.4rem 0.3rem', fontSize: '0.82rem' }}
               title="Discount mode: fixed amount or percent of line">
-              <option value="fixed">₹</option>
+              <option value="fixed">{currencySymbolFor(currency)}</option>
               <option value="percent">%</option>
             </select>
             {/* Base only meaningful for fixed-mode. Percent of any base is
@@ -461,7 +468,9 @@ const LineItem = memo(function LineItem({
         </div>
       )}
       <div className="line-item-field line-item-delete">
-        <button className="icon-btn icon-btn-red" onClick={() => onRemove(item.id)} title="Remove"><Trash2 size={16} /></button>
+        {/* v1.10.74 - removeItem keeps the last row, so the button did nothing there; say so. */}
+        <button className="icon-btn icon-btn-red" onClick={() => onRemove(item.id)}
+          disabled={isOnlyRow} title={isOnlyRow ? 'An invoice needs at least one line' : 'Remove'}><Trash2 size={16} /></button>
       </div>
       {/* v1.10.22 — inline expandable description per row. Reported: "add
           option so user can directly enter product description into
@@ -1413,7 +1422,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   // Open modal to add new client (pre-fill from current invoice fields)
   const openAddClientModal = () => {
-    setModalClient({ name: client.name || '', address: client.address || '', city: client.city || '', pin: client.pin || '', state: client.state || '', gstin: client.gstin || '' });
+    // v1.10.74 - pass country too; without it the modal fell back to the
+    // business country and saving could overwrite the invoice's country.
+    setModalClient({ name: client.name || '', address: client.address || '', city: client.city || '', pin: client.pin || '', state: client.state || '', gstin: client.gstin || '', country: client.country || '' });
     setIsEditingClient(false);
     setShowClientModal(true);
     setShowClientSuggestions(false);
@@ -2891,6 +2902,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   const exportEWayBill = () => {
     if (!profile?.gstin) { toast('Set your GSTIN in Settings first', 'warning'); return; }
+    // v1.10.74 - a blank invoice made an E-Way Bill JSON the portal rejects.
+    if (!items.some(i => (i.name || '').trim() && (i.quantity || 0) * (i.rate || 0) > 0)) {
+      toast('Add at least one item with a quantity and rate first.', 'warning');
+      return;
+    }
     // v1.10.1 — Pass taxInclusive so back-calc taxable value on line items.
     // Otherwise E-Way Bill portal rejects with `amount_mismatch` on MRP-inclusive invoices.
     const ewb = generateEWayBillJSON(profile, client, details, items, totals, invoiceType, { taxInclusive });
@@ -3032,7 +3048,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             <MessageCircle size={18} /> WhatsApp
           </button>
           {(invoiceType === 'tax-invoice' || invoiceType === 'delivery-challan') && (
-            <button className="btn btn-secondary" onClick={exportEWayBill} title="Download E-Way Bill JSON for NIC portal upload">
+            <button className="btn btn-secondary" onClick={exportEWayBill} disabled={saving} title="Download E-Way Bill JSON for NIC portal upload">
               <Truck size={18} /> E-Way Bill
             </button>
           )}
@@ -3442,7 +3458,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   { group: 'Footer', items: [
                     ['showBankDetails', 'Bank details'],
                     ['showAccountLabel', 'Show "Pay via: <account>" label above bank block'],
-                    ['showUPI', 'UPI QR (India only)'],
+                    // v1.10.74 - the QR needs a rupee invoice with a UPI ID, not an Indian business.
+                    ['showUPI', 'UPI QR (rupee invoices)'],
                     ['showSignature', 'Signature block'],
                     ['showSignatoryText', 'Show "Authorized Signatory" caption'],
                     ['showTerms', 'Terms & Conditions'],
@@ -3810,7 +3827,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   <div className="form-group">
                     <label className="form-label">{cc.taxIdLabel}</label>
                     <input type="text" className="form-input" value={client.gstin}
-                      onChange={(e) => setClient({ ...client, gstin: e.target.value.toUpperCase() })}
+                      // v1.10.74 - drop the old hint on edit; it is re-checked on blur.
+                      onChange={(e) => { setClient({ ...client, gstin: e.target.value.toUpperCase() }); setGstinHint(null); }}
                       onBlur={handleClientGstinBlur} placeholder="Optional" maxLength={20} />
                     {gstinHint && (
                       <small style={{ color: gstinHint.tone === 'warn' ? '#d97706' : '#16a34a', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
@@ -3986,6 +4004,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 onRemove={removeItem}
                 clampNonNeg={clampNonNeg}
                 isLastRow={idx === items.length - 1}
+                isOnlyRow={items.length === 1}
                 onAddRow={addItem}
               />
             ))}
@@ -4005,7 +4024,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 value={invoiceOptions.invoiceDiscountType === 'percent' ? 'percent' : 'fixed'}
                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountType: e.target.value }))}
                 style={{ width: 128 }}>
-                <option value="fixed">₹ (fixed)</option>
+                <option value="fixed">{currencySymbolFor(invoiceOptions.currency)} (fixed)</option>
                 <option value="percent">% of total</option>
               </select>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -4031,7 +4050,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   { id: 'compact', label: 'Compact', hint: 'Tiny footer text — saves paper' },
                   { id: 'formatted', label: 'Formatted', hint: 'Larger readable paragraphs' },
                 ].map(mode => {
-                  const active = (invoiceOptions.termsFormatMode || 'compact') === mode.id;
+                  // v1.10.74 - same rule InvoicePreview prints with: per-invoice
+                  // choice, then Print Settings, then services -> formatted.
+                  const effectiveMode = invoiceOptions.termsFormatMode || _psPrintForRates.termsFormatMode
+                    || ((invoiceOptions.invoiceMode || 'goods') === 'services' ? 'formatted' : 'compact');
+                  const active = effectiveMode === mode.id;
                   return (
                     <button key={mode.id} type="button"
                       onClick={() => setInvoiceOptions(prev => ({ ...prev, termsFormatMode: mode.id }))}

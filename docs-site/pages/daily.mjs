@@ -56,7 +56,7 @@ export default [
   <tr><td>Search</td><td>By client name or invoice number</td></tr>
   <tr><td>Financial year</td><td>All years, or one of the last five</td></tr>
   <tr><td>Type</td><td>Any of the six document types</td></tr>
-  <tr><td>Status</td><td>Unpaid, Partial, Paid or Overdue</td></tr>
+  <tr><td>Status</td><td>Unpaid, Partial, Paid, Overdue or Cancelled</td></tr>
   <tr><td>From / To</td><td>A range of invoice dates</td></tr>
 </table>
 <p>${ui('✕')} clears all filters at once.</p>
@@ -81,6 +81,7 @@ export default [
   <li><strong>Fill it in</strong>Enter <b>Amount Received</b>, the <b>Payment Date</b> (today to start), the <b>Payment Mode</b> (Bank Transfer, UPI, Cash, Cheque, Card or Other), and a note such as the transaction ID.</li>
   <li><strong>Record it</strong>Click ${ui('Record Payment')}. The status becomes Partial or Paid, and a printable receipt opens.</li>
 </ol>
+<p>A cancelled invoice cannot take a payment; change its status back first.</p>
 <p>If the amount is more than the balance, you are asked whether to record it as an overpayment. The extra is kept as the client's credit, to use on <a href="invoices.html#client-credit">their next invoice</a>.</p>
 <p>Under <b>Payment History</b>, each payment has ${ui('Receipt')} to reprint it, a pencil to edit it, and a bin to delete it. The status is worked out again after any change.</p>
 <figure><img src="assets/img/app-payment.png" alt="Recording the rest of a part-paid invoice. The earlier payment is under Payment History." loading="lazy"><figcaption>Recording the rest of a part-paid invoice. The earlier payment is under Payment History.</figcaption></figure>
@@ -145,7 +146,7 @@ export default [
 <section id="client-list">
 <h2>The client list</h2>
 <p>Every client you have saved, and every name you have invoiced, appears as a card, with the ones who owe the most at the top. <b>Search clients…</b> finds them by name.</p>
-<p>Each card shows the number of invoices, the state and GSTIN, and three figures: <b>Total</b>, <b>Paid</b>, and <b>Outstanding</b> in red, or <b>Overpaid</b> in blue if they have paid too much. Click a card to open it.</p>
+<p>Each card shows the number of invoices, the state and GSTIN, and three figures: <b>Total</b>, <b>Paid</b>, and <b>Outstanding</b> in red, or <b>Overpaid</b> in blue if they have paid too much. Only real sales count: credit notes are subtracted, and quotations, estimates, challans and cancelled invoices are left out. Click a card to open it.</p>
 <p>Your client list is shared by all your businesses, since the same customer may buy from each.</p>
 </section>
 
@@ -196,7 +197,7 @@ export default [
 </table>
 <pre><code>name,address,state,gstin,email,phone
 Sharma Traders,12 MG Road,Punjab,03AAAAA0000A1Z5,accounts@sharma.example,9876543210</code></pre>
-<p>Every row becomes a new client, so importing the same file twice gives you two of each. Other columns, such as city or PIN, are ignored.</p>
+<p>Clients you already have (same name) are skipped, so importing the same file twice is safe. Other columns, such as city or PIN, are ignored.</p>
 </section>
 `,
 },
@@ -261,7 +262,7 @@ Sharma Traders,12 MG Road,Punjab,03AAAAA0000A1Z5,accounts@sharma.example,9876543
 <pre><code>name,hsn,rate,gst%,unit,stock
 A4 Paper Ream,4802,280,12,Nos,50
 Website Maintenance,998314,5000,18,Month,0</code></pre>
-<p>Every row becomes a new product, so importing the same file twice gives you two of each.</p>
+<p>Products you already have (same name) are skipped, so importing the same file twice is safe.</p>
 </section>
 `,
 },
@@ -274,7 +275,7 @@ Website Maintenance,998314,5000,18,Month,0</code></pre>
   body: `
 <section id="purchase-list">
 <h2>The purchase list</h2>
-<p>At the top, <b>Total Purchases</b>, <b>GST (ITC Eligible)</b> and <b>Entries</b> add up what is shown. Search by supplier, invoice number or GSTIN, and pick a financial year; the last five are offered.</p>
+<p>At the top, <b>Total Purchases</b>, <b>GST (ITC Eligible)</b> and <b>Entries</b> add up what is shown. Search by supplier, invoice number or GSTIN, and pick a financial year (one of the last five) or All years.</p>
 <p>The table shows date, supplier, GSTIN, invoice number, taxable value, tax, total, status and actions, with totals at the bottom. Each row has:</p>
 <ul>
   <li>the eye, to view the bill without downloading anything;</li>
@@ -465,16 +466,16 @@ Website Maintenance,998314,5000,18,Month,0</code></pre>
 <h2>Making a receipt</h2>
 <ol class="steps">
   <li><strong>Start it</strong>Click ${ui('New Receipt')}.</li>
-  <li><strong>Pick the invoice, if there is one</strong><b>Quick Select, Unpaid Invoices</b> lists up to ten unpaid invoices. Picking one fills in the client, the amount still owed and the invoice number.</li>
+  <li><strong>Pick the invoice, if there is one</strong><b>Quick Select, Unpaid Invoices</b> lists up to 50 unpaid sales invoices. Picking one fills in the client, the amount still owed and the invoice number.</li>
   <li><strong>Fill in the rest</strong>Date, <b>Received From</b> (required), <b>Amount</b> (required), <b>Payment Mode</b>, <b>Reference / Transaction No</b>, <b>Against Invoice</b> and a note.</li>
   <li><strong>Save</strong>${ui('Save Receipt')} gives it the next receipt number.</li>
 </ol>
-<p>When <b>Against Invoice</b> exactly matches one of your invoice numbers, the payment is also recorded on that invoice, and its status becomes Partial or Paid. If it does not match any invoice, the receipt is saved on its own.</p>
+<p>When <b>Against Invoice</b> exactly matches one of your invoice numbers, the payment is also recorded on that invoice, and its status becomes Partial or Paid. If it does not match any invoice, the receipt is saved on its own and you are told so.</p>
 </section>
 
 <section id="numbers">
 <h2>Receipt numbers</h2>
-<p>Receipts have their own series, starting RCP, and follow your <a href="settings.html#invoice-numbers">invoice number format</a>: separator, financial year and digits. If you set a brand prefix, it is used for receipts too. The number is given when you save, even if you typed one.</p>
+<p>Receipts have their own series, starting RCP, and follow your <a href="settings.html#invoice-numbers">invoice number format</a>: separator, financial year and digits. If you set a brand prefix, it is used for receipts too. The next number is given when you save, unless you typed your own, which is kept.</p>
 </section>
 
 <section id="print">

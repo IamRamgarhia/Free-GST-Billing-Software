@@ -25,6 +25,14 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelled', icon: Ban, color: '#64748b', bg: 'rgba(100, 116, 139, 0.16)' },
 };
 
+// v1.10.74 - one list for the Record Payment mode select and its Payment
+// History, so history shows "Bank Transfer" instead of "bank-transfer".
+const PAYMENT_MODES = [
+  ['bank-transfer', 'Bank Transfer'], ['upi', 'UPI'], ['cash', 'Cash'],
+  ['cheque', 'Cheque'], ['card', 'Card'], ['other', 'Other'],
+];
+const paymentModeName = (mode) => (PAYMENT_MODES.find(([v]) => v === mode) || [])[1] || mode;
+
 // v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
 // from ../utils so a bugfix touches one file, not five.
 
@@ -214,6 +222,15 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   // elsewhere. Cleared whenever filters change so the user doesn't accidentally
   // bulk-act on bills they can no longer see.
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  // v1.10.74 - the comment above was never wired up, so bulk actions could hit
+  // ticked rows hidden by a filter. Reset during render (React's "adjust state
+  // on prop change" pattern) when any filter changes.
+  const filterKey = [search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo].join('|');
+  const [selectionFilterKey, setSelectionFilterKey] = useState(filterKey);
+  if (selectionFilterKey !== filterKey) {
+    setSelectionFilterKey(filterKey);
+    if (selectedIds.size) setSelectedIds(new Set());
+  }
   // v1.9.4 — column picker. Persist to localStorage. Default set matches
   // the pre-v1.9.4 hardcoded columns so no visual change on upgrade.
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -466,6 +483,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
   };
 
   const recordPayment = async () => {
+    // v1.10.74 - a payment used to flip a cancelled invoice to paid/partial
+    // without taking its stock back out. Block it; un-cancel from the status
+    // dropdown first (that path fixes stock).
+    if (isCancelledBill(paymentModal)) {
+      toast('This invoice is cancelled. Change its status back before recording a payment.', 'warning'); return;
+    }
     const amount = parseFloat(paymentInput.amount);
     if (!isFinite(amount) || amount <= 0) {
       toast('Enter a positive payment amount', 'warning'); return;
@@ -986,7 +1009,12 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
     const subject = `Invoice ${bill.invoiceNumber} - ${formatCurrency(bill.totalAmount, bill.currency)}`;
     const richBody = buildShareMessage(bill).replace(/\*/g, '');
     const body = `Dear ${bill.clientName},\n\n${richBody}\n\nRegards`;
-    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+    // v1.10.74 - fill in the client's email (from the invoice, else the saved
+    // client) so the mail opens addressed. Only a plain address is used, so a
+    // stray "?" or "&" can't break the mailto link.
+    const rawTo = (bill.data?.client?.email || clients.find(c => c.name === bill.clientName)?.email || '').trim();
+    const to = /^[^\s@?&#]+@[^\s@?&#]+$/.test(rawTo) ? rawTo : '';
+    window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
   };
 
   const clearFilters = () => {
@@ -1316,6 +1344,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
             <option value="partial">Partial</option>
             <option value="paid">Paid</option>
             <option value="overdue">Overdue</option>
+            {/* v1.10.74 - rows can be Cancelled, so the filter needs it too */}
+            <option value="cancelled">Cancelled</option>
           </select>
           <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" />
           <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" />
@@ -1372,8 +1402,10 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
           </button>
           <button type="button" className="btn btn-secondary" disabled={bulkBusy}
             style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('unpaid')}>
-            <Clock size={12} /> Unpaid ({filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})
+            onClick={() => bulkPrintByFilter('unpaid')}
+            title="Only invoices marked Unpaid (not Partial or Overdue)">
+            {/* v1.10.74 - label says "only": Partial and Overdue are not included */}
+            <Clock size={12} /> Unpaid only ({filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})
           </button>
           <button type="button" className="btn btn-secondary" disabled={bulkBusy}
             style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
@@ -1508,7 +1540,9 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                           {['quotation', 'proforma', 'delivery-challan'].includes(bill.invoiceType) && (
                             <button className="icon-btn icon-btn-green" onClick={() => onConvert(bill)} title="Convert to Tax Invoice"><FileText size={15} /></button>
                           )}
-                          <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)} title="Payment"><IndianRupee size={15} /></button>
+                          {/* v1.10.74 - kept for cancelled invoices so past payments stay viewable; saving is blocked in recordPayment */}
+                          <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)}
+                            title={isCancelledBill(bill) ? 'Payment history (invoice is cancelled)' : 'Payment'}><IndianRupee size={15} /></button>
                           <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)}
                             title="Share via WhatsApp — PDF attaches on mobile Chrome/Safari. On desktop it sends the invoice as text only (browser can't attach files to WhatsApp Web — security limitation, not our app).">
                             <MessageCircle size={15} />
@@ -1576,12 +1610,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                 <label className="form-label">Payment Mode</label>
                 <select className="form-input" value={paymentInput.mode}
                   onChange={e => setPaymentInput(prev => ({ ...prev, mode: e.target.value }))}>
-                  <option value="bank-transfer">Bank Transfer</option>
-                  <option value="upi">UPI</option>
-                  <option value="cash">Cash</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="card">Card</option>
-                  <option value="other">Other</option>
+                  {PAYMENT_MODES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -1602,7 +1631,7 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
                     <div key={p.id || i} className="payment-row" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ minWidth: 90 }}>{p.date ? new Date(p.date).toLocaleDateString('en-IN') : '—'}</span>
                       <span className="font-bold" style={{ minWidth: 100 }}>{formatCurrency(p.amount, paymentModal.currency)}</span>
-                      <span className="text-muted" style={{ minWidth: 90 }}>{p.mode}</span>
+                      <span className="text-muted" style={{ minWidth: 90 }}>{paymentModeName(p.mode)}</span>
                       {p.note && <span className="text-muted" style={{ flex: 1 }}>· {p.note}</span>}
                       <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.25rem' }}>
                         <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}

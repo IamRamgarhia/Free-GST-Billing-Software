@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.74] - 2026-09-28
+
+**Forty smaller fixes found while documenting every screen: GST return
+figures, reports, receipts, purchases, expenses and more.**
+
+### How to update
+
+**Current version:** 1.10.73  →  **New version:** 1.10.74
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.74** in the sidebar, or
+   **Settings → App Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.74.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (click **Stop the app** in the launcher if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed - GST returns
+- **Exports without a GSTIN were counted twice** in GSTR-3B: in 3.1(a) and the
+  B2C table as well as in 3.1(b), with their IGST added twice to the tax
+  payable. Each export is now counted once, in 3.1(b).
+- **Credit notes were added to the HSN summary** instead of subtracted.
+- Warnings (missing HSN, a GSTIN without a state) are now shown, in an amber
+  box under the errors.
+- GSTR-3B row 3.1(c) now reads "Other outward supplies (nil rated, exempted)".
+- Reverse-charge purchases in the 3B file count only the selected period; so
+  does the "Books only" list in GSTR-2B matching.
+- The JSON return period for a quarter or year is now its last month, not the
+  month of the first bill.
+- Table 3.2 handles prices that include tax correctly.
+- The Documents issued table counts cancelled documents.
+- The R1 / 3B Filed marks are kept separately for each business.
+
+### Fixed - reports and income tax
+- Losses show a minus sign instead of only a red colour.
+- Client Analytics and Product Performance have their own period choice.
+- Product revenue is after discounts and without tax, so it matches invoices.
+- 80TTA applies under 60 and 80TTB from 60, never both; the ITR-4 PDF prints
+  your PAN; 44AE heavy vehicles start at 13 tonnes; presumptive income ticks
+  the advance-tax presumptive option.
+
+### Fixed - invoices, clients, products, receipts
+- The Dashboard status filter has Cancelled; a cancelled invoice cannot take a
+  payment; payment history shows "Bank Transfer" rather than "bank-transfer";
+  ticked invoices clear when you change the filters; Email opens addressed to
+  the client.
+- Ctrl+K settings shortcuts jump to their section; Control Panel is in Ctrl+K.
+- The invoice screen shows the invoice currency (not always ₹) for discounts,
+  labels the item field "Item", disables Remove on the only line and the
+  E-Way Bill button while saving, and keeps the invoice's country when saving
+  a new client.
+- Thermal receipts print TCS, whole-bill discount, TDS and Net Receivable.
+- Client totals count only real sales, with credit notes subtracted; the Aging
+  PDF is named Aging-….pdf.
+- Products: the screen is called Products; a stock of 0 shows 0; CSV import
+  skips products and clients you already have.
+- Receipts: a receipt number you type is kept; only unpaid sales appear in
+  Quick Select; you are told when "Against Invoice" matches nothing; the
+  client address prints; a blocked pop-up is reported.
+- Purchases and expenses: today's date is your local date; "All years" filter;
+  the purchase PDF shows CGST + SGST or IGST; CSV exports include cess and
+  inter-state; reading a bill photo ticks Inter-state when the bill shows IGST;
+  the expense GST amount updates as you type.
+- Settings, first run and print settings: the Google setup hint shows your
+  real address; the invoice number preview uses the financial year; restore
+  lists everything it restored; Backup now reports errors; the first-run
+  country starts as India; hints that described the wrong default are fixed.
+
+---
+
 ## [1.10.73] - 2026-09-27
 
 **Two new invoice designs, Boxed grid and Tally style; a Quotation document;

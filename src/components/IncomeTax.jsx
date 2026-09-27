@@ -112,10 +112,11 @@ export default function IncomeTax() {
       return {
         section: '44AD',
         digitalReceipts: 0, cashReceipts: 0, declaredIncome: 0,
-        heavyVehicleMonths: 0, heavyVehicleTonnage: 12, lightVehicleMonths: 0,
+        // v1.10.74 - default 13 t: a heavy vehicle is one over 12,000 kg.
+        heavyVehicleMonths: 0, heavyVehicleTonnage: 13, lightVehicleMonths: 0,
         ...saved,
       };
-    } catch { return { section: '44AD', digitalReceipts: 0, cashReceipts: 0, declaredIncome: 0, heavyVehicleMonths: 0, heavyVehicleTonnage: 12, lightVehicleMonths: 0 }; }
+    } catch { return { section: '44AD', digitalReceipts: 0, cashReceipts: 0, declaredIncome: 0, heavyVehicleMonths: 0, heavyVehicleTonnage: 13, lightVehicleMonths: 0 }; }
   });
 
   // Advance Tax state — TDS credit + payments made so far
@@ -297,6 +298,12 @@ export default function IncomeTax() {
           onPushToCalculator={() => {
             if (!presumptive) return;
             setInputs(prev => ({ ...prev, businessIncome: presumptive.presumptiveIncome }));
+            // v1.10.74 - 44AD / 44ADA pay advance tax in one go by 15 March, so tick
+            // that option on the Advance Tax tab too (still editable there). 44AE
+            // does not get the single-instalment rule, so it is left alone.
+            if (presumptiveInputs.section === '44AD' || presumptiveInputs.section === '44ADA') {
+              setAdvanceInputs(prev => ({ ...prev, mode: 'presumptive' }));
+            }
             setTab('calculator');
             toast(`Presumptive income of ${formatCurrency(presumptive.presumptiveIncome)} pushed to calculator`, 'success');
           }}
@@ -597,7 +604,8 @@ function RegimeCalculatorTab({ inputs, setInputs, comparison, onReset }) {
   const set = (patch) => setInputs(prev => ({ ...prev, ...patch }));
   // 80D and 80DDB limits depend on age: show the limit the calculation uses.
   const effectiveCapLabel = (section, cap) => {
-    const c = (section === '80D' || section === '80DDB')
+    // v1.10.74 - 80TTA (under 60) / 80TTB (60+) also depend on age.
+    const c = ['80D', '80DDB', '80TTA', '80TTB'].includes(section)
       ? effectiveDeductionCap(section, { selfSenior: Number(inputs.age) >= 60, parentsSenior: !!inputs.parentsSenior })
       : cap;
     return c === Infinity ? 'No cap' : formatCurrency(c);
@@ -912,7 +920,7 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, p
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const tax = comparison[comparison.recommended];
       // Build the ITR-4 field map from all inputs
-      const rows = buildITR4FieldMap(inputs, tax, presumptive?.presumptiveIncome ? presumptive : null, inputs.deductions);
+      const rows = buildITR4FieldMap(inputs, tax, presumptive?.presumptiveIncome ? presumptive : null, inputs.deductions, profile?.pan);
 
       let y = 15;
       doc.setFontSize(16); doc.setFont('helvetica', 'bold');

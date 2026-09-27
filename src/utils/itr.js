@@ -229,6 +229,10 @@ export function effectiveDeductionCap(section, ctx = {}) {
   if (s === '80DDB') {
     return ctx.selfSenior ? 100_000 : 40_000;
   }
+  // v1.10.74 - 80TTA is only for under-60s and 80TTB only for 60+, so the
+  // two can never both be claimed.
+  if (s === '80TTA') return ctx.selfSenior ? 0 : DEDUCTION_CAPS['80TTA'];
+  if (s === '80TTB') return ctx.selfSenior ? DEDUCTION_CAPS['80TTB'] : 0;
   return DEDUCTION_CAPS[section] ?? Infinity;
 }
 
@@ -406,7 +410,7 @@ export function computeAllowedDeductions(userDeductions = {}, regime = 'old', ct
   let total = 0;
   for (const section of Object.keys(DEDUCTION_CAPS)) {
     const claimed = Number(userDeductions[section]) || 0;
-    // Use effectiveDeductionCap for context-sensitive sections (80D, 80DDB).
+    // Use effectiveDeductionCap for context-sensitive sections (80D, 80DDB, 80TTA/80TTB).
     const cap = effectiveDeductionCap(section, ctx);
     total += Math.min(claimed, cap);
   }
@@ -861,7 +865,8 @@ export function compute44AD({ digitalReceipts = 0, cashReceipts = 0, declaredInc
   if (!isEligible) {
     notes.push(`Turnover of ${formatINR(turnover)} exceeds the §44AD limit of ${formatINR(threshold)}. You must maintain regular books and file ITR-3 with a Tax Audit Report (§44AB).`);
   }
-  if (cashPct > 0.05 && turnover <= 30_000_000) {
+  // v1.10.74 - the cash share only matters once turnover is above ₹2Cr.
+  if (cashPct > 0.05 && turnover > 20_000_000 && turnover <= 30_000_000) {
     notes.push(`${(cashPct * 100).toFixed(1)}% of your turnover is in cash — above the 5% threshold. Reduce cash receipts to qualify for the ₹3Cr limit.`);
   }
 
@@ -1226,10 +1231,13 @@ export function compute234BInterest(schedule, assessmentPaymentDate, fy) {
  * Order matches the physical layout of ITR-4 Sugam.
  * Each row: { field, section, value, note? }
  */
-export function buildITR4FieldMap(inputs, tax, presumptive, deductions) {
+export function buildITR4FieldMap(inputs, tax, presumptive, deductions, pan = '') {
   const rows = [];
-  // Personal info (user fills manually — we can't infer PAN from the app)
-  rows.push({ section: 'Part A — General', field: 'PAN', value: '', note: 'Fill from your profile' });
+  // v1.10.74 - PAN comes from the business profile when it has one.
+  const panText = String(pan || '').trim().toUpperCase();
+  rows.push(panText
+    ? { section: 'Part A — General', field: 'PAN', value: panText }
+    : { section: 'Part A — General', field: 'PAN', value: '', note: 'Fill from your profile' });
   rows.push({ section: 'Part A — General', field: 'Filing Status', value: 'Filed under §139(1) — before due date' });
   rows.push({ section: 'Part A — General', field: 'Aadhaar', value: '', note: 'Must be linked' });
 
@@ -1262,9 +1270,13 @@ export function buildITR4FieldMap(inputs, tax, presumptive, deductions) {
     rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80CCD(1B) — NPS', value: Math.min(50_000, Number(deductions?.['80CCD1B']) || 0) });
     // Same age-dependent limit the tax figure used (was a flat ₹1 lakh, so the
     // PDF line could disagree with the total below it).
-    const cap80D = effectiveDeductionCap('80D', { selfSenior: Number(inputs?.age) >= 60, parentsSenior: !!inputs?.parentsSenior });
+    const ageCtx = { selfSenior: Number(inputs?.age) >= 60, parentsSenior: !!inputs?.parentsSenior };
+    const cap80D = effectiveDeductionCap('80D', ageCtx);
     rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80D — Health Insurance', value: Math.min(cap80D, Number(deductions?.['80D']) || 0) });
-    rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80TTA — Savings Interest', value: Math.min(10_000, Number(deductions?.['80TTA']) || 0) });
+    // v1.10.74 - 60+ claim 80TTB instead of 80TTA (same rule as the tax figure).
+    rows.push(ageCtx.selfSenior
+      ? { section: 'C — Deductions (Chapter VI-A)', field: '§80TTB — Deposit Interest (60+)', value: Math.min(effectiveDeductionCap('80TTB', ageCtx), Number(deductions?.['80TTB']) || 0) }
+      : { section: 'C — Deductions (Chapter VI-A)', field: '§80TTA — Savings Interest', value: Math.min(effectiveDeductionCap('80TTA', ageCtx), Number(deductions?.['80TTA']) || 0) });
     rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80E — Education Loan Interest', value: Number(deductions?.['80E']) || 0 });
     rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '§80G — Donations', value: Number(deductions?.['80G']) || 0 });
     rows.push({ section: 'C — Deductions (Chapter VI-A)', field: '  Total Chapter VI-A', value: tax.allowedDeductions, bold: true });

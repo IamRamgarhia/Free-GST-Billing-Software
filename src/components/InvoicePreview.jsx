@@ -116,6 +116,9 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
   const _ps_dc = _ps;
   // v1.9.3 — same settings alias used by getLabel() calls throughout the JSX
   const _ps_labels = _ps_dc;
+  // v1.10.74 - "Total Due" follows the label language; English keeps "Total Due" (preset says "Total").
+  const _totalLabel = getLabel(_ps_labels, 'total');
+  const totalDueLabel = _totalLabel === 'Total' ? 'Total Due' : _totalLabel;
   const dualCurrencyOn = _ps_dc.dualCurrencyEnabled && currencySymbol === 'INR' && _ps_dc.dualCurrencyCode && Number(_ps_dc.dualCurrencyRate) > 0;
   const fmtDualSecondary = (amount) => {
     if (!dualCurrencyOn || _ps_dc.dualCurrencyPosition !== 'below') return '';
@@ -290,6 +293,8 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
             {showInvoiceDate && <p style={{ margin: 0 }}>{details?.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</p>}
             {showDueDate && details?.dueDate && <p style={{ margin: 0 }}>Due: {new Date(details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
             {showReverseChargeLine && <p style={{ margin: 0 }}>Reverse Charge: {reverseChargeText}</p>}
+            {/* v1.10.74 - Classic and Modern print the credit note's original invoice; Minimal dropped it. */}
+            {invoiceType === 'credit-note' && details?.originalInvoiceRef && <p style={{ margin: 0 }}>Against Invoice: {details.originalInvoiceRef}</p>}
           </div>
         </div>
       </div>
@@ -698,6 +703,20 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                   <span style={{ textAlign: 'right' }}>{amt(totals.cess)}</span>
                 </div>
               )}
+              {/* v1.10.74 - TOTAL already includes TCS and the whole-bill
+                  discount; print them so the receipt adds up (same values as the sheet layout). */}
+              {Number(totals?.tcsAmount) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('TCS')}</span>
+                  <span style={{ textAlign: 'right' }}>{amt(totals.tcsAmount)}</span>
+                </div>
+              )}
+              {Number(totals?.invoiceDiscountAmount) > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap('Discount on total')}</span>
+                  <span style={{ textAlign: 'right' }}>-{amt(totals.invoiceDiscountAmount)}</span>
+                </div>
+              )}
               {showRoundOff && Number(totals?.roundOff) !== 0 && (
                 <div style={rowStyle}>
                   <span>{cap('Round-off')}</span>
@@ -715,6 +734,18 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                 <span>{cap('TOTAL')}</span>
                 <span style={{ textAlign: 'right' }}>{amt(totals?.total)}</span>
               </div>
+              {Number(totals?.tdsAmount) > 0 && (
+                <>
+                  <div style={{ ...rowStyle, marginTop: 4 }}>
+                    <span>{cap('Less: TDS')}</span>
+                    <span style={{ textAlign: 'right' }}>-{amt(totals.tdsAmount)}</span>
+                  </div>
+                  <div style={{ ...rowStyle, fontWeight: strongWeight }}>
+                    <span>{cap('Net Receivable')}</span>
+                    <span style={{ textAlign: 'right' }}>{amt(totals.netReceivable)}</span>
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}
@@ -1186,7 +1217,8 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
         <div className="inv-totals">
           {showSubtotal && (
             <div className="inv-total-row">
-              <span>Subtotal</span>
+              {/* v1.10.74 - Subtotal / Total Due / Authorized Signatory now follow the label language. */}
+              <span>{getLabel(_ps_labels, 'subtotal')}</span>
               <span>{fmt(totals.subtotal)}</span>
             </div>
           )}
@@ -1252,12 +1284,12 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           )}
           {pdfStyle === 'modern' ? (
             <div className="inv-total-row inv-total-final inv-total-modern" style={{ background: accent, color: '#fff', borderRadius: '6px', padding: '0.6rem 0.75rem', marginTop: '0.25rem' }}>
-              <span style={{ color: '#fff' }}>{invoiceType === 'credit-note' ? 'Credit Amount' : 'Total Due'}</span>
+              <span style={{ color: '#fff' }}>{invoiceType === 'credit-note' ? 'Credit Amount' : totalDueLabel}</span>
               <span style={{ color: '#fff' }}>{fmt(totals.total)}</span>
             </div>
           ) : (
             <div className="inv-total-row inv-total-final">
-              <span>{invoiceType === 'credit-note' ? 'Credit Amount' : 'Total Due'}</span>
+              <span>{invoiceType === 'credit-note' ? 'Credit Amount' : totalDueLabel}</span>
               <span style={{ color: accent }}>{fmt(totals.total)}</span>
             </div>
           )}
@@ -1442,7 +1474,7 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
           if (!showSignature || (!sigImg && !stampImg)) return null;
           return (
             <div className="inv-signature">
-              {showSignatoryText && <p className="inv-sig-label">Authorized Signatory</p>}
+              {showSignatoryText && <p className="inv-sig-label">{getLabel(_ps_labels, 'authorizedSignatory')}</p>}
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
                 {stampImg && <img src={stampImg} alt="Stamp" style={{
                   maxHeight: `${stampMaxHeight}px`, maxWidth: '120px', objectFit: 'contain', display: 'block',
@@ -1461,7 +1493,8 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
       {/* Extra Sections - each starts on new page */}
       {(() => {
         const filtered = extraSections.filter(s => s.title || s.content);
-        const totalPages = filtered.length > 0 ? 1 + filtered.length : 1;
+        // v1.10.74 - dropped "Page N of M": M assumed a one-page invoice, so it
+        // was wrong whenever the invoice itself ran longer.
         return filtered.map((section, idx) => (
           <div key={section.id} className="inv-extra-page" data-pdf-page={idx + 2}>
             <div className="inv-extra-page-header">
@@ -1469,7 +1502,6 @@ const InvoicePreview = React.forwardRef(({ profile, client, details, items, tota
                 <span className="inv-extra-ref">{customTitle} — {details?.invoiceNumber}</span>
                 {client?.name && <span className="inv-extra-ref"> | {client.name}</span>}
               </div>
-              <span className="inv-extra-page-num">Page {idx + 2} of {totalPages}</span>
             </div>
             {section.title && <h4 className="inv-section-label" style={{ marginBottom: '0.75rem' }}>{section.title.toUpperCase()}</h4>}
             {section.content && (

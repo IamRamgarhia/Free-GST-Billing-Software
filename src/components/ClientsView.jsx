@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile } from '../store';
-import { formatCurrency, INVOICE_TYPES, markPaidPatch } from '../utils';
+import { formatCurrency, INVOICE_TYPES, markPaidPatch, salesSign, countsAsSales, isCancelledBill } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
@@ -30,6 +30,9 @@ const STATUS_COLORS = {
   partial: { label: 'Partial', color: '#8b5cf6', bg: '#f5f3ff' },
   paid: { label: 'Paid', color: '#059669', bg: '#ecfdf5' },
   overdue: { label: 'Overdue', color: '#dc2626', bg: '#fef2f2' },
+  // v1.10.74 - shown (read-only) on cancelled bills. Cancel / undo from the
+  // Dashboard, which also puts the stock back.
+  cancelled: { label: 'Cancelled', color: '#64748b', bg: '#f1f5f9' },
 };
 
 export default function ClientsView({ onEdit, onDuplicate, onNew }) {
@@ -405,8 +408,11 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const statsByClient = useMemo(() => {
     const map = new Map();
     for (const [key, cBills] of billsByClient) {
-      const total = cBills.reduce((s, b) => s + (b.totalAmount || 0), 0);
+      // v1.10.74 - only real sales count; credit notes subtract; quotes,
+      // challans, proformas and cancelled bills count for nothing.
+      const total = cBills.reduce((s, b) => s + salesSign(b) * (b.totalAmount || 0), 0);
       const paid = cBills.reduce((s, b) => {
+        if (salesSign(b) !== 1) return s;
         const fromPayments = (b.payments || []).reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
         if (fromPayments > 0) return s + fromPayments;
         if (typeof b.paidAmount === 'number' && b.paidAmount > 0) return s + b.paidAmount;
@@ -446,6 +452,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
     const buckets = { current: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 0 };
     const unpaidBills = [];
     for (const b of getClientBills(clientName)) {
+      if (!countsAsSales(b)) continue; // v1.10.74 - quotes / challans / cancelled owe nothing
       const outstanding = (b.totalAmount || 0) - (b.paidAmount || 0);
       if (outstanding <= 0.01) continue;
       const ref = b.data?.details?.dueDate || b.invoiceDate;
@@ -529,7 +536,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.5);
       doc.line(marginL, y, marginR, y); y += 8;
       doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-      doc.text('AGEING SUMMARY', marginL, y); y += 8;
+      doc.text('AGING SUMMARY', marginL, y); y += 8;
       doc.setFontSize(9); doc.setFont('helvetica', 'normal');
       const bucketRows = [
         ['Current (0–30 days)', buckets.current],
@@ -551,12 +558,13 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       doc.text(fmt(buckets.total), marginR, y, { align: 'right' });
       doc.setTextColor(0);
 
-      const filename = `Statement-${clientName.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40)}-${new Date().toISOString().split('T')[0]}.pdf`;
+      // v1.10.74 - was named "Statement-..." like the real Statement PDF.
+      const filename = `Aging-${clientName.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40)}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      toast(`Statement for ${clientName} downloaded`, 'success');
+      toast(`Aging report for ${clientName} downloaded`, 'success');
     } catch (err) {
-      console.error('sendStatement failed:', err);
-      toast('Failed to generate statement — see console', 'error');
+      console.error('generateAgingReport failed:', err);
+      toast('Could not make the aging report', 'error');
     }
   };
 
@@ -635,6 +643,10 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       if (lines.length < 2) { toast('CSV file is empty or has no data rows', 'warning'); return; }
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
       let imported = 0;
+      // v1.10.74 - importing the same file twice made duplicates. Skip names
+      // already saved (trimmed, any case), including repeats inside the file.
+      let skipped = 0;
+      const known = new Set(clients.map(c => (c.name || '').trim().toLowerCase()));
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
         if (values.length === 0) continue;
@@ -642,6 +654,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         headers.forEach((h, idx) => { row[h] = (values[idx] || '').trim(); });
         const name = row.name || row.client || row['client name'] || '';
         if (!name) continue;
+        if (known.has(name.toLowerCase())) { skipped++; continue; }
+        known.add(name.toLowerCase());
         await saveClient({
           name,
           address: row.address || '',
@@ -652,7 +666,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         });
         imported++;
       }
-      toast(`Imported ${imported} client${imported !== 1 ? 's' : ''}`, 'success');
+      toast(`Imported ${imported} client(s)${skipped ? `, skipped ${skipped} already in your list` : ''}`, 'success');
       loadData();
     } catch {
       toast('Failed to parse CSV file', 'error');
@@ -696,7 +710,9 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const shareEmail = (bill) => {
     const subject = `Invoice ${bill.invoiceNumber}`;
     const body = `Dear ${bill.clientName},\n\nPlease find the details of your invoice:\n\nInvoice No: ${bill.invoiceNumber}\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nDue: ${bill.status === 'paid' ? 'Paid' : 'Pending'}\n\nRegards`;
-    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+    // v1.10.74 - address the mail to the client when we have their email.
+    const to = (clients.find(c => c.name === bill.clientName)?.email || bill.data?.client?.email || '').trim();
+    window.open(`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
   };
 
   return (
@@ -884,7 +900,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                             {clientBills.map(bill => {
                               const status = bill.status || 'unpaid';
                               const sc = STATUS_COLORS[status] || STATUS_COLORS.unpaid;
-                              const isOverdue = status !== 'paid' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
+                              const cancelled = isCancelledBill(bill);
+                              const isOverdue = status !== 'paid' && !cancelled && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
                               return (
                                 <tr key={bill.id} className={isOverdue ? 'row-overdue' : ''}>
                                   <td className="text-muted">{new Date(bill.invoiceDate).toLocaleDateString('en-IN')}</td>
@@ -895,8 +912,11 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                                     <select className="status-select" value={isOverdue && status !== 'overdue' ? 'overdue' : status}
                                       style={{ background: sc.bg, color: sc.color, borderColor: sc.color + '44', fontSize: '0.75rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid', cursor: 'pointer', fontWeight: 600 }}
                                       onClick={e => e.stopPropagation()}
-                                      onChange={e => changeStatus(bill, e.target.value)}>
-                                      {Object.entries(STATUS_COLORS).map(([key, val]) => (
+                                      onChange={e => changeStatus(bill, e.target.value)}
+                                      disabled={cancelled}
+                                      title={cancelled ? 'Undo the cancel from the Dashboard' : undefined}>
+                                      {/* v1.10.74 - Cancelled is shown, never picked here (no stock restore in this screen). */}
+                                      {Object.entries(STATUS_COLORS).filter(([key]) => cancelled || key !== 'cancelled').map(([key, val]) => (
                                         <option key={key} value={key}>{val.label}</option>
                                       ))}
                                     </select>

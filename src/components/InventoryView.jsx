@@ -72,7 +72,7 @@ export default function InventoryView() {
       sellingPrice: product.sellingPrice ?? product.rate ?? '',
       taxPercent: product.taxPercent || '',
       unit: product.unit || 'Nos',
-      stock: product.stock || '',
+      stock: product.stock ?? '', // v1.10.74 - was `|| ''`, which blanked a stock of 0
       description: product.description || '',
     });
     setEditingId(product.id);
@@ -88,6 +88,12 @@ export default function InventoryView() {
   const handleSave = async () => {
     if (!form.name.trim()) {
       toast('Product name is required', 'warning');
+      return;
+    }
+    // v1.10.74 - the input's min/max are not enforced by the browser on save.
+    const gst = form.taxPercent === '' ? 0 : Number(form.taxPercent);
+    if (!Number.isFinite(gst) || gst < 0 || gst > 100) {
+      toast('GST % must be between 0 and 100', 'warning');
       return;
     }
     try {
@@ -162,6 +168,10 @@ export default function InventoryView() {
       if (lines.length < 2) { toast('CSV file is empty or has no data rows', 'warning'); return; }
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
       let imported = 0;
+      // v1.10.74 - importing the same file twice made duplicates. Skip names
+      // already in the list (trimmed, any case), including repeats inside the file.
+      let skipped = 0;
+      const known = new Set(products.map(p => (p.name || '').trim().toLowerCase()));
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
         if (values.length === 0) continue;
@@ -169,6 +179,8 @@ export default function InventoryView() {
         headers.forEach((h, idx) => { row[h] = (values[idx] || '').trim(); });
         const name = row.name || row.product || row['product name'] || '';
         if (!name) continue;
+        if (known.has(name.toLowerCase())) { skipped++; continue; }
+        known.add(name.toLowerCase());
         await saveProduct({
           name,
           hsn: row.hsn || row['hsn code'] || row['sac'] || '',
@@ -180,7 +192,7 @@ export default function InventoryView() {
         });
         imported++;
       }
-      toast(`Imported ${imported} product${imported !== 1 ? 's' : ''}`, 'success');
+      toast(`Imported ${imported} product(s)${skipped ? `, skipped ${skipped} already in your list` : ''}`, 'success');
       loadProducts();
     } catch {
       toast('Failed to parse CSV file', 'error');
@@ -193,7 +205,7 @@ export default function InventoryView() {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div>
-            <h1 className="page-title">Inventory</h1>
+            <h1 className="page-title">Products</h1>
             <p className="page-subtitle">Manage your products and services catalog</p>
           </div>
           <HelpButton title="Products — how to use" doc="products">
@@ -263,7 +275,7 @@ export default function InventoryView() {
               <div className="form-group">
                 <label className="form-label">GST %</label>
                 <input type="number" className="form-input" value={form.taxPercent}
-                  onChange={e => updateField('taxPercent', e.target.value)} placeholder="18" min="0" max="28" />
+                  onChange={e => updateField('taxPercent', e.target.value)} placeholder="18" min="0" max="100" />
               </div>
               <div className="form-group">
                 <label className="form-label">Unit</label>

@@ -720,6 +720,28 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-037 - GSTR-3B counted exports twice; HSN summary added credit notes
+
+**Version:** broke before v1.10.67 · fixed in v1.10.74
+**Reported by:** found while documenting the GST Returns screen
+
+**Symptom** - an export to a client without a GSTIN appeared in the B2C
+table and in 3.1(a) as well as 3.1(b), and its IGST was added to output tax
+twice. Credit notes raised the HSN summary instead of lowering it.
+
+**Cause** - `b2cBills` in GSTReturns.jsx was "every bill with no client
+GSTIN", which includes exports and credit notes; the HSN aggregation added
+every line with a + sign.
+
+**Rule** - every return table starts from one classification: exports,
+B2B, B2C and credit notes are disjoint sets, and a credit note always carries
+sign -1 wherever it is summed.
+
+**Guard** - none automated yet (GSTReturns has no unit-testable totals
+function). By hand: one export without GSTIN must appear only in 3.1(b).
+
+---
+
 ## ERR-036 - "Needs a Quick Start" appeared while the app was running
 
 **Version:** since the continuous server check · fixed in v1.10.73

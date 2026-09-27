@@ -34,7 +34,7 @@ export default [
 <section id="top-bar">
 <h2>Filed status, portal link and warnings</h2>
 <ul>
-  <li><strong>R1 Filed / R1 Pending</strong> and <strong>3B Filed / 3B Pending</strong>: green when filed, red when not. Click to switch, if you marked one by mistake. The status is kept in this browser, for each period.</li>
+  <li><strong>R1 Filed / R1 Pending</strong> and <strong>3B Filed / 3B Pending</strong>: green when filed, red when not. Click to switch, if you marked one by mistake. The status is kept in this browser, for each business and period.</li>
   <li>${ui('GST Portal')} opens gst.gov.in.</li>
   <li>A <strong>red box</strong> lists problems to fix first, such as a client GSTIN in the wrong format, your own GSTIN missing, or export invoices that need adding on the portal by hand.</li>
   <li>If the period has no invoices and no expenses, a banner reminds you to <a href="#nil-return">file a NIL return</a>.</li>
@@ -51,7 +51,7 @@ export default [
   <tr><td>Credit/Debit Notes (9B)</td><td>Credit notes, to registered clients or marked Unregistered</td></tr>
   <tr><td>B2C Sales (7)</td><td>Sales to unregistered buyers, added up by tax rate. Inter-state B2C invoices above ₹1 lakh (₹2.5 lakh for invoices before 1 August 2024) are reported separately as B2C Large.</td></tr>
   <tr><td>HSN Summary (12)</td><td>Quantity, taxable value and tax for each HSN code. Items with no HSN show as N/A.</td></tr>
-  <tr><td>Document Summary (13)</td><td>For each document type, the first and last number and how many were issued</td></tr>
+  <tr><td>Document Summary (13)</td><td>For each document type, the first and last number, how many were issued and how many of those were cancelled</td></tr>
   <tr><td>Summary Totals</td><td>B2B and B2C together, less credit notes</td></tr>
 </table></div>
 <p>Exports to clients abroad are not in the GSTR-1 file. The red box lists them: add them in Table 6A on the portal with the shipping bill details.</p>
@@ -183,7 +183,7 @@ export default [
   <tr><td><b>Margin</b></td><td>Profit as a percentage of revenue</td></tr>
 </table>
 <p>The <b>Profit &amp; Loss Statement</b> sets it out: total revenue, less GST collected; total expenses, less GST on expenses; and the result. The <b>Monthly Breakdown</b> shows revenue, expenses and profit or loss for each month with activity.</p>
-<p>The period chosen here is also used by the Client Analytics and Product Performance tabs.</p>
+<p>The same period choice appears on the Client Analytics and Product Performance tabs. Losses show with a minus sign.</p>
 <figure><img src="assets/img/app-reports.png" alt="The Profit and Loss tab." loading="lazy"><figcaption>The Profit &amp; Loss tab.</figcaption></figure>
 </section>
 
@@ -210,7 +210,7 @@ export default [
   <li><strong>Most units sold</strong>: the ten sold in the largest quantity.</li>
   <li><strong>All products</strong>: HSN, quantity sold, revenue, average rate, number of sales and when last sold.</li>
 </ul>
-<p>Revenue here is quantity × rate, before discounts and tax, so it will not match invoice totals exactly.</p>
+<p>Revenue here is after line discounts and without tax. Credit notes are subtracted.</p>
 </section>
 `,
 },
