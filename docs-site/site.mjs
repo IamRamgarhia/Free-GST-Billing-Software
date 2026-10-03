@@ -9,7 +9,7 @@ export const SITE = {
   // social previews and llms.txt, which all need full addresses.
   url: 'https://dicecodes.com/free-gst-software-documentation/',
   publisher: { name: 'DiceCodes', url: 'https://dicecodes.com' },
-  version: '1.10.74',
+  version: '1.10.75',
   repo: 'https://github.com/IamRamgarhia/Free-GST-Billing-Software',
   // Always the newest release: GitHub resolves this to the latest release's
   // file of exactly this name (see docs/RELEASE_CHECKLIST.md, step 4b).
@@ -52,5 +52,5 @@ export const NAV = [
   { title: 'Buying', pages: ['purchases', 'expenses'] },
   { title: 'Tax and reports', pages: ['gst-returns', 'reports', 'income-tax'] },
   { title: 'Setting up', pages: ['settings', 'print-settings', 'backup', 'control-panel'] },
-  { title: 'Help', pages: ['shortcuts', 'troubleshooting', 'limitations', 'glossary'] },
+  { title: 'Help', pages: ['shortcuts', 'troubleshooting', 'limitations', 'glossary', 'support'] },
 ];

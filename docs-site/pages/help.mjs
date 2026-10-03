@@ -15,12 +15,20 @@ export default [
 <p>From top to bottom:</p>
 <ul>
   <li><strong>Your business</strong>, with a pencil to edit it. If you have more than one, click the name to <a href="#switch-business">switch</a>.</li>
-  <li><strong>The screens</strong>: Dashboard, New Invoice, Clients, Products, Expenses, Purchases, Recurring, Receipts, Reports, GST Returns, Income Tax and User Guide. Features you <a href="settings.html#modules">turn off</a> disappear from here.</li>
+  <li><strong>The screens</strong>: Dashboard, New Invoice, Clients, Products, Expenses, Purchases, Recurring, Receipts, Reports, GST Returns, Income Tax, and <strong>User Guide</strong>, which opens this documentation in your browser (it needs internet). Features you <a href="settings.html#modules">turn off</a> disappear from here.</li>
   <li><strong>Update to v…</strong>, when a new version is out.</li>
-  <li><strong>Notifications</strong>, <strong>Dark Mode</strong> or <strong>Light Mode</strong>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
+  <li><strong>Notifications</strong>, <strong>Dark Mode</strong> or <strong>Light Mode</strong>, <a href="#support"><strong>Support &amp; About</strong></a>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
   <li>At the bottom, <b>App Ready</b> when all is well.</li>
 </ul>
+<p>On the Dashboard, a small floating line at the bottom shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
 <p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
+</section>
+
+<section id="support">
+<h2>Support &amp; About</h2>
+<p>Who makes the app, and how to help it grow. Free ways come first: star it on GitHub, tell another business, report a bug or ask for a feature. If you want to give money, scan the UPI QR with any UPI app, for any amount. The page also lists what DiceCodes builds for businesses: custom software and web apps, changes to this app, setup and data migration, support plans, AI integration and automation, and mobile apps.</p>
+<p>The app stays free whatever you choose. Nothing is locked, and nothing is ever printed on your invoices. After your 50th invoice, the Dashboard shows one small thank-you card; ${ui('Maybe later')} hides it for a few months and ${ui("Don't show again")} hides it for good.</p>
+<p>Once a month at most, a one-line note at the top of the app asks for a star on GitHub. ${ui('✕')} hides it for 30 days; ${ui('Star on GitHub')} or ${ui('Already starred')} hides it for good. It never appears while you are making an invoice.</p>
 </section>
 
 <section id="switch-business">

@@ -498,6 +498,8 @@ body {
   }
   /* Two classes so this outranks the base .main-content padding further down. */
   .app-layout > .main-content { padding: calc(52px + 1rem) 1rem 1.5rem; }
+  .app-layout .settings-savebar { left: 0; } /* the sidebar is off-screen on phones */
+  .app-layout .settings-bar { top: -1rem; } /* just under the fixed mobile header; two classes to outrank the base rule below */
   .pwa-install-banner { top: 52px; }
 }
 .sidebar::-webkit-scrollbar { width: 6px; }
@@ -669,6 +671,15 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Sticky bars stop at the scroll area's padding, leaving a strip above them
+   that content scrolls through. Pull the Settings bar up by that padding. */
+.settings-bar { top: -2rem; }
+/* Settings "Save all changes" bar: docked along the bottom of the screen,
+   from the sidebar to the right edge. The page gets room so its last
+   section is never hidden under it. */
+.settings-savebar { position: fixed; left: 260px; right: 0; bottom: 0; }
+.settings-container { padding-bottom: 4.5rem; }
 
 /* ========= Glass Panels ========= */
 .glass-panel {

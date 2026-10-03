@@ -111,7 +111,7 @@ const DEFAULT_OPTIONS = {
   showAmountWords: true,
   showDueDate: true,
   showItemQty: true,
-  showRoundOff: false,
+  showRoundOff: true, // v1.10.75 - on for new installs; a saved choice still wins
   invoiceMode: 'goods',    // 'goods' | 'services' | 'mixed' — drives default unit + dropdown filter
   // Paper / print size (v1.8.1+). See PAPER_SIZES in utils.js.
   //   Sheet: 'a4' | 'a4Landscape' | 'a5' | 'a5Landscape'
@@ -738,7 +738,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // is now debounced 800ms so quick option-tweak spins settle to one
   // request.
   const optionsPersistTimer = useRef(null);
+  // v1.10.75 - a saved bill's options are that bill's, not the defaults for
+  // new invoices. Opening an old bill used to write its options back as the
+  // defaults (here) and then let the server defaults replace the bill's own
+  // (the mount load below), so a bill saved without round-off could come back
+  // rounded, with a different total, and the Settings switch flipped itself.
+  const editingSaved = !!editingBill?.data && !editingBill?._isDuplicate;
   useEffect(() => {
+    if (editingSaved) return undefined;
     // v1.10.20 — Strip paymentAccountSnapshot before persisting. It's per-
     // bill data (bank details frozen at save time), not a user preference.
     // Prior code auto-persisted the entire invoiceOptions to localStorage
@@ -754,10 +761,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       }, 800);
     }
     return () => clearTimeout(optionsPersistTimer.current);
-  }, [invoiceOptions]);
+  }, [invoiceOptions, editingSaved]);
 
   // Load saved display options from server on mount (overrides localStorage if available)
   useEffect(() => {
+    if (editingSaved) return; // the bill's own options win (see above)
     getInvoiceDisplayOptions().then(serverOpts => {
       if (serverOpts) {
         // v1.10.20 — Strip cross-invoice bleed-through of paymentAccountSnapshot
@@ -779,7 +787,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         });
       }
     }).catch(() => {});
-  }, []);
+  }, [editingSaved]);
 
   // v1.10.37 — Debounced sessionStorage draft save. Previously the
   // effect ran on EVERY keystroke, stringifying the entire form (20+
@@ -1030,8 +1038,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           const saved = localStorage.getItem('freegstbill_invoiceOptions');
           const persisted = saved ? JSON.parse(saved) : {};
           delete persisted.paymentAccountSnapshot;
-          mergedOpts = { ...DEFAULT_OPTIONS, ...persisted, ...d.invoiceOptions };
-        } catch { mergedOpts = { ...DEFAULT_OPTIONS, ...d.invoiceOptions }; }
+          // showRoundOff: a saved bill that never stored it was not rounded
+          // (OPTIONS_OFF_BY_DEFAULT); the new ON default must not change its total.
+          mergedOpts = { ...DEFAULT_OPTIONS, ...persisted, showRoundOff: false, ...d.invoiceOptions };
+        } catch { mergedOpts = { ...DEFAULT_OPTIONS, showRoundOff: false, ...d.invoiceOptions }; }
         // Backfilling only happens if the bill genuinely has no snapshot.
         // Check d.invoiceOptions directly (not mergedOpts) to sidestep any
         // remaining cross-store bleed-through.
@@ -1053,6 +1063,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           if (snap) mergedOpts.paymentAccountSnapshot = snap;
         }
         setInvoiceOptions(mergedOpts);
+      } else {
+        // A bill saved with no options at all was never rounded.
+        setInvoiceOptions(prev => ({ ...prev, showRoundOff: false }));
       }
 
       if (editingBill._isDuplicate) {

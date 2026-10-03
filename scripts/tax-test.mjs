@@ -55,6 +55,7 @@ import {
   AUTO_CATEGORY_RULES,
   buildITR4FieldMap,
 } from '../src/utils/itr.js';
+import { periodMonths, partyOutstanding } from '../src/utils/partyOutstanding.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -653,6 +654,30 @@ console.log('\n[V73] Customize options, order details, Quotation, docs links');
   eq(docsLink('invoices#toolbar'), 'https://dicecodes.com/free-gst-software-documentation/invoices.html#toolbar', 'Help links go to the docs section');
   eq(docsLink('index'), 'https://dicecodes.com/free-gst-software-documentation/', 'The docs home link');
   eq(TCS_SECTIONS.some((t) => t.code === '206C(1H)'), false, '206C(1H) (omitted from 1 April 2025) is not offered on new invoices');
+}
+
+console.log('\n[V75] Party outstanding by month');
+{
+  const fy = periodMonths('fy', 2026);
+  eq([fy[0].key, fy[11].key, fy.length], ['2026-04', '2027-03', 12], 'Financial year runs April to March');
+  const cal = periodMonths('calendar', 2026);
+  eq([cal[0].key, cal[11].key], ['2026-01', '2026-12'], 'Calendar year runs January to December');
+  const bills = [
+    { clientName: 'Asha Traders', invoiceDate: '2026-04-10', totalAmount: 1000, paidAmount: 400 },
+    { clientName: 'asha traders ', invoiceDate: '2026-04-20', totalAmount: 500 },
+    { clientName: 'Asha Traders', invoiceDate: '2026-06-01', totalAmount: 300 },
+    { clientName: 'Asha Traders', invoiceDate: '2026-02-01', totalAmount: 200 },
+    { clientName: 'Bala & Sons', invoiceDate: '2026-05-05', totalAmount: 800, status: 'paid', paidAmount: 800 },
+    { clientName: 'Bala & Sons', invoiceDate: '2026-05-06', totalAmount: 900, invoiceType: 'proforma' },
+    { clientName: 'Bala & Sons', invoiceDate: '2026-05-07', totalAmount: 700, status: 'cancelled' },
+    { clientName: 'Bala & Sons', invoiceDate: '2026-05-08', totalAmount: 50, currency: 'USD' },
+    { clientName: 'Chetan', invoiceDate: '2027-04-02', totalAmount: 999 },
+  ];
+  const rows = partyOutstanding(bills, fy, 'INR');
+  eq(rows.map((r) => r.name), ['Asha Traders'], 'Only parties with unpaid real sales in this currency, up to the period end');
+  eq(rows[0].months, { '2026-04': 1100, '2026-06': 300 }, 'Unpaid balance lands in the invoice month; same party despite case and spaces');
+  eq([rows[0].earlier, rows[0].total], [200, 1600], 'Still-unpaid bills from before the period show as Earlier and count in the total');
+  eq(partyOutstanding(bills, fy, 'USD')[0].total, 50, 'Each currency is its own report');
 }
 
 console.log('\n────────────────────────────────────────');

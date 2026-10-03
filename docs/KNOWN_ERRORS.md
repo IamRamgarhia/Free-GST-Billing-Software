@@ -720,6 +720,38 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-038 - A new ZIP installed a second copy; updates left old files behind
+
+**Version:** since v1.10.44 (one-file launcher) · fixed in v1.10.75
+**Reported by:** the maintainer, on their own PC
+
+**Symptom** - after downloading a new version, the PC had two Free GST
+Billing apps (`Downloads\Free-GST-Billing-v1.10.68` and `...-v1.10.74`), each
+with its own invoices. The shortcuts moved to the new, empty one, so the
+invoices seemed to be gone. Separately, installs that started on an older
+version still had launchers and scripts under their old names, which also
+look like a second copy.
+
+**Cause** - every release ZIP extracts to a new versioned folder, and the
+launcher there saw "not installed in THIS folder" and offered Install, which
+made a second, complete install and repointed the shortcuts. The updater only
+ever copied files in; nothing removed the files a release renamed or retired.
+
+**Rule** - an installer looks for an existing install (the Desktop and
+Start-Menu shortcuts say where it is, plus the one-command install folder)
+before it installs, and sends the user to Update when it finds one. A release
+that renames or retires a file also deletes the old one on the next start -
+by exact name, only when its replacement is present, never inside `data`,
+`node`, `node_modules` or backups.
+
+**Guard** - `install-windows.ps1`, `install.ps1` and the launcher all stop
+with "Already installed in <folder>" (FREEGSTBILL_DIR still allows a
+deliberate second copy). `start-windows.ps1` / `start-unix.sh` remove the
+known obsolete files. Verified by hand on this PC: from a new folder the
+check finds the real install (v1.10.74, 2 invoices) and ignores its own.
+
+---
+
 ## ERR-037 - GSTR-3B counted exports twice; HSN summary added credit notes
 
 **Version:** broke before v1.10.67 · fixed in v1.10.74

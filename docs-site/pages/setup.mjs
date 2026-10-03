@@ -9,8 +9,8 @@ export default [
   body: `
 <section id="save-bar">
 <h2>Saving your changes</h2>
-<p>A bar at the top of Settings says whether <b>Company Details</b> has unsaved changes. When it does, it turns amber, with ${ui('Discard')} to undo them and ${ui('Save Profile')} to keep them.</p>
-<p>Not everything waits for Save Profile:</p>
+<p>The section buttons stay at the top of Settings as you scroll: each jumps straight to its section, and the one you are reading is highlighted. At the bottom, one bar saves the whole page. It shows <b>✓ All changes saved</b>, or, in amber, which sections have unsaved changes, with ${ui('Discard')} to undo them all and ${ui('Save all changes')} to save them all in one click.</p>
+<p>Not everything waits for a Save. Save all changes covers every section in the last two columns:</p>
 <table>
   <tr><th>Saves by itself as you change it</th><th>Has its own Save button</th><th>Needs Save Profile</th></tr>
   <tr><td>Payment accounts, Modules, Region</td><td>Invoice number format, Low-stock alerts, Terms templates</td><td>Company details, PAN, logo, signature, stamp, GSTR filing details, Google Drive fields</td></tr>
@@ -238,6 +238,8 @@ export default [
 </ul>
 <p>Every update first saves a backup of your data in <code>Documents\\FreeGSTBill Backups</code>, then replaces the app. It never touches your data folder or your saved PDFs. It takes about a minute; reload the page when it finishes.</p>
 <p>To update by hand instead: download the ZIP, stop the app, extract the ZIP over your app folder replacing the files, and open the launcher again.</p>
+<p>If you extract a new ZIP into a different folder by mistake, its launcher does not install a second copy. It shows <b>Already installed on this computer</b>, with the folder, version and number of invoices, and offers ${ui('Update the installed copy')} and ${ui('Open the installed copy')}. The update uses the files in the folder you extracted, so it needs no download and works without internet; your invoices, saved PDFs and trash stay as they are. The new folder can then be deleted.</p>
+<p>Updating also removes files that older versions left behind, such as launchers under their old names, once their replacements are in place. Your data, backups and Node.js are never touched.</p>
 </section>
 `,
 },

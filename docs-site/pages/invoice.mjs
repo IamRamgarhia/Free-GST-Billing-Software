@@ -387,14 +387,14 @@ export default [
   <tr><td>Client / Bill-to</td><td>Client address, phone, email, Place of Supply</td><td></td></tr>
   <tr><td>Invoice meta</td><td>Invoice number, invoice date, due date</td><td></td></tr>
   <tr><td>Items table</td><td>HSN/SAC column, Qty column, unit next to the quantity, Rate column, Discount column, Tax % column, GST Cess % column</td><td>GST Cess</td></tr>
-  <tr><td>Totals</td><td>Subtotal row, amount in words, round-off line, HSN/SAC tax summary table, tax amount in words</td><td>Round-off. The HSN summary and tax in words are on only in Tally style.</td></tr>
+  <tr><td>Totals</td><td>Subtotal row, amount in words, round-off line, HSN/SAC tax summary table, tax amount in words</td><td>The HSN summary and tax in words are on only in Tally style. Round-off follows <a href="print-settings.html#round-off">Print &amp; PDF</a> (on for new installs).</td></tr>
   <tr><td>Compliance flags</td><td>Reverse Charge applies</td><td>Reverse Charge</td></tr>
   <tr><td>Footer</td><td>Bank details, "Pay via" account label, UPI QR, signature block, "Authorized Signatory" caption, Terms &amp; Conditions, Notes, system-generated note, Declaration, "Customer's Seal and Signature" box</td><td>"Pay via" label, system-generated note. Declaration and the seal box are on only in Tally style.</td></tr>
 </table></div>
 <p>A few options do more than show or hide:</p>
 <ul>
   <li><strong>Tax % column</strong> off means no GST is charged at all, and the tax rows disappear from the totals. Bill of Supply and Delivery Challan turn it off for you.</li>
-  <li><strong>Round-off line</strong> rounds the grand total to the nearest rupee, and shows the difference.</li>
+  <li><strong>Round-off line</strong> rounds the grand total to the nearest rupee, and shows the difference. The default for new invoices is set in <a href="print-settings.html#round-off">Print &amp; PDF</a>.</li>
   <li><strong>Business state</strong> also hides the client's state, and <strong>Tax ID</strong> also hides the client's GSTIN.</li>
   <li><strong>Bank details</strong> also hides your PAN, which prints in the bank block.</li>
   <li><strong>GST Cess % column</strong> adds a Cess box to each row of the form. The printed invoice shows cess as one line in the totals.</li>

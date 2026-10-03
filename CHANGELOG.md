@@ -7,6 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.75] - 2026-10-03
+
+**One copy of the app per PC, old files tidied away, a Tally-style party
+outstanding report, automatic round-off, and a Support & About page.**
+
+### How to update
+
+**Current version:** 1.10.74  →  **New version:** 1.10.75
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.75** in the sidebar, or
+   **Settings → App Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing-v1.10.75.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (click **Stop the app** in the launcher if it is running).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+   (If you extract it somewhere else instead, the launcher there now tells you
+   where your app is installed and offers **Update the installed copy**.)
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+#### Is my data safe?
+Yes. Invoices, clients, products and settings live in `_system/data/`, which
+an update never touches. The updater also takes an automatic backup to
+`Documents\FreeGSTBill Backups\` before it changes anything.
+
+#### Something went wrong?
+Open an issue with a screenshot of the error:
+https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
+
+### Fixed
+- **A new ZIP no longer installs a second copy.** Extracting a new version
+  into a new folder and clicking Install made a second app with no invoices
+  and moved the shortcuts to it. The launcher (and both installers) now find
+  the existing install and offer **Update the installed copy** or **Open the
+  installed copy** instead (ERR-038). The update uses the files in the folder
+  you extracted, so it needs no download and works offline. Your invoices,
+  saved PDFs and trash are never replaced.
+- **Old files from earlier versions are removed** on the next Open App:
+  launchers under their old names (`Free GST Billing.command`/`.sh`, the old
+  `.bat` files) and the old `_system-scripts` folder - only when the file that
+  replaced each one is present. Your data, backups and Node.js are never
+  touched.
+
+### Added
+- **Reports → Party Outstanding**: what each party owes, with parties down the
+  side and months across (April-March, or January-December with a switch), a
+  Total for each party and each month, and unpaid bills from before the period
+  in an **Earlier** column. **Print / PDF** and **CSV**.
+- **Settings → Print & PDF → Totals → Round off invoice totals.** Rounds the
+  grand total to the nearest rupee and prints the Round-off line. On for new
+  installs; if you already chose in Customize → Totals, your choice is kept.
+  Saved invoices keep their totals.
+- On a slow PC, anything typed into Settings → Company Details in the first
+  moments was replaced when the saved details finished loading. The form now
+  waits until they have loaded.
+- Opening a saved invoice no longer changes your defaults for new invoices,
+  and always shows that invoice's own options (the app-wide defaults used to
+  replace them a moment after it opened).
+- **User Guide** in the sidebar (and "Read the 5-minute guide" on the Dashboard)
+  now opens the [online documentation](https://dicecodes.com/free-gst-software-documentation/),
+  which covers every screen. The old built-in guide had fallen behind the app
+  and is removed.
+- **Support & About** in the sidebar: who makes the app, free ways to help
+  (star, share, report bugs), a UPI QR for anyone who wants to give, and what
+  DiceCodes builds for businesses. After 50 invoices the Dashboard shows one
+  small thank-you card (Maybe later / Don't show again). Nothing is locked and
+  nothing is printed on your invoices.
+  The documentation has the same page, linked from its top bar next to the
+  name: [Support & About](https://dicecodes.com/free-gst-software-documentation/support.html).
+- A one-line **"Star on GitHub"** note at the top of the app, at most once a
+  month: first 3 days after you start using the app, then 30 days after you
+  close it with ✕. **Star on GitHub** or **Already starred** hides it for good.
+  Never shown on the New Invoice screen.
+- **Settings: one Save for the whole page.** A bar docked along the bottom edge says
+  which sections have unsaved changes (Company Details, Invoice Number Format,
+  Low-stock alerts, a Terms template being edited) and **Save all changes**
+  saves them all in one click; **Discard** undoes them all. The section buttons
+  stay pinned at the top and wrap instead of scrolling sideways. (The two
+  stacked top bars used to take about 140px, one of them a light strip in dark
+  mode.)
+- A small floating line on the **Dashboard** shows the app version, **by
+  DiceCodes** and a **Support** link. It is only on screen, never printed.
+
 ## [1.10.74] - 2026-09-28
 
 **Forty smaller fixes found while documenting every screen: GST return

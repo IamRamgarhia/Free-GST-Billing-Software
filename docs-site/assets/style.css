@@ -65,8 +65,27 @@ img { max-width: 100%; height: auto; }
   background: var(--paper); border-bottom: 1px solid var(--rule);
 }
 .brand { display: flex; align-items: center; gap: .6rem; color: var(--ink); text-decoration: none;
-  font: 750 1.08rem/1 var(--f-head); letter-spacing: -.01em; margin-right: auto; }
+  font: 750 1.08rem/1 var(--f-head); letter-spacing: -.01em; }
 .brand img { border-radius: 8px; }
+/* Support & About, right after the name. It takes the free space so the rest of the bar sits right. */
+.top-link { margin-right: auto; display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .7rem; border-radius: 999px;
+  font: 600 .88rem/1 var(--f-body); color: var(--ink-soft); text-decoration: none; border: 1px solid var(--rule); white-space: nowrap; }
+.top-link span[aria-hidden] { color: var(--ledger); }
+.top-link:hover, .top-link[aria-current="page"] { color: var(--ink); border-color: var(--brand); background: var(--brand-wash); }
+/* Support page */
+.upi-box { display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; margin: 1rem 0 1.4rem; padding: 1rem 1.2rem;
+  border: 1px solid var(--rule); border-radius: 12px; background: var(--sheet); }
+.upi-qr { width: 190px; padding: 8px; border-radius: 10px; background: #fff; line-height: 0; }
+.upi-qr svg { width: 100%; height: auto; display: block; }
+.upi-text { flex: 1 1 220px; min-width: 0; }
+.upi-label { margin: 0; font-size: .82rem; color: var(--ink-faint); }
+.upi-id { margin: .1rem 0 .7rem; font-size: 1.05rem; word-break: break-all; }
+.upi-amounts { margin: 0; font-size: .92rem; color: var(--ink-soft); }
+.upi-amounts a { display: inline-block; margin: .35rem .3rem 0 0; padding: .2rem .65rem; border: 1px solid var(--rule); border-radius: 999px; text-decoration: none; }
+.service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; margin: 1rem 0 1.2rem; }
+.service { padding: .85rem 1rem; border: 1px solid var(--rule); border-radius: 10px; background: var(--sheet); }
+.service strong { display: block; margin-bottom: .2rem; }
+.service span { font-size: .9rem; color: var(--ink-soft); }
 .menu-btn, .theme-btn {
   display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px;
   background: none; border: 1px solid transparent; color: var(--ink-soft); cursor: pointer;
@@ -270,6 +289,8 @@ td:first-child { font-weight: 500; }
   .brand { margin-right: 0; }
 }
 @media (max-width: 520px) {
+  .top-link-text { display: none; }
+  .top-link { padding: .3rem; border: 0; }
   body { font-size: 16.5px; }
   .ledger { padding-left: 2.2rem; }
   .ledger::before { left: .8rem; }

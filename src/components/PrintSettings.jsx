@@ -3,7 +3,7 @@ import { Printer, TestTube, RotateCcw, Info, Save as SaveIcon, Trash2 } from 'lu
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import InvoicePreview from './InvoicePreview';
-import { getProfile } from '../store';
+import { getProfile, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
 import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampleInvoice, BUSINESS_PRESETS, applyBusinessPreset, LABEL_PRESETS } from '../utils/printSettings';
 import HelpButton from './HelpButton';
 
@@ -1196,6 +1196,8 @@ export default function PrintSettings() {
         </div>
       </div>
 
+      <RoundOffSetting />
+
       {/* -- ROW DENSITY -- */}
       <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
         <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
@@ -1396,6 +1398,45 @@ function SettingGroup({ title, children }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
         {children}
       </div>
+    </div>
+  );
+}
+
+// v1.10.75 — requested: "auto round-off option". Rounding was only reachable
+// from Customize -> Totals inside an open invoice. This is the same switch
+// (the invoice default `showRoundOff`), kept where people look for app-wide
+// settings. It writes both stores the invoice screen reads, so the next new
+// invoice follows it. Saved invoices keep their own choice.
+function RoundOffSetting() {
+  const read = () => {
+    try { return JSON.parse(localStorage.getItem('freegstbill_invoiceOptions') || '{}').showRoundOff !== false; }
+    catch { return true; }
+  };
+  const [on, setOn] = useState(read);
+  const touched = useRef(false); // a click before the load answers must win
+  useEffect(() => {
+    getInvoiceDisplayOptions().then((o) => { if (!touched.current && o && typeof o.showRoundOff === 'boolean') setOn(o.showRoundOff); }).catch(() => {});
+  }, []);
+  const change = async (value) => {
+    touched.current = true;
+    setOn(value);
+    try {
+      const local = JSON.parse(localStorage.getItem('freegstbill_invoiceOptions') || '{}');
+      localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify({ ...local, showRoundOff: value }));
+    } catch { /* storage blocked: the server copy below still applies */ }
+    try {
+      const server = await getInvoiceDisplayOptions().catch(() => null);
+      await saveInvoiceDisplayOptions({ ...(server || {}), showRoundOff: value });
+      toast(value ? 'New invoices will be rounded off' : 'New invoices will not be rounded off', 'success');
+    } catch { toast('Could not save the round-off setting', 'error'); }
+  };
+  return (
+    <div style={{ marginTop: '1.5rem', padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--primary)' }}>
+        🧮 Totals
+      </h4>
+      <ToggleRow label="Round off invoice totals" value={on} onChange={change}
+        hint="Rounds the grand total to the nearest rupee and prints the difference as a Round-off line. Applies to new invoices; you can still change it per invoice under Customize → Totals." />
     </div>
   );
 }

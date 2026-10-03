@@ -213,6 +213,11 @@ export default [
 </table>
 </section>
 
+<section id="round-off">
+<h2>Round off invoice totals</h2>
+<p>Under <b>Totals</b>. When on, new invoices round the grand total to the nearest rupee and print the difference as a <b>Round-off</b> line. It is on for new installs. You can still turn it off for one invoice in <a href="invoice-options.html#show-hide">Customize</a>, under Totals. Changing it never alters invoices you have already saved.</p>
+</section>
+
 <section id="tax-rates">
 <h2>Extra GST rates</h2>
 <p>The built-in rates are 0, 5, 12, 18 and 28%. Add your own, such as 3% for jewellery or 0.25% for diamonds, as numbers separated by commas, and they appear in the rate list on every invoice.</p>

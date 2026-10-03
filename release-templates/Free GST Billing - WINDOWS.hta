@@ -262,13 +262,13 @@
   // Runs a PowerShell script under _system/ with UAC-neutral defaults.
   // Style 1 = visible window (the user watches the install happen),
   // false = don't wait, so this window stays alive and keeps polling.
-  function runScript(name) {
+  function runScript(name, args) {
     var scriptPath = SYSTEM + '\\' + name;
     if (!fso.FileExists(scriptPath)) {
       alert('Missing file: ' + name + '\n\nPlease download the app again from GitHub.');
       return false;
     }
-    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + scriptPath + '"';
+    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + scriptPath + '"' + (args ? ' ' + args : '');
     try { shell.Run(cmd, 1, false); return true; }
     catch (e) { alert('Could not start ' + name + ':\n' + e.message); return false; }
   }
@@ -319,6 +319,66 @@
     if (folderExists('_system\\node_modules')) return 'ready';
     if (!nodePresent()) return 'no-node';
     return 'no-app';
+  }
+
+  // v1.10.75 - is the app already installed in ANOTHER folder? Reported: a
+  // new ZIP extracts to a new folder (Downloads\Free-GST-Billing-v1.10.74),
+  // Install there made a second, empty copy, and the shortcuts moved to it,
+  // so the invoices seemed to vanish. The shortcuts the installer makes say
+  // where the real install is; so does the one-command installer's folder.
+  function readText(path) {
+    try { var f = fso.OpenTextFile(path, 1); var t = f.ReadAll(); f.Close(); return t; }
+    catch (e) { return ''; }
+  }
+  function installedAt(root) {
+    return fso.FileExists(root + '\\_system\\server.js') && fso.FolderExists(root + '\\_system\\node_modules');
+  }
+  function findOtherInstall() {
+    var here = ROOT.toLowerCase();
+    var roots = [];
+    var places = [shell.SpecialFolders('Desktop'), shell.SpecialFolders('Programs')];
+    for (var i = 0; i < places.length; i++) {
+      var lnk = places[i] + '\\Free GST Billing.lnk';
+      if (!fso.FileExists(lnk)) continue;
+      try {
+        var target = String(shell.CreateShortcut(lnk).Arguments).replace(/^\s*"|"\s*$/g, '');
+        var cut = target.lastIndexOf('\\');
+        if (cut > 0) roots.push(target.substring(0, cut));
+      } catch (e) { }
+    }
+    roots.push(shell.ExpandEnvironmentStrings('%LOCALAPPDATA%\\Programs\\Free GST Billing'));
+    for (var j = 0; j < roots.length; j++) {
+      var r = roots[j];
+      if (!r || r.toLowerCase() === here || !installedAt(r)) continue;
+      var m = /"version"\s*:\s*"([^"]+)"/.exec(readText(r + '\\_system\\package.json'));
+      var invoices = 0;
+      try {
+        var fc = new Enumerator(fso.GetFolder(r + '\\_system\\data\\bills').Files);
+        for (; !fc.atEnd(); fc.moveNext()) { if (/\.json$/i.test(fc.item().Name)) invoices++; }
+      } catch (e) { }
+      return { root: r, version: m ? m[1] : '', invoices: invoices };
+    }
+    return null;
+  }
+  // Opens the installed copy by starting ITS app (server + browser). Not its
+  // launcher: this window is SINGLEINSTANCE, so a second one would not open.
+  function openOther(other) {
+    var p = other.root + '\\_system\\start-windows.ps1';
+    if (!fso.FileExists(p)) { alert('Missing file in the installed copy: start-windows.ps1'); return; }
+    shell.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + p + '"', 1, false);
+  }
+  // Updates the installed copy from THIS folder's files with this folder's
+  // updater: no download, so it works offline and does not rely on the older
+  // copy's own updater (see update-windows.ps1 -InstallTo).
+  function updateOther(other) {
+    if (!runScript('update-windows.ps1', '-InstallTo "' + other.root + '"')) return;
+    setState('Updating&hellip;',
+      'A black window is updating the copy in <b>' + esc(other.root) + '</b>. When it says ' +
+      '<b>Update complete</b>, open the app from your <b>Free GST Billing</b> shortcut. Your invoices stay where they are.', 'warn');
+    setPrimary(null);
+    setSteps('<ol><li>Afterwards this folder is not needed. You can delete it.</li></ol>');
+    setMore(null);
+    fitWindow();
   }
 
   // ---- painting -------------------------------------------------------
@@ -470,6 +530,25 @@
     }
 
     if (state === 'no-node' || state === 'no-app') {
+      // Already installed elsewhere: send them there instead of installing a
+      // second copy with its own, empty set of invoices.
+      var other = findOtherInstall();
+      if (other) {
+        setState('Already installed on this computer',
+          'Free GST Billing is installed in <b>' + esc(other.root) + '</b>' +
+          (other.version ? ' (version ' + esc(other.version) + ')' : '') +
+          ', with <b>' + other.invoices + '</b> invoice' + (other.invoices === 1 ? '' : 's') + '. ' +
+          'Keep using that copy so all your invoices stay together. To get the newest version, update it.', 'warn');
+        setPrimary('Update the installed copy', 'With the files in this folder - no download',
+          function () { updateOther(other); }, true);
+        setSteps('<ol><li>When the update finishes, open the app from your <b>Free GST Billing</b> shortcut as usual.</li>' +
+          '<li>This folder is not needed after that. You can delete it.</li></ol>');
+        setMore([
+          { label: 'Open the installed copy', run: function () { openOther(other); } },
+          { label: 'Show its folder', run: function () { shell.Run('explorer.exe "' + other.root + '"', 1, false); } }
+        ]);
+        return;
+      }
       var needsNode = (state === 'no-node');
       setState('Ready to install',
         'One click. It sets everything up and opens the app by itself - about ' +

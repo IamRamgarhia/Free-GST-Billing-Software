@@ -20,6 +20,46 @@ Write-Host '   Free GST Billing Software - Installer'
 Write-Host '  ============================================================'
 Write-Host ''
 
+# v1.10.75 - never make a second copy by accident. Every new ZIP extracts to a
+# new folder (Downloads\Free-GST-Billing-v1.10.74), and installing there made
+# a second, empty app and moved the shortcuts to it, so the invoices seemed
+# gone. The shortcuts point at the real install; if that is another folder
+# with the app in it, stop and send the user to Update instead. Setting
+# FREEGSTBILL_DIR still allows a deliberate second copy.
+function Find-OtherInstall {
+  $here = $RootDir.TrimEnd('\')
+  $roots = @()
+  foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
+    # One unreadable or empty shortcut must not stop the others being checked.
+    try {
+      $lnk = Join-Path $dir 'Free GST Billing.lnk'
+      if (Test-Path -LiteralPath $lnk) { $roots += Split-Path -Parent ([string](New-Object -ComObject WScript.Shell).CreateShortcut($lnk).Arguments).Trim().Trim('"') }
+    } catch { }
+  }
+  $roots += Join-Path $env:LOCALAPPDATA 'Programs\Free GST Billing'
+  foreach ($r in $roots) {
+    if (-not $r -or $r.TrimEnd('\') -eq $here) { continue }
+    if ((Test-Path -LiteralPath (Join-Path $r '_system\server.js')) -and (Test-Path -LiteralPath (Join-Path $r '_system\node_modules'))) { return $r }
+  }
+  return $null
+}
+if (-not $env:FREEGSTBILL_DIR) {
+  $other = Find-OtherInstall
+  if ($other) {
+    Write-Host '  Free GST Billing is already installed on this computer, in:' -ForegroundColor Yellow
+    Write-Host "    $other"
+    Write-Host ''
+    Write-Host '  Installing again here would make a second copy with no invoices in it.'
+    Write-Host '  To get the newest version, update the installed copy instead:'
+    Write-Host '  open it from your Free GST Billing shortcut, then'
+    Write-Host '  More options -> Update to the latest version.'
+    Write-Host ''
+    Write-Host '  Nothing was changed. This folder is not needed; you can delete it.'
+    Read-Host '  Press Enter to close'
+    exit 0
+  }
+}
+
 # --- Step 1: Node.js check ---
 # v1.10.69 - Node.js is installed INTO the app folder, not into Windows.
 #

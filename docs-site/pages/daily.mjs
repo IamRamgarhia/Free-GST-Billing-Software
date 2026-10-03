@@ -24,7 +24,7 @@ export default [
   <tr><td>Add your products or services</td><td>At least one product is saved</td><td>${ui('Open')}</td></tr>
   <tr><td>Add bank details or UPI</td><td>A bank account or UPI ID is saved</td><td>${ui('Open Settings')}</td></tr>
 </table>
-<p>It disappears when all four are done, or when you close it with ${ui('✕')}. <b>Read the 5-minute guide</b> opens the User Guide.</p>
+<p>It disappears when all four are done, or when you close it with ${ui('✕')}. <b>Read the 5-minute guide</b> opens this documentation in your browser.</p>
 <figure><img src="${img('getting-started.png')}" alt="The Getting started list with three of four steps done"></figure>
 </section>
 

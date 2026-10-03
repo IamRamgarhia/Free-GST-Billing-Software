@@ -5,6 +5,7 @@ import { getAllBills, saveBill, getAllProducts, saveProduct, getProfile, getAllC
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch } from '../utils';
 import { openWhatsAppShare } from '../utils/share';
 import PageHeader from './PageHeader';
+import SupportNudge from './SupportNudge';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 
@@ -154,7 +155,7 @@ function ReceiptModal({ target, onClose }) {
   );
 }
 
-export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts, onOpenSettings, onOpenGuide, activeProfile }) {
+export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpenProducts, onOpenSettings, onOpenGuide, onOpenSupport, activeProfile }) {
   // v1.10.64 — requested (#55, @sangwanmail-eng): "An invoice belonging to one
   // company should not appear under the other."
   //
@@ -1164,6 +1165,8 @@ export default function Dashboard({ onNew, onEdit, onDuplicate, onConvert, onOpe
           </div>
         </div>
       )}
+
+      {!startedSteps && onOpenSupport && <SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} />}
 
       {overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}

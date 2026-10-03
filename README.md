@@ -94,7 +94,7 @@ From then on, click the Desktop shortcut. To update / backup / restore / move to
 
 </div>
 
-> 📸 **Want more screenshots?** Open an issue and we'll add captures of the New Invoice form, GSTR-2B Reconciliation tab, Multi-Account Payments manager, and the in-app Searchable User Guide. PRs welcome too.
+> 📸 **Want more screenshots?** Open an issue and we'll add captures of the New Invoice form, GSTR-2B Reconciliation tab, Multi-Account Payments manager, PRs welcome too.
 
 ---
 
@@ -202,7 +202,7 @@ Once you're comfortable with the basics, explore:
 - **GSTR-2B Reconciliation** — download your 2B JSON from gst.gov.in, click Import in our 2B tab — we auto-match against your purchase records and flag mismatches.
 - **TDS / TCS** — Customize → tick TDS or TCS, pick a section (194Q / 206C(1H) / etc.). The Reports view aggregates these for Form 26Q / 27EQ filing.
 
-📖 **Full walkthrough** — see [docs/USER_GUIDE.md](docs/USER_GUIDE.md) or the in-app **User Guide** view (searchable, includes PDF download).
+📖 **Full walkthrough** — see [docs/USER_GUIDE.md](docs/USER_GUIDE.md) or the [online documentation](https://dicecodes.com/free-gst-software-documentation/), which the app's **User Guide** button opens.
 
 ---
 
@@ -416,7 +416,7 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 | **Multi-Business Profiles** | Separate profiles with different GSTIN, bank details, logo, signature, country, currency. Switcher in the header for one-click context change — the dashboard and every report re-filter immediately, with no reload. Records saved before you began separating businesses stay visible under all of them and are never hidden; a one-click **Assign to ‹business›** prompt lets you attach them when you are ready |
 | **Dark Mode** | Full dark theme with automatic persistence and theme-aware utility classes everywhere |
 | **PWA Installable** | Install as a standalone desktop app via Chrome or Edge — opens instantly, no browser needed |
-| **In-App Searchable User Guide** | 17 sections, live search with highlighted matches, downloadable as a fully searchable text PDF |
+| **Online documentation** | Every screen explained, with search; the **User Guide** button and each screen's **?** help open it |
 
 ---
 
@@ -686,6 +686,17 @@ Free GST Billing Software is built and maintained by [DiceCodes](mailto:Contact@
 - **No vendor lock-in** — your data is plain JSON files. Take them anywhere, anytime
 
 We believe every business in India deserves professional billing software without paying monthly fees.
+
+### Support the project
+
+If the app saves you time, you can help keep it going:
+
+- ⭐ **Star this repo**, so other businesses find it
+- 💬 **Tell another business** about it
+- 🐛 **[Report a bug or ask for a feature](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues)**
+- 💛 **UPI, any amount:** `princeramgarhiaa-1@okaxis` (also as a QR code in the app, under **Support & About**)
+
+**Work with DiceCodes:** custom software and web apps, customising this app for your business, setup and data migration, support plans, AI integration and automation, and mobile apps. [contact@dicecodes.com](mailto:contact@dicecodes.com)
 
 ---
 

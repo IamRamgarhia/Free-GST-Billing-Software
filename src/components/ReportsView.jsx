@@ -4,6 +4,8 @@ import { getAllBills, getAllExpenses, getProfile } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, calculateLineItemTax } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
+import PartyOutstandingReport from './PartyOutstandingReport';
+import { billCurrency } from '../utils/partyOutstanding';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -12,7 +14,7 @@ const MONTHS = [
 
 // v1.10.6 — audit L4: local copy removed, imported from utils above.
 
-const getBillCurrency = (b) => b.currency || b.data?.invoiceOptions?.currency || 'INR';
+const getBillCurrency = billCurrency;
 
 export default function ReportsView() {
   const [bills, setBills] = useState([]);
@@ -24,6 +26,7 @@ export default function ReportsView() {
   const [yearFilter, setYearFilter] = useState('');
   const [agingSearch, setAgingSearch] = useState('');
   const [currencyFilter, setCurrencyFilter] = useState('INR');
+  const [businessName, setBusinessName] = useState('');
 
   const fyOptions = getFYOptions();
   const currentYear = new Date().getFullYear();
@@ -42,6 +45,7 @@ export default function ReportsView() {
       // v1.10.66 (#64) — expenses too. Filtering only the invoices left every
       // company's expenses in each company's profit and loss.
       setExpenses((expData || []).filter(e => belongsToProfile(e, prof)));
+      setBusinessName(prof?.businessName || '');
     } catch {
       toast('Failed to load data', 'error');
     }
@@ -177,6 +181,7 @@ export default function ReportsView() {
             <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
               <li><strong>Profit &amp; Loss</strong>: sales against expenses, without GST, by year or month.</li>
               <li><strong>Outstanding &amp; Aging</strong>: who owes you and how late, in 30-day groups.</li>
+              <li><strong>Party Outstanding</strong>: what each party owes, month by month (April-March or January-December), with totals. Print or CSV.</li>
               <li><strong>Client Analytics</strong> and <strong>Product Performance</strong>: your best clients and items.</li>
               <li>Only real sales count: estimates, challans and cancelled invoices are left out, credit notes are subtracted.</li>
             </ul>
@@ -194,6 +199,10 @@ export default function ReportsView() {
           onClick={() => setActiveTab('aging')}>
           <Clock size={16} /> Outstanding & Aging
         </button>
+        <button className={`btn ${activeTab === 'party' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('party')}>
+          <Users size={16} /> Party Outstanding
+        </button>
         <button className={`btn ${activeTab === 'clients' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveTab('clients')}>
           <Users size={16} /> Client Analytics
@@ -206,7 +215,7 @@ export default function ReportsView() {
 
       {/* v1.10.74 - Period + Currency Selector, shared by P&L, Client Analytics
           and Product Performance (they all read the same period/currency). */}
-      {activeTab !== 'aging' && (
+      {activeTab !== 'aging' && activeTab !== 'party' && (
           <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ margin: 0 }}>
@@ -366,6 +375,8 @@ export default function ReportsView() {
           )}
         </>
       )}
+
+      {activeTab === 'party' && <PartyOutstandingReport bills={bills} businessName={businessName} />}
 
       {activeTab === 'aging' && (
         <>

@@ -66,6 +66,10 @@ export default function SettingsView({ onSaved }) {
   // anywhere on the page and unsaved work is never silent.
   const savedProfileRef = useRef(null);
   const [profileDirty, setProfileDirty] = useState(false);
+  // v1.10.75 - the Company form stays locked until the saved profile has
+  // loaded. On a slow PC, anything typed before then was silently replaced
+  // when the load finished (found by the release gate on a busy machine).
+  const [profileLoaded, setProfileLoaded] = useState(false);
   // Both the save bar and the "Jump to" bar stick to the top. They used to
   // share top: 0, so the save bar sat on top of the jump bar and hid it. The
   // jump bar now sticks just below the save bar, measured live because the
@@ -165,6 +169,10 @@ export default function SettingsView({ onSaved }) {
   const [enabledModules, setEnabledModulesState] = useState(getEnabledModules());
   const [stockAlerts, setStockAlerts] = useState({ enabled: true, threshold: 5 });
   const [stockAlertsSaving, setStockAlertsSaving] = useState(false);
+  // v1.10.75 - what is on disk for the forms that have their own Save, so
+  // the bottom "Save all changes" bar knows what is still unsaved.
+  const [invNumSaved, setInvNumSaved] = useState(null);
+  const [stockSaved, setStockSaved] = useState(null);
 
   const toggleModule = (moduleId) => {
     const next = { ...enabledModules, [moduleId]: !isModuleEnabled(moduleId, enabledModules) };
@@ -196,12 +204,12 @@ export default function SettingsView({ onSaved }) {
       setProfile(p);
       // Baseline for the unsaved-changes check — what is currently on disk.
       savedProfileRef.current = JSON.stringify(p);
-    });
+    }).catch(() => {}).finally(() => setProfileLoaded(true));
     loadTemplates();
     loadBusinessProfiles();
     setDriveConnected(isConnected());
-    getInvoiceNumberSettings().then(setInvNumSettings);
-    getStockAlertSettings().then(setStockAlerts).catch(() => {});
+    getInvoiceNumberSettings().then((v) => { setInvNumSettings(v); setInvNumSaved(JSON.stringify(v)); });
+    getStockAlertSettings().then((v) => { setStockAlerts(v); setStockSaved(JSON.stringify(v)); }).catch(() => {});
   }, []);
 
   const loadTemplates = async () => setTermsTemplates(await getTermsTemplates());
@@ -478,6 +486,7 @@ export default function SettingsView({ onSaved }) {
     setInvNumSaving(true);
     try {
       await saveInvoiceNumberSettings(invNumSettings);
+      setInvNumSaved(JSON.stringify(invNumSettings));
       toast('Invoice number settings saved!', 'success');
     } catch { toast('Failed to save settings', 'error'); }
     finally { setInvNumSaving(false); }
@@ -643,6 +652,16 @@ export default function SettingsView({ onSaved }) {
     }
   };
 
+  const saveStockAlerts = async () => {
+    setStockAlertsSaving(true);
+    try {
+      await saveStockAlertSettings(stockAlerts);
+      setStockSaved(JSON.stringify(stockAlerts));
+      toast('Low-stock alert settings saved', 'success');
+    } catch { toast('Failed to save', 'error'); }
+    setStockAlertsSaving(false);
+  };
+
   // Terms templates
   const handleSaveTemplate = async () => {
     if (!editingTemplate.name.trim()) { toast('Name required', 'warning'); return; }
@@ -734,6 +753,33 @@ export default function SettingsView({ onSaved }) {
     companyFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // v1.10.75 - one Save for the whole page (asked for: "a global save button
+  // at the bottom, sticky, that saves all data filled anywhere"). Bank
+  // accounts, Features, Region and Print & PDF already save as they change;
+  // these are the four that wait for a Save.
+  const unsaved = [
+    profileDirty && 'Company Details',
+    invNumSaved !== null && JSON.stringify(invNumSettings) !== invNumSaved && 'Invoice Number Format',
+    stockSaved !== null && JSON.stringify(stockAlerts) !== stockSaved && 'Low-stock alerts',
+    !!editingTemplate && 'Terms template',
+  ].filter(Boolean);
+  const saveAll = async () => {
+    if (!unsaved.length) { toast('Everything is already saved', 'info'); return; }
+    // The Company form goes through its own submit, so its checks still run.
+    if (profileDirty) companyFormRef.current?.requestSubmit();
+    const jobs = [];
+    if (unsaved.includes('Invoice Number Format')) jobs.push(handleSaveInvNumSettings());
+    if (unsaved.includes('Low-stock alerts')) jobs.push(saveStockAlerts());
+    if (editingTemplate) jobs.push(handleSaveTemplate());
+    await Promise.all(jobs);
+  };
+  const discardAll = () => {
+    if (profileDirty && savedProfileRef.current) setProfile(JSON.parse(savedProfileRef.current));
+    if (invNumSaved !== null) setInvNumSettings(JSON.parse(invNumSaved));
+    if (stockSaved !== null) setStockAlerts(JSON.parse(stockSaved));
+    setEditingTemplate(null);
+  };
+
   const [taxIdWarning, setTaxIdWarning] = useState('');
   const handleTaxIdBlur = () => {
     const result = validateTaxId(profile.country, profile.gstin);
@@ -743,60 +789,6 @@ export default function SettingsView({ onSaved }) {
 
   return (
     <div className="settings-container">
-      {/* v1.10.55 (#43) — Unsaved-changes bar for the Company form.
-           Sticks to the top of the page so the Save is reachable from any
-           section, instead of only from the bottom of a 450-line form the
-           user has already scrolled past. Rendered only while there are
-           real changes, so it never nags. */}
-      {/* v1.10.67 (#66 item 9) — the bar is always on screen now, so Settings
-           has one Save at the top instead of a button 450 lines down. It turns
-           amber only when Company Details has unsaved edits; every other
-           section still saves the moment it is changed. */}
-      <div ref={saveBarRef} style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 30,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          padding: '0.7rem 1rem',
-          marginBottom: '0.9rem',
-          borderRadius: 10,
-          border: profileDirty ? '1px solid #f59e0b' : '1px solid var(--border)',
-          background: profileDirty ? 'rgba(245, 158, 11, 0.12)' : 'var(--card-bg)',
-          backdropFilter: 'blur(6px)',
-        }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>
-            {profileDirty
-              ? <>You have unsaved changes in <strong>Company Details</strong>.</>
-              : <>Everything is saved. Bank accounts, Features and Region save as you change them; Invoice Number Format, Low-stock alerts and Terms have their own Save buttons.</>}
-          </span>
-          <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {profileDirty && <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                // Revert to what is actually on disk.
-                if (savedProfileRef.current) setProfile(JSON.parse(savedProfileRef.current));
-              }}
-              style={{ fontSize: '0.85rem' }}
-            >
-              Discard
-            </button>}
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={saving}
-              onClick={() => companyFormRef.current?.requestSubmit()}
-              style={{ fontSize: '0.85rem' }}
-            >
-              <Save size={16} /> {saving ? 'Saving…' : 'Save Profile'}
-            </button>
-          </span>
-      </div>
-
       {/* v1.10.36 — Header lifted with a soft primary-accent gradient
            card, gear glyph in a rounded badge for visual identity, and
            a subtle count chip showing how many sections there are so
@@ -842,81 +834,74 @@ export default function SettingsView({ onSaved }) {
         </div>
       </div>
 
-      {/* v1.10.36 — Jump-nav pill bar with scroll-spy. Sticky at the
-           top of the panel, backdrop-blur so content beneath still
-           reads through, and the pill matching the currently-scrolled
-           section lights up. Chips are keyboard-focusable and use
-           smooth-scroll to their `id="section-*"` anchors.
-           v1.10.37 — Single-line horizontal scroll (was flex-wrap:
-           wrap breaking to two lines on narrow viewports). Reported:
-           "should look good not in two lines maybe you can fit in 1
-           line". Now: nowrap + overflow-x auto, thin custom
-           scrollbar, edge-fade masks so users know there's more. */}
-      <nav className="settings-jumpnav" aria-label="Settings sections" style={{
-        position: 'sticky', top: saveBarH + 6, zIndex: 20,
-        background: 'rgba(var(--card-bg-rgb, 255, 255, 255), 0.82)',
-        backdropFilter: 'saturate(1.5) blur(12px)',
-        WebkitBackdropFilter: 'saturate(1.5) blur(12px)',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        padding: '0.55rem 0.75rem',
-        marginBottom: '1.25rem',
-        display: 'flex', gap: '0.35rem', flexWrap: 'nowrap',
-        alignItems: 'center',
-        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
-        overflowX: 'auto',
-        scrollbarWidth: 'thin',
-        WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%)',
-        maskImage: 'linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%)',
-      }}>
-        <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '0.35rem' }}>Jump to</span>
-        {JUMP_NAV_SECTIONS.map(([id, label]) => {
-          const active = activeSection === id;
-          return (
-            <a key={id} href={`#${id}`}
-              onClick={(e) => {
-                e.preventDefault();
-                const el = document.getElementById(id);
-                // Stop below both sticky bars, not underneath them.
-                if (el) {
-                  const nav = e.currentTarget.closest('nav');
-                  const offset = saveBarH + (nav?.offsetHeight || 50) + 20;
-                  el.style.scrollMarginTop = `${offset}px`;
-                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-              }}
-              style={{
-                fontSize: '0.76rem',
-                fontWeight: active ? 700 : 600,
-                padding: '0.38rem 0.8rem',
-                borderRadius: 999,
-                background: active
-                  ? 'linear-gradient(135deg, var(--primary), var(--primary-darker))'
-                  : 'var(--bg-secondary)',
-                color: active ? '#fff' : 'var(--text)',
-                textDecoration: 'none',
-                border: active ? '1px solid transparent' : '1px solid var(--border)',
-                transition: 'all 0.18s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: active ? '0 4px 12px rgba(var(--primary-rgb), 0.4)' : 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (!active) {
-                  e.currentTarget.style.background = 'var(--primary-light, rgba(30,64,175,0.08))';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!active) {
-                  e.currentTarget.style.background = 'var(--bg-secondary)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }
-              }}>
-              {label}
-            </a>
-          );
-        })}
-      </nav>
+      {/* v1.10.75 - the section buttons, pinned at the top. They wrap onto a
+           second line rather than scroll sideways (asked for: "top should not
+           be scrollable"). Saving moved to one bar at the bottom of the page,
+           below. It used to be two stacked sticky bars (~140px), one of them a
+           white strip in dark mode from an undefined --card-bg-rgb.
+           History: v1.10.36/37 scroll-spy pills; v1.10.55 (#43) unsaved
+           Company edits made visible; v1.10.67 (#66 item 9) one Save always
+           on screen. */}
+      <div ref={saveBarRef} className="settings-bar" style={{
+          position: 'sticky',
+          zIndex: 30,
+          padding: '0.45rem 0.55rem',
+          marginBottom: '1.25rem',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: 'var(--bg-secondary)', // solid: content must not show through
+          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.08)',
+        }}>
+        <nav className="settings-jumpnav" aria-label="Settings sections" style={{
+          display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center',
+        }}>
+          {JUMP_NAV_SECTIONS.map(([id, label]) => {
+            const active = activeSection === id;
+            return (
+              <a key={id} href={`#${id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const el = document.getElementById(id);
+                  // Stop below the sticky bar, not underneath it.
+                  if (el) {
+                    const offset = saveBarH + 20;
+                    el.style.scrollMarginTop = `${offset}px`;
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                style={{
+                  fontSize: '0.76rem',
+                  fontWeight: active ? 700 : 600,
+                  padding: '0.38rem 0.8rem',
+                  borderRadius: 999,
+                  background: active
+                    ? 'linear-gradient(135deg, var(--primary), var(--primary-darker))'
+                    : 'var(--bg-secondary)',
+                  color: active ? '#fff' : 'var(--text)',
+                  textDecoration: 'none',
+                  border: active ? '1px solid transparent' : '1px solid var(--border)',
+                  transition: 'all 0.18s ease',
+                  whiteSpace: 'nowrap',
+                  boxShadow: active ? '0 4px 12px rgba(var(--primary-rgb), 0.4)' : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.background = 'var(--primary-light, rgba(30,64,175,0.08))';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}>
+                {label}
+              </a>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* v1.10.37 — Flex-column wrapper for visual reordering. Each
            section keeps its DOM position (safe for the anchor IDs +
@@ -1033,14 +1018,7 @@ export default function SettingsView({ onSaved }) {
           </span>
           <button type="button" className="btn btn-primary"
             disabled={stockAlertsSaving}
-            onClick={async () => {
-              setStockAlertsSaving(true);
-              try {
-                await saveStockAlertSettings(stockAlerts);
-                toast('Low-stock alert settings saved', 'success');
-              } catch { toast('Failed to save', 'error'); }
-              setStockAlertsSaving(false);
-            }}>
+            onClick={saveStockAlerts}>
             <Save size={16} /> {stockAlertsSaving ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -1121,6 +1099,7 @@ export default function SettingsView({ onSaved }) {
 
       {/* ---- Business Profile ---- */}
       <form id="section-company" onSubmit={handleSave} className="glass-panel p-6 mb-6" ref={companyFormRef} style={{ order: 1 }}>
+        <fieldset disabled={!profileLoaded} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <h3 className="section-title">Company Details</h3>
         {(() => {
           const cc = getCountryConfig(profile.country);
@@ -1611,6 +1590,7 @@ export default function SettingsView({ onSaved }) {
             <Save size={18} /> {saving ? 'Saving...' : 'Save Profile'}
           </button>
         </div>
+        </fieldset>
       </form>
 
       {/* ---- Multi-Business Profiles ---- */}
@@ -1993,6 +1973,29 @@ export default function SettingsView({ onSaved }) {
           </div>
         </div>
       )}
+
+      {/* v1.10.75 - Save all changes, docked flat along the bottom edge of the
+           screen (asked for: stuck to the bottom, not floating). Position and
+           width are in index.css (.settings-savebar). */}
+      <div className="settings-savebar" style={{
+          zIndex: 40,
+          display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+          padding: '0.6rem 1.5rem',
+          borderTop: unsaved.length ? '2px solid #f59e0b' : '1px solid var(--border)',
+          background: unsaved.length ? 'color-mix(in srgb, #f59e0b 8%, var(--bg-secondary))' : 'var(--bg-secondary)',
+          boxShadow: '0 -4px 16px rgba(15, 23, 42, 0.10)',
+        }}>
+        <span style={{ flex: '1 1 220px', fontSize: '0.85rem', fontWeight: 600, color: unsaved.length ? '#f59e0b' : 'var(--text-muted)' }}
+          title="Bank accounts, Features, Region and Print & PDF save as you change them.">
+          {unsaved.length ? <>● Unsaved changes in {unsaved.join(', ')}</> : '✓ All changes saved'}
+        </span>
+        {unsaved.length > 0 && (
+          <button type="button" className="btn" onClick={discardAll} style={{ fontSize: '0.85rem' }}>Discard</button>
+        )}
+        <button type="button" className="btn btn-primary" disabled={saving || invNumSaving || stockAlertsSaving} onClick={saveAll} style={{ fontSize: '0.85rem' }}>
+          <Save size={16} /> {saving || invNumSaving || stockAlertsSaving ? 'Saving…' : 'Save all changes'}
+        </button>
+      </div>
     </div>
   );
 }

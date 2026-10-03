@@ -51,6 +51,32 @@ if (Test-Path $existingData) {
   }
 }
 
+# Installed somewhere else already (a ZIP extracted by hand, say)? The
+# shortcuts point at it. Same rule as install-windows.ps1: update that copy,
+# do not start a second, empty one. An explicit FREEGSTBILL_DIR skips this.
+if (-not $env:FREEGSTBILL_DIR) {
+  $installedAt = $null
+  foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
+    # One unreadable or empty shortcut must not stop the others being checked.
+    try {
+      $lnk = Join-Path $dir 'Free GST Billing.lnk'
+      if (-not (Test-Path -LiteralPath $lnk)) { continue }
+      $root = Split-Path -Parent ([string](New-Object -ComObject WScript.Shell).CreateShortcut($lnk).Arguments).Trim().Trim('"')
+      if ($root -and $root.TrimEnd('\') -ne $Dest.TrimEnd('\') -and (Test-Path -LiteralPath (Join-Path $root '_system\node_modules'))) { $installedAt = $root; break }
+    } catch { }
+  }
+  if ($installedAt) {
+    Write-Host "  Free GST Billing is already installed at:" -ForegroundColor Yellow
+    Write-Host "    $installedAt"
+    Write-Host ''
+    Write-Host '  To update it, open the app and use Control Panel -> Update Now.'
+    Write-Host '  To install a second, separate copy anyway, set a folder and re-run:'
+    Write-Host '    $env:FREEGSTBILL_DIR = ''D:\Apps\Free GST Billing'''
+    Write-Host ''
+    return
+  }
+}
+
 # --- Step 1: find the latest release ZIP ------------------------------------
 Write-Host '  Looking up the latest release...'
 $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ 'User-Agent' = 'FreeGSTBill-Installer' }

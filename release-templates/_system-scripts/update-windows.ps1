@@ -10,6 +10,13 @@
 #   * Pre-update, we snapshot data/ to a timestamped backup as a
 #     safety net - even though we don't touch data, hardware faults
 #     during rmdir could corrupt state
+#   * v1.10.75 - -InstallTo <installed app folder>: run from a newly
+#     extracted ZIP, this updates THAT install from the files in this ZIP,
+#     with no download. It works offline and does not depend on the older
+#     copy's own updater. The launcher uses it when it finds the app already
+#     installed elsewhere, instead of installing a second copy.
+
+param([string]$InstallTo = '')
 
 $ErrorActionPreference = 'Stop'
 $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Update'
@@ -17,6 +24,17 @@ $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Update'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SystemDir = $ScriptDir
 $RootDir   = Split-Path -Parent $ScriptDir
+$FromFolder = ''
+if ($InstallTo) {
+  $FromFolder = $RootDir
+  $RootDir   = $InstallTo.TrimEnd('\')
+  $SystemDir = Join-Path $RootDir '_system'
+  if (($RootDir -eq $FromFolder.TrimEnd('\')) -or -not (Test-Path -LiteralPath (Join-Path $SystemDir 'server.js'))) {
+    Write-Host "  ERROR: no installed copy of the app in $RootDir." -ForegroundColor Red
+    Read-Host '  Press Enter to close'
+    exit 1
+  }
+}
 
 Write-Host ''
 Write-Host '  ============================================================'
@@ -35,6 +53,13 @@ if (Test-Path $dataDir) {
   Compress-Archive -Path "$dataDir\*" -DestinationPath $preUpdateBackup -Force
 }
 
+$tmp = $null
+if ($FromFolder) {
+  Write-Host "  Updating $RootDir"
+  Write-Host "  from the files in $FromFolder (no download needed)..."
+  $sourceRoot = $FromFolder
+  $newSystem  = Join-Path $FromFolder '_system'
+} else {
 # --- Step 2: Find latest release ---
 Write-Host '  Checking latest release from GitHub...'
 try {
@@ -77,10 +102,15 @@ if (Test-Path $candidateSystem) {
   $sourceRoot = $extracted.FullName
   $newSystem  = $extracted.FullName
 }
+}
 
 # --- Step 4: Copy everything EXCEPT data/ over the current _system/ ---
 Write-Host '  Applying update (your data folder is untouched)...'
-Get-ChildItem -Path $newSystem -Force | Where-Object { $_.Name -ne 'data' -and $_.Name -ne 'node_modules' } | ForEach-Object {
+# Never replaced: the books, saved PDFs, the trash, Node.js and installed
+# packages. (A folder the user extracted and opened may hold its own empty
+# copies of these; they must not land on top of the real ones.)
+$keep = @('data', 'node_modules', 'node', 'Saved Invoices', 'Trash')
+Get-ChildItem -Path $newSystem -Force | Where-Object { $keep -notcontains $_.Name } | ForEach-Object {
   $dest = Join-Path $SystemDir $_.Name
   if (Test-Path $dest) { Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue }
   Copy-Item -Path $_.FullName -Destination $dest -Recurse -Force
@@ -100,7 +130,7 @@ npm install --omit=dev --no-audit --no-fund --loglevel=error
 Pop-Location
 
 # --- Cleanup ---
-Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+if ($tmp) { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 
 Write-Host ''
 Write-Host '  [OK] Update complete!' -ForegroundColor Green

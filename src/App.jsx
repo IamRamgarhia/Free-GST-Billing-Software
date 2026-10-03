@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart } from 'lucide-react';
 import { getAllProfiles, saveProfile, getEnabledModules, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow } from './store';
-import { isModuleEnabled, getUpcomingFilings, isCancelledBill } from './utils';
+import { isModuleEnabled, getUpcomingFilings, isCancelledBill, DOCS_URL } from './utils';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
 // Dashboard downloaded and parsed GSTReturns (1952), InvoiceGenerator
@@ -32,9 +32,13 @@ const ReceiptVoucher = lazy(() => import('./components/ReceiptVoucher'));
 const GSTReturns = lazy(() => import('./components/GSTReturns'));
 const IncomeTax = lazy(() => import('./components/IncomeTax'));
 const PurchaseBills = lazy(() => import('./components/PurchaseBills'));
-const UserGuideView = lazy(() => import('./components/UserGuideView'));
 const ControlPanel = lazy(() => import('./components/ControlPanel'));
+const SupportView = lazy(() => import('./components/SupportView'));
+import StarBanner from './components/StarBanner';
+import AppFooter from './components/AppFooter';
 import { getPrintSettings } from './utils/printSettings';
+
+const openDocs = () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer');
 
 // v1.10.4 — Lightweight Suspense fallback shown while a lazy view
 // downloads. Purely visual — no data fetching, no state.
@@ -66,7 +70,7 @@ function App() {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view');
       // v1.10.74 - 'controlpanel' added so ?view=controlpanel deep links work too.
-      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'incometax', 'guide', 'settings', 'controlpanel'];
+      const valid = ['dashboard', 'new', 'clients', 'inventory', 'expenses', 'purchases', 'recurring', 'receipts', 'reports', 'filing', 'incometax', 'settings', 'controlpanel', 'support'];
       if (v && valid.includes(v)) {
         // Strip the query string so a refresh doesn't keep snapping back to
         // the shortcut target — only the *first* navigation honours it.
@@ -74,7 +78,9 @@ function App() {
         return v;
       }
     } catch { /* sandboxed history API — fall through */ }
-    return sessionStorage.getItem('gst_currentView') || 'dashboard';
+    // 'guide' was the built-in User Guide (removed in v1.10.75).
+    const last = sessionStorage.getItem('gst_currentView');
+    return last && last !== 'guide' ? last : 'dashboard';
   });
   const [profile, setProfile] = useState(null);
   const [editingBill, setEditingBill] = useState(() => {
@@ -498,7 +504,9 @@ function App() {
     { id: 'reports', icon: BarChart3, label: 'Reports', module: 'reports' },
     { id: 'filing', icon: BookOpen, label: 'GST Returns', module: 'gstReturns' },
     { id: 'incometax', icon: Calculator, label: 'Income Tax', module: 'incomeTax' },
-    { id: 'guide', icon: HelpCircle, label: 'User Guide', module: 'dashboard' }, // gated by dashboard so it's always available
+    // v1.10.75 - opens the online documentation, which covers every screen
+    // and stays current; the old built-in guide had fallen far behind.
+    { id: 'guide', icon: HelpCircle, label: 'User Guide', module: 'dashboard', onClick: openDocs }, // gated by dashboard so it's always available
   ].filter(item => showIfModule(item.module));
 
   // Command palette actions — declared here (not earlier) because the deps
@@ -516,6 +524,7 @@ function App() {
     acts.push({ label: 'Go to Settings', hint: '', category: 'nav', run: () => setCurrentView('settings') });
     // v1.10.74 - Control Panel has its own sidebar button but was missing here.
     acts.push({ label: 'Go to Control Panel', hint: '', category: 'nav', run: () => setCurrentView('controlpanel') });
+    acts.push({ label: 'Go to Support & About', hint: '', category: 'nav', run: () => setCurrentView('support') });
     acts.push({ label: 'Toggle dark mode', hint: '', category: 'action', run: () => setDarkMode(d => !d) });
     acts.push({ label: 'Show keyboard shortcuts', hint: 'Ctrl+/', category: 'help', run: () => setShowShortcutsHelp(true) });
     if (updateInfo?.updateAvailable) {
@@ -747,7 +756,8 @@ function App() {
           onClick={() => setShowWizard(true)}
           title="Come back to the setup wizard — pick a business type, paper size, and language."
           style={{
-            position: 'fixed', bottom: '1.25rem', right: '1.25rem', zIndex: 9998,
+            // Above the docked Save bar on Settings, so it never covers Save.
+            position: 'fixed', bottom: currentView === 'settings' ? '5.5rem' : '1.25rem', right: '1.25rem', zIndex: 9998,
             padding: '0.6rem 1rem', borderRadius: 999,
             background: 'var(--primary)', color: '#fff', border: 'none',
             fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
@@ -888,6 +898,13 @@ function App() {
               {darkMode ? 'Light Mode' : 'Dark Mode'}
             </button>
             <button
+              className={`nav-btn ${currentView === 'support' ? 'nav-btn-active' : ''}`}
+              onClick={() => setCurrentView('support')}
+              title="Who makes this app, and how to help"
+            >
+              <Heart size={18} style={{ color: '#e11d48' }} /> Support &amp; About
+            </button>
+            <button
               className={`nav-btn ${currentView === 'controlpanel' ? 'nav-btn-active' : ''}`}
               onClick={() => setCurrentView('controlpanel')}
               title="Update, backup, restore, move to another PC"
@@ -927,8 +944,9 @@ function App() {
         </div>
       )}
       <div className="main-content">
+        {currentView !== 'new' && <StarBanner />}
         {currentView === 'dashboard' && (
-          <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onConvert={handleConvertToInvoice} onOpenProducts={() => setCurrentView('inventory')} onOpenSettings={() => setCurrentView('settings')} onOpenGuide={() => setCurrentView('guide')} activeProfile={profile} />
+          <Dashboard onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onConvert={handleConvertToInvoice} onOpenProducts={() => setCurrentView('inventory')} onOpenSettings={() => setCurrentView('settings')} onOpenGuide={openDocs} onOpenSupport={() => setCurrentView('support')} activeProfile={profile} />
         )}
         {currentView === 'new' && (
           <InvoiceGenerator
@@ -971,16 +989,18 @@ function App() {
         {currentView === 'incometax' && (
           <IncomeTax key={businessKey} />
         )}
-        {currentView === 'guide' && (
-          <UserGuideView />
-        )}
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />
         )}
         {currentView === 'controlpanel' && (
           <ControlPanel />
         )}
+        {currentView === 'support' && (
+          <SupportView />
+        )}
         </Suspense>
+        {/* Version + DiceCodes line: Dashboard only, so it never takes space on working screens. */}
+        {currentView === 'dashboard' && <AppFooter onOpenSupport={() => setCurrentView('support')} />}
       </div>
 
       {/* Update modal — release notes + Export-backup-first nudge + Update Now */}

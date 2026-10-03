@@ -56,6 +56,60 @@ function Move-ToRenamedLauncher {
 }
 Move-ToRenamedLauncher
 
+# v1.10.75 - updating only ever ADDED files, so an install that started on an
+# older version kept launchers and scripts that no longer do anything (and
+# look like a second copy of the app). Remove them, by exact name only, and
+# only when the file that replaced each one is present. Never touches data,
+# node, node_modules or backups.
+function Remove-ObsoleteFiles {
+  # Only in a real install. Run from the source tree (release-templates\
+  # _system-scripts) the legacy-folder rule below would delete this script's
+  # own folder.
+  if ((Split-Path -Leaf $SystemDir) -ne '_system') { return }
+  $RootDir = Split-Path -Parent $SystemDir
+  $hta = Join-Path $RootDir 'Free GST Billing - WINDOWS.hta'
+  if (-not (Test-Path -LiteralPath $hta)) { return }   # not the current layout: leave everything
+  # Anything a shortcut still points at stays (an old Start-Menu or Startup
+  # shortcut would otherwise be left pointing at nothing).
+  $linked = @()
+  try {
+    $wsh = New-Object -ComObject WScript.Shell
+    foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Startup'))) {
+      if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { continue }
+      foreach ($lnk in Get-ChildItem -LiteralPath $dir -Filter '*.lnk' -File -Recurse -ErrorAction SilentlyContinue) {
+        try { $sc = $wsh.CreateShortcut($lnk.FullName); $linked += ([string]$sc.TargetPath + ' ' + [string]$sc.Arguments) } catch { }
+      }
+    }
+  } catch { return }   # cannot tell what is still in use: leave everything
+  $obsolete = @(
+    # renamed launchers (v1.10.69); the old .hta is handled above, once no shortcut uses it
+    @{ old = 'Free GST Billing.command'; now = 'Free GST Billing - MAC.command' },
+    @{ old = 'Free GST Billing.sh';      now = 'Free GST Billing - LINUX.sh' },
+    # batch launchers from before the one-file launcher (v1.10.44)
+    @{ old = 'Install FreeGSTBill.bat';  now = 'Free GST Billing - WINDOWS.hta' },
+    @{ old = 'Start FreeGSTBill.bat';    now = 'Free GST Billing - WINDOWS.hta' },
+    @{ old = 'Stop FreeGSTBill.bat';     now = 'Free GST Billing - WINDOWS.hta' },
+    @{ old = 'Update FreeGSTBill.bat';   now = 'Free GST Billing - WINDOWS.hta' },
+    @{ old = 'start-freegstbill.bat';    now = 'Free GST Billing - WINDOWS.hta' },
+    @{ old = 'start-server-silent.bat';  now = 'Free GST Billing - WINDOWS.hta' }
+  )
+  foreach ($f in $obsolete) {
+    $oldPath = Join-Path $RootDir $f.old
+    if (@($linked | Where-Object { $_.ToLower().Contains($oldPath.ToLower()) }).Count -gt 0) { continue }
+    if ((Test-Path -LiteralPath $oldPath -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $RootDir $f.now))) {
+      try { Remove-Item -LiteralPath $oldPath -Force -ErrorAction Stop } catch { }
+    }
+  }
+  # Scripts used to sit in a _system-scripts folder; the ZIP now keeps them in
+  # _system itself. Drop the old folder once the new copies are in place.
+  foreach ($legacy in @((Join-Path $RootDir '_system-scripts'), (Join-Path $SystemDir '_system-scripts'))) {
+    if ((Test-Path -LiteralPath $legacy -PathType Container) -and (Test-Path -LiteralPath (Join-Path $SystemDir 'update-windows.ps1'))) {
+      try { Remove-Item -LiteralPath $legacy -Recurse -Force -ErrorAction Stop } catch { }
+    }
+  }
+}
+Remove-ObsoleteFiles
+
 # Read persisted port (server writes this after successful bind).
 $portFile = Join-Path $SystemDir 'data\port.txt'
 $port = 47371

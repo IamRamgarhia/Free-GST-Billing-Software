@@ -26,11 +26,12 @@ import setup from './pages/setup.mjs';
 import invoice from './pages/invoice.mjs';
 import print from './pages/print.mjs';
 import help from './pages/help.mjs';
+import about from './pages/about.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'out', SITE.folder);
 const IMG_SRC = join(HERE, 'assets', 'img');
-const PAGES = [...start, ...invoice, ...daily, ...money, ...setup, ...print, ...help];
+const PAGES = [...start, ...invoice, ...daily, ...money, ...setup, ...print, ...help, ...about];
 const TODAY = new Date().toISOString().slice(0, 10);
 const BRAND = 'Free GST Billing Software';
 
@@ -247,6 +248,7 @@ function page(p) {
     <img src="assets/img/icon.svg" alt="" width="30" height="30">
     <span>${esc(SITE.name)}</span>
   </a>
+  <a class="top-link" href="support.html"${p.slug === 'support' ? ' aria-current="page"' : ''}><span aria-hidden="true">♥</span> <span class="top-link-text">Support &amp; About</span></a>
   <div class="search">
     <label class="sr-only" for="q">Search the docs</label>
     <input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
