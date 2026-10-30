@@ -4025,6 +4025,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showSignatoryText', 'Show "Authorized Signatory" caption'],
                     ['showTerms', 'Terms & Conditions'],
                     ['showNotes', 'Notes / Remarks'],
+                    // v1.10.84 - GST rules want it on export / SEZ invoices: hide only if it is in your terms.
+                    ['showExportDeclaration', 'Export / LUT declaration (exports and SEZ; GST rules want it on the invoice)'],
                     ['showSystemGeneratedNote', 'Note: system-generated invoice, no signature or stamp required'],
                     ['showDeclaration', 'Declaration'],
                     ['showCustomerSeal', "\"Customer's Seal and Signature\" box (Boxed grid / Tally style)"],
@@ -4167,7 +4169,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
                   <button type="button" className="btn btn-secondary"
                     onClick={() => {
-                      const allKeys = ['showLogo','showBusinessName','showBusinessAddress','showBusinessPhone','showBusinessEmail','showState','showGSTIN','showClientAddress','showClientPhone','showClientEmail','showPlaceOfSupply','showInvoiceNumber','showInvoiceDate','showDueDate','showHSN','showItemQty','showItemUnit','showRateColumn','showDiscount','showGST','showSubtotal','showAmountWords','showRoundOff','showBankDetails','showAccountLabel','showUPI','showSignature','showSignatoryText','showTerms','showNotes'];
+                      const allKeys = ['showLogo','showBusinessName','showBusinessAddress','showBusinessPhone','showBusinessEmail','showState','showGSTIN','showClientAddress','showClientPhone','showClientEmail','showPlaceOfSupply','showInvoiceNumber','showInvoiceDate','showDueDate','showHSN','showItemQty','showItemUnit','showRateColumn','showDiscount','showGST','showSubtotal','showAmountWords','showRoundOff','showBankDetails','showAccountLabel','showUPI','showSignature','showSignatoryText','showTerms','showNotes','showExportDeclaration'];
                       setInvoiceOptions(prev => { const out = { ...prev }; allKeys.forEach(k => { out[k] = false; }); return out; });
                     }}
                     style={{ fontSize: '0.72rem', padding: '0.3rem 0.6rem' }}>
@@ -4766,7 +4768,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           {/* Terms */}
           <div className="glass-panel p-6 mb-6">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <h3 className="section-title" style={{ margin: 0 }}>Terms & Conditions <HelpButton title="Terms & Conditions" doc="invoices#terms-notes" size={16} /></h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <h3 className="section-title" style={{ margin: 0 }}>Terms & Conditions <HelpButton title="Terms & Conditions" doc="invoices#terms-notes" size={16} /></h3>
+                {/* v1.10.84 - the same switch as Customize → Terms & Conditions, where people look for it. */}
+                <label className="terms-print-toggle" title="Untick to leave the terms off this invoice. The text below is kept.">
+                  <input type="checkbox" checked={invoiceOptions.showTerms !== false} disabled={readOnlyDoc}
+                    onChange={(e) => setInvoiceOptions(prev => ({ ...prev, showTerms: e.target.checked }))} />
+                  Print on invoice
+                </label>
+              </div>
               {/* v1.10.37 — Terms rendering mode picker. Reported: PDF was
                   showing terms as compact all-caps run-together block —
                   users wanted an option for normal formatted output too.

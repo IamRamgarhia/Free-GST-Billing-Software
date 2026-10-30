@@ -108,7 +108,8 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   const reverseChargeText = options.reverseCharge ? 'Yes' : 'No';
   // v1.10.83 - Rule 46 endorsement on an export / SEZ invoice: under LUT
   // (no IGST, with the LUT's ARN) or on payment of IGST. '' otherwise.
-  const exportDecl = exportDeclaration({ profile, client, details, totals, options, showGST });
+  // v1.10.84 - Customize → "Export / LUT declaration" can hide it (on unless turned off).
+  const exportDecl = opt('showExportDeclaration') ? exportDeclaration({ profile, client, details, totals, options, showGST }) : null;
   const currencySymbol = options.currency || 'INR';
   // v1.10.83 - a services invoice carries SAC codes only.
   const hsnHeader = (options.invoiceMode || 'goods') === 'services' ? 'SAC' : 'HSN/SAC';
@@ -1469,35 +1470,32 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   Pay via: <strong style={{ color: '#334155' }}>{account.label}</strong>
                 </p>
               )}
-              <div className="inv-footer-details">
-                {/* v1.10.37 — Account Holder Name renders FIRST (above
-                    Bank) because clients doing NEFT/RTGS need it for
-                    beneficiary lookup — printing it prominently
-                    prevents the "name mismatch" payment failures
-                    reported by users. Falls back to businessName when
-                    the field is blank so existing accounts render the
-                    same as before. */}
-                {(account?.accountHolderName || profile?.businessName) && (
-                  <p><span className="inv-detail-label">A/C Name:</span> {account?.accountHolderName || profile.businessName}</p>
-                )}
-                <p><span className="inv-detail-label">Bank:</span> {account?.bankName || profile.bankName}</p>
-                <p><span className="inv-detail-label">A/C No:</span> {account?.accountNumber || profile.accountNumber}
-                  {/* v1.10.37 — Account type appended inline next to
-                      the number so it doesn't add a whole extra row on
-                      the PDF. Uses the human label for CC/OD which
-                      won't parse well as an abbreviation to non-banking
-                      readers. */}
-                  {account?.accountType && (
-                    <span style={{ marginLeft: '0.4rem', fontSize: '0.85em', color: '#64748b' }}>
-                      · {({ savings: 'Savings', current: 'Current', cc: 'Cash Credit', od: 'Overdraft', nre: 'NRE', nro: 'NRO' })[account.accountType] || account.accountType}
-                    </span>
-                  )}
-                </p>
-                {(account?.ifsc || profile.ifsc) && <p><span className="inv-detail-label">{sellerCC.bankLabel || 'IFSC'}:</span> {account?.ifsc || profile.ifsc}</p>}
-                {(account?.swift || profile.swift) && <p><span className="inv-detail-label">SWIFT/BIC:</span> {account?.swift || profile.swift}</p>}
-                {account?.iban && <p><span className="inv-detail-label">IBAN:</span> {account.iban}</p>}
-                {purposeCode && <p><span className="inv-detail-label">Purpose code:</span> {purposeCodeText(purposeCode)}</p>}
-                {profile.pan && isIndia && <p><span className="inv-detail-label">PAN:</span> {profile.pan}</p>}
+              {/* v1.10.84 - one aligned list: labels in one column, every value
+                  lined up in the next (the values sat at different places when a
+                  label was wider than its space). Holder name first: payers need
+                  it for NEFT / RTGS (v1.10.37). Values stay <p> so each design's
+                  own value style applies. */}
+              <div className="inv-footer-details inv-bank-grid">
+                {[
+                  (account?.accountHolderName || profile?.businessName) && ['A/C Name', account?.accountHolderName || profile.businessName],
+                  ['Bank', account?.bankName || profile.bankName],
+                  ['A/C No', <>{account?.accountNumber || profile.accountNumber}
+                    {account?.accountType && (
+                      <span style={{ marginLeft: '0.4rem', fontSize: '0.85em', color: '#64748b' }}>
+                        · {({ savings: 'Savings', current: 'Current', cc: 'Cash Credit', od: 'Overdraft', nre: 'NRE', nro: 'NRO' })[account.accountType] || account.accountType}
+                      </span>
+                    )}</>],
+                  (account?.ifsc || profile.ifsc) && [sellerCC.bankLabel || 'IFSC', account?.ifsc || profile.ifsc],
+                  (account?.swift || profile.swift) && ['SWIFT/BIC', account?.swift || profile.swift],
+                  account?.iban && ['IBAN', account.iban],
+                  purposeCode && ['Purpose code', purposeCodeText(purposeCode)],
+                  profile.pan && isIndia && ['PAN', profile.pan],
+                ].filter(Boolean).map(([label, value]) => (
+                  <React.Fragment key={label}>
+                    <span className="inv-detail-label">{label}</span>
+                    <p>{value}</p>
+                  </React.Fragment>
+                ))}
               </div>
             </div>
           )}
