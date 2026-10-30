@@ -1952,6 +1952,8 @@ export const FEATURE_GROUPS = [
       // v1.10.83 (#111) - off by default: only businesses above the turnover
       // limit need it, and everyone else should never see it.
       { id: 'einvoice', label: 'E-invoicing (IRN)', help: 'Only if your yearly turnover is above ₹5 crore: make the e-invoice file and print the IRN with its QR code.', defaultOn: false, indiaOnly: true },
+      // v1.10.84 (#129) - cafes and shops find or add the customer by phone.
+      { id: 'phoneFirst', label: 'Customer phone box', help: 'A phone box at the top of the invoice: typing a number fills in that customer, or adds a new one with just a name. Clients shows their visits.', defaultOn: true },
       { id: 'upiQr', label: 'UPI QR code', help: 'Print a UPI QR code so customers can pay by scanning.', defaultOn: true, indiaOnly: true },
     ],
   },

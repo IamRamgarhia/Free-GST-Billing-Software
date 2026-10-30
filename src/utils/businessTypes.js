@@ -25,17 +25,17 @@ const TRADING = [...GOODS, 'purchaseOrders', 'gstr2b', 'ewayBill', 'tdsTcs'];
 // the invoice style and the features from one choice.
 export const BUSINESS_TYPES = [
   { id: 'retail_shop', label: 'Retail shop / kirana', hint: 'Sell from a counter, keep stock, buy from suppliers.',
-    on: [...GOODS, 'gstr2b', ...SELLING] },
+    on: [...GOODS, 'gstr2b', 'phoneFirst', ...SELLING] },
   { id: 'freelancer', label: 'Freelancer / consultant', hint: 'Bill for your time or services; no stock.',
     on: ['expenses', 'recurring', 'tdsTcs', ...SELLING] },
   { id: 'restaurant', label: 'Restaurant / cafe', hint: 'Quick bills, UPI payments, buy supplies.',
-    on: [...GOODS, ...SELLING] },
+    on: [...GOODS, 'phoneFirst', ...SELLING] },
   { id: 'wholesale', label: 'Wholesale / trading', hint: 'Buy and sell goods in bulk, send them with e-way bills.',
     on: [...TRADING, ...SELLING] },
   { id: 'manufacturer', label: 'Manufacturing', hint: 'Make products from raw material, maybe in more than one unit.',
     on: [...TRADING, 'manufacturing', 'costCentres', ...SELLING] },
   { id: 'service', label: 'Service / repair shop', hint: 'Repairs and services, spare parts in stock, yearly contracts.',
-    on: [...GOODS, 'recurring', ...SELLING] },
+    on: [...GOODS, 'recurring', 'phoneFirst', ...SELLING] },
   { id: 'everything', label: 'Everything', hint: 'Show every feature the app has.',
     on: SWITCHABLE_MODULES },
 ];

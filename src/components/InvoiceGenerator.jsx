@@ -25,6 +25,7 @@ import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
 import ClientModal from './ClientModal';
 import { EInvoiceEditorModal } from './EInvoiceModal';
 import { toast } from './Toast';
+import { phoneDigits, findClientByPhone, newPhoneClient } from '../utils/phoneClients';
 
 // Rich text editor component that works with contentEditable properly
 function RichEditor({ value, onChange, placeholder, toolbar = false }) {
@@ -693,6 +694,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // Enter commits, Escape closes. -1 = no highlight yet.
   const [clientPickerIdx, setClientPickerIdx] = useState(-1);
   const [selectedClientId, setSelectedClientId] = useState(null);
+  // v1.10.84 (#129) - the phone box: what is typed, and a new customer's name.
+  const [phoneQuery, setPhoneQuery] = useState('');
+  const [newPhoneName, setNewPhoneName] = useState('');
   const [showClientModal, setShowClientModal] = useState(false);
   const [modalClient, setModalClient] = useState(null);
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -1669,6 +1673,31 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setIsEditingClient(false);
     setShowClientModal(true);
     setShowClientSuggestions(false);
+  };
+
+  // v1.10.84 (#129) - a whole number that matches a saved customer fills
+  // them in at once; one that does not offers a name box to add them.
+  const onPhoneChange = (value) => {
+    setPhoneQuery(value);
+    const found = findClientByPhone(savedClients, value);
+    if (found && found.id !== selectedClientId) selectSavedClient(found);
+  };
+  const phoneIsNew = phoneDigits(phoneQuery).length >= 10 && !findClientByPhone(savedClients, phoneQuery);
+  const addPhoneCustomer = async () => {
+    if (!phoneIsNew) return;
+    const data = newPhoneClient(phoneQuery, newPhoneName, profile, savedClients);
+    try {
+      await saveClient(data);
+      const updated = await getAllClients();
+      setSavedClients(updated);
+      const saved = findClientByPhone(updated, data.phone);
+      if (saved) selectSavedClient(saved);
+      else setClient(prev => ({ ...prev, ...data }));
+      setNewPhoneName('');
+      toast(`Added customer: ${data.name}`, 'success');
+    } catch {
+      toast('Could not save the customer. Is the app still running?', 'error');
+    }
   };
 
   // Open modal to edit existing saved client
@@ -3413,6 +3442,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // An invoice that already has TDS / TCS keeps its box, so it can be edited.
   const tdsTcsOn = isModuleEnabled('tdsTcs', getEnabledModules());
   const ewayOn = isModuleEnabled('ewayBill', getEnabledModules());
+  const phoneFirstOn = isModuleEnabled('phoneFirst', getEnabledModules());
   const saveEinvoice = async (value) => {
     try {
       const stored = (await getAllBills()).find((b) => b.id === savedId.current);
@@ -4233,6 +4263,26 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             )}
 
             <div className="grid grid-cols-2 gap-4">
+              {phoneFirstOn && (
+                <div className="form-group full-width">
+                  <label className="form-label" htmlFor="phone-first">Customer phone</label>
+                  <input id="phone-first" type="tel" inputMode="tel" className="form-input" value={phoneQuery}
+                    onChange={(e) => onPhoneChange(e.target.value)}
+                    placeholder="Type the phone number: finds the customer, or adds a new one" autoComplete="off" />
+                  {phoneIsNew && (
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                      <input type="text" className="form-input" style={{ flex: '1 1 12rem' }} value={newPhoneName}
+                        aria-label="New customer's name"
+                        onChange={(e) => setNewPhoneName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPhoneCustomer(); } }}
+                        placeholder="New customer: their name (optional)" />
+                      <button type="button" className="btn btn-primary" onClick={addPhoneCustomer}>
+                        <UserPlus size={14} /> Add customer
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="form-group full-width" style={{ position: 'relative' }}>
                 <label className="form-label">Client Name</label>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>

@@ -7,6 +7,7 @@ import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
 import { toast } from './Toast';
+import { clientVisits } from '../utils/phoneClients';
 
 // v1.10.31 — UI-C3: Shared helper to resolve the user's accent color as an
 // RGB tuple usable with jsPDF setFillColor / setDrawColor. Falls back to the
@@ -760,6 +761,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
             const savedClient = clients.find(c => c.name === clientName);
             const isExpanded = expandedClient === clientName;
             const clientBills = isExpanded ? getClientBills(clientName) : [];
+            // v1.10.84 (#129) - how often the customer came, and when last.
+            const visits = clientVisits(getClientBills(clientName));
 
             return (
               <div key={clientName} className="glass-panel mb-4" style={{ overflow: 'hidden' }}>
@@ -775,7 +778,13 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
                         {stats.count} invoice{stats.count !== 1 ? 's' : ''}
                         {savedClient?.state ? ` | ${savedClient.state}` : ''}
                         {savedClient?.gstin ? ` | ${savedClient.gstin}` : ''}
+                        {savedClient?.phone ? ` | ${savedClient.phone}` : ''}
                       </p>
+                      {visits.visits > 0 && (
+                        <p className="client-card-meta">
+                          {visits.visits} visit{visits.visits !== 1 ? 's' : ''}, last on {parseLocalDate(visits.last).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="client-card-stats">
