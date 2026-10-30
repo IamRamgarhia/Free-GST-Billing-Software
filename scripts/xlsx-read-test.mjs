@@ -28,7 +28,7 @@ const vyapar = zipSync({
     + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>'
     + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="/xl/worksheets/sheet1.xml"/>'
     + '<Relationship Id="rId3" Type="x" Target="sharedStrings.xml"/></Relationships>'),
-  'xl/sharedStrings.xml': xml(`<sst ${ns} count="5" uniqueCount="5"><si><t>Kaveri Stationers</t></si><si><t>Invoice No.</t></si>`
+  'xl/sharedStrings.xml': xml(`<sst ${ns} count="5" uniqueCount="5"><si><t>DiceCodes</t></si><si><t>Invoice No.</t></si>`
     + '<si><r><t>Party </t></r><r><rPr><b/></rPr><t>Name</t></r></si><si><t xml:space="preserve"> Cash Sale </t></si><si><t>Total</t></si></sst>'),
   'xl/worksheets/sheet1.xml': xml(`<worksheet ${ns}><sheetData>`
     + '<row r="1"><c r="A1" t="s"><v>0</v></c></row>'
@@ -41,7 +41,7 @@ const vyapar = zipSync({
 const sheets = readXlsx(vyapar);
 eq(sheets.map((s) => s.name), ['Sale Report', 'Item Details'], 'sheets in workbook order, found through the relationships');
 eq(sheets[0].rows, [
-  ['Kaveri Stationers'],
+  ['DiceCodes'],
   [],
   ['Invoice No.', '', 'Party Name'],
   ['101', '', ' Cash Sale ', 'TRUE', '101'],

@@ -162,14 +162,14 @@ console.log('\n[#130] Files exported from Vyapar (layouts seen in real exports)'
   // Newer "Item Details" sheet: title rows above the header, "Tax Percent"
   // beside "Tax", an Excel date number, a cancelled sale, a Total row.
   const newer = [
-    ['Kaveri Stationers'], ['Sale Report: 01/10/2026 to 31/10/2026'],
+    ['DiceCodes'], ['Sale Report: 01/10/2026 to 31/10/2026'],
     ['Date', 'Invoice No./Txn No.', 'Party Name', 'Item Name', 'Item Code', 'HSN/SAC', 'Category', 'Description', 'Quantity', 'Unit', 'UnitPrice', 'Discount Percent', 'Discount', 'Tax Percent', 'Tax', 'Transaction Type', 'Amount'],
     ['46325', 'V-1', 'Riya Sharma', 'Pen', 'P1', '9608', 'Stationery', 'Blue ink', '10', 'Nos', '20', '0', '0', '18', '36', 'Sale', '236'],
     ['30/10/2026', 'V-2', 'Arjun', 'Ink', '', '3215', '', '', '1', 'Nos', '100', '0', '0', '12', '12', 'Sale[Cancelled]', '112'],
     ['Total', '', '', '', '', '', '', '', '11', '', '', '', '', '', '48', '', '348'],
   ];
   const sale = [
-    ['Kaveri Stationers'], ['Sale Report'],
+    ['DiceCodes'], ['Sale Report'],
     ['Date', 'Order No', 'Invoice No', 'Party Name', 'GSTIN', 'Party Phone No.', 'Transaction Type', 'Total Amount', 'Payment Type', 'Received/Paid Amount', 'Balance Due'],
     ['30/10/2026', '', 'V-1', 'Riya Sharma', '', '98765 43210', 'Sale', '236', 'Cash', '100', '136'],
     ['Total', '', '', '', '', '', '', '236', '', '100', '136'],
