@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { X, ChevronRight, Check } from 'lucide-react';
-import { getPrintSettings, savePrintSettings, applyBusinessPreset } from '../utils/printSettings';
+import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import { patchInvoiceDefaults, getEnabledModules, setEnabledModules, setBusinessType } from '../store';
-import { BUSINESS_TYPES, businessTypeById, applyBusinessType, invoiceDefaultsForType } from '../utils/businessTypes';
+import { BUSINESS_TYPES, businessTypeById, applyBusinessType, wizardResult } from '../utils/businessTypes';
 
 const PAPER_LABELS = { a4: 'A4', a5: 'A5', thermal80: '80mm thermal', thermal58: '58mm thermal' };
 
@@ -30,13 +30,9 @@ export default function SetupWizard({ onClose }) {
   // Finish always writes something meaningful. skip() stays available
   // for users who genuinely want to dismiss and configure later.
   const finish = () => {
-    const current = getPrintSettings();
-    // v1.10.33 — Clear onboardingSkipped when the user actually
-    // completes setup, so the "Finish setup" pill hides for good.
-    let next = { ...current, onboardingComplete: true, onboardingSkipped: false };
-    // Preset first, THEN the language picked on step 2: four presets set
-    // English, which used to overwrite a Hindi / Tamil / ... choice.
-    if (selectedBiz) next = applyBusinessPreset(next, selectedBiz);
+    // v1.10.33 — onboardingSkipped is cleared, so the "Finish setup" pill
+    // hides for good. The settings themselves: wizardResult (ERR-033).
+    const { printSettings, invoiceDefaults } = wizardResult(getPrintSettings(), { biz: selectedBiz, language, paperSize });
     // v1.10.83 - the business type also decides which features show. A new
     // install has nothing to lose, so it applies without asking (Settings →
     // Business type asks first).
@@ -44,13 +40,7 @@ export default function SetupWizard({ onClose }) {
       setEnabledModules(applyBusinessType(selectedBiz, getEnabledModules()));
       setBusinessType(selectedBiz);
     }
-    next.labelLanguage = language;
-    if (paperSize) next.paperSize = paperSize;
-    savePrintSettings(next);
-    // The invoice screen takes its paper size from the invoice defaults, not
-    // from print settings. v1.10.83 - with the business type's invoice
-    // defaults (a freelancer's invoices start in Services mode).
-    const invoiceDefaults = { ...(selectedBiz ? invoiceDefaultsForType(selectedBiz) : {}), ...(paperSize ? { paperSize } : {}) };
+    savePrintSettings(printSettings);
     patchInvoiceDefaults(invoiceDefaults);
     toast('Setup complete! Your defaults are configured.', 'success');
     onClose();

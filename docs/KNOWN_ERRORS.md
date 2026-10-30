@@ -1731,6 +1731,8 @@ defaults.
 **Rule** - apply presets first and the user's explicit choices after, so the
 explicit choice wins. Save a setting where the screen that uses it reads it.
 
+**Automated (v1.10.84):** `wizardResult` in src/utils/businessTypes.js, tested by scripts/businesstype-test.mjs ("[ERR-033] ..."), which fails if the preset is applied after the language again.
+
 **Guard** - none automated. By hand: run the wizard with Retail + Hindi + 80mm,
 then open a new invoice.
 

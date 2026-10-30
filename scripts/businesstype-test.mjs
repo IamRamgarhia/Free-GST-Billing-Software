@@ -4,7 +4,7 @@
 
 import {
   BUSINESS_TYPES, SWITCHABLE_MODULES, modulesForType, applyBusinessType,
-  businessTypeChanges, featureChanges, orderedMenu, moveMenuItem,
+  businessTypeChanges, featureChanges, orderedMenu, moveMenuItem, wizardResult,
 } from '../src/utils/businessTypes.js';
 import { isModuleEnabled, MENU_ITEMS, FEATURE_GROUPS } from '../src/utils.js';
 import { BUSINESS_PRESETS } from '../src/utils/printSettings.js';
@@ -95,6 +95,15 @@ eq(['guide', 'notifications', 'lock', 'darkMode'].every(id => idsIn('top').inclu
 o = moveMenuItem([], 'settings', -1);
 eq(o.indexOf('settings') < o.indexOf('controlpanel'), true, 'bottom items reorder among themselves');
 eq(moveMenuItem([], 'nope', 1), def, 'unknown item: no change');
+
+console.log('[ERR-033] The wizard keeps the language and paper picked in it');
+for (const biz of ['retail_shop', 'freelancer', 'wholesale', 'service']) {
+  const r = wizardResult({ labelLanguage: 'en', paperSize: 'a4' }, { biz, language: 'hi', paperSize: '80mm' });
+  eq([r.printSettings.labelLanguage, r.printSettings.paperSize, r.invoiceDefaults.paperSize, r.printSettings.onboardingComplete],
+    ['hi', '80mm', '80mm', true], `${biz} + Hindi + 80mm: Hindi kept (the preset sets English), paper in the invoice defaults`);
+}
+eq(wizardResult({}, { biz: '', language: 'ta', paperSize: '' }).printSettings.labelLanguage, 'ta', 'no business type: the language still saves');
+eq('paperSize' in wizardResult({}, { biz: '', language: 'en', paperSize: '' }).invoiceDefaults, false, 'no paper picked: the invoice paper is left as it was');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

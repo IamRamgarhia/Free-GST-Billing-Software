@@ -9,6 +9,21 @@
 // Applying a type only changes what is SHOWN. Nothing is ever deleted.
 
 import { FEATURE_GROUPS, MENU_ITEMS, isModuleEnabled } from '../utils.js';
+import { applyBusinessPreset } from './printSettings.js';
+
+// ERR-033 - what the first-run wizard saves. The business preset goes first,
+// THEN the language and paper picked in the wizard (four presets set English,
+// which overwrote a Hindi / Tamil choice), and the paper also goes into the
+// invoice defaults, which is what the invoice screen reads. Tested in
+// scripts/businesstype-test.mjs.
+export function wizardResult(current, { biz, language, paperSize }) {
+  let next = { ...current, onboardingComplete: true, onboardingSkipped: false };
+  if (biz) next = applyBusinessPreset(next, biz);
+  next.labelLanguage = language;
+  if (paperSize) next.paperSize = paperSize;
+  const invoiceDefaults = { ...(biz ? invoiceDefaultsForType(biz) : {}), ...(paperSize ? { paperSize } : {}) };
+  return { printSettings: next, invoiceDefaults };
+}
 
 // Every module a person can switch (core ones are always on).
 export const SWITCHABLE_MODULES = FEATURE_GROUPS.flatMap(g => g.modules).filter(m => !m.core).map(m => m.id);
