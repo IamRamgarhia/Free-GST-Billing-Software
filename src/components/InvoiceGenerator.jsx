@@ -3,7 +3,7 @@ import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Setting
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
-import { INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, printedSubtotal, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, printedSubtotal, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -1646,7 +1646,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         // every invoice on 80mm thermal would land back on A4 the moment
         // they picked a client). Now falls back to prev.paperSize so
         // globally-persisted choice sticks until the user changes it.
-        paperSize: cli.preferredPaperSize || prev.paperSize || 'a4',
+        ...clientPaperOptions(cli, prev),
         // v1.10.48 — Custom paper carries its dimensions in SEPARATE
         // fields, and prior code restored only `preferredPaperSize`. So a
         // client saved on 'custom' came back as 'custom' with no width —
@@ -1655,8 +1655,6 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         // silently turned the invoice into an 80mm receipt. Restore the
         // dimensions with the size, falling back to the current values
         // rather than to getPaperSize's thermal default.
-        customPaperWidth: cli.preferredCustomPaperWidth || prev.customPaperWidth || 80,
-        customPaperHeight: cli.preferredCustomPaperHeight || prev.customPaperHeight || 297,
         // v1.10.83 - the client's saved currency, else theirs if abroad,
         // else the business's own. It used to keep the previous invoice's
         // currency, so after a USD invoice an Indian client was billed in USD.
@@ -2014,14 +2012,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       if (selectedClientId) {
         const cli = savedClients.find(c => c.id === selectedClientId);
         if (cli) {
-          const nextPaperSize = invoiceOptions.paperSize || 'a4';
+          const { preferredPaperSize: nextPaperSize, preferredCustomPaperWidth: nextCustomW, preferredCustomPaperHeight: nextCustomH } = clientPaperPrefs(invoiceOptions);
           const nextCurrency = invoiceOptions.currency || 'INR';
           // v1.10.48 — Persist the custom dimensions too. Saving only the
           // paper-size KEY meant 'custom' round-tripped without its width,
           // and getPaperSize() reads a missing custom width as 80mm, i.e.
           // thermal. See the restore side in handleSelectClient.
-          const nextCustomW = invoiceOptions.customPaperWidth || 80;
-          const nextCustomH = invoiceOptions.customPaperHeight || 297;
           const changed = cli.preferredPaperSize !== nextPaperSize
             || cli.preferredCurrency !== nextCurrency
             || cli.preferredCustomPaperWidth !== nextCustomW

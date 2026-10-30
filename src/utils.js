@@ -1444,6 +1444,21 @@ export const htmlHasText = (html) => {
   }
 };
 
+// ERR-006 - a client's paper is saved and restored WITH its custom size: the
+// key 'custom' alone came back with no width, which getPaperSize reads as
+// 80mm, i.e. a thermal receipt. Falls back to the invoice's current paper, not
+// to A4 (a shop that prints everything on 80mm keeps it). Tested in tax-test.
+export const clientPaperPrefs = (options = {}) => ({
+  preferredPaperSize: options.paperSize || 'a4',
+  preferredCustomPaperWidth: options.customPaperWidth || 80,
+  preferredCustomPaperHeight: options.customPaperHeight || 297,
+});
+export const clientPaperOptions = (cli, prev = {}) => ({
+  paperSize: cli?.preferredPaperSize || prev.paperSize || 'a4',
+  customPaperWidth: cli?.preferredCustomPaperWidth || prev.customPaperWidth || 80,
+  customPaperHeight: cli?.preferredCustomPaperHeight || prev.customPaperHeight || 297,
+});
+
 export const getPaperSize = (key, options = {}) => {
   const base = PAPER_SIZES[key] || PAPER_SIZES.a4;
   if (base.kind !== 'custom') return base;

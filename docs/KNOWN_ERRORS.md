@@ -265,6 +265,8 @@ not the dimensions. A client stored on `custom` therefore came back as
 > fields together. Never let a missing dimension fall through to a default
 > that changes the **kind** of output.
 
+**Automated (v1.10.84):** `clientPaperPrefs` / `clientPaperOptions` in src/utils.js, round-trip tested in scripts/tax-test.mjs ("[ERR-006] ...").
+
 **Guard:** none automated.
 
 **Status:** the code defect is real and fixed, but it is **probably not**

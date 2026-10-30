@@ -63,7 +63,7 @@ import {
   parseLocalDate,
   formatDateGST,
 } from '../src/utils.js';
-import { splitPurchaseTax } from '../src/utils.js';
+import { splitPurchaseTax, clientPaperPrefs, clientPaperOptions, getPaperSize } from '../src/utils.js';
 import { buildXlsx, colName } from '../src/utils/xlsx.js';
 import { bulkRowToProduct, closingStock, stockValueOf } from '../src/utils/products.js';
 import { upiNote, parseSupporters, shouldShowSupportNudge } from '../src/utils/supporters.js';
@@ -1072,6 +1072,16 @@ console.log('\n[V81] What\'s new: the changelog on the Support page');
   eq(inlineParts('**B** *i* `c` [x](https://a.b) [y](docs/z.md) [j](javascript:alert(1))').map((p) => p.t),
     ['b', 'text', 'i', 'text', 'code', 'text', 'link', 'text'], 'Bold, italic, code and http links; other links stay text');
   eq(inlineParts('[j](javascript:alert(1))').some((p) => p.t === 'link'), false, 'A javascript: link is never a link');
+}
+
+console.log('\n[ERR-006] A client on custom paper keeps its width');
+{
+  const saved = clientPaperPrefs({ paperSize: 'custom', customPaperWidth: 210, customPaperHeight: 297 });
+  eq(saved, { preferredPaperSize: 'custom', preferredCustomPaperWidth: 210, preferredCustomPaperHeight: 297 }, 'the width and height are saved with the size');
+  const back = clientPaperOptions(saved, { paperSize: '80mm' });
+  eq([back.paperSize, back.customPaperWidth, getPaperSize(back.paperSize, back).kind], ['custom', 210, 'sheet'], 'picking the client restores 210mm, a sheet, not an 80mm receipt');
+  eq(clientPaperOptions({}, { paperSize: '80mm' }).paperSize, '80mm', 'a client with no preference keeps the invoice\'s paper (not A4)');
+  eq(clientPaperOptions(undefined, {}).paperSize, 'a4', 'nothing set anywhere: A4');
 }
 
 console.log('\n[v1.10.84] Tax year 2026-27 (Income-tax Act 2025; rates as FY 2025-26, Finance Act 2026)');
