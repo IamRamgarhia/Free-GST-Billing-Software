@@ -4,7 +4,7 @@
 // sample back through the same code the screens use. Headings are matched
 // loosely (case, spaces, %, / ignored), so the Products export imports back.
 import { toCsvLine } from '../utils.js';
-import { rowsToRecords, toNum } from './bulkCsv.js';
+import { rowsToRecords, toNum, percentPart } from './bulkCsv.js';
 
 const PRODUCT_FIELDS = {
   name: ['name', 'product', 'product name', 'item', 'item name'],
@@ -13,17 +13,19 @@ const PRODUCT_FIELDS = {
   unit: ['unit'],
   purchasePrice: ['purchase price', 'cost', 'cost price'],
   sellingPrice: ['selling price', 'rate', 'price', 'sale price'],
-  taxPercent: ['gst%', 'gst rate', 'tax%', 'tax', 'taxpercent'],
-  stock: ['stock', 'quantity', 'opening stock'],
+  taxPercent: ['gst%', 'gst rate', 'tax%', 'tax rate', 'tax', 'taxpercent'],
+  stock: ['stock', 'quantity', 'opening stock', 'opening stock quantity', 'opening qty', 'stock quantity'],
   description: ['description'],
+  // v1.10.84 (#130) - Vyapar's item file says whether its prices hold the tax.
+  taxInclusive: ['tax inclusive', 'tax inclusive (y/n)', 'inclusive of tax'],
 };
 
 const CLIENT_FIELDS = {
-  name: ['name', 'client', 'client name', 'customer', 'customer name'],
+  name: ['name', 'client', 'client name', 'customer', 'customer name', 'party name', 'party'],
   gstin: ['gstin', 'gst number', 'gst no'],
-  phone: ['phone', 'mobile', 'phone number'],
+  phone: ['phone', 'mobile', 'phone number', 'phone no', 'mobile no', 'contact no', 'party phone no'],
   email: ['email', 'email id'],
-  address: ['address'],
+  address: ['address', 'billing address'],
   state: ['state'],
 };
 
@@ -50,11 +52,15 @@ export function productsCsvToList(text, existing = []) {
     const type = String(r.type || '').toLowerCase();
     if (type && !/^(goods?|g|products?|services?|s)$/.test(type)) { out.errors.push(`Row ${r._line} (${name}): Type must be Goods or Service`); continue; }
     const service = type.startsWith('s');
-    const nums = { purchasePrice: toNum(r.purchasePrice), sellingPrice: toNum(r.sellingPrice), taxPercent: toNum(r.taxPercent), stock: toNum(r.stock, null) };
+    const nums = { purchasePrice: toNum(r.purchasePrice), sellingPrice: toNum(r.sellingPrice), taxPercent: toNum(percentPart(r.taxPercent)), stock: toNum(r.stock, null) };
     const bad = Object.entries(nums).find(([k, v]) => (k === 'stock' ? v !== null && !Number.isFinite(v) : !Number.isFinite(v)));
     if (bad) { out.errors.push(`Row ${r._line} (${name}): ${bad[0] === 'stock' ? 'stock' : bad[0] === 'taxPercent' ? 'GST %' : 'price'} must be a number`); continue; }
     if (nums.taxPercent < 0 || nums.taxPercent > 100) { out.errors.push(`Row ${r._line} (${name}): GST % must be 0 to 100`); continue; }
     if (seen(name)) { out.skipped++; continue; }
+    // Our product prices are before tax: take the tax out of an inclusive one.
+    if (/^(y|yes|true|1)$/i.test(String(r.taxInclusive || '').trim()) && nums.taxPercent > 0) {
+      nums.sellingPrice = Math.round(nums.sellingPrice / (1 + nums.taxPercent / 100) * 100) / 100;
+    }
     out.products.push({
       name,
       ...(service ? { kind: 'service' } : {}),

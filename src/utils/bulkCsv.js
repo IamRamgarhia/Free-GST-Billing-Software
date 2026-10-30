@@ -9,6 +9,7 @@
 // edited in a spreadsheet and imported again.
 //
 // Pure functions only (no fetch / React), so scripts/csv-test.mjs can test them.
+import { excelSerialToIso } from './xlsxRead.js';
 import {
   computeInvoiceTotals, stockEffect, toCsvLine, INVOICE_TYPES, getStateCode,
   stateNameForCode, resolveLineDiscount,
@@ -41,26 +42,44 @@ export function parseCsv(text) {
   return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
 }
 
-const norm = (h) => String(h || '').toLowerCase().replace(/[\s_\-.%()/#]+/g, '');
+const norm = (h) => String(h || '').toLowerCase().replace(/[\s_\-.%()/#*]+/g, '');
 
 // Rows as objects keyed by canonical field name. `fields` maps each canonical
-// name to the accepted header spellings.
-export function rowsToRecords(text, fields) {
-  const table = parseCsv(text);
+// name to the accepted header spellings, the preferred one first.
+// v1.10.84 (#130) - `input` is CSV text or rows already read (an .xlsx sheet).
+// The header is the row, among the first 8, that names the most columns:
+// Vyapar puts the business and report name above it. A closing "Total" row is
+// not data. When two columns fit (Vyapar has "Tax Percent" and "Tax"), the
+// spelling listed first wins.
+export function rowsToRecords(input, fields) {
+  const table = (Array.isArray(input) ? input : parseCsv(input))
+    .map((r) => (Array.isArray(r) ? r : []))
+    .filter((r) => r.some((c) => String(c ?? '').trim() !== ''));
   if (table.length < 2) return { records: [], missing: [], unknown: [] };
-  const header = table[0].map(norm);
+  const wanted = new Set(Object.values(fields).flat().map(norm));
+  let at = 0;
+  let best = 0;
+  table.slice(0, 8).forEach((r, i) => {
+    const hits = r.filter((h) => wanted.has(norm(h))).length;
+    if (hits > best) { best = hits; at = i; }
+  });
+  const header = table[at].map(norm);
   const colOf = {};
   for (const [field, aliases] of Object.entries(fields)) {
-    const idx = header.findIndex((h) => aliases.map(norm).includes(h));
-    if (idx >= 0) colOf[field] = idx;
+    for (const a of aliases) {
+      const idx = header.indexOf(norm(a));
+      if (idx >= 0 && !Object.values(colOf).includes(idx)) { colOf[field] = idx; break; }
+    }
   }
   const known = new Set(Object.values(colOf));
-  const unknown = table[0].filter((_, i) => !known.has(i) && String(table[0][i]).trim());
-  const records = table.slice(1).map((r, i) => {
-    const rec = { _line: i + 2 };
-    for (const [field, idx] of Object.entries(colOf)) rec[field] = String(r[idx] ?? '').trim();
-    return rec;
-  });
+  const unknown = table[at].filter((_, i) => !known.has(i) && String(table[at][i]).trim());
+  const records = table.slice(at + 1)
+    .filter((r) => norm(r.find((c) => String(c ?? '').trim() !== '')) !== 'total')
+    .map((r) => {
+      const rec = { _line: table.indexOf(r) + 1 };
+      for (const [field, idx] of Object.entries(colOf)) rec[field] = String(r[idx] ?? '').trim();
+      return rec;
+    });
   return { records, colOf, unknown };
 }
 
@@ -76,6 +95,8 @@ export const toNum = (v, fallback = 0) => {
 const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
 export function toIsoDate(v) {
   const s = String(v || '').trim();
+  // An Excel date cell read from an .xlsx is its day number (#130).
+  if (/^\d{5}(\.\d+)?$/.test(s) && Number(s) >= 20000 && Number(s) < 80000) return excelSerialToIso(s);
   let y; let m; let d;
   let mt = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s);
   if (mt) [, y, m, d] = mt.map(Number);
@@ -130,6 +151,9 @@ const TYPE_ALIASES = Object.fromEntries(Object.entries(INVOICE_TYPES).flatMap(([
 ]));
 TYPE_ALIASES[norm('invoice')] = 'tax-invoice';
 TYPE_ALIASES[norm('estimate')] = 'proforma';
+// Vyapar's "Transaction Type" (#130).
+TYPE_ALIASES[norm('sale')] = 'tax-invoice';
+const CANCELLED = /cancel/i;
 const typeOf = (v) => (String(v || '').trim() ? TYPE_ALIASES[norm(v)] || null : 'tax-invoice');
 
 // ------------------------------------------------------------------ sales --
@@ -142,9 +166,9 @@ export const SALES_COLUMNS = [
   'Bill Discount', 'Round Off',
 ];
 const SALES_FIELDS = {
-  invoiceNumber: ['Invoice Number', 'Invoice No', 'Inv No', 'Bill No', 'Number'],
+  invoiceNumber: ['Invoice Number', 'Invoice No', 'Inv No', 'Bill No', 'Number', 'Invoice No./Txn No.'],
   invoiceDate: ['Invoice Date', 'Date', 'Bill Date'],
-  invoiceType: ['Invoice Type', 'Type', 'Document Type'],
+  invoiceType: ['Invoice Type', 'Type', 'Document Type', 'Transaction Type'],
   dueDate: ['Due Date', 'Due'],
   clientName: ['Client Name', 'Client', 'Customer', 'Customer Name', 'Party', 'Party Name', 'Buyer'],
   clientGstin: ['Client GSTIN', 'GSTIN', 'Customer GSTIN', 'Party GSTIN', 'Buyer GSTIN'],
@@ -156,9 +180,9 @@ const SALES_FIELDS = {
   hsn: ['HSN/SAC', 'HSN', 'SAC', 'HSN Code'],
   quantity: ['Quantity', 'Qty'],
   unit: ['Unit', 'UOM', 'UQC'],
-  rate: ['Rate', 'Price', 'Unit Price'],
+  rate: ['Rate', 'Price', 'Unit Price', 'UnitPrice', 'Price/Unit', 'Price per Unit'],
   discount: ['Discount', 'Discount Amount'],
-  taxPercent: ['GST %', 'GST', 'GST Rate', 'Tax %', 'Tax Rate', 'Tax'],
+  taxPercent: ['GST Rate', 'Tax Rate', 'Tax Percent', 'GST %', 'Tax %', 'GST', 'Tax'],
   cessPercent: ['Cess %', 'Cess', 'Cess Rate'],
   taxInclusive: ['Prices Include Tax', 'Tax Inclusive', 'Inclusive'],
   notes: ['Notes', 'Note', 'Remarks'],
@@ -172,8 +196,11 @@ const SALES_FIELDS = {
  * opts: { profile, products, adjustStock, existingIds:Set, makeId? }
  * Returns { bills, errors: [string], skipped: [invoiceNumber], newClients: [client] }.
  */
-export function salesCsvToBills(text, { profile = {}, products = [], adjustStock = false, existingIds = new Set(), clients = [] } = {}) {
-  const { records } = rowsToRecords(text, SALES_FIELDS);
+export function salesCsvToBills(text, { profile = {}, products = [], adjustStock = false, existingIds = new Set(), clients = [], received = null } = {}) {
+  const all = rowsToRecords(text, SALES_FIELDS).records;
+  // Vyapar lists cancelled sales too ("Sale[Cancelled]"): they are not imported.
+  const records = all.filter((r) => !CANCELLED.test(r.invoiceType || ''));
+  const cancelled = new Set(all.filter((r) => CANCELLED.test(r.invoiceType || '')).map((r) => r.invoiceNumber)).size;
   const errors = [];
   if (!records.length) return { bills: [], errors: ['The file has no rows under the header.'], skipped: [], newClients: [], warnings: [] };
   const order = dateOrderNote(records.flatMap((r) => [r.invoiceDate, r.dueDate]));
@@ -214,8 +241,8 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
     rows.forEach((r, i) => {
       const quantity = toNum(r.quantity, 1);
       const rate = toNum(r.rate, NaN);
-      const discount = toNum(r.discount, 0);
-      const taxPercent = toNum(r.taxPercent, 0);
+      const discount = toNum(amountPart(r.discount), 0);
+      const taxPercent = toNum(percentPart(r.taxPercent), 0);
       const cessPercent = toNum(r.cessPercent, 0);
       if (!r.itemName) { fail(`row ${r._line} has no item name.`); bad = true; return; }
       for (const [label, v] of [['quantity', quantity], ['rate', rate], ['discount', discount], ['GST %', taxPercent], ['cess %', cessPercent]]) {
@@ -271,9 +298,7 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
       currency: 'INR',
       totalAmount: totals.total,
       totalTaxAmount: totals.totalTaxAmount,
-      status: 'unpaid',
-      paidAmount: 0,
-      payments: [],
+      ...paidPart(received?.get(invoiceNumber), totals.total, invoiceDate),
       importedAt: new Date().toISOString(),
       data: {
         profile, client, details, items, totals, invoiceType,
@@ -282,8 +307,44 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
       },
     });
   }
-  return { bills, errors, skipped, newClients: [...newClients.values()], warnings: order.warning ? [order.warning] : [] };
+  const warnings = order.warning ? [order.warning] : [];
+  if (cancelled) warnings.push(`${cancelled} cancelled invoice${cancelled === 1 ? ' was' : 's were'} left out.`);
+  return { bills, errors, skipped, newClients: [...newClients.values()], warnings };
 }
+
+// v1.10.84 (#130) - Vyapar writes "297.16 (18.0%)" (tax and its rate) and
+// "888.94 (35.0%)" (a discount and its rate) in one cell; also "GST@18%".
+export const percentPart = (v) => {
+  const m = /([\d.]+)\s*%/.exec(String(v ?? ''));
+  return m ? m[1] : v;
+};
+export const amountPart = (v) => String(v ?? '').replace(/\s*\([^)]*\)\s*$/, '');
+
+// What a sales report says was received, by invoice number: Vyapar's "Sale
+// Report" sheet ("Received Amount" or "Received/Paid Amount").
+export function receivedByInvoice(input) {
+  const { records } = rowsToRecords(input, {
+    invoiceNumber: SALES_FIELDS.invoiceNumber,
+    received: ['Received Amount', 'Received/Paid Amount', 'Received', 'Amount Received', 'Paid Amount'],
+  });
+  const map = new Map();
+  for (const r of records) {
+    const n = toNum(r.received, NaN);
+    if (r.invoiceNumber && Number.isFinite(n) && n > 0) map.set(r.invoiceNumber, (map.get(r.invoiceNumber) || 0) + n);
+  }
+  return map;
+}
+
+// Status and one payment for what was received (never more than the total).
+const paidPart = (got, total, date) => {
+  const amount = r2(Math.min(Number(got) || 0, Number(total) || 0));
+  if (amount <= 0.005) return { status: 'unpaid', paidAmount: 0, payments: [] };
+  return {
+    status: amount >= (Number(total) || 0) - 0.005 ? 'paid' : 'partial',
+    paidAmount: amount,
+    payments: [{ id: `pay_imp_${date}_${Math.random().toString(36).slice(2, 8)}`, amount, date, mode: 'other', note: 'Imported' }],
+  };
+};
 
 // Bills -> CSV in the import's own columns (one row per item).
 export function billsToSalesCsv(bills) {
@@ -325,8 +386,8 @@ const PURCHASE_FIELDS = {
   itemName: ['Item Name', 'Item', 'Product', 'Description', 'Particulars'],
   hsn: ['HSN/SAC', 'HSN', 'SAC', 'HSN Code'],
   quantity: ['Quantity', 'Qty'],
-  rate: ['Rate', 'Price', 'Unit Price'],
-  taxPercent: ['GST %', 'GST', 'GST Rate', 'Tax %', 'Tax Rate', 'Tax'],
+  rate: ['Rate', 'Price', 'Unit Price', 'UnitPrice', 'Price/Unit', 'Price per Unit'],
+  taxPercent: ['GST Rate', 'Tax Rate', 'Tax Percent', 'GST %', 'Tax %', 'GST', 'Tax'],
   cessPercent: ['Cess %', 'Cess', 'Cess Rate'],
   interstate: ['Inter-state', 'Interstate', 'IGST', 'Inter State'],
   paymentStatus: ['Payment Status', 'Status', 'Paid'],

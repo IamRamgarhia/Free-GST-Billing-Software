@@ -11,8 +11,8 @@
 // the fix breaks every sum a user runs over an exported column.
 
 import { toCsvCell, toCsvLine } from '../src/utils.js';
-import { dateOrderNote, parseCsv, toIsoDate, toNum, salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE } from '../src/utils/bulkCsv.js';
-import { productsCsvToList } from '../src/utils/listCsv.js';
+import { dateOrderNote, parseCsv, toIsoDate, toNum, salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice } from '../src/utils/bulkCsv.js';
+import { productsCsvToList, clientsCsvToList } from '../src/utils/listCsv.js';
 import { readFileSync } from 'fs';
 
 let passed = 0, failed = 0;
@@ -154,6 +154,61 @@ console.log('\n[#134] The Products export imports back, every column');
   const now = productsCsvToList([toCsvLine(headers), toCsvLine(headers.map((h) => row[h] ?? ''))].join('\n'), []).products[0];
   eq(JSON.stringify([now?.hsn, now?.purchasePrice, now?.sellingPrice, now?.taxPercent, now?.unit, now?.stock]), JSON.stringify(['9608', 6, 10, 12, 'Nos', 40]),
     `the screen's own export headings (${headers.join(', ')}) all import`);
+}
+
+console.log('\n[#130] Files exported from Vyapar (layouts seen in real exports)');
+{
+  const profile = { country: 'India', state: 'Punjab', gstin: '03ABCDE1234F1Z5' };
+  // Newer "Item Details" sheet: title rows above the header, "Tax Percent"
+  // beside "Tax", an Excel date number, a cancelled sale, a Total row.
+  const newer = [
+    ['Kaveri Stationers'], ['Sale Report: 01/10/2026 to 31/10/2026'],
+    ['Date', 'Invoice No./Txn No.', 'Party Name', 'Item Name', 'Item Code', 'HSN/SAC', 'Category', 'Description', 'Quantity', 'Unit', 'UnitPrice', 'Discount Percent', 'Discount', 'Tax Percent', 'Tax', 'Transaction Type', 'Amount'],
+    ['46325', 'V-1', 'Riya Sharma', 'Pen', 'P1', '9608', 'Stationery', 'Blue ink', '10', 'Nos', '20', '0', '0', '18', '36', 'Sale', '236'],
+    ['30/10/2026', 'V-2', 'Arjun', 'Ink', '', '3215', '', '', '1', 'Nos', '100', '0', '0', '12', '12', 'Sale[Cancelled]', '112'],
+    ['Total', '', '', '', '', '', '', '', '11', '', '', '', '', '', '48', '', '348'],
+  ];
+  const sale = [
+    ['Kaveri Stationers'], ['Sale Report'],
+    ['Date', 'Order No', 'Invoice No', 'Party Name', 'GSTIN', 'Party Phone No.', 'Transaction Type', 'Total Amount', 'Payment Type', 'Received/Paid Amount', 'Balance Due'],
+    ['30/10/2026', '', 'V-1', 'Riya Sharma', '', '98765 43210', 'Sale', '236', 'Cash', '100', '136'],
+    ['Total', '', '', '', '', '', '', '236', '', '100', '136'],
+  ];
+  const r = salesCsvToBills(newer, { profile, received: receivedByInvoice(sale) });
+  eq(r.errors.join(' | '), '', 'no errors: title rows and the Total row are not data');
+  eq(r.bills.map((b) => b.invoiceNumber).join(','), 'V-1', 'the cancelled sale is left out...');
+  eq(r.warnings.some((w) => /1 cancelled invoice was left out/.test(w)), true, '...and the preview says so');
+  const b = r.bills[0];
+  eq(b.invoiceDate, '2026-10-30', 'an Excel date number becomes the date');
+  eq(`${b.data.items[0].rate}|${b.data.items[0].taxPercent}|${b.data.items[0].hsn}`, '20|18|9608', '"Tax Percent" is the rate, not the "Tax" amount beside it');
+  eq(b.totalAmount, 236, 'the total matches Vyapar\'s');
+  eq(`${b.status}|${b.paidAmount}|${b.payments.length}`, 'partial|100|1', 'what the Sale Report says was received becomes a payment');
+  // Older "Sale Items" sheet: discount and GST as "amount (rate%)".
+  const older = [
+    ['Date', 'Party Name', 'Invoice No.', 'Item Name', 'Item code', 'HSN/SAC', 'Quantity', 'Price/Unit', 'Discount', 'GST', 'Amount'],
+    ['05/12/2025', 'Cash Sale', '17', 'Notebook', '', '4820', '2', '50', '10 (10.0%)', '16.2 (18.0%)', '106.2'],
+  ];
+  const o = salesCsvToBills(older, { profile });
+  eq(o.errors.join(' | '), '', 'older layout reads without errors');
+  eq(`${o.bills[0].data.items[0].discount}|${o.bills[0].data.items[0].taxPercent}|${o.bills[0].totalAmount}`, '10|18|106.2',
+    '"10 (10.0%)" is a ₹10 discount and "16.2 (18.0%)" is 18% GST');
+  eq(o.bills[0].status, 'unpaid', 'without a Sale Report nothing is marked paid');
+  // Item and party files.
+  const items = productsCsvToList([
+    ['Item Code', 'Item Name*', 'HSN', 'Sale Price', 'Purchase Price', 'Opening Stock Quantity', 'Minimum Stock Quantity', 'Item Location', 'Tax Rate', 'Tax Inclusive (Y/N)'],
+    ['P1', 'Pen', '9608', '23.6', '15', '100', '10', 'Shelf 2', 'GST@18%', 'Y'],
+    ['P2', 'Register', '4820', '80', '60', '', '', '', '12%', 'N'],
+  ]);
+  eq(items.errors.join(' | '), '', 'Vyapar item file reads without errors');
+  eq(items.products.map((p) => `${p.name}:${p.sellingPrice}:${p.taxPercent}:${p.stock ?? '-'}`).join(' '), 'Pen:20:18:100 Register:80:12:-',
+    '"GST@18%" and "12%" read as rates; an inclusive price has its tax taken out');
+  const parties = clientsCsvToList([
+    ['Party Name', 'GSTIN', 'Phone No.', 'Email Id', 'Billing Address', 'State'],
+    ['Riya Sharma', '', '9876543210', 'riya@example.com', '4 Mall Road, Ludhiana', 'Punjab'],
+  ]);
+  eq(parties.clients.map((c) => `${c.name}|${c.phone}|${c.address}`).join(), 'Riya Sharma|9876543210|4 Mall Road, Ludhiana', 'Vyapar party columns map onto clients');
+  eq(toIsoDate('45383'), '2024-04-01', 'a date number in a CSV too');
+  eq(toIsoDate('2026'), '', 'a plain year is not a date');
 }
 
 console.log('\n────────────────────────────────────────');
