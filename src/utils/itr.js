@@ -24,7 +24,27 @@
  * FY as CURRENT_FY makes the app default to that year end-to-end. Callers
  * that need a specific FY pass it explicitly.
  */
-export const CURRENT_FY = '2025-26';
+export const CURRENT_FY = '2026-27';
+
+// v1.10.84 - the years the Income Tax screen offers, newest first. From
+// 1 April 2026 the Income-tax Act, 2025 replaces the 1961 Act and calls the
+// year a "tax year" (no separate assessment year). The Finance Act 2026 kept
+// every rate, slab, rebate and limit of FY 2025-26 (see scripts/tax-test.mjs).
+export const TAX_YEARS = ['2026-27', '2025-26'];
+
+export const yearLabel = (fy) => {
+  const start = Number(String(fy).split('-')[0]);
+  if (start >= 2026) return `Tax year ${fy}`;
+  return `FY ${fy} (AY ${start + 1}-${String((start + 2) % 100).padStart(2, '0')})`;
+};
+
+// Return due dates: salary-only returns (ITR-1/2) 31 July; business without
+// an audit 31 August (Finance Act 2026, from the returns for FY 2025-26);
+// audit cases 31 October.
+export const filingDueDates = (fy) => {
+  const y = Number(String(fy).split('-')[0]) + 1;
+  return { salary: `${y}-07-31`, business: `${y}-08-31`, audit: `${y}-10-31` };
+};
 
 // ----------------------------- Regimes ---------------------------------------
 
@@ -130,16 +150,15 @@ export const NEW_REGIME_SLABS_FY_2025_26 = [
  * v1.10.31 — Backward-compat alias for pre-v1.10.31 callers that read
  * NEW_REGIME_SLABS directly. Resolves to the CURRENT_FY's table.
  */
-export const NEW_REGIME_SLABS = CURRENT_FY === '2025-26'
-  ? NEW_REGIME_SLABS_FY_2025_26
-  : NEW_REGIME_SLABS_FY_2024_25;
+export const NEW_REGIME_SLABS = getNewRegimeSlabs(CURRENT_FY);
 
 /**
  * v1.10.31 — Pick the new-regime slab table for a given FY. Extending
  * to a new FY = add a new SLABS constant + a case here.
  */
 export function getNewRegimeSlabs(fy = CURRENT_FY) {
-  if (fy === '2025-26') return NEW_REGIME_SLABS_FY_2025_26;
+  // v1.10.84 - FY 2025-26 and every later year until a Finance Act changes them.
+  if (String(fy) >= '2025-26') return NEW_REGIME_SLABS_FY_2025_26;
   return NEW_REGIME_SLABS_FY_2024_25; // FY 24-25 and earlier
 }
 
@@ -153,7 +172,7 @@ export function get87AConfig(regime, fy = CURRENT_FY) {
     return { threshold: 500_000, cap: 12_500 };
   }
   // new regime
-  if (fy === '2025-26') return { threshold: 1_200_000, cap: 60_000 };
+  if (String(fy) >= '2025-26') return { threshold: 1_200_000, cap: 60_000 };
   return { threshold: 700_000, cap: 25_000 }; // FY 24-25
 }
 

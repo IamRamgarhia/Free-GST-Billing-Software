@@ -38,6 +38,9 @@ import {
   buildITR4FieldMap,
   effectiveDeductionCap,
   CURRENT_FY as ENGINE_FY,
+  TAX_YEARS,
+  yearLabel,
+  filingDueDates,
 } from '../utils/itr.js';
 import { getFinancialYearLabel, belongsToProfile, isCancelledBill, salesSign, localToday, parseLocalDate } from '../utils';
 import { billInInr } from '../utils/fx';
@@ -83,13 +86,23 @@ const TABS = [
 // Now derived from the engine, so there is exactly one answer. AY is
 // always the FY that follows.
 const CURRENT_FY = ENGINE_FY;
-const CURRENT_AY = (() => {
-  const start = parseInt(CURRENT_FY.split('-')[0], 10) + 1;
+// The assessment year that follows a financial year (before the 2025 Act).
+const ayOf = (fy) => {
+  const start = parseInt(fy.split('-')[0], 10) + 1;
   return `${start}-${String(start + 1).slice(-2)}`;
-})();
+};
+// v1.10.84 - "31 Aug 2027" for the due dates.
+const dueText = (iso) => parseLocalDate(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
 export default function IncomeTax() {
   const [tab, setTab] = useState('calculator');
+  // v1.10.84 - which year the figures are for: tax year 2026-27 (default) or
+  // FY 2025-26 for late and revised returns. Remembered on this PC.
+  const [fy, setFy] = useState(() => {
+    try { const y = localStorage.getItem('gst_itrYear'); return TAX_YEARS.includes(y) ? y : CURRENT_FY; } catch { return CURRENT_FY; }
+  });
+  useEffect(() => { try { localStorage.setItem('gst_itrYear', fy); } catch { /* a per-PC convenience */ } }, [fy]);
+  const ay = ayOf(fy);
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [purchases, setPurchases] = useState([]);
@@ -159,7 +172,7 @@ export default function IncomeTax() {
     if (Number(inputs.businessIncome) > 0) return;
     const inFY = (dateStr) => {
       if (!dateStr) return false;
-      return getFinancialYearLabel(parseLocalDate(dateStr)) === CURRENT_FY; // local date, not UTC
+      return getFinancialYearLabel(parseLocalDate(dateStr)) === fy; // local date, not UTC
     };
     const sales = bills.filter(b => inFY(b.invoiceDate)).reduce((s, b) => s + billTurnover(b), 0);
     const cogs  = purchases.filter(p => inFY(p.date)).reduce((s, p) => s + purchaseCost(p), 0);
@@ -170,7 +183,7 @@ export default function IncomeTax() {
     if (estimated > 0) {
       setInputs(prev => ({ ...prev, businessIncome: Math.round(estimated), _autofillHint: true }));
     }
-  }, [bills, purchases, expenses]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bills, purchases, expenses, fy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save calculator inputs whenever they change
   useEffect(() => {
@@ -201,7 +214,7 @@ export default function IncomeTax() {
   //
   // MUST be declared BEFORE advanceSchedule below — v1.8.1 had this reversed,
   // causing a TDZ ReferenceError that blanked the whole Income Tax view.
-  const comparison = useMemo(() => compareRegimes(inputs), [inputs]);
+  const comparison = useMemo(() => compareRegimes({ ...inputs, fy }), [inputs, fy]);
 
   // Advance-tax schedule — depends on the total tax under the RECOMMENDED regime.
   // Defensive: if comparison hasn't yielded a valid shape yet (first render
@@ -213,9 +226,10 @@ export default function IncomeTax() {
       recTotal,
       advanceInputs.tdsCredit,
       advanceInputs.payments,
-      advanceInputs.mode
+      advanceInputs.mode,
+      fy
     );
-  }, [comparison, advanceInputs]);
+  }, [comparison, advanceInputs, fy]);
 
   return (
     <div className="dashboard-container">
@@ -223,8 +237,14 @@ export default function IncomeTax() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div>
             <h1 className="page-title">Income Tax Helper <HelpButton title="Income tax — how to use" doc="income-tax" size={16} /></h1>
-            <p className="page-subtitle">FY {CURRENT_FY} · AY {CURRENT_AY} — Old vs New Regime, bank-statement import, ITR summary</p>
+            <p className="page-subtitle">{yearLabel(fy)}: Old vs New Regime, bank-statement import, ITR summary</p>
           </div>
+          <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+            Year
+            <select className="form-input" style={{ width: 'auto' }} value={fy} onChange={(e) => setFy(e.target.value)} aria-label="Which year the figures are for">
+              {TAX_YEARS.map((y) => <option key={y} value={y}>{yearLabel(y)}</option>)}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -237,7 +257,7 @@ export default function IncomeTax() {
           explanation. Saying it plainly is the honest option — inventing
           slab rates for a year whose Budget has not been implemented here
           would be far worse than admitting the gap. */}
-      {getFinancialYearLabel() !== CURRENT_FY && (
+      {!TAX_YEARS.includes(getFinancialYearLabel()) && (
         <div className="card" style={{
           borderLeft: '4px solid #f59e0b',
           background: 'rgba(245, 158, 11, 0.07)',
@@ -247,10 +267,10 @@ export default function IncomeTax() {
           <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
             <Info size={18} style={{ color: '#b45309', flexShrink: 0, marginTop: 2 }} />
             <div style={{ fontSize: '0.88rem', lineHeight: 1.5 }}>
-              <strong>These figures are for FY {CURRENT_FY}, not the current FY {getFinancialYearLabel()}.<HelpButton title="Which year the figures are for" doc="income-tax#which-year" size={16} /></strong>
+              <strong>These figures are for {yearLabel(fy)}, not the current FY {getFinancialYearLabel()}.<HelpButton title="Which year the figures are for" doc="income-tax#which-year" size={16} /></strong>
               <div style={{ marginTop: '0.35rem', color: 'var(--text-muted)' }}>
                 The tax slabs, rebate limits and capital-gains rates built into this
-                app go up to FY {CURRENT_FY}. Rates for FY {getFinancialYearLabel()} are
+                app go up to {yearLabel(TAX_YEARS[0])}. Rates for FY {getFinancialYearLabel()} are
                 not included yet, so nothing here is calculated against them.
                 Invoices dated in FY {getFinancialYearLabel()} are also excluded from the
                 business-income figure below — enter that income manually, and
@@ -365,8 +385,8 @@ export default function IncomeTax() {
           inputs={inputs}
           presumptive={presumptive}
           advanceSchedule={advanceSchedule}
-          fy={CURRENT_FY}
-          ay={CURRENT_AY}
+          fy={fy}
+          ay={ay}
         />
       )}
     </div>
@@ -835,7 +855,7 @@ function BankImportTab({ bankImport, setBankImport, onCommit }) {
           <ul style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7, margin: 0, paddingLeft: '1.2rem' }}>
             <li><strong>Net-banking</strong> → Accounts → Statements → Download as CSV / Excel (save as CSV)</li>
             <li><strong>Mobile app</strong> → Account statement → Share → Export CSV</li>
-            <li>Choose a date range covering the current FY (1 Apr {parseInt(CURRENT_FY.split('-')[0], 10)} onwards)</li>
+            <li>Choose a date range covering the year you are working out (from 1 April)</li>
             <li>Your data is parsed in-browser — nothing is uploaded to a server</li>
           </ul>
         </div>
@@ -928,7 +948,7 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, p
       doc.text('ITR-4 (Sugam) Filing Summary', 105, y, { align: 'center' });
       y += 6;
       doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-      doc.text(`FY ${fy} · AY ${ay} · Regime: ${comparison.recommended.toUpperCase()} · Generated ${new Date().toLocaleDateString('en-IN')}`, 105, y, { align: 'center' });
+      doc.text(`${yearLabel(fy)} · Regime: ${comparison.recommended.toUpperCase()} · Generated ${new Date().toLocaleDateString('en-IN')}`, 105, y, { align: 'center' });
       y += 6;
 
       // Assessee block
@@ -1079,8 +1099,9 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, p
                 <br /><br />
               </>
             )}
-            Filing due date: <strong>31 July {parseInt(fy.split('-')[1], 10) + 2000}</strong> (non-audit) ·
-            <strong> 31 October {parseInt(fy.split('-')[1], 10) + 2000}</strong> (audit / §44AB).
+            Filing due date: <strong>{dueText(filingDueDates(fy).business)}</strong> (business, no audit) ·
+            <strong> {dueText(filingDueDates(fy).salary)}</strong> (salary only, ITR-1/2) ·
+            <strong> {dueText(filingDueDates(fy).audit)}</strong> (audit).
             Advance tax installments: 15 Jun · 15 Sep · 15 Dec · 15 Mar.
           </div>
         </div>

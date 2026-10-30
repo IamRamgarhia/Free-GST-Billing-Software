@@ -87,6 +87,9 @@ import {
   getOldRegimeSlabs,
   getNewRegimeSlabs,
   CURRENT_FY,
+  TAX_YEARS,
+  yearLabel,
+  filingDueDates,
   NEW_REGIME_SLABS_FY_2025_26,
   AUTO_CATEGORY_RULES,
   buildITR4FieldMap,
@@ -1069,6 +1072,24 @@ console.log('\n[V81] What\'s new: the changelog on the Support page');
   eq(inlineParts('**B** *i* `c` [x](https://a.b) [y](docs/z.md) [j](javascript:alert(1))').map((p) => p.t),
     ['b', 'text', 'i', 'text', 'code', 'text', 'link', 'text'], 'Bold, italic, code and http links; other links stay text');
   eq(inlineParts('[j](javascript:alert(1))').some((p) => p.t === 'link'), false, 'A javascript: link is never a link');
+}
+
+console.log('\n[v1.10.84] Tax year 2026-27 (Income-tax Act 2025; rates as FY 2025-26, Finance Act 2026)');
+{
+  eq(TAX_YEARS, ['2026-27', '2025-26'], 'the year picker offers tax year 2026-27 (first) and FY 2025-26');
+  eq(CURRENT_FY, '2026-27', 'the default year is 2026-27');
+  for (const fy of TAX_YEARS) {
+    eq(getNewRegimeSlabs(fy), NEW_REGIME_SLABS_FY_2025_26, `${fy}: new-regime slabs are the FY 2025-26 ones (4L/8L/12L...)`);
+    eq(get87AConfig('new', fy), { threshold: 1_200_000, cap: 60_000 }, `${fy}: new-regime rebate up to ₹60,000 on income to ₹12L`);
+    // ₹12.75L salary - ₹75,000 standard deduction = ₹12L: no tax at all.
+    eq(computeTax({ salary: 1_275_000, regime: 'new', fy }).totalTax, 0, `${fy}: ₹12.75L salary pays no tax in the new regime`);
+  }
+  eq(getNewRegimeSlabs('2024-25') === NEW_REGIME_SLABS_FY_2025_26, false, 'FY 2024-25 keeps its own (older) slabs');
+  eq(yearLabel('2026-27'), 'Tax year 2026-27', 'the new Act names the year "Tax year"');
+  eq(yearLabel('2025-26'), 'FY 2025-26 (AY 2026-27)', 'earlier years keep FY and AY');
+  // Finance Act 2026: non-audit business returns are due 31 August, from AY 2026-27.
+  eq(filingDueDates('2025-26'), { salary: '2026-07-31', business: '2026-08-31', audit: '2026-10-31' }, 'FY 2025-26 due dates');
+  eq(filingDueDates('2026-27'), { salary: '2027-07-31', business: '2027-08-31', audit: '2027-10-31' }, 'tax year 2026-27 due dates');
 }
 
 console.log('\n────────────────────────────────────────');
