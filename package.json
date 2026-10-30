@@ -95,6 +95,7 @@
     "test:install": "playwright install firefox",
     "test:update-unix": "node scripts/test-update-unix.mjs",
     "test:fresh-linux": "node scripts/test-fresh-linux.mjs",
+    "app:refresh": "node scripts/refresh-my-app.mjs",
     "release:check": "node scripts/release-check.mjs",
     "docs:zip": "node scripts/build-docs-zip.mjs",
     "verify:release": "node scripts/verify-release.mjs"
