@@ -3646,12 +3646,14 @@ html:not([data-theme="dark"]) .welcome-card-close:hover { background: rgba(15, 2
   .welcome-card-btn { flex: 1 1 100%; justify-content: center; }
 }
 
-/* v1.10.84 - "Print on invoice" beside the Terms & Conditions heading. */
-.terms-print-toggle {
+/* v1.10.84 - "Print" beside each part of the invoice form that prints. */
+.label-with-toggle { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.label-with-toggle > span { display: inline-flex; gap: 0.75rem; }
+.print-toggle {
   display: inline-flex; align-items: center; gap: 0.35rem;
   font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer; user-select: none;
 }
-.terms-print-toggle input { width: 15px; height: 15px; accent-color: var(--primary); }
+.print-toggle input { width: 15px; height: 15px; accent-color: var(--primary); }
 
 /* v1.10.84 - bank details as one aligned list (labels | values). */
 .inv-bank-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 0.75rem; align-items: baseline; }

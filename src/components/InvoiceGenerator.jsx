@@ -105,6 +105,20 @@ function loadDraft() {
   } catch { return null; }
 }
 
+// v1.10.84 - "Print" beside each part of the form that prints, so it can be
+// left off this invoice where it is typed. It is the same switch as in
+// Customize (invoiceOptions[optKey]); unset means printed.
+function PrintToggle({ optKey, options, setOptions, disabled, label = 'Print' }) {
+  const on = options?.[optKey] !== false;
+  return (
+    <label className="print-toggle" title={on ? 'Printed on this invoice. Untick to leave it off.' : 'Not printed on this invoice. Tick to print it.'}>
+      <input type="checkbox" checked={on} disabled={disabled}
+        onChange={(e) => setOptions((prev) => ({ ...prev, [optKey]: e.target.checked }))} />
+      {label}
+    </label>
+  );
+}
+
 const DEFAULT_OPTIONS = {
   showGST: true,
   showState: true,
@@ -3904,7 +3918,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   const resolved = getAccountById(profile, invoiceOptions.selectedAccountId);
                   return (
                     <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                      <label className="form-label">Payment account on this invoice <HelpButton title="Payment account on this invoice" doc="invoice-options#payment-account" size={16} /></label>
+                      <div className="label-with-toggle">
+                        <label className="form-label">Payment account on this invoice <HelpButton title="Payment account on this invoice" doc="invoice-options#payment-account" size={16} /></label>
+                        <span><PrintToggle optKey="showBankDetails" label="Bank details" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /><PrintToggle optKey="showUPI" label="UPI QR" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></span>
+                      </div>
                       <select className="form-input" value={resolved?.id || ''}
                         onChange={(e) => {
                           // v1.10.21 — reported: "working but on select it is not
@@ -4358,7 +4375,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 )}
               </div>
               <div className="form-group full-width">
-                <label className="form-label">Billing Address</label>
+                <div className="label-with-toggle"><label className="form-label">Billing Address</label><PrintToggle optKey="showClientAddress" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
                 <input type="text" className="form-input" value={client.address}
                   onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Street address, locality" />
               </div>
@@ -4445,7 +4462,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   onChange={(e) => setDetails({ ...details, invoiceDate: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Due Date</label>
+                <div className="label-with-toggle"><label className="form-label">Due Date</label><PrintToggle optKey="showDueDate" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
                 <input type="date" className="form-input" value={details.dueDate}
                   onChange={(e) => setDetails({ ...details, dueDate: e.target.value })} />
                 {/* v1.10.83 - payment terms in one click: due N days after the invoice date. */}
@@ -4469,6 +4486,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <InvoiceCurrency options={invoiceOptions} baseCurrency={baseCurrency} regionMode={getRegionMode()}
                   invoiceDate={details.invoiceDate} total={totals.total} onCurrency={setCurrency} onRate={setExchangeRate} disabled={readOnlyDoc} />
               )}
+              {/* v1.10.84 - the bank block and UPI QR print from the payment
+                  account (picked in Customize); their switches are here too. */}
+              {getActiveAccounts(profile).length > 0 && (
+                <div className="form-group full-width">
+                  <div className="label-with-toggle">
+                    <label className="form-label">Payment details on the invoice</label>
+                    <span><PrintToggle optKey="showBankDetails" label="Bank details" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /><PrintToggle optKey="showUPI" label="UPI QR" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></span>
+                  </div>
+                </div>
+              )}
               {ccOn && (
                 <div className="form-group">
                   <label className="form-label" htmlFor="cost-centre">Cost centre</label>
@@ -4491,6 +4518,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                       <strong>{client?.isSEZ ? 'SEZ supply' : 'Export'} under LUT (no IGST)</strong>
                       <HelpButton title="Exports and SEZ supplies under a LUT" doc="invoices#lut" size={16} />
                     </label>
+                    <div style={{ marginTop: '0.3rem' }}><PrintToggle optKey="showExportDeclaration" label="Print the declaration on the invoice" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
                     <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', lineHeight: 1.5 }}>
                       {invoiceOptions.isLUT
                         ? <>No IGST is charged (zero-rated). The invoice prints the Rule 46 declaration{invoiceOptions.lutArn ? <> with LUT ARN <strong>{invoiceOptions.lutArn}</strong>{invoiceOptions.lutFy ? ` (FY ${invoiceOptions.lutFy})` : ''}</> : ''}.</>
@@ -4565,11 +4593,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   </div>
                 );
               })()}
-              {invoiceOptions.showPlaceOfSupply && (() => {
+              {/* v1.10.84 - shown while GST is on even when not printed: it decides
+                  CGST + SGST or IGST, and its Print switch must stay reachable. */}
+              {(showGST || invoiceOptions.showPlaceOfSupply) && (() => {
                 const posOpts = getStatesForCountry(profile?.country);
                 return (
                   <div className="form-group">
-                    <label className="form-label">Place of Supply</label>
+                    <div className="label-with-toggle"><label className="form-label">Place of Supply</label><PrintToggle optKey="showPlaceOfSupply" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
                     {posOpts.length > 0 ? (
                       <select className="form-input" value={details.placeOfSupply}
                         onChange={(e) => setDetails({ ...details, placeOfSupply: e.target.value })}>
@@ -4771,11 +4801,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <h3 className="section-title" style={{ margin: 0 }}>Terms & Conditions <HelpButton title="Terms & Conditions" doc="invoices#terms-notes" size={16} /></h3>
                 {/* v1.10.84 - the same switch as Customize → Terms & Conditions, where people look for it. */}
-                <label className="terms-print-toggle" title="Untick to leave the terms off this invoice. The text below is kept.">
-                  <input type="checkbox" checked={invoiceOptions.showTerms !== false} disabled={readOnlyDoc}
-                    onChange={(e) => setInvoiceOptions(prev => ({ ...prev, showTerms: e.target.checked }))} />
-                  Print on invoice
-                </label>
+                <PrintToggle optKey="showTerms" label="Print on invoice" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} />
               </div>
               {/* v1.10.37 — Terms rendering mode picker. Reported: PDF was
                   showing terms as compact all-caps run-together block —
@@ -4867,7 +4893,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 placeholder="Enter or paste your terms & conditions..." />
             </div>
             <div className="form-group">
-              <label className="form-label">Notes / Remarks (optional)</label>
+              <div className="label-with-toggle"><label className="form-label">Notes / Remarks (optional)</label><PrintToggle optKey="showNotes" label="Print on invoice" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
               <RichEditor toolbar value={customNotes}
                 onChange={(v) => setCustomNotes(v)}
                 placeholder="Project details, special instructions, additional notes..." />
