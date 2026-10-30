@@ -1199,6 +1199,8 @@ list index as `doc_num`.
 codes (1 invoices, 5 credit notes, 12 delivery challans); from/to by the
 number's value.
 
+**Automated (v1.10.84):** `docIssueSummary` / `docIssueDetails` in src/utils/gstr1Json.js, tested by scripts/gstr1-json-test.mjs ("[ERR-056] Table 13 ...").
+
 **Guard** - none automated beyond the GSTR-1 checks in the smoke suite.
 
 ---

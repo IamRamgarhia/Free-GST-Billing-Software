@@ -136,3 +136,39 @@ export function b2bInvType({ deemedExport, rcm, sez, lut }) {
   if (sez) return lut ? 'SEWOP' : 'SEWP';
   return 'R';
 }
+
+// ---------------------------------------------------------------------------
+// Table 13, documents issued (moved here from GSTReturns.jsx in v1.10.84 so it
+// is tested; ERR-056). One row per number series under the portal's nature
+// codes (1 invoices, 5 credit notes, 12 delivery challans); quotations and
+// proformas are not reported; from / to by the number's value, not as text.
+export const DOC_ISSUE_NATURE = { 'tax-invoice': 1, 'bill-of-supply': 1, composition: 1, 'credit-note': 5, 'delivery-challan': 12 };
+export const DOC_NATURE_LABEL = { 1: 'Invoices for outward supply', 5: 'Credit notes', 12: 'Delivery challans' };
+const trailingNo = (n) => Number((String(n).match(/(\d+)\s*$/) || [])[1] || 0);
+
+export function docIssueSummary(bills) {
+  const out = {};
+  for (const bill of bills || []) {
+    const nature = DOC_ISSUE_NATURE[bill.invoiceType || 'tax-invoice'];
+    if (!nature || !bill.invoiceNumber) continue;
+    const series = String(bill.invoiceNumber).replace(/\d+\s*$/, '');
+    const key = `${nature}|${series}`;
+    if (!out[key]) out[key] = { nature, type: DOC_NATURE_LABEL[nature], series, from: bill.invoiceNumber, to: bill.invoiceNumber, total: 0, cancelled: 0 };
+    const d = out[key];
+    d.total++;
+    if ((bill.status || '') === 'cancelled') d.cancelled++;
+    if (trailingNo(bill.invoiceNumber) < trailingNo(d.from)) d.from = bill.invoiceNumber;
+    if (trailingNo(bill.invoiceNumber) > trailingNo(d.to)) d.to = bill.invoiceNumber;
+  }
+  return out;
+}
+
+// The doc_issue block of the JSON.
+export function docIssueDetails(summary) {
+  const byNature = {};
+  Object.values(summary || {}).forEach((d) => { (byNature[d.nature] = byNature[d.nature] || []).push(d); });
+  return Object.entries(byNature).map(([nature, list]) => ({
+    doc_num: Number(nature),
+    docs: list.map((d, i) => ({ num: i + 1, from: d.from, to: d.to, totnum: d.total, cancel: d.cancelled, net_issue: d.total - d.cancelled })),
+  }));
+}

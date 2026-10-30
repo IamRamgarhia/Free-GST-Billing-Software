@@ -1,6 +1,6 @@
 // v1.10.83 (#133) - GSTR-1 JSON parts the GST portal is strict about.
 // Run: `node scripts/gstr1-json-test.mjs`
-import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType } from '../src/utils/gstr1Json.js';
+import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails } from '../src/utils/gstr1Json.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -78,6 +78,23 @@ eq(b2bInvType({ rcm: true, sez: true }), 'R', 'reverse charge to an SEZ is R');
 eq(b2bInvType({ sez: true, lut: true }), 'SEWOP', 'SEZ under a LUT');
 eq(b2bInvType({ sez: true }), 'SEWP', 'SEZ with IGST');
 eq(b2bInvType({ deemedExport: true, rcm: true }), 'DE', 'a deemed export is DE, before anything else');
+
+console.log('\n[ERR-056] Table 13: one row per number series, by the number\'s value');
+{
+  const b = (invoiceNumber, invoiceType = 'tax-invoice', status = 'unpaid') => ({ invoiceNumber, invoiceType, status });
+  const sum = docIssueSummary([
+    b('INV/9'), b('INV/10'), b('INV/11', 'tax-invoice', 'cancelled'),
+    b('ACME/1'), b('ACME/2'),
+    b('QUO/1', 'quotation'), b('PRO/1', 'proforma'),
+    b('CN/1', 'credit-note'), b('DC/7', 'delivery-challan'), b('BOS/3', 'bill-of-supply'),
+  ]);
+  const rows = Object.values(sum).map((d) => `${d.nature}:${d.series}${d.from}..${d.to}:${d.total}/${d.cancelled}`);
+  eq(rows, ['1:INV/INV/9..INV/11:3/1', '1:ACME/ACME/1..ACME/2:2/0', '5:CN/CN/1..CN/1:1/0', '12:DC/DC/7..DC/7:1/0', '1:BOS/BOS/3..BOS/3:1/0'],
+    'two prefixes are two rows; INV/9 comes before INV/10; cancelled counted; quotations and proformas left out');
+  const det = docIssueDetails(sum);
+  eq(det.map((d) => `${d.doc_num}:${d.docs.length}`), ['1:3', '5:1', '12:1'], 'doc_num is the portal\'s nature code (1, 5, 12), not a position');
+  eq(det[0].docs[0], { num: 1, from: 'INV/9', to: 'INV/11', totnum: 3, cancel: 1, net_issue: 2 }, 'net issued = total - cancelled');
+}
 
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);

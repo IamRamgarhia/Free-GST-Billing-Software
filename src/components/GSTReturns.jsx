@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules } from '../store';
-import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType } from '../utils/gstr1Json';
+import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, hsnUqc, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, splitLineTax, roundQty, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -10,8 +10,6 @@ import { zeroRatedTotals, withoutZeroRated } from '../utils/lut';
 
 const GST_TYPES = ['tax-invoice', 'credit-note'];
 // GSTR-1 Table 13 "nature of document" codes.
-const DOC_ISSUE_NATURE = { 'tax-invoice': 1, 'bill-of-supply': 1, composition: 1, 'credit-note': 5, 'delivery-challan': 12 };
-const DOC_NATURE_LABEL = { 1: 'Invoices for outward supply', 5: 'Credit notes', 12: 'Delivery challans' };
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const QUARTERS = [
   { id: 'Q1', label: 'Q1 (Apr–Jun)', months: [3, 4, 5] },
@@ -933,21 +931,8 @@ export default function GSTReturns() {
   // per type, so two series (a changed prefix, a business's own numbering)
   // made a from/to that spanned both; quotations and proformas, which are not
   // reported, were listed; and the file numbered natures by list position.
-  const docSummary = {};
-  const trailingNo = (n) => Number((String(n).match(/(\d+)\s*$/) || [])[1] || 0);
-  [...allFilteredBills, ...cancelledInPeriod].forEach(bill => {
-    const type = bill.invoiceType || 'tax-invoice';
-    const nature = DOC_ISSUE_NATURE[type];
-    if (!nature || !bill.invoiceNumber) return;
-    const series = String(bill.invoiceNumber).replace(/\d+\s*$/, '');
-    const key = `${nature}|${series}`;
-    if (!docSummary[key]) docSummary[key] = { nature, type: DOC_NATURE_LABEL[nature], series, from: bill.invoiceNumber, to: bill.invoiceNumber, total: 0, cancelled: 0 };
-    const d = docSummary[key];
-    d.total++;
-    if (isCancelledBill(bill)) d.cancelled++;
-    if (trailingNo(bill.invoiceNumber) < trailingNo(d.from)) d.from = bill.invoiceNumber;
-    if (trailingNo(bill.invoiceNumber) > trailingNo(d.to)) d.to = bill.invoiceNumber;
-  });
+  // Table 13 (gstr1Json.docIssueSummary, tested; ERR-056).
+  const docSummary = docIssueSummary([...allFilteredBills, ...cancelledInPeriod]);
 
   // ========== Validation Warnings ==========
   const warnings = [];
@@ -1569,12 +1554,7 @@ export default function GSTReturns() {
       });
     });
 
-    const byNature = {};
-    Object.values(docSummary).forEach((d) => { (byNature[d.nature] = byNature[d.nature] || []).push(d); });
-    const docDet = Object.entries(byNature).map(([nature, list]) => ({
-      doc_num: Number(nature),
-      docs: list.map((d, i) => ({ num: i + 1, from: d.from, to: d.to, totnum: d.total, cancel: d.cancelled, net_issue: d.total - d.cancelled })),
-    }));
+    const docDet = docIssueDetails(docSummary);
 
     // v1.10.83 (#133) - as India Compliance writes it (accepted by the portal):
     // gstin, fp, version and hash, then the tables. The turnover fields gt /
