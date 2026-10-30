@@ -5,7 +5,7 @@
 // Run: `node scripts/fx-test.mjs`
 
 import { computeInvoiceTotals, splitLineTax, filterUnitsByMode, BUILTIN_UNITS, formatExchangeRateLine } from '../src/utils.js';
-import { billCurrency, billRate, billInInr, billsInInr, currencyForClient, isForeignClient, baseCurrencyOf, toBase } from '../src/utils/fx.js';
+import { billCurrency, billRate, billInInr, billsInInr, currencyForClient, isForeignClient, baseCurrencyOf, toBase, currencyCountryMismatch } from '../src/utils/fx.js';
 import { invoiceDefaultsForType } from '../src/utils/businessTypes.js';
 import { zeroRatedTotals, withoutZeroRated } from '../src/utils/lut.js';
 import { withClientTds, salesTaxRows } from '../src/utils/tdsTcs.js';
@@ -119,6 +119,19 @@ console.log('\n[TDS] Report rows in rupees');
   eq([rows[0].taxable, rows[0].amount], [40320, 4032], 'A USD invoice\'s TDS in rupees');
   const noRate = { ...b, data: { ...b.data, invoiceOptions: { ...b.data.invoiceOptions, exchangeRate: '' } } };
   eq(salesTaxRows([noRate], 'tds')[0].fxMissing, true, 'No rate: marked');
+}
+
+console.log('\n[ERR-069] A foreign currency for a client saved in India is pointed out');
+{
+  const profile = { country: 'India' };
+  const m = (currency, client) => currencyCountryMismatch({ currency, client, profile });
+  eq(m('USD', { name: 'GTB Pro Cleaning', country: 'India' }), true, 'USD + client saved in India: warn (billed as domestic, no LUT)');
+  eq(m('USD', { name: 'No country' }), true, 'USD + client with no country: warn');
+  eq(m('USD', { country: 'Canada' }), false, 'USD + client in Canada: an export, no warning');
+  eq(m('USD', { country: 'India', isSEZ: true }), false, 'USD + SEZ client: no warning');
+  eq(m('INR', { country: 'India' }), false, 'INR: nothing to say');
+  eq(m('', { country: 'India' }), false, 'no currency chosen means INR');
+  eq(currencyCountryMismatch({ currency: 'USD', client: { country: 'United States' }, profile: { country: 'United States' } }), false, 'a business outside India is never warned');
 }
 
 console.log('\n────────────────────────────────────────');

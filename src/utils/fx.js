@@ -81,6 +81,15 @@ export const isForeignClient = (client, profile) => {
   return !!country && country !== (profile?.country || 'India');
 };
 
+// ERR-069 - billing in a foreign currency while the client is saved in India
+// (and is not an SEZ): the invoice is domestic, with no LUT, whatever the
+// currency. The invoice screen warns and offers to set the client's country.
+// An Indian client can pay in dollars, so the country is never guessed.
+export const currencyCountryMismatch = ({ currency, client, profile }) => {
+  const base = baseCurrencyOf(profile);
+  return base === 'INR' && (currency || base) !== base && !isForeignClient(client, profile) && !client?.isSEZ;
+};
+
 // The currency a new invoice for this client starts in: the client's saved
 // choice, else for a client abroad their own country's currency (or the last
 // foreign currency used, for "Other"), else the business's own currency.

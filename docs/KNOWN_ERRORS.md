@@ -877,6 +877,8 @@ India, not SEZ) the screen says so and offers *Set the client's country*,
 which jumps to the Country box. Never infer the country from the currency:
 an Indian client can pay in dollars.
 
+**Automated (v1.10.84):** `currencyCountryMismatch` in src/utils/fx.js decides the warning, tested by scripts/fx-test.mjs ("[ERR-069] ...").
+
 **Guard** - checked by hand on the demo (USD + Indian client shows the
 warning; its button focuses Country; Canada turns on the LUT box and
 "Outside India (export)"). The export test itself is covered by

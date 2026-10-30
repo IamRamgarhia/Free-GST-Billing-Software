@@ -12,7 +12,7 @@ import { CostCentreSelect } from './CostCentrePicker';
 import { centreFields } from '../utils/costCentres';
 import { isExportOrSez, lutCoversDate, normaliseLutArn, fyOf } from '../utils/lut';
 import { PURPOSE_CODES } from '../utils/purposeCodes';
-import { baseCurrencyOf, currencyForClient, isForeignClient } from '../utils/fx';
+import { baseCurrencyOf, currencyForClient, isForeignClient, currencyCountryMismatch } from '../utils/fx';
 import InvoiceCurrency from './InvoiceCurrency';
 import PrintPreviewModal from './PrintPreviewModal';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
@@ -4515,8 +4515,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               {/* v1.10.83 - a foreign currency but the client is saved in India
                   (the client form starts on India): the invoice is then billed as
                   domestic, with no LUT. Say so, and take them to the Country box. */}
-              {(invoiceOptions.currency || baseCurrency) !== baseCurrency && baseCurrency === 'INR'
-                && !isForeignClient(client, profile) && !client?.isSEZ && !readOnlyDoc && (
+              {currencyCountryMismatch({ currency: invoiceOptions.currency, client, profile }) && !readOnlyDoc && (
                 <div className="form-group full-width notice notice-warn" style={{ padding: '0.6rem 0.85rem', borderRadius: 6, display: 'block', fontSize: '0.82rem', lineHeight: 1.5 }}>
                   <strong>Export under LUT? First set the client&apos;s country.</strong> You are billing in {invoiceOptions.currency}, but {client?.name || 'this client'} is saved in India, so this is billed as a sale in India: no LUT, and IGST is charged. If they are abroad, set their country. The invoice then becomes an export: the place of supply prints &quot;Outside India&quot;, the LUT box appears here (no IGST, and the LUT line prints on the PDF), and your SWIFT and purpose code print.{' '}
                   <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', marginTop: 4 }}
