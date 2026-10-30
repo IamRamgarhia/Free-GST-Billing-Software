@@ -20,7 +20,7 @@ import TableExport from './TableExport';
 // dead state removed for clarity.
 const emptyForm = {
   // kind: v1.10.83 (#121) - 'goods' or 'service' (a service has no stock).
-  kind: 'goods', name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', unit: 'Pcs', stock: '', description: '',
+  kind: 'goods', name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', gstTreatment: '', unit: 'Pcs', stock: '', description: '',
   madeHere: false, bom: [],
 };
 
@@ -88,6 +88,7 @@ export default function InventoryView() {
       purchasePrice: product.purchasePrice ?? '',
       sellingPrice: product.sellingPrice ?? product.rate ?? '',
       taxPercent: product.taxPercent || '',
+      gstTreatment: product.gstTreatment || '',
       unit: product.unit || 'Nos',
       stock: product.stock ?? '', // v1.10.74 - was `|| ''`, which blanked a stock of 0
       description: product.description || '',
@@ -138,6 +139,7 @@ export default function InventoryView() {
         sellingPrice,
         rate: sellingPrice, // mirror for legacy readers
         taxPercent: form.taxPercent ? parseFloat(form.taxPercent) : 0,
+        gstTreatment: form.gstTreatment || '',
         unit: form.unit,
         kind: service ? 'service' : 'goods',
         // #121 - a service has no stock; blank stock is "not tracked" (it used
@@ -283,6 +285,18 @@ export default function InventoryView() {
                 <label className="form-label">GST %</label>
                 <input type="number" className="form-input" value={form.taxPercent}
                   onChange={e => updateField('taxPercent', e.target.value)} placeholder="18" min="0" max="100" />
+              </div>
+              {/* v1.10.84 - for GSTR-1 Table 8: only matters at 0% or on a bill of supply. */}
+              <div className="form-group">
+                <label className="form-label" htmlFor="gst-treatment">If no GST is charged</label>
+                <select id="gst-treatment" className="form-input" value={form.gstTreatment}
+                  onChange={e => updateField('gstTreatment', e.target.value)}
+                  title="How GSTR-1 reports this item when it is sold at 0% or on a bill of supply">
+                  <option value="">Automatic (0% = nil-rated, bill of supply = exempt)</option>
+                  <option value="nil">Nil-rated</option>
+                  <option value="exempt">Exempt</option>
+                  <option value="nongst">Non-GST supply</option>
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Unit</label>

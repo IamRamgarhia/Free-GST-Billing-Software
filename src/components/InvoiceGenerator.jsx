@@ -588,7 +588,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // email/phone/isSEZ must be part of initial state — otherwise the SEZ flag
   // set inside ClientModal is silently discarded on save, and reopening the
   // bill can never restore contact fields even if the saved client has them.
-  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false });
+  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false, isDeemedExport: false });
   // v1.9.1 — preview zoom (session-only). Reads from printSettings for the
   // initial value so the user's preference carries across bill switches.
   // v1.10.33 — Was READ-ONLY: the initial-load line pulled from
@@ -1507,6 +1507,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       rate: salePrice,
       unit: product.unit || item.unit || 'Nos',
       taxPercent: product.taxPercent ?? defaultTaxRate,
+      // v1.10.84 - nil-rated / exempt / non-GST, for GSTR-1 Table 8.
+      gstTreatment: product.gstTreatment || '',
       productId: product.id,
       isCharge: false, // a product picked on the delivery line makes it a product line
     } : item));
@@ -1620,6 +1622,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       email: cli.email || '',
       phone: cli.phone || '',
       isSEZ: !!cli.isSEZ,
+      isDeemedExport: !!cli.isDeemedExport,
     });
     setSelectedClientId(cli.id);
     setShowClientSuggestions(false);
@@ -1727,6 +1730,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       email: data.email || '',
       phone: data.phone || '',
       isSEZ: !!data.isSEZ,
+      isDeemedExport: !!data.isDeemedExport,
     });
     // v1.10.83 - a new client abroad gets their currency on a new invoice.
     if (!editingSaved) setCurrency(currencyForClient(data, profile, { preferred: data.preferredCurrency, lastForeign: invoiceOptions.lastForeignCurrency }));

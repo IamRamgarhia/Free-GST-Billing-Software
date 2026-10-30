@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules } from '../store';
-import { hsnTable, stripEmpty } from '../utils/gstr1Json';
+import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, hsnUqc, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, splitLineTax, roundQty, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -669,6 +669,9 @@ export default function GSTReturns() {
       && bill.data?.totals?.isInterstate !== false;
   };
   const exportBills = regularBills.filter(isExportBill);
+  // v1.10.84 - an export is without payment (WOPAY) when it charged no IGST
+  // under a LUT: the zero-rated totals, or the LUT tick / LUT words with no tax.
+  const exportWopay = (bill) => !!bill.data?.totals?.lutZeroRated || billIsLut(bill);
   // v1.10.83 - GSTR-1 Table 6A, in rupees (each invoice at its own rate). WPAY
   // = with payment of IGST, WOPAY = without (under a LUT).
   const exportRows = [...exportBills, ...noRateBills.filter(isExportBill)].map(b => {
@@ -677,7 +680,7 @@ export default function GSTReturns() {
     return {
       id: b.id, invoiceNo: b.invoiceNumber || '', date: b.invoiceDate || '',
       client: b.data?.client?.name || b.clientName || '', country: b.data?.client?.country || '',
-      type: t.lutZeroRated ? 'WOPAY' : 'WPAY', rates: rates.join(', '),
+      type: exportWopay(b) ? 'WOPAY' : 'WPAY', rates: rates.join(', '),
       currency: b.fxFrom?.currency || b.currency || 'INR', fxRate: b.fxFrom?.rate || (b.fxMissing ? 0 : 1),
       value: t.total || 0, taxable: getTaxableAmount(t), igst: t.igst || 0, cess: t.cess || 0, missing: !!b.fxMissing,
     };
@@ -701,6 +704,28 @@ export default function GSTReturns() {
     if (bill?.data?.totals?.isIntraUT) return true;
     return false; // Legacy bills default to false — will treat as SGST which is safe
   };
+
+  // v1.10.84 - each line's GST treatment (gstr1Json.lineTreatment): taxable
+  // lines go in B2B / B2C / exports as before; nil-rated, exempt and non-GST
+  // lines (0% lines, and bills of supply) go in Table 8 and GSTR-3B 3.1(c) /
+  // 3.1(e) instead. Bills of supply were in no table at all before.
+  const treatmentOf = (bill, item) => lineTreatment({
+    invoiceType: bill.invoiceType || 'tax-invoice', isExport: isExportBill(bill),
+    taxPercent: item.taxPercent, gstTreatment: item.gstTreatment,
+  });
+  const taxableLine = (bill) => (item) => treatmentOf(bill, item) === 'taxable';
+  const supplyBills = allFilteredBills.filter(b => b.invoiceType === 'bill-of-supply' && !b.fxMissing);
+  const nilRows = [...filteredBills, ...supplyBills].flatMap(bill => (bill.data?.items || []).map(item => {
+    const treatment = treatmentOf(bill, item);
+    if (treatment === 'taxable') return null;
+    const isInter = billIsInterstate(bill);
+    const split = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, billIsIntraUT(bill));
+    return {
+      interstate: isInter, b2b: !!bill.data?.client?.gstin, treatment,
+      txval: hsnSign(bill) * split.taxable, onTaxInvoice: bill.invoiceType !== 'bill-of-supply',
+    };
+  }).filter(Boolean));
+  const nilSum = (pred) => nilRows.filter(pred).reduce((t, r) => t + r.txval, 0);
 
   // ========== B2B Rows ==========
   // v1.10.31 — GST-C2 fix: also read totals.utgst (was ignored → intra-UT
@@ -780,7 +805,7 @@ export default function GSTReturns() {
   // but different UQCs (KGS vs NOS vs PCS) don't get their quantities
   // summed nonsensically. Also GST-C3 + C2: include cess + UTGST in totals.
   const hsnMap = {};
-  filteredBills.forEach(bill => {
+  [...filteredBills, ...supplyBills].forEach(bill => { // v1.10.84 - bills of supply too
     const { items } = bill.data;
     const isInterState = billIsInterstate(bill);
     const isIntraUT = billIsIntraUT(bill);
@@ -852,7 +877,10 @@ export default function GSTReturns() {
   // GSTR-1 still lists them in B2B (SEWP / SEWOP), as the portal wants.
   const zeroRated = zeroRatedTotals(filteredBills, isExportBill);
   const exportTotals = zeroRated.zero; // 3.1(b)
-  const outward31a = withoutZeroRated(grandTotals, zeroRated.inDomestic); // 3.1(a)
+  const outward31aAll = withoutZeroRated(grandTotals, zeroRated.inDomestic);
+  // v1.10.84 - nil-rated / exempt / non-GST lines of tax invoices are in the
+  // invoice totals; they are reported in 3.1(c) / 3.1(e), not 3.1(a).
+  const outward31a = { ...outward31aAll, taxable: outward31aAll.taxable - nilSum(r => r.onTaxInvoice) }; // 3.1(a)
   const outputTax = { cgst: outward31a.cgst, sgst: outward31a.sgst, igst: outward31a.igst + exportTotals.igst };
   // ITC from expenses — P1 #15 fix: route to IGST when the expense is
   // interstate (vendor charged IGST, e.g. AWS / Google / Adobe from an
@@ -966,7 +994,8 @@ export default function GSTReturns() {
   // Put first, so the three-message limit on the banner can never hide it.
   if (exportBills.length > 0) {
     const listed = exportBills.slice(0, 3).map(b => b.invoiceNumber).join(', ') + (exportBills.length > 3 ? ', …' : '');
-    warnings.unshift({ type: 'error', msg: `${exportBills.length} export invoice(s) (${listed}) are not in the GSTR-1 file. Enter them in Table 6A on the GST portal from the Exports table below (in rupees) — their value is in GSTR-3B 3.1(b).` });
+    // v1.10.84 - they are in the JSON file now (Table 6A).
+    warnings.unshift({ type: 'warning', msg: `${exportBills.length} export invoice(s) (${listed}) are in Table 6A of the GSTR-1 file. For goods, add the shipping bill number, date and port code on the portal after uploading; their value is in GSTR-3B 3.1(b).` });
   }
 
   // ========== Filing Period Key ==========
@@ -1070,7 +1099,7 @@ export default function GSTReturns() {
     // v1.10.31 — GST-H3: key by hsn+rate+uqc so mixed-UQC items don't
     // aggregate nonsensically. GST-C3: cess included. GST-C2: UTGST folded.
     const hsnDetailed = {};
-    filteredBills.forEach(bill => {
+    [...filteredBills, ...supplyBills].forEach(bill => {
       const { items } = bill.data;
       const isInter = billIsInterstate(bill);
       const isIntraUT = billIsIntraUT(bill);
@@ -1188,7 +1217,7 @@ export default function GSTReturns() {
       },
       // v1.10.66 (#61) — exports, kept out of osup_det above. v1.10.83 - and SEZ supplies.
       osup_zero: { txval: round2(exportTotals.taxable), iamt: round2(exportTotals.igst), csamt: round2(exportTotals.cess) },
-      osup_nil_exmp: { txval: 0 },
+      osup_nil_exmp: { txval: round2(nilSum(r => r.treatment !== 'nongst')) }, // v1.10.84 - 3.1(c)
       // v1.10.31 — GST-M10: RCM inward supplies populated from purchases
       // flagged as reverse-charge (was hardcoded 0 → self-remit RCM liability
       // never reported → interest u/s 50).
@@ -1209,7 +1238,7 @@ export default function GSTReturns() {
           camt: round2(t.camt), samt: round2(t.samt), csamt: round2(t.csamt),
         };
       })(),
-      osup_nongst: { txval: 0 },
+      osup_nongst: { txval: round2(nilSum(r => r.treatment === 'nongst')) }, // v1.10.84 - 3.1(e)
     };
 
     const itc_elg = {
@@ -1365,13 +1394,12 @@ export default function GSTReturns() {
     b2bRegular.forEach(bill => {
       const { client, totals, items, details } = bill.data;
       const ctin = client.gstin;
-      if (!b2bMap[ctin]) b2bMap[ctin] = { ctin, inv: [] };
       const isInter = billIsInterstate(bill);
       const isIntraUT = billIsIntraUT(bill);
       const isRcm = !!bill.data?.invoiceOptions?.reverseCharge;
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
       const rateMap = {};
-      (items || []).forEach(item => {
+      (items || []).filter(taxableLine(bill)).forEach(item => {
         const rate = item.taxPercent || 0;
         if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         // v1.10.31 — GST-C2/H7: pass isIntraUT so UTGST folds into SGST bucket.
@@ -1389,9 +1417,11 @@ export default function GSTReturns() {
       // applicable" text). Also GST-M9: SEZ + RCM combination — GSTN rejects
       // SEWP/SEWOP with rchrg='Y'. Coerce inv_typ to 'R' if rchrg='Y'.
       const isLUT = billIsLut(bill);
-      const invType = isRcm
-        ? 'R'
-        : (isSEZ ? (isLUT ? 'SEWOP' : 'SEWP') : 'R');
+      // v1.10.84 - deemed exports (the client's tick) are DE.
+      const invType = b2bInvType({ deemedExport: !!client?.isDeemedExport, rcm: isRcm, sez: isSEZ, lut: isLUT });
+      // An invoice whose lines are all nil-rated / exempt is only in Table 8.
+      if (!Object.keys(rateMap).length) return;
+      if (!b2bMap[ctin]) b2bMap[ctin] = { ctin, inv: [] };
       // v1.10.31 — GST-C1: `val` per-invoice for RCM must reconcile with
       // per-rate iamt/camt/samt/csamt. When RCM, computeInvoiceTotals excludes
       // tax from `total`, but the per-rate map STILL emits the notional tax.
@@ -1419,7 +1449,7 @@ export default function GSTReturns() {
       const isIntraUT = billIsIntraUT(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || prof?.state || '');
       const splyTy = isInter ? 'INTER' : 'INTRA';
-      (items || []).forEach(item => {
+      (items || []).filter(taxableLine(bill)).forEach(item => {
         const rate = Number(item.taxPercent) || 0; const key = `${splyTy}_${pos}_${rate}`;
         if (!b2csMap[key]) b2csMap[key] = { sply_ty: splyTy, pos, typ: 'OE', rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const split = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, isIntraUT);
@@ -1435,24 +1465,38 @@ export default function GSTReturns() {
     const cdnurArr = unregNotes.filter(isLargeNote).map(bill => {
       const { client, totals, items, details } = bill.data;
       const rateMap = {};
-      (items || []).forEach(item => {
+      (items || []).filter(taxableLine(bill)).forEach(item => {
         const rate = Number(item.taxPercent) || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, csamt: 0 };
         const split = billSplit(bill, item, true, !!bill.data?.taxInclusive);
         rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst; rateMap[rate].csamt += split.cess;
       });
+      if (!Object.keys(rateMap).length) return null;
       return { typ: 'B2CL', ntty: 'C', nt_num: bill.invoiceNumber, nt_dt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0),
         pos: getStateCode(details?.placeOfSupply || client?.state || ''),
         itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), csamt: round2(d.csamt) } })) };
+    }).filter(Boolean);
+    // v1.10.84 - Table 6A: export invoices; their credit notes go in cdnur as
+    // EXPWP / EXPWOP. They were left for the user to type in by hand.
+    const exportLines = (bill) => (bill.data?.items || []).map(item => {
+      const split = billSplit(bill, item, true, !!bill.data?.taxInclusive);
+      return { rt: Number(item.taxPercent) || 0, txval: split.taxable, iamt: split.igst, csamt: split.cess };
     });
+    const expArr = expTable(exportBills.map(bill => ({
+      inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: bill.data?.totals?.total || 0,
+      wopay: exportWopay(bill), lines: exportLines(bill),
+    })));
+    creditNotes.filter(isExportBill).forEach(bill => cdnurArr.push(exportNote({
+      nt_num: bill.invoiceNumber, nt_dt: formatDateGST(bill.invoiceDate), val: bill.data?.totals?.total || 0,
+      wopay: exportWopay(bill), lines: exportLines(bill),
+    })));
     const b2csArr = Object.values(b2csMap).map(d => ({ ...d, txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) }));
 
     const b2clMap = {};
     b2cLarge.forEach(bill => {
       const { client, totals, items, details } = bill.data;
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
-      if (!b2clMap[pos]) b2clMap[pos] = { pos, inv: [] };
       const rateMap = {};
-      (items || []).forEach(item => {
+      (items || []).filter(taxableLine(bill)).forEach(item => {
         const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, csamt: 0 };
         // P1 #23: pass taxInclusive as 3rd arg. Pre-v1.6.8 this was omitted
         // so tax-inclusive B2CL bills inflated taxable + IGST values.
@@ -1460,17 +1504,19 @@ export default function GSTReturns() {
         rateMap[rate].txval += split.taxable; rateMap[rate].iamt += split.igst;
         rateMap[rate].csamt += split.cess; // rounded per line, as on the invoice
       });
+      if (!Object.keys(rateMap).length) return;
+      if (!b2clMap[pos]) b2clMap[pos] = { pos, inv: [] };
       b2clMap[pos].inv.push({ inum: bill.invoiceNumber, idt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), csamt: round2(d.csamt) } })) });
     });
 
     const cdnrMap = {};
     creditNotes.filter(b => b.data?.client?.gstin && !isExportBill(b)).forEach(bill => {
       const { client, totals, items, details } = bill.data;
-      const ctin = client.gstin; if (!cdnrMap[ctin]) cdnrMap[ctin] = { ctin, nt: [] };
+      const ctin = client.gstin;
       const isInter = billIsInterstate(bill);
       const pos = getStateCode(details?.placeOfSupply || client?.state || '');
       const rateMap = {};
-      (items || []).forEach(item => {
+      (items || []).filter(taxableLine(bill)).forEach(item => {
         const rate = item.taxPercent || 0; if (!rateMap[rate]) rateMap[rate] = { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         // UTGST goes in samt, as for B2B (it was dropped for intra-UT notes).
         const split = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, billIsIntraUT(bill));
@@ -1484,14 +1530,16 @@ export default function GSTReturns() {
       // v1.10.83 - same rules as B2B: the LUT tick first, "LUT" as a word, and
       // SEZ with reverse charge filed as R.
       const isLUT = billIsLut(bill);
-      const invType = rchrg === 'Y' ? 'R' : (isSEZ ? (isLUT ? 'SEWOP' : 'SEWP') : 'R');
+      const invType = b2bInvType({ deemedExport: !!client?.isDeemedExport, rcm: rchrg === 'Y', sez: isSEZ, lut: isLUT });
+      if (!Object.keys(rateMap).length) return;
+      if (!cdnrMap[ctin]) cdnrMap[ctin] = { ctin, nt: [] };
       cdnrMap[ctin].nt.push({ ntty: 'C', nt_num: bill.invoiceNumber, nt_dt: formatDateGST(bill.invoiceDate), val: round2(totals?.total || 0), pos, rchrg, inv_typ: invType,
         itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) } })) });
     });
 
     const hsnJsonMap = {};
     let unknownUnitCount = 0;
-    filteredBills.forEach(bill => {
+    [...filteredBills, ...supplyBills].forEach(bill => {
       const { items } = bill.data;
       const isInter = billIsInterstate(bill);
       const isIntraUT = billIsIntraUT(bill);
@@ -1540,6 +1588,8 @@ export default function GSTReturns() {
       b2cl: Object.values(b2clMap),
       cdnr: Object.values(cdnrMap),
       cdnur: cdnurArr,
+      exp: expArr,
+      nil: nilTable(nilRows),
       hsn: hsnTable(Object.values(hsnJsonMap).map((r) => ({ ...r, qty: roundQty(r.qty, 2), txval: round2(r.txval), iamt: round2(r.iamt), camt: round2(r.camt), samt: round2(r.samt), csamt: round2(r.csamt) })), fp),
       doc_issue: { doc_det: docDet },
     });
@@ -1784,7 +1834,7 @@ export default function GSTReturns() {
                 </table>
               </div>
               <p style={{ padding: '0.6rem 1.25rem', margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Enter these in Table 6A on the GST portal (they are not in the JSON file). For services no shipping bill is needed; for goods add the shipping bill number, date and port code.
+                These are in Table 6A of the JSON file. For services nothing more is needed; for goods, add the shipping bill number, date and port code on the portal after uploading.
               </p>
             </div>
           )}

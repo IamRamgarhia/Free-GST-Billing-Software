@@ -1,6 +1,6 @@
 // v1.10.83 (#133) - GSTR-1 JSON parts the GST portal is strict about.
 // Run: `node scripts/gstr1-json-test.mjs`
-import { hsnSplitFrom, hsnTable, stripEmpty } from '../src/utils/gstr1Json.js';
+import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType } from '../src/utils/gstr1Json.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -30,6 +30,54 @@ console.log('\n[#133] Blank values are not written');
 eq(stripEmpty({ gstin: '03AAA', b2b: [], b2cs: [{ pos: '03', rt: 0, txval: 0, etin: '' }], cdnr: [], hsn: { hsn_b2b: [], hsn_b2c: [{ num: 1 }] }, doc_issue: { doc_det: [] } }),
   { gstin: '03AAA', b2cs: [{ pos: '03', rt: 0, txval: 0 }], hsn: { hsn_b2c: [{ num: 1 }] } },
   'empty lists, empty objects and "" go; 0 stays');
+
+console.log('\n[v1.10.84] Which table a line belongs in');
+const lt = (o) => lineTreatment({ invoiceType: 'tax-invoice', isExport: false, taxPercent: 18, gstTreatment: '', ...o });
+eq(lt({}), 'taxable', 'a line that charges GST is taxable');
+eq(lt({ taxPercent: 0 }), 'nil', 'a 0% line on a tax invoice is nil-rated');
+eq(lt({ taxPercent: 0, gstTreatment: 'exempt' }), 'exempt', '...or exempt when its product says so');
+eq(lt({ taxPercent: 0, gstTreatment: 'nongst' }), 'nongst', '...or non-GST');
+eq(lt({ taxPercent: 18, gstTreatment: 'exempt' }), 'taxable', 'a line that charged tax stays taxable whatever the product says');
+eq(lt({ invoiceType: 'bill-of-supply', taxPercent: 0 }), 'exempt', 'a bill of supply is exempt by default');
+eq(lt({ invoiceType: 'bill-of-supply', taxPercent: 0, gstTreatment: 'nil' }), 'nil', '...nil-rated when its product says so');
+eq(lt({ isExport: true, taxPercent: 0 }), 'taxable', 'an export line is zero-rated (Table 6A), never nil');
+
+console.log('\n[v1.10.84] Table 8 (nil)');
+eq(nilTable([
+  { interstate: false, b2b: false, treatment: 'exempt', txval: 1000 },
+  { interstate: false, b2b: false, treatment: 'nil', txval: 250.005 },
+  { interstate: true, b2b: true, treatment: 'nongst', txval: 500 },
+  { interstate: false, b2b: false, treatment: 'exempt', txval: -200 },
+  { interstate: true, b2b: false, treatment: 'taxable', txval: 9999 },
+  { interstate: false, b2b: true, treatment: 'nil', txval: 100 },
+  { interstate: false, b2b: true, treatment: 'nil', txval: -100 },
+]), { inv: [
+  { sply_ty: 'INTRB2B', nil_amt: 0, expt_amt: 0, ngsup_amt: 500 },
+  { sply_ty: 'INTRAB2C', nil_amt: 250.01, expt_amt: 800, ngsup_amt: 0 },
+] }, 'summed per supply type in portal order; a credit note reduces its row; a row that nets to 0 and taxable lines are left out');
+eq(nilTable([]), undefined, 'no nil supplies: no table');
+
+console.log('\n[v1.10.84] Table 6A (exp) and export credit notes');
+const exp = expTable([
+  { inum: 'EX/1', idt: '05-10-2026', val: 118000, wopay: false, lines: [{ rt: 18, txval: 100000, iamt: 18000, csamt: 0 }] },
+  { inum: 'EX/2', idt: '06-10-2026', val: 50000, wopay: true, lines: [{ rt: 18, txval: 30000, iamt: 0, csamt: 0 }, { rt: 12, txval: 20000, iamt: 0, csamt: 0 }] },
+  { inum: 'EX/3', idt: '07-10-2026', val: 1120, wopay: false, lines: [{ rt: 12, txval: 500, iamt: 60 }, { rt: 12, txval: 500, iamt: 60 }] },
+]);
+eq(exp.map((g) => `${g.exp_typ}:${g.inv.map((i) => i.inum).join('+')}`), ['WPAY:EX/1+EX/3', 'WOPAY:EX/2'], 'grouped as WPAY then WOPAY');
+eq(exp[0].inv[0], { inum: 'EX/1', idt: '05-10-2026', val: 118000, itms: [{ txval: 100000, rt: 18, iamt: 18000, csamt: 0 }] }, 'flat items with rate and IGST, no place of supply');
+eq(exp[0].inv[1].itms, [{ txval: 1000, rt: 12, iamt: 120, csamt: 0 }], 'lines at one rate add up into one item');
+eq(exp[1].inv[0].itms, [{ txval: 50000, rt: 0, iamt: 0, csamt: 0 }], 'without payment: one item at rate 0 and no tax');
+eq(exportNote({ nt_num: 'CN/1', nt_dt: '09-10-2026', val: 11800, wopay: false, lines: [{ rt: 18, txval: 10000, iamt: 1800 }] }),
+  { typ: 'EXPWP', ntty: 'C', nt_num: 'CN/1', nt_dt: '09-10-2026', val: 11800, itms: [{ num: 1, itm_det: { rt: 18, txval: 10000, iamt: 1800, csamt: 0 } }] },
+  'an export credit note: cdnur typ EXPWP, no place of supply');
+eq(exportNote({ nt_num: 'CN/2', nt_dt: '09-10-2026', val: 100, wopay: true, lines: [{ rt: 18, txval: 100 }] }).typ, 'EXPWOP', '...EXPWOP under a LUT');
+
+console.log('\n[v1.10.84] b2b invoice type');
+eq(b2bInvType({}), 'R', 'a regular sale');
+eq(b2bInvType({ rcm: true, sez: true }), 'R', 'reverse charge to an SEZ is R');
+eq(b2bInvType({ sez: true, lut: true }), 'SEWOP', 'SEZ under a LUT');
+eq(b2bInvType({ sez: true }), 'SEWP', 'SEZ with IGST');
+eq(b2bInvType({ deemedExport: true, rcm: true }), 'DE', 'a deemed export is DE, before anything else');
 
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);

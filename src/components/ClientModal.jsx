@@ -9,7 +9,7 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
   const fallbackCountry = defaultCountry || detectCountryFromBrowser();
   const emptyForm = {
     name: '', address: '', city: '', pin: '', state: '', gstin: '', email: '', phone: '',
-    country: fallbackCountry, isSEZ: false,
+    country: fallbackCountry, isSEZ: false, isDeemedExport: false,
     // v1.9.1 — per-client print preferences. When set, they auto-populate
     // invoiceOptions when the user creates a new invoice for this client.
     // Left blank = use app-wide defaults.
@@ -27,6 +27,7 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
         pin: client.pin || '', state: client.state || '', gstin: client.gstin || '',
         email: client.email || '', phone: client.phone || '', country: client.country || fallbackCountry,
         isSEZ: !!client.isSEZ,
+        isDeemedExport: !!client.isDeemedExport,
         preferredPaperSize: client.preferredPaperSize || '',
         preferredCurrency: client.preferredCurrency || '',
         autoPrint: !!client.autoPrint,
@@ -152,6 +153,13 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
                   onChange={e => setForm(prev => ({ ...prev, isSEZ: e.target.checked }))}
                   style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
                 <span><strong>SEZ unit / Developer</strong> — supplies will be charged IGST regardless of state (Section 16, IGST Act).</span>
+              </label>
+              {/* v1.10.84 - GSTR-1 files their invoices as deemed exports (DE). */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', marginTop: '0.4rem' }}>
+                <input type="checkbox" checked={!!form.isDeemedExport}
+                  onChange={e => setForm(prev => ({ ...prev, isDeemedExport: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
+                <span><strong>Deemed export</strong> — for example an EOU, or supplies against Advance Authorisation. GST is charged as usual; GSTR-1 files them as deemed exports.</span>
               </label>
             </div>
           )}
