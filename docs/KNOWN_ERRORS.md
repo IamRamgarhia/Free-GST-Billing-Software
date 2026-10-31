@@ -730,6 +730,32 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-077 - GSTR-1 said "Invalid client GSTIN format" for a correct GSTIN
+
+**Version:** every version with the GSTR-1 checks · fixed in v1.10.84
+**Reported by:** tomsingh0049-svg, issue #141 (2026-10-31)
+
+**Symptom** - GST Returns → GSTR-1: "Invoice 11: Invalid client GSTIN format —
+21GLZPP9877E1Z3". The number shown is a valid GSTIN (its check character is right).
+
+**Cause** - the check tests the saved text exactly. A GSTIN pasted with a space
+or an invisible character (copied from a web page, WhatsApp or Excel), or saved
+in small letters by an import, looks the same on screen but fails it, and would
+have gone into the JSON like that. Also, the check wanted a digit as the 13th
+character; after a PAN's ninth registration in a state it is a letter.
+
+**Rule** - GST Returns cleans every client GSTIN as it loads the invoices
+(`cleanGstin` in `src/utils/gstr1Json.js`: capitals, only 0-9 A-Z, when that
+leaves 15 characters), so the checks, tables, CSV and JSON all use the clean
+value. One format test (`gstinFormatOk`), with a letter or digit as the 13th
+character; `taxIdRegex` for India allows the same.
+
+**Guard** - `scripts/gstr1-json-test.mjs` (#141 section). Checked in the app on a
+test copy: invoices whose GSTIN had a trailing space, or small letters plus a
+zero-width space, show no error; a GSTIN one character short still does.
+
+---
+
 ## ERR-076 - Install stopped at "Opening the app in your browser now..."
 
 **Version:** broke in v1.10.83 · fixed in v1.10.84

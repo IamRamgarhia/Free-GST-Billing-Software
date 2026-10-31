@@ -1,6 +1,6 @@
 // v1.10.83 (#133) - GSTR-1 JSON parts the GST portal is strict about.
 // Run: `node scripts/gstr1-json-test.mjs`
-import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails } from '../src/utils/gstr1Json.js';
+import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk } from '../src/utils/gstr1Json.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -95,6 +95,16 @@ console.log('\n[ERR-056] Table 13: one row per number series, by the number\'s v
   eq(det.map((d) => `${d.doc_num}:${d.docs.length}`), ['1:3', '5:1', '12:1'], 'doc_num is the portal\'s nature code (1, 5, 12), not a position');
   eq(det[0].docs[0], { num: 1, from: 'INV/9', to: 'INV/11', totnum: 3, cancel: 1, net_issue: 2 }, 'net issued = total - cancelled');
 }
+
+console.log('\n[#141] A GSTIN saved with a space or a hidden character');
+eq(cleanGstin('21GLZPP9877E1Z3 '), '21GLZPP9877E1Z3', 'a space after it is dropped');
+eq(cleanGstin(' 21glzpp9877e1z3'), '21GLZPP9877E1Z3', 'small letters and a space before it');
+eq(cleanGstin('21GLZPP9877E1Z3​'), '21GLZPP9877E1Z3', 'an invisible character (pasted from a web page)');
+eq(cleanGstin('21 GLZPP 9877 E1Z3'), '21GLZPP9877E1Z3', 'spaces inside');
+eq(cleanGstin('21GLZPP9877E1Z'), '21GLZPP9877E1Z', 'too short: left as typed, so the check still shows it');
+eq(gstinFormatOk('21GLZPP9877E1Z3'), true, 'a real GSTIN passes');
+eq(gstinFormatOk('27AAACR5055KAZ1'), true, 'the 13th character can be a letter (10th+ registration in a state)');
+eq(gstinFormatOk('21GLZPP9877E1Z3 '), false, 'the check itself still wants the clean value');
 
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);

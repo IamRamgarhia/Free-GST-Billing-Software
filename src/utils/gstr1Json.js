@@ -30,6 +30,20 @@ export function hsnTable(rows, fp) {
   };
 }
 
+// #141 - a GSTIN pasted with a space or an invisible character looked right
+// on screen but failed the format check (and the portal). Keep only 0-9 A-Z
+// when that leaves the 15 characters of a GSTIN; anything else stays as typed,
+// so the check still points at it.
+export const cleanGstin = (value) => {
+  const raw = String(value ?? '');
+  const tight = raw.toUpperCase().replace(/[^0-9A-Z]/g, '');
+  return tight.length === 15 ? tight : raw.trim();
+};
+
+// State code, PAN (5 letters, 4 digits, 1 letter), registration number (1-9,
+// then A-Z after the ninth in a state), Z/D/C, check character.
+export const gstinFormatOk = (gstin) => /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d][A-Z][A-Z\d]$/.test(String(gstin ?? ''));
+
 // The portal rejects blank values: drop '', null, undefined, empty lists and
 // empty objects, at every level. 0 stays.
 export function stripEmpty(value) {

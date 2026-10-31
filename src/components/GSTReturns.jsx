@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules } from '../store';
-import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails } from '../utils/gstr1Json';
+import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, hsnUqc, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, splitLineTax, roundQty, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -569,7 +569,11 @@ export default function GSTReturns() {
       // into rupees at the exchange rate saved on it. One without a rate stays
       // as it is, marked fxMissing, and is listed as an error below.
       const inRupees = (bill) => billInInr(bill) || { ...bill, fxMissing: true };
-      setBills((b || []).filter(bill => belongsToProfile(bill, p) && !isCancelledBill(bill)).map(inRupees));
+      // #141 - every table, file and check below reads this cleaned GSTIN.
+      const withCleanGstin = (bill) => (bill.data?.client?.gstin
+        ? { ...bill, data: { ...bill.data, client: { ...bill.data.client, gstin: cleanGstin(bill.data.client.gstin) } } }
+        : bill);
+      setBills((b || []).filter(bill => belongsToProfile(bill, p) && !isCancelledBill(bill)).map(inRupees).map(withCleanGstin));
       setCancelledBills((b || []).filter(bill => belongsToProfile(bill, p) && isCancelledBill(bill)));
       // v1.10.66 (#64) — and only its own expenses and purchases. Left
       // unfiltered, GSTR-3B Table 4 claimed input tax credit on purchases made
@@ -949,10 +953,8 @@ export default function GSTReturns() {
       });
       return;
     }
-    // Official GSTIN format: 2 digits state code, 5 letters PAN holder, 4 digits PAN number,
-    // 1 letter PAN entity, 1 digit, 1 letter (Z by default), 1 alphanumeric checksum.
-    // The last char can be a letter or digit, so the final group is [A-Z\d], not \d.
-    if (client?.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z][A-Z\d]$/.test(client.gstin)) {
+    // Official GSTIN format (gstinFormatOk); the GSTIN was cleaned on load (#141).
+    if (client?.gstin && !gstinFormatOk(client.gstin)) {
       warnings.push({ type: 'error', msg: `Invoice ${bill.invoiceNumber}: Invalid client GSTIN format — ${client.gstin}` });
     }
     (items || []).forEach(item => {
