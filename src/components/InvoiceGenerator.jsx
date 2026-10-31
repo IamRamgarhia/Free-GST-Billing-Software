@@ -25,6 +25,8 @@ import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
 import ClientModal from './ClientModal';
 import { EInvoiceEditorModal } from './EInvoiceModal';
 import { toast } from './Toast';
+import ClientCustomFields from './ClientCustomFields';
+import { findClientMatch, mergeClientRecord, pickCustomerPrefs } from '../utils/clientSync';
 
 // Rich text editor component that works with contentEditable properly
 function RichEditor({ value, onChange, placeholder, toolbar = false }) {
@@ -578,6 +580,31 @@ function fitSpacersToOnePage(container, pageWmm, pageHmm, ps) {
   return () => undo.reverse().forEach((f) => f());
 }
 
+// Sections of the New Invoice entry form a user can hide when they never use
+// them. Hidden only on this page: data already on an invoice still prints.
+// Kept per device, like the preview zoom.
+const FORM_LAYOUT_KEY = 'gst.invoiceFormLayout';
+const FORM_SECTIONS = [
+  ['clientCountry', 'Client country'],
+  ['clientCity', 'Client city'],
+  ['clientPin', 'Client postal / PIN code'],
+  ['clientPhone', 'Client phone'],
+  ['clientEmail', 'Client email'],
+  ['clientCustomFields', 'Client custom fields'],
+  ['shipTo', 'Ship to (different address)'],
+  ['orderDetails', 'Order, dispatch & reference details'],
+  ['billDiscount', 'Discount on total / delivery charges'],
+  ['terms', 'Terms, notes & internal note'],
+  ['extraSections', 'Additional pages / sections'],
+];
+function loadFormLayout() {
+  try { return JSON.parse(localStorage.getItem(FORM_LAYOUT_KEY) || '{}') || {}; } catch { return {}; }
+}
+function saveFormLayout(layout) {
+  try { localStorage.setItem(FORM_LAYOUT_KEY, JSON.stringify(layout)); } catch { /* private window */ }
+}
+const AUTO_SAVE_CUSTOMER_KEY = 'gst.autoSaveCustomer';
+
 export default function InvoiceGenerator({ onBack, profile: profileProp, editingBill }) {
   const draft = loadDraft();
   const [allProfiles, setAllProfiles] = useState([]);
@@ -587,7 +614,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // email/phone/isSEZ must be part of initial state — otherwise the SEZ flag
   // set inside ClientModal is silently discarded on save, and reopening the
   // bill can never restore contact fields even if the saved client has them.
-  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false });
+  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false, customFields: [] });
+  // Sections of this form the user has hidden (see FORM_SECTIONS).
+  const [formLayout, setFormLayout] = useState(loadFormLayout);
+  const sectionShown = (key) => !formLayout[key];
+  const toggleFormSection = (key) => setFormLayout(prev => { const next = { ...prev, [key]: !prev[key] }; saveFormLayout(next); return next; });
+  // Customer details typed here are saved to the customer list on save.
+  const [autoSaveCustomer, setAutoSaveCustomer] = useState(() => {
+    try { return localStorage.getItem(AUTO_SAVE_CUSTOMER_KEY) !== '0'; } catch { return true; }
+  });
   // v1.9.1 — preview zoom (session-only). Reads from printSettings for the
   // initial value so the user's preference carries across bill switches.
   // v1.10.33 — Was READ-ONLY: the initial-load line pulled from
@@ -1600,6 +1635,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (tpl) setCustomTerms(tpl.content);
   };
 
+  const prefsBaseline = useRef(null);
   const selectSavedClient = (cli) => {
     // Spread the FULL client — earlier versions cherry-picked six fields
     // and silently dropped country/email/phone/isSEZ. Consequence: loading
@@ -1616,6 +1652,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       email: cli.email || '',
       phone: cli.phone || '',
       isSEZ: !!cli.isSEZ,
+      customFields: Array.isArray(cli.customFields) ? cli.customFields.map(f => ({ ...f })) : [],
     });
     setSelectedClientId(cli.id);
     setShowClientSuggestions(false);
@@ -1631,8 +1668,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // clientAutoPrint to the new client's value OR the app default, so
     // client B resets to A4/INR cleanly.
     if (!editingBill) {
+      // A customer with saved options (Customize → This customer) gets them;
+      // picking another customer afterwards puts the earlier options back.
+      const restore = prefsBaseline.current || {};
+      prefsBaseline.current = cli.invoicePrefs ? (prefsBaseline.current || pickCustomerPrefs(invoiceOptions)) : null;
       setInvoiceOptions(prev => ({
         ...prev,
+        ...restore,
         // v1.10.33 — Was `cli.preferredPaperSize || 'a4'` which HARD-RESET
         // to A4 for every client without an explicit preference — wiping
         // out the user's globally saved default (e.g. someone who prints
@@ -1656,6 +1698,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         ...currencyPatch(prev, currencyForClient(cli, profile, { preferred: cli.preferredCurrency, lastForeign: prev.lastForeignCurrency })),
         // v1.10.5 — client-level auto-print override (see original comment).
         clientAutoPrint: !!cli.autoPrint,
+        // The layout saved for this customer (Customize → This customer).
+        ...(cli.invoicePrefs || {}),
       }));
     }
     toast(`Loaded client: ${cli.name}`, 'info');
@@ -1665,7 +1709,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const openAddClientModal = () => {
     // v1.10.74 - pass country too; without it the modal fell back to the
     // business country and saving could overwrite the invoice's country.
-    setModalClient({ name: client.name || '', address: client.address || '', city: client.city || '', pin: client.pin || '', state: client.state || '', gstin: client.gstin || '', country: client.country || '' });
+    setModalClient({ name: client.name || '', address: client.address || '', city: client.city || '', pin: client.pin || '', state: client.state || '', gstin: client.gstin || '', country: client.country || '', email: client.email || '', phone: client.phone || '', isSEZ: !!client.isSEZ, customFields: client.customFields || [] });
     setIsEditingClient(false);
     setShowClientModal(true);
     setShowClientSuggestions(false);
@@ -1698,6 +1742,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       email: data.email || '',
       phone: data.phone || '',
       isSEZ: !!data.isSEZ,
+      customFields: Array.isArray(data.customFields) ? data.customFields.map(f => ({ ...f })) : [],
     });
     // v1.10.83 - a new client abroad gets their currency on a new invoice.
     if (!editingSaved) setCurrency(currencyForClient(data, profile, { preferred: data.preferredCurrency, lastForeign: invoiceOptions.lastForeignCurrency }));
@@ -1733,6 +1778,48 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // The customer id a sync created on this page, so an auto-save landing
+  // before React re-renders does not create the same customer twice.
+  const syncedClientId = useRef(null);
+  // An older invoice opened for editing carries the customer as they were
+  // then; saving it must not put an old address back on the customer unless
+  // the customer details were changed here.
+  const clientTouched = useRef(false);
+  useEffect(() => { if (hasInitialized.current) clientTouched.current = true; }, [client]);
+  const syncCustomerRecord = async () => {
+    if (!client.name?.trim()) return;
+    if (editingBill && !editingBill._isDuplicate && !clientTouched.current) return;
+    const latest = await getAllClients().catch(() => savedClients);
+    const existing = findClientMatch(latest, client, selectedClientId || syncedClientId.current);
+    const record = mergeClientRecord(existing, client);
+    if (!record) {
+      if (existing && existing.id !== selectedClientId) setSelectedClientId(existing.id);
+      return;
+    }
+    const saved = await saveClient(record);
+    if (saved?.id) { syncedClientId.current = saved.id; setSelectedClientId(saved.id); }
+    setSavedClients(await getAllClients().catch(() => latest));
+    if (!existing) toast(`"${record.name}" added to your customers`, 'info');
+  };
+
+  // Customize → This customer: remember how this customer's invoices look.
+  const selectedSavedClient = savedClients.find(c => c.id === selectedClientId) || null;
+  const saveCustomerPrefs = async () => {
+    if (!selectedSavedClient) return;
+    const invoicePrefs = pickCustomerPrefs(invoiceOptions);
+    await saveClient({ ...selectedSavedClient, invoicePrefs });
+    setSavedClients(await getAllClients());
+    toast(`These options will be used for every new invoice to ${selectedSavedClient.name}`, 'success');
+  };
+  const clearCustomerPrefs = async () => {
+    if (!selectedSavedClient) return;
+    const rest = { ...selectedSavedClient };
+    delete rest.invoicePrefs;
+    await saveClient(rest);
+    setSavedClients(await getAllClients());
+    toast(`${selectedSavedClient.name} now uses the standard options`, 'info');
+  };
 
   const saveInvoiceToDBNow = async (skipStockDeduction = false, extraPatch = {}) => {
     if (readOnlyDoc) {
@@ -2074,6 +2161,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     savedId.current = savedNumber;
+    // Customer details typed on this invoice (a phone number, custom fields,
+    // a new address) go to the customer list too, so they are there for the
+    // next invoice. A new name becomes a new customer.
+    if (autoSaveCustomer) {
+      try { await syncCustomerRecord(); }
+      catch (err) { console.error('Customer sync failed:', err); toast('Invoice saved, but the customer details could not be saved to the customer list', 'warning'); }
+    }
     // A rename: the bill now lives under its new number, so the old file goes
     // (to the Trash, from where it can be restored).
     if (renameFrom && renameFrom !== savedNumber) {
@@ -3680,6 +3774,51 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             {/* Customization Options */}
             {showOptions && (
               <div className="invoice-options" id="invoice-options-panel" style={{ scrollMarginTop: 110 }}>
+                {/* This customer: keep this invoice's look for every invoice to them. */}
+                <div style={{ marginBottom: '0.9rem', padding: '0.65rem 0.8rem', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>This customer</div>
+                  {selectedSavedClient ? (
+                    <>
+                      <p style={{ fontSize: '0.8rem', margin: '0 0 0.45rem' }}>
+                        {selectedSavedClient.invoicePrefs
+                          ? <>Invoices to <strong>{selectedSavedClient.name}</strong> use their own saved options. They load when you pick this customer.</>
+                          : <>Set the style, colour and fields below, then save them for <strong>{selectedSavedClient.name}</strong>. Every new invoice to them will start with them.</>}
+                      </p>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button type="button" className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}
+                          onClick={() => saveCustomerPrefs().catch(() => toast('Could not save the options for this customer', 'error'))}>
+                          {selectedSavedClient.invoicePrefs ? 'Update' : 'Save'} options for {selectedSavedClient.name}
+                        </button>
+                        {selectedSavedClient.invoicePrefs && (
+                          <button type="button" className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}
+                            onClick={() => clearCustomerPrefs().catch(() => toast('Could not clear the options', 'error'))}>
+                            Use standard options
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Pick a saved customer in Billed To (or save this invoice once) to keep these options for just that customer.
+                    </p>
+                  )}
+                </div>
+
+                {/* Sections of this entry form; hiding one does not remove data already on an invoice. */}
+                <div style={{ marginBottom: '0.9rem' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Show on this page</div>
+                  <div className="options-grid">
+                    {FORM_SECTIONS.map(([key, label]) => (
+                      <label key={key} className="option-toggle">
+                        <input type="checkbox" checked={sectionShown(key)} onChange={() => toggleFormSection(key)} />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>
+                    Hides parts of this form you do not use, on this device. Anything already filled in is kept and still prints; what prints is set in the groups below.
+                  </p>
+                </div>
                 <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                   <label className="form-label">Invoice Title <HelpButton title="Title, currency and exchange rate" doc="invoice-options#title-currency" size={16} /></label>
                   <input type="text" className="form-input" value={invoiceOptions.customTitle}
@@ -3949,6 +4088,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showClientAddress', 'Client address'],
                     ['showClientPhone', 'Client phone'],
                     ['showClientEmail', 'Client email'],
+                    ['showClientCustomFields', 'Client custom fields'],
                     ['showPlaceOfSupply', 'Place of Supply'],
                   ]},
                   { group: 'Invoice meta', items: [
@@ -4137,7 +4277,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
                   <button type="button" className="btn btn-secondary"
                     onClick={() => {
-                      const allKeys = ['showLogo','showBusinessName','showBusinessAddress','showBusinessPhone','showBusinessEmail','showState','showGSTIN','showClientAddress','showClientPhone','showClientEmail','showPlaceOfSupply','showInvoiceNumber','showInvoiceDate','showDueDate','showHSN','showItemQty','showItemUnit','showRateColumn','showDiscount','showGST','showSubtotal','showAmountWords','showRoundOff','showBankDetails','showAccountLabel','showUPI','showSignature','showSignatoryText','showTerms','showNotes'];
+                      const allKeys = ['showLogo','showBusinessName','showBusinessAddress','showBusinessPhone','showBusinessEmail','showState','showGSTIN','showClientAddress','showClientPhone','showClientEmail','showClientCustomFields','showPlaceOfSupply','showInvoiceNumber','showInvoiceDate','showDueDate','showHSN','showItemQty','showItemUnit','showRateColumn','showDiscount','showGST','showSubtotal','showAmountWords','showRoundOff','showBankDetails','showAccountLabel','showUPI','showSignature','showSignatoryText','showTerms','showNotes'];
                       setInvoiceOptions(prev => { const out = { ...prev }; allKeys.forEach(k => { out[k] = false; }); return out; });
                     }}
                     style={{ fontSize: '0.72rem', padding: '0.3rem 0.6rem' }}>
@@ -4310,7 +4450,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <input type="text" className="form-input" value={client.address}
                   onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Street address, locality" />
               </div>
-              <div className="form-group">
+              {sectionShown('clientCountry') && <div className="form-group">
                 <label className="form-label" htmlFor="client-country">Country</label>
                 <select id="client-country" className="form-input" value={client.country || profile?.country || 'India'}
                   onChange={(e) => {
@@ -4328,17 +4468,28 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     return out.concat(visible.map(c => <option key={c.code} value={c.name}>{c.name}</option>));
                   })()}
                 </select>
-              </div>
-              <div className="form-group">
+              </div>}
+              {sectionShown('clientCity') && <div className="form-group">
                 <label className="form-label">City</label>
                 <input type="text" className="form-input" value={client.city}
                   onChange={(e) => setClient({ ...client, city: e.target.value })} placeholder="e.g. Mumbai" />
-              </div>
-              <div className="form-group">
+              </div>}
+              {sectionShown('clientPin') && <div className="form-group">
                 {(() => { const cc = getCountryConfig(client.country || profile?.country); return <label className="form-label">{cc.postalLabel}</label>; })()}
                 <input type="text" className="form-input" value={client.pin}
                   onChange={(e) => setClient({ ...client, pin: e.target.value })} placeholder="Postal / PIN code" />
-              </div>
+              </div>}
+              {sectionShown('clientPhone') && <div className="form-group">
+                <label className="form-label" htmlFor="client-phone">Phone</label>
+                <input id="client-phone" type="tel" className="form-input" value={client.phone || ''}
+                  onChange={(e) => setClient({ ...client, phone: e.target.value })}
+                  placeholder={isForeignClient(client, profile) ? 'With country code, e.g. +1 415 555 0100' : '+91 98765 43210'} />
+              </div>}
+              {sectionShown('clientEmail') && <div className="form-group">
+                <label className="form-label" htmlFor="client-email">Email</label>
+                <input id="client-email" type="email" className="form-input" value={client.email || ''}
+                  onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="client@example.com" />
+              </div>}
               {invoiceOptions.showState && (() => {
                 const cc = getCountryConfig(client.country || profile?.country);
                 const stateOpts = getStatesForCountry(client.country || profile?.country);
@@ -4375,7 +4526,27 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   </div>
                 );
               })()}
+              {sectionShown('clientCustomFields') && (
+                <div className="form-group full-width">
+                  <label className="form-label">Custom fields <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.75rem' }}>(print in the Bill-to block when both name and value are filled)</span></label>
+                  <ClientCustomFields fields={client.customFields} onChange={(customFields) => setClient(prev => ({ ...prev, customFields }))} />
+                </div>
+              )}
             </div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={autoSaveCustomer} style={{ marginTop: 2, accentColor: 'var(--primary)' }}
+                onChange={e => {
+                  const on = e.target.checked;
+                  setAutoSaveCustomer(on);
+                  try { localStorage.setItem(AUTO_SAVE_CUSTOMER_KEY, on ? '1' : '0'); } catch { /* private window */ }
+                }} />
+              <span>
+                Save these customer details to my customer list when I save the invoice
+                <span style={{ display: 'block', fontSize: '0.72rem' }}>
+                  {selectedClientId ? 'Changes here update the saved customer.' : client.name?.trim() ? `"${client.name.trim()}" will be added as a new customer.` : 'A new name is added as a new customer.'}
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* Invoice Details */}
@@ -4544,7 +4715,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               {/* v1.10.11 — Ship-to = Bill-to checkbox. When unchecked,
                    4 shipping fields appear. Rendered next to the billing
                    block in the PDF preview. */}
-              {(!servicesMode || details.shipToSameAsBilling === false) && <div className="form-group full-width" style={{ marginTop: '0.5rem', padding: '0.6rem 0.85rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+              {(sectionShown('shipTo') || details.shipToSameAsBilling === false) && (!servicesMode || details.shipToSameAsBilling === false) && <div className="form-group full-width" style={{ marginTop: '0.5rem', padding: '0.6rem 0.85rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none', fontSize: '0.88rem' }}>
                   <input type="checkbox" checked={details.shipToSameAsBilling !== false}
                     onChange={e => setDetails({ ...details, shipToSameAsBilling: e.target.checked })}
@@ -4599,6 +4770,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 // boxes show only if one is already filled.
                 const fields = ORDER_DETAIL_FIELDS.filter(f => !servicesMode || !GOODS_ONLY_DETAILS.includes(f.key) || String(details[f.key] || '').trim());
                 const periodBackwards = details.periodFrom && details.periodTo && details.periodTo < details.periodFrom;
+                if (!sectionShown('orderDetails') && !filled) return null;
                 return (
                   <details className="form-group full-width" open={filled > 0 || undefined}
                     style={{ padding: '0.6rem 0.85rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
@@ -4670,7 +4842,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             ))}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <button className="btn btn-secondary mt-2" onClick={addItem}><Plus size={18} /> Add Item</button>
-              {!hasDeliveryCharge && !servicesMode && (
+              {!hasDeliveryCharge && !servicesMode && sectionShown('billDiscount') && (
                 <button type="button" className="btn btn-secondary mt-2" onClick={addDeliveryCharge}
                   title="Adds a 'Delivery charges' line, taxed at the goods' GST rate (composite supply)">
                   <Truck size={16} /> Delivery charges
@@ -4687,7 +4859,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 the line items so it reads as "…and then take X off the
                 whole bill". Zero value = no line renders in the preview. */}
             {/* v1.10.83 - a services invoice keeps it behind one click until used. */}
-            {servicesMode && !wholeDiscountOpen && !Number(invoiceOptions.invoiceDiscountValue) ? (
+            {!sectionShown('billDiscount') && !Number(invoiceOptions.invoiceDiscountValue) ? null
+            : servicesMode && !wholeDiscountOpen && !Number(invoiceOptions.invoiceDiscountValue) ? (
               <button type="button" className="btn-link" onClick={() => setWholeDiscountOpen(true)}
                 style={{ marginTop: '0.75rem', background: 'none', border: 0, padding: 0, cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                 + Discount on the whole bill
@@ -4715,7 +4888,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           </div>
 
           {/* Terms */}
-          <div className="glass-panel p-6 mb-6">
+          {sectionShown('terms') && <div className="glass-panel p-6 mb-6">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
               <h3 className="section-title" style={{ margin: 0 }}>Terms & Conditions <HelpButton title="Terms & Conditions" doc="invoices#terms-notes" size={16} /></h3>
               {/* v1.10.37 — Terms rendering mode picker. Reported: PDF was
@@ -4824,10 +4997,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 style={{ fontSize: '0.82rem' }}
                 placeholder="e.g. Client asked for 15-day credit, follow up on 20th, referred by Ravi..." />
             </div>
-          </div>
+          </div>}
 
           {/* Extra Sections */}
-          <div className="glass-panel p-6 mb-6">
+          {(sectionShown('extraSections') || extraSections.length > 0) && <div className="glass-panel p-6 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="section-title" style={{ margin: 0 }}>Additional Pages / Sections <HelpButton title="Additional Pages / Sections" doc="invoices#extra-pages" size={16} /></h3>
               <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
@@ -4864,7 +5037,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 </div>
               ))
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Live Preview — visually hidden in focus mode (v1.10.22) but

@@ -204,6 +204,7 @@ function PartyBlock({ ctx, heading, party, withContact }) {
       {t.state && party.state && <div>State Name : {stateWithCode(party.state)}</div>}
       {withContact && t.clientPhone && party.phone && <div>Ph: {party.phone}</div>}
       {withContact && t.clientEmail && party.email && <div>E-Mail : {party.email}</div>}
+      {withContact && (t.clientExtraFields || []).map((f, i) => <div key={i}>{f.label} : {f.value}</div>)}
     </div>
   );
 }

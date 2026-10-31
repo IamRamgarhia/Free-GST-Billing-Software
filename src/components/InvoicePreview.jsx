@@ -8,6 +8,7 @@ import { getPrintSettings, getLabel, formatCurrencyEx, formatDate } from '../uti
 import InvoiceGridLayout, { HsnSummaryTable } from './InvoiceGridLayout';
 import { exportDeclaration } from '../utils/lut';
 import { purposeCodeText } from '../utils/purposeCodes';
+import { printableCustomFields } from '../utils/clientSync';
 
 // v1.10.36 — Optional `previewOnly` prop suppresses the internal
 // `id="invoice-preview"`. The parent's on-screen preview keeps the id
@@ -97,6 +98,8 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   const showClientAddress = opt('showClientAddress');
   const showClientPhone = opt('showClientPhone');
   const showClientEmail = opt('showClientEmail');
+  const showClientCustomFields = opt('showClientCustomFields');
+  const clientExtraFields = showClientCustomFields ? printableCustomFields(client?.customFields) : [];
   const showInvoiceNumber = opt('showInvoiceNumber');
   const showInvoiceDate = opt('showInvoiceDate');
   const customTitle = options.customTitle || typeConfig.title;
@@ -427,6 +430,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
             {showGSTIN && client?.gstin && <p>{clientTaxIdLabel}: <strong>{client.gstin}</strong></p>}
             {showClientEmail && client?.email && <p>{client.email}</p>}
             {showClientPhone && client?.phone && <p>Ph: {client.phone}</p>}
+            {clientExtraFields.map((f, i) => <p key={i}>{f.label}: {f.value}</p>)}
           </div>
         </div>
         {shipDifferent && (
@@ -674,6 +678,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
           )}
           {client?.gstin && <div>{cap(`${clientTaxIdLabel}: ${client.gstin}`)}</div>}
           {client?.phone && <div>{cap('Ph: ' + client.phone)}</div>}
+          {clientExtraFields.map((f, i) => <div key={i}>{cap(`${f.label}: ${f.value}`)}</div>)}
         </div>
 
         {einv && (
@@ -1089,7 +1094,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
     t: {
       logo: showLogo, businessName: showBusinessName, businessAddress: showBusinessAddress,
       businessPhone: showBusinessPhone, businessEmail: showBusinessEmail, gstin: showGSTIN, state: showState,
-      clientAddress: showClientAddress, clientPhone: showClientPhone, clientEmail: showClientEmail,
+      clientAddress: showClientAddress, clientPhone: showClientPhone, clientEmail: showClientEmail, clientExtraFields,
       placeOfSupply: showPlaceOfSupply, invoiceNumber: showInvoiceNumber, invoiceDate: showInvoiceDate, dueDate: showDueDate,
       hsn: showHSN, itemQty: showItemQty, itemUnit: showItemUnit, rate: showRateColumn,
     },

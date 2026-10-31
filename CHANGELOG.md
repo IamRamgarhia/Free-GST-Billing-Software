@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.84] - 2026-10-31
+
+### How to update
+
+**Current version:** 1.10.83  →  **New version:** 1.10.84
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.84** in the menu, or
+   **Settings → Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server**, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+### Added
+- **Client phone, email and custom fields on the invoice.** *Billed To* on
+  the New Invoice page now has *Phone* and *Email* boxes, so a client no
+  longer has to be saved first just to add a phone number. *Custom fields*
+  adds any name and value (Contact person, Vendor code, Alternate phone,
+  PAN, Department, or your own). Fields with both a name and a value print
+  in the Bill-to block of every PDF style, Boxed / Tally grids and thermal
+  receipts included; *Customize → Client / Bill-to → Client custom fields*
+  hides them. The client form on the Clients page edits them too.
+- **Client details are saved as you bill.** Saving an invoice now saves its
+  client details to your client list: a new name becomes a new client, and a
+  picked client (or one with the same name) is updated with the phone, email,
+  address or custom fields typed on the invoice. A box left empty never
+  clears what is already saved, and opening an old invoice does not put an
+  old address back unless you changed the client on it. Turn it off with the
+  tick box under *Billed To* (remembered on this computer).
+- **Invoice options for one client.** *Customize → This customer* saves the
+  current PDF style, accent colour, title and shown / hidden fields for the
+  picked client. Every new invoice to them starts with those options; picking
+  a client without saved options puts the usual ones back. *Use standard
+  options* removes them.
+- **Hide what you do not use on the New Invoice page.** *Customize → Show on
+  this page* hides parts of the form: client country, city, PIN, phone, email
+  and custom fields, Ship to, Order and dispatch details, the whole-bill
+  discount and delivery charges, Terms and notes, and Additional pages.
+  Remembered on this computer. Hiding a part never removes what is already
+  filled in, and it still prints.
+
+### Fixed
+- **Editing a client no longer drops settings the form does not show.**
+  Saving the client form (from an invoice or the Clients page) rewrote the
+  client with only the boxes on the form, losing anything else stored on it.
+
+---
+
 ## [1.10.83] - 2026-10-31
 
 ### How to update

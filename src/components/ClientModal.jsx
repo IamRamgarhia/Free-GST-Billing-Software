@@ -3,13 +3,14 @@ import { X } from 'lucide-react';
 import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES, decodeGstin, COUNTRIES } from '../utils';
 import { getRegionMode } from '../store';
 import HelpButton from './HelpButton';
+import ClientCustomFields from './ClientCustomFields';
 
 export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
   // Country defaults: explicit prop (active business profile) → browser locale → 'India'.
   const fallbackCountry = defaultCountry || detectCountryFromBrowser();
   const emptyForm = {
     name: '', address: '', city: '', pin: '', state: '', gstin: '', email: '', phone: '',
-    country: fallbackCountry, isSEZ: false,
+    country: fallbackCountry, isSEZ: false, customFields: [],
     // v1.9.1 — per-client print preferences. When set, they auto-populate
     // invoiceOptions when the user creates a new invoice for this client.
     // Left blank = use app-wide defaults.
@@ -30,6 +31,7 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
         preferredPaperSize: client.preferredPaperSize || '',
         preferredCurrency: client.preferredCurrency || '',
         autoPrint: !!client.autoPrint,
+        customFields: Array.isArray(client.customFields) ? client.customFields.map(f => ({ ...f })) : [],
       });
     } else if (show) {
       setForm({ ...emptyForm });
@@ -70,7 +72,9 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
 
   const handleSave = () => {
     if (!form.name.trim()) return;
-    onSave(form);
+    // Keep what this form does not edit (saved invoice options and the like).
+    const customFields = (form.customFields || []).filter(f => (f.label || '').trim() || (f.value || '').trim());
+    onSave({ ...(client || {}), ...form, customFields });
   };
 
   return (
@@ -138,6 +142,10 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
           <div className="form-group">
             <label className="form-label">Phone</label>
             <input type="tel" className="form-input" value={form.phone} onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))} placeholder={abroad ? 'With country code, e.g. +1 415 555 0100' : '+91 98765 43210'} />
+          </div>
+          <div className="form-group" style={{ gridColumn: 'span 2' }}>
+            <label className="form-label">Custom fields</label>
+            <ClientCustomFields fields={form.customFields} compact onChange={customFields => setForm(prev => ({ ...prev, customFields }))} />
           </div>
           {abroad && (defaultCountry || 'India') === 'India' && (
             <div className="form-group notice notice-info" style={{ gridColumn: 'span 2', display: 'block', fontSize: '0.78rem', lineHeight: 1.5, padding: '0.5rem 0.75rem', borderRadius: 6 }}>

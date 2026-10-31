@@ -1,6 +1,6 @@
 {
   "name": "free-gst-billing-software",
-  "version": "1.10.83",
+  "version": "1.10.84",
   "description": "Free, open-source GST invoice & billing software for India. Tax Invoice, Proforma, Credit Note, Bill of Supply, Delivery Challan, GSTR-1 / GSTR-3B JSON exports, GSTR-2B reconciliation, e-Way Bill, TDS / TCS reports (Form 26Q / 27EQ), multi-currency for 22 countries, per-line custom units, rich-text Terms with 13 India presets, granular backup with optional Google Drive sync. Offline-first PWA. By DiceCodes.",
   "author": "DiceCodes <Contact@dicecodes.com>",
   "license": "MIT",
@@ -91,7 +91,7 @@
     "bundle:tesseract": "node scripts/bundle-tesseract-assets.mjs",
     "release:zip": "npm run lint && npm run test:unit && npm run build && node scripts/build-release-zip.mjs && node scripts/verify-release.mjs",
     "test": "npm run test:unit && node tests/smoke.mjs",
-    "test:unit": "node scripts/tax-test.mjs && node scripts/discount-modes-test.mjs && node scripts/csv-test.mjs && node scripts/manufacturing-test.mjs && node scripts/einvoice-test.mjs && node scripts/po-test.mjs && node scripts/errors-test.mjs && node scripts/costcentre-test.mjs && node scripts/businesstype-test.mjs && node scripts/cashbook-test.mjs && node scripts/purchase-payments-test.mjs && node scripts/hsnrates-test.mjs && node scripts/lut-tds-test.mjs && node scripts/fx-test.mjs && node scripts/services-test.mjs && node scripts/gstr1-json-test.mjs",
+    "test:unit": "node scripts/tax-test.mjs && node scripts/discount-modes-test.mjs && node scripts/csv-test.mjs && node scripts/manufacturing-test.mjs && node scripts/einvoice-test.mjs && node scripts/po-test.mjs && node scripts/errors-test.mjs && node scripts/costcentre-test.mjs && node scripts/businesstype-test.mjs && node scripts/cashbook-test.mjs && node scripts/purchase-payments-test.mjs && node scripts/hsnrates-test.mjs && node scripts/lut-tds-test.mjs && node scripts/fx-test.mjs && node scripts/services-test.mjs && node scripts/gstr1-json-test.mjs && node scripts/clientsync-test.mjs",
     "test:install": "playwright install firefox",
     "test:update-unix": "node scripts/test-update-unix.mjs",
     "test:fresh-linux": "node scripts/test-fresh-linux.mjs",
