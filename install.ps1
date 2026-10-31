@@ -162,7 +162,7 @@ function Save-Url([string]$url, [string]$out) {
 # install's port.
 function Stop-App([string]$sys) {
   $script = (Join-Path $sys 'server.js').ToLower()
-  $nodes = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue)
+  $nodes = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -OperationTimeoutSec 10 -ErrorAction SilentlyContinue)  # ERR-076: never wait for WMI forever
   $ids = @($nodes | Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($script) } | ForEach-Object { $_.ProcessId })
   $portFile = Join-Path $sys 'data\port.txt'
   $port = if (Test-Path -LiteralPath $portFile) { (Get-Content -LiteralPath $portFile -Raw).Trim() } else { '' }

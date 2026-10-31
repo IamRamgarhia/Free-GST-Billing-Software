@@ -730,6 +730,36 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-076 - Install stopped at "Opening the app in your browser now..."
+
+**Version:** broke in v1.10.83 · fixed in v1.10.84
+**Reported by:** Vijay Darshana, by email (2026-10-31), install in `F:\Apps\Free-GST-Billing`, Windows
+
+**Symptom** - the installer printed "[OK] Install complete!", "Opening the app in
+your browser now..." and "Next time, click the Free GST Billing icon...", then
+nothing more: no "Starting server", no browser. The Desktop icon (run hidden)
+did nothing either. Updating and reinstalling the packages did not help.
+
+**Cause** - v1.10.83's `start-windows.ps1` asked WMI (`Get-CimInstance
+Win32_Process`) whether a server for this folder had started in the last two
+minutes, before it starts one. On some PCs WMI never answers (a stuck or broken
+WMI service, some antivirus), and that call has no time limit, so the script
+waited there for ever. It is the first thing after the last line shown.
+
+**Rule** - nothing on the way to opening the app may wait for WMI. The "already
+starting" check is a file in TEMP holding the id of the server process it
+started, checked with `Get-Process -Id` (no WMI). Where WMI is still needed
+(install.ps1 and uninstall stopping the server, they need the command line),
+it gets `-OperationTimeoutSec 10`.
+
+**Guard** - none automated (WMI cannot be broken on purpose in CI). Checked by
+hand on a test copy: one click starts the server; 3 clicks at once give 1 server;
+a server stopped within 2 minutes of starting is started again by the next
+click (an earlier version of this fix waited instead: the TEMP file alone,
+without the process id, is not enough).
+
+---
+
 ## ERR-075 - Opening the app showed the previous version until a refresh
 
 **Version:** every version with the offline cache (since v1.10.2) · fixed in v1.10.84

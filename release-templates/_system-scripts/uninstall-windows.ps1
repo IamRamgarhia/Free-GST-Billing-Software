@@ -29,7 +29,7 @@ if (-not $Detached) {
 # Node.js locks its own files: wait for this server, then stop any other copy
 # still running from this folder (same check as install.ps1's Stop-App).
 if ($ServerPid) { Wait-Process -Id $ServerPid -Timeout 20 }
-$nodes = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'")
+$nodes = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -OperationTimeoutSec 10 -ErrorAction SilentlyContinue)  # ERR-076: never wait for WMI forever
 $ids = @($nodes | Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains((Join-Path $Sys 'server.js').ToLower()) } | ForEach-Object { $_.ProcessId })
 $portFile = Join-Path $Sys 'data\port.txt'
 $port = if (Test-Path -LiteralPath $portFile) { (Get-Content -LiteralPath $portFile -Raw).Trim() } else { '' }

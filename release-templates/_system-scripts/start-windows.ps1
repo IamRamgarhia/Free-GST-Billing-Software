@@ -242,21 +242,34 @@ if (-not (Test-PackagesReady)) {
 # folder's lock (held until this script ends) may start one.
 $serverJs = (Join-Path $SystemDir 'server.js').ToLower()
 $hash = [Security.Cryptography.SHA1]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($serverJs))
-$startLock = New-Object System.Threading.Mutex($false, ('Local\FreeGSTBilling-' + (($hash[0..7] | ForEach-Object { $_.ToString('x2') }) -join '')))
+$folderId = 'FreeGSTBilling-' + (($hash[0..7] | ForEach-Object { $_.ToString('x2') }) -join '')
+$startLock = New-Object System.Threading.Mutex($false, "Local\$folderId")
 $haveLock = $false
 try { $haveLock = $startLock.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $haveLock = $true }
-$recent = (Get-Date).AddMinutes(-2)
-$starting = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
-  Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($serverJs) -and $_.CreationDate -gt $recent })
-if (-not $haveLock -or $starting.Count) {
+# ERR-076 - "started in the last two minutes" is a time stamp in TEMP, written
+# just before node is started. It used to be a WMI process query
+# (Get-CimInstance), which on some PCs never answers: the script stopped
+# there, with "Opening the app in your browser now..." the last line shown.
+# It holds the process id of the server started then, and counts only while
+# that very process (Get-Process, no WMI) is still running.
+$startMark = Join-Path $env:TEMP "$folderId.starting"
+$starting = $false
+try {
+  if ((Test-Path -LiteralPath $startMark) -and ((Get-Item -LiteralPath $startMark).LastWriteTime -gt (Get-Date).AddMinutes(-2))) {
+    $markPid = (Get-Content -LiteralPath $startMark -Raw).Trim()
+    $starting = ($markPid -match '^\d+$') -and [bool](Get-Process -Id ([int]$markPid) -ErrorAction SilentlyContinue)
+  }
+} catch { $starting = $false }
+if (-not $haveLock -or $starting) {
   Write-Host '  The app is already starting - waiting for it...'
 } else {
   Write-Host "  Starting server on port $port..."
   Push-Location $SystemDir
   # v1.10.83 - the full path, so the installer can tell this install's server
   # from any other node.exe when it has to stop it for an update.
-  Start-Process -FilePath $NodeExe -ArgumentList "`"$(Join-Path $SystemDir 'server.js')`"" -WorkingDirectory $SystemDir -WindowStyle Hidden
+  $server = Start-Process -FilePath $NodeExe -ArgumentList "`"$(Join-Path $SystemDir 'server.js')`"" -WorkingDirectory $SystemDir -WindowStyle Hidden -PassThru
   Pop-Location
+  try { Set-Content -LiteralPath $startMark -Value $server.Id -ErrorAction Stop } catch { }
 }
 
 # Poll until the server responds. 15 seconds was not enough: the very first
