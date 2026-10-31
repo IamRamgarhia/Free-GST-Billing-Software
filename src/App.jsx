@@ -555,6 +555,13 @@ function App() {
   // browser), so a refresh does not flash "GST Billing" before the logo.
   const brand = profile || menuBrandCache;
   const ownBrand = !!brand?.showInMenu && !!String(brand?.businessName || '').trim();
+  // The window's title bar shows the page and the business, like a desktop
+  // program ("Invoices - Dice Codes"), not the long search-engine title.
+  const pageLabel = (NAV_EXTRAS[currentView] || menu.find(m => m.id === currentView))?.label;
+  const windowName = String(brand?.businessName || '').trim() || 'Free GST Billing';
+  useEffect(() => {
+    document.title = pageLabel ? `${pageLabel} - ${windowName}` : windowName;
+  }, [pageLabel, windowName]);
   const topActions = topIds.map(id => ({
     guide: (
       <button key={id} type="button" className="topbar-btn" onClick={openDocs}
