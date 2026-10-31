@@ -730,6 +730,39 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-075 - Opening the app showed the previous version until a refresh
+
+**Version:** every version with the offline cache (since v1.10.2) · fixed in v1.10.84
+**Reported by:** the maintainer (2026-10-31): "when user run app from icon on desktop it should auto refresh itself and load correctly"
+
+**Symptom** - after an update, the window opened on the old version and switched
+to the new one a few seconds later (or only after a manual refresh). Found while
+fixing it: with the app's server stopped, the window was blank or the browser's
+"can't be reached" page instead of "Needs a Quick Start", and once the screen
+showed old saved data with a green "running" dot.
+
+**Cause** - three things:
+1. The service worker kept `index.html` in its precache and answered every page
+   open from it (`navigateFallback`), so the page and its code were the old build.
+2. `boot-guard.js` cleared the offline cache whenever a file failed to load, also
+   when the reason was simply that the server was stopped; nothing loaded after.
+   That failure came from `qr-*.js`, which the page loads at start but which was
+   left out of the precache, and whose cache rule never matched a name with "-".
+3. The heartbeat asked `GET /api/profile`, which the offline API cache answers
+   even when the server is down.
+
+**Rule** - the page is fetched from the app first (NetworkFirst, `app-page`), the
+cached copy only when the server does not answer. Every file the page loads at
+start is precached. Anything that decides "is the server running?" uses a HEAD
+request, which no offline cache answers.
+
+**Guard** - checked in a browser on a test copy: a new build shows on the first
+load with no reload; with the server stopped the app shows "Needs a Quick
+Start"; when the server starts again it carries on by itself. A smoke check for
+it is planned with the 7 Nov guards.
+
+---
+
 ## ERR-074 - Products CSV import filled in only the names
 
 **Version:** every version up to v1.10.82 · fixed in v1.10.83 (the #121 import)

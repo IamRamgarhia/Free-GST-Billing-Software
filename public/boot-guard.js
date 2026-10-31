@@ -9,7 +9,16 @@
    folder and are never touched. */
 (function () {
   var KEY = 'fgsb-boot-retry';
+  // v1.10.84 - only when the app's server answers. With the server stopped a
+  // file fails to load for that reason alone; clearing the offline copy then
+  // left only the browser's "can't be reached" page instead of the app's own
+  // "Needs a Quick Start". HEAD, because the offline copy only answers GET.
   function recover() {
+    fetch('/api/profile', { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) { if (r.ok) clearAndReload(); })
+      .catch(function () { /* server not running: the app says so itself */ });
+  }
+  function clearAndReload() {
     try {
       if (sessionStorage.getItem(KEY)) return; // tried once this session: do not loop
       sessionStorage.setItem(KEY, '1');

@@ -336,13 +336,19 @@ function App() {
 
     const checkServer = async () => {
       try {
-        const res = await fetch('/api/profile', { signal: AbortSignal.timeout(8000) });
-        if (res.ok) {
+        // v1.10.84 - is the app's server really running? A GET can be answered
+        // by the offline copy (the api-cache), so with the server stopped the
+        // app showed old data with a green "running" dot. HEAD reaches the
+        // server or fails.
+        const live = await fetch('/api/profile', { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+        if (live.ok) {
           if (cancelled) return;
           misses = 0;
           setServerDown(false);
           setServerStatus('online');
           if (!profileLoaded.current) {
+            const res = await fetch('/api/profile', { signal: AbortSignal.timeout(8000) });
+            if (!res.ok) throw new Error('not ok');
             profileLoaded.current = true;
             const p = await res.json();
             setProfile(p);
