@@ -283,6 +283,19 @@ try {
   await rowNums.nth(1).fill('500');              // rate
   await sleep(800);
 
+  // ERR-078 (#151): Enter on the last row adds a row and puts the cursor in
+  // its Item box (it went to HSN once the box became a textarea). The new
+  // row is removed again so the rest of the run sees one line.
+  await rowNums.nth(1).press('Enter');
+  await sleep(400);
+  const enterFocus = await page.evaluate(() => {
+    const names = [...document.querySelectorAll('.line-item-row .line-item-name')];
+    return { rows: names.length, inNewItem: document.activeElement === names[names.length - 1] };
+  });
+  check('ERR-078 Enter adds a row, cursor in its Item box', enterFocus.rows === 2 && enterFocus.inNewItem, JSON.stringify(enterFocus));
+  if (enterFocus.rows === 2) await page.locator('.line-item-row').nth(1).locator('button[title="Remove"]').click();
+  await sleep(300);
+
   // ERR-005: transform: scale() does not shrink the layout box, and a
   // centred overflow puts the left edge in unreachable negative scroll.
   const clipped = await page.evaluate(() => {

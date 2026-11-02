@@ -1563,12 +1563,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       taxPercent: showGST ? defaultTaxRate : 0,
       cessPercent: 0,
     }]);
-    // Move keyboard focus to the new row's Description field so users who
+    // Move keyboard focus to the new row's Item box so users who
     // Tab to the Add Item button and press Enter don't have to grab the
     // mouse. requestAnimationFrame waits until React has actually rendered
     // the new row in the DOM before we try to find/focus it.
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-item-id="${newId}"] input.form-input`);
+      const el = document.querySelector(`[data-item-id="${newId}"] .line-item-name`); // #151: the Item box is a textarea since v1.10.83 - "input" found HSN
       if (el) el.focus();
     });
   };
@@ -3534,7 +3534,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 clientNameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
               }
-              const emptyRow = document.querySelector('.line-item-row input.form-input:placeholder-shown, .line-item-row input.form-input[value=""]');
+              const emptyRow = [...document.querySelectorAll('.line-item-row .line-item-name')].find(el => !el.value.trim());
               if (emptyRow) {
                 emptyRow.focus();
                 emptyRow.scrollIntoView({ behavior: 'smooth', block: 'center' });

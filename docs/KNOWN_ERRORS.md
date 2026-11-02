@@ -730,6 +730,26 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-078 - Enter after an item put the cursor in HSN, not the next Item box
+
+**Version:** broke in v1.10.83 · fixed in v1.10.84
+**Reported by:** fulbandhemanish-droid, issue #151 (2026-11-01)
+
+**Symptom** - New Invoice: type an item, press Enter. A new row is added, but
+the cursor lands in its HSN box, so the next item cannot just be typed.
+
+**Cause** - v1.10.83 made the Item box a growing `textarea`. The code that
+focuses the new row (`addItem`) and the "click to complete" draft badge still
+looked for the row's first `input.form-input`, which is now HSN.
+
+**Rule** - find the Item box by its class, `.line-item-name`, never by tag. Any
+code that moves the cursor into a line item uses that class.
+
+**Guard** - `tests/smoke.mjs` "ERR-078": Enter on the last row adds a row and
+the cursor is in its Item box (120/120 passed on a test copy).
+
+---
+
 ## ERR-077 - GSTR-1 said "Invalid client GSTIN format" for a correct GSTIN
 
 **Version:** every version with the GSTR-1 checks · fixed in v1.10.84
