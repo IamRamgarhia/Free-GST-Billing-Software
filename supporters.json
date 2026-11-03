@@ -1,8 +1,8 @@
 {
   "_how": "Update with: node scripts/add-supporter.mjs \"Name\" <amount> (or edit on GitHub). The app's Support & About page and the docs site read this file live. totalReceived: rupees received. supporters: how many people. people: each named supporter, their amount and date (newest last). thanks: the same names, for app versions before 1.10.83. goal: optional target. Names only with the supporter's permission.",
   "currency": "INR",
-  "totalReceived": 2160,
-  "supporters": 16,
+  "totalReceived": 2400,
+  "supporters": 18,
   "goal": {
     "amount": 50000,
     "label": "Bank & cash book, cash flow and balance sheet"
@@ -23,9 +23,11 @@
     "Vikas Anant Pawar",
     "Chandan Kumar",
     "Manish Shivlal Fulbandhe",
-    "Vishal Jaiswal"
+    "Vishal Jaiswal",
+    "Barun Kumar Saha",
+    "Prashanth Kumar Siripuram"
   ],
-  "updated": "2026-11-01",
+  "updated": "2026-11-03",
   "people": [
     {
       "name": "Kuldeep Suthar",
@@ -106,6 +108,16 @@
       "name": "Vishal Jaiswal",
       "amount": 51,
       "date": "2026-11-01"
+    },
+    {
+      "name": "Barun Kumar Saha",
+      "amount": 40,
+      "date": "2026-11-02"
+    },
+    {
+      "name": "Prashanth Kumar Siripuram",
+      "amount": 200,
+      "date": "2026-11-03"
     }
   ]
 }
