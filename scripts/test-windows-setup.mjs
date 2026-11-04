@@ -559,6 +559,12 @@ ok(listenerPid(47373) === realBefore.p47373, `Port 47373 (the real app) has the 
 
 console.log('\nHash proof (SHA-256 over every file of the earlier copy):');
 for (const p of proofs) console.log(`  ${p}`);
-if (!process.argv.includes('--keep')) fs.rmSync(BASE, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+if (!process.argv.includes('--keep')) {
+  fs.rmSync(BASE, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+  // The in-app updates' Setup copies in TEMP (fgsb-update-*) of THIS run only.
+  for (const d of fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('fgsb-update-'))) {
+    try { if (fs.readFileSync(path.join(os.tmpdir(), d, 'setup.log'), 'utf8').includes(BASE)) fs.rmSync(path.join(os.tmpdir(), d), { recursive: true, force: true }); } catch { /* not ours */ }
+  }
+}
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
