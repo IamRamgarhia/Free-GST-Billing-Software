@@ -493,6 +493,9 @@ try {
   ok(await bills(NEW_PORT) === 3, 'H: the server the window started serves the 3 copied invoices');
   // 2. The window open (with the DevTools protocol, to drive it); a second start.
   const { chromium } = await import('playwright');
+  // The closed window's web engine must be gone first: a new window would join
+  // that browser process, which has no DevTools port.
+  await until(() => ps(`@(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -OperationTimeoutSec 10 | Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains('${psq(hostData.toLowerCase())}') }).Count`) === '0', 60000);
   openIcon(iconH, { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`, FGSB_HOST_TRACE: traceH });
   const browser = await until(async () => { try { return await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`); } catch { return null; } }, 90000);
   const page = browser && await until(() => browser.contexts()[0]?.pages().find((p) => p.url().startsWith(`http://localhost:${NEW_PORT}/`)), 90000);

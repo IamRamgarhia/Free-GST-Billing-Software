@@ -779,7 +779,10 @@ class MainForm : Form
         if (Program.SmokeFile == null || !a.IsSuccess) return;
         // Test: the app, then its Settings page; the title must follow the page.
         smokeStep++;
-        await Task.Delay(2500);
+        // The page sets its title once its data is in: wait for it (a busy PC is slow).
+        string want = smokeStep == 1 ? "Dashboard - " : "Settings - ";
+        for (int i = 0; i < 60 && !IsDisposed && !Text.StartsWith(want); i++) await Task.Delay(250);
+        await Task.Delay(500);
         if (IsDisposed) return;
         smokeText += "title" + smokeStep + "=" + Text + "\r\n";
         if (smokeStep == 1)
