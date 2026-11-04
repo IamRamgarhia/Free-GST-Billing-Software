@@ -50,8 +50,11 @@ a backup is made first.
   Settings → Apps to remove; no administrator password), opens in a window of
   its own - a real program window with its own taskbar icon (pin it), which
   remembers its size and place. Closing it with X keeps the app running near
-  the clock (click the icon to open it again; right-click → Quit to stop it),
-  and with "Open when Windows starts" it waits there quietly. Setup installs
+  the clock (click the icon to open it again; right-click for Check for
+  updates, Open books folder, Make a backup now and Quit), and with "Open when
+  Windows starts" it waits there quietly. Update notices show there too. If
+  the app ever stops, the window starts it again by itself. Right-click its
+  taskbar icon for New Invoice, Dashboard, Clients and Reports. Setup installs
   Microsoft's WebView2 engine if your PC does not have it (needs the
   internet; without it the app opens in Edge's app window as before). It
   updates itself from **Update Now** with that window open, no reinstalling

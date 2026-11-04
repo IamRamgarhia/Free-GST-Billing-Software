@@ -37,7 +37,11 @@
 //      End task really closes it, the Startup icon's /tray starts hidden;
 //      uninstall with the window hidden near the clock closes it (its close
 //      event) and removes its profile; WebView2 "missing" (test hook): the
-//      installer is run with /silent /install and its failure is tolerated.
+//      installer is run with /silent /install and its failure is tolerated;
+//      hidden, the page keeps running and its notifications show near the
+//      clock; the tray menu's items; the server killed -> started again and
+//      reloaded by the window; the jump list's /view=<screen>, also sent to
+//      a running window.
 //   Also: a second Setup while one runs does not run (A); old program files
 //   go after the new ones are in (B).
 // The earlier copy is hashed (SHA-256 of every file) before and after each
@@ -525,12 +529,19 @@ try {
     'H: the new program files are in; the open window\'s old exe waits beside them as *.old');
   await sleep(7000);
   proof('H update with the window open', hh1, fingerprint(oldH.old));
-  await browser.close();
   // 4. X hides it near the clock; a second start shows it; Quit stops it and the server.
   xClose(pid1);
   ok(await until(() => trace().includes('hidden'), 15000) && hostPids(appH) === pid1 && !hostVisible(pid1) && await answers(NEW_PORT)
     && trace().includes('tray=1') && trace().includes('tip') && fs.existsSync(path.join(hostData, 'tray-tip-shown.txt')),
   'H: X hides the window (no taskbar button), the app and its server keep running, the tray icon is there, the one-time tip was shown');
+  // While hidden: the page keeps running, and its notifications show near the clock.
+  const ticks = await page.evaluate(() => new Promise((res) => { let n = 0; const t = setInterval(() => { n += 1; }, 500); setTimeout(() => { clearInterval(t); res(n); }, 5000); }));
+  ok(ticks >= 6, `H: while hidden near the clock the page keeps running (${ticks} timer ticks of 500 ms in 5 s)`);
+  await page.evaluate(async () => { await Notification.requestPermission(); new Notification('Free GST Billing 9.9.9 is available', { body: 'A test notice from the hidden window' }); });
+  ok(await until(() => trace().includes('notify Free GST Billing 9.9.9 is available'), 15000), 'H: the app\'s notification (Notification API) shows near the clock while the window is hidden');
+  ok(trace().some((l) => /^menu=Free GST Billing \d+\.\d+\.\d+\|Open Free GST Billing\|Check for updates\|Open books folder\|Make a backup now\|Quit \(stop the app\)$/.test(l)),
+    'H: the tray menu: the version, Open, Check for updates, Open books folder, Make a backup now, Quit', trace().find((l) => l.startsWith('menu=')));
+  await browser.close();
   const smoke6 = path.join(H, 'smoke6.txt');
   openIcon(iconH, { FGSB_HOST_SMOKE: smoke6 });
   ok((await until(() => readSmoke(smoke6), 30000))?.forwarded === '1' && await until(() => hostVisible(pid1), 15000) && trace().includes('shown') && hostPids(appH) === pid1,
@@ -550,6 +561,33 @@ try {
   const pidTm = await until(() => { const p = hostPids(appH); return p && hostVisible(p) ? p : null; }, 90000);
   ps(`[void](Get-Process -Id ${Number(pidTm)}).CloseMainWindow()`);
   ok(pidTm && await until(() => !hostPids(appH), 20000) && await answers(NEW_PORT), 'H: Task Manager\'s End task (WM_CLOSE) really closes the window, not to the tray');
+  // Self-repair: the server is killed (by its own id); the window starts it again and reloads.
+  const traceRep = path.join(H, 'trace-repair.txt');
+  openIcon(iconH, { FGSB_HOST_TRACE: traceRep });
+  const pidRep = await until(() => { const p = hostPids(appH); return p && hostVisible(p) && trace(traceRep).some((l) => /^title=Dashboard - /.test(l)) ? p : null; }, 90000);
+  const lockPid = JSON.parse(fs.readFileSync(path.join(docsH, 'data', 'server.lock'), 'utf8')).pid;
+  ps(`Stop-Process -Id ${Number(lockPid)} -Force`);
+  const back = await until(async () => { const v = await (await answers(NEW_PORT))?.json(); return v?.pid && v.pid !== lockPid && trace(traceRep).some((l) => l.startsWith('repaired url=')) ? v : null; }, 150000);
+  await sleep(4000);
+  const servers = Number(ps(`@(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -OperationTimeoutSec 10 | Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains('${psq(appH.toLowerCase())}') }).Count`));
+  const afterRepair = trace(traceRep).slice(trace(traceRep).findIndex((l) => l.startsWith('repaired url=')));
+  ok(pidRep && back && trace(traceRep).some((l) => l.startsWith('repair: ')) && afterRepair.some((l) => /^title=Dashboard - /.test(l)) && hostPids(appH) === pidRep && servers === 1,
+    `H: the server was killed; the window started it again by itself (pid ${lockPid} -> ${back?.pid}, one server) and reloaded the app (${trace(traceRep).find((l) => l.startsWith('repair: '))})`);
+  // The jump list: "/view=<screen>"; a running window is sent to that screen.
+  const exeH = path.join(appH, 'Free GST Billing.exe');
+  spawnSync(exeH, ['/view=clients'], { env: { ...process.env, FREEGSTBILL_TEST: '1' }, timeout: 30000 });
+  ok(await until(() => trace(traceRep).includes('view=clients') && trace(traceRep).slice(-3).some((l) => /^title=Clients - /.test(l)), 20000), 'H: jump list "Clients" with the window open: the same window goes to Clients');
+  const jumpDir = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Recent', 'CustomDestinations');
+  const jumpFiles = () => { try { return fs.readdirSync(jumpDir).map((f) => path.join(jumpDir, f)).filter((f) => { const t = fs.readFileSync(f).toString('utf16le'); return t.includes(appH) && t.includes('/view=new'); }); } catch { return []; } };
+  ok(trace(traceRep).includes('jumplist=4') && jumpFiles().length === 1, 'H: the jump list (New Invoice, Dashboard, Clients, Reports) is registered under the window\'s taskbar id');
+  ps(`[void](Get-Process -Id ${Number(pidRep)}).CloseMainWindow()`);
+  await until(() => !hostPids(appH), 20000);
+  const traceView = path.join(H, 'trace-view.txt');
+  spawnSync('powershell.exe', ['-NoProfile', '-Command', `Start-Process -FilePath '${psq(exeH)}' -ArgumentList '/view=reports'`], { env: { ...process.env, FREEGSTBILL_TEST: '1', FGSB_HOST_TRACE: traceView } });
+  ok(await until(() => trace(traceView).some((l) => /^title=Reports - /.test(l)), 90000), 'H: jump list "Reports" with no window open: it opens straight on Reports');
+  ps(`Get-Process -Name 'Free GST Billing' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '${psq(appH)}\\*' } | ForEach-Object { [void]$_.CloseMainWindow() }; exit 0`);
+  await until(() => !hostPids(appH), 20000);
+  for (const f of jumpFiles()) fs.rmSync(f, { force: true }); // the test id's jump list only
   // 5. No WebView2 Runtime (simulated: the loader is pointed at an empty folder).
   const smoke4 = path.join(H, 'smoke4.txt');
   openIcon(iconH, { FGSB_HOST_SMOKE: smoke4, WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: path.join(H, 'no-webview2-here') });
@@ -589,6 +627,9 @@ try {
 } finally {
   stopTestServers();
   await sleep(1000);
+  // The test windows' jump lists (taskbar id DiceCodes.FreeGSTBilling.Test) name this run's folder.
+  const jd = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Recent', 'CustomDestinations');
+  try { for (const f of fs.readdirSync(jd)) { if (fs.readFileSync(path.join(jd, f)).toString('utf16le').includes(BASE)) fs.rmSync(path.join(jd, f), { force: true }); } } catch { /* none */ }
   for (const root of ['A', 'A-second', 'B', 'C', 'D', 'D2', 'E', 'F', path.join('G', 'Rām\'s ‘Shop’ दुकान'), 'H']) {
     for (const name of ['Free GST Billing', 'Free GST Billing App']) {
       const app = appOf(path.join(BASE, root), name);
