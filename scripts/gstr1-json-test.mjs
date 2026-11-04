@@ -1,6 +1,6 @@
 // v1.10.83 (#133) - GSTR-1 JSON parts the GST portal is strict about.
 // Run: `node scripts/gstr1-json-test.mjs`
-import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk } from '../src/utils/gstr1Json.js';
+import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSummary, hsnIsB2B, isExportBill, hsnCsvRow, HSN_CSV_HEADERS } from '../src/utils/gstr1Json.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -105,6 +105,44 @@ eq(cleanGstin('21GLZPP9877E1Z'), '21GLZPP9877E1Z', 'too short: left as typed, so
 eq(gstinFormatOk('21GLZPP9877E1Z3'), true, 'a real GSTIN passes');
 eq(gstinFormatOk('27AAACR5055KAZ1'), true, 'the 13th character can be a letter (10th+ registration in a state)');
 eq(gstinFormatOk('21GLZPP9877E1Z3 '), false, 'the check itself still wants the clean value');
+
+console.log('\n[#166] One Table 12 builder for the screen, the CSV and the JSON');
+{
+  const profile = { state: 'Karnataka', country: 'India' };
+  const bill = (invoiceNumber, client, items, extra = {}) => ({
+    invoiceNumber, invoiceType: 'tax-invoice', ...extra,
+    data: { profile, client, details: { placeOfSupply: client.state || '' }, items, totals: { isInterstate: client.state !== 'Karnataka' }, ...extra.data },
+  });
+  const reg = { name: 'Acme Traders', gstin: '29AAACA1234A1Z5', state: 'Karnataka', country: 'India' };
+  const walkIn = { name: 'Walk-in', state: 'Karnataka', country: 'India' };
+  // A buyer abroad who gave a tax number: still an export, so B2C.
+  const abroad = { name: 'Globex Inc', gstin: 'US123456789', country: 'United States' };
+  const paper = { name: 'A4 Paper', hsn: '4802', unit: 'Pcs', quantity: 10, rate: 100, taxPercent: 12 };
+  const bills = [
+    bill('DC/001', reg, [paper, { name: 'Unlabelled item', hsn: '', unit: 'Pcs', quantity: 1, rate: 50, taxPercent: 18 }]),
+    bill('DC/002', walkIn, [{ ...paper, quantity: 5 }, { name: 'Website design', hsn: '998314', unit: 'Nos', quantity: 1, rate: 1000, taxPercent: 18 }]),
+    bill('DC/003', abroad, [{ ...paper, quantity: 3 }]),
+    bill('CN/001', reg, [{ ...paper, quantity: 2 }], { invoiceType: 'credit-note' }),
+  ];
+  const { rows, missingHsn } = hsnSummary(bills);
+  const b2b = rows.filter((r) => r.b2b), b2c = rows.filter((r) => !r.b2b);
+  eq(b2b.map((r) => `${r.hsn_sc}:${r.qty}:${r.txval}`), ['4802:8:800'], 'B2B: 10 sold less 2 credited = 8, value 800 (a credit note reduces the row)');
+  eq(b2b[0].camt + b2b[0].samt, 96, 'B2B tax is net of the credit note too (12% of 800)');
+  eq(b2c.map((r) => `${r.hsn_sc}:${r.uqc}:${r.qty}:${r.txval}`), ['4802:PCS:8:800', '998314:NA:0:1000'], 'B2C: walk-in and export together (5 + 3), the service as NA with quantity 0');
+  eq(b2c.find((r) => r.hsn_sc === '4802').iamt, 36, 'the export line keeps its IGST in B2C');
+  eq(missingHsn, 1, 'a line with no HSN is left out and counted');
+  eq(hsnIsB2B(bills[2]), false, 'an export bill is never B2B, even with a tax number');
+  eq(isExportBill(bills[2]), true, 'a client abroad with no Indian place of supply is an export');
+
+  const json = hsnTable(rows, '082026');
+  const sum = (list, k) => Math.round(list.reduce((s, r) => s + r[k], 0) * 100) / 100;
+  for (const [label, screen, file] of [['B2B', b2b, json.hsn_b2b], ['B2C', b2c, json.hsn_b2c]]) {
+    eq(['txval', 'iamt', 'camt', 'samt', 'qty'].map((k) => sum(file, k)), ['txval', 'iamt', 'camt', 'samt', 'qty'].map((k) => sum(screen, k)), `${label}: the JSON list adds up to the screen table`);
+    eq(screen.map((r) => hsnCsvRow(r)[6]), file.map((r) => r.txval.toFixed(2)), `${label}: the CSV taxable values are the JSON ones`);
+  }
+  eq(HSN_CSV_HEADERS.slice(0, 5), ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value'], 'the CSV keeps the portal column order');
+  eq(hsnCsvRow(b2b[0]).slice(0, 5), ['4802', 'A4 Paper', 'PCS', 8, '896.00'], 'a CSV row: HSN, description, UQC, quantity, total value');
+}
 
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);

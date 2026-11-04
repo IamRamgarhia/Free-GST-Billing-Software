@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules } from '../store';
-import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk } from '../utils/gstr1Json';
-import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, hsnUqc, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, splitLineTax, roundQty, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
+import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
+import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import { billInInr } from '../utils/fx';
@@ -33,16 +33,54 @@ function downloadCSV(filename, headers, rows) {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 
+// v1.10.84 (#166) - one Table 12 list (B2B or B2C) with its own total. Rows
+// come from hsnSummary, the same rows the CSV and the JSON are written from.
+const num = { textAlign: 'right' };
+const rowTax = (r) => r.iamt + r.camt + r.samt + r.csamt;
+const sumOf = (rows, f) => rows.reduce((s, r) => s + f(r), 0);
+function HsnTable({ rows }) {
+  return (
+    <div className="table-scroll">
+      <table className="data-table">
+        <thead><tr><th>HSN</th><th>Description</th><th>UQC</th><th style={num}>Rate</th><th style={num}>Qty</th><th style={num}>Taxable</th><th style={num}>CGST</th><th style={num}>SGST</th><th style={num}>IGST</th><th style={num}>Total Tax</th><th style={num}>Total Value</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={`${r.hsn_sc}|${r.rt}|${r.uqc}`}>
+              <td><span className="invoice-badge">{r.hsn_sc}</span></td>
+              <td className="font-medium">{r.desc}</td>
+              <td>{r.uqc}</td>
+              <td style={num}>{r.rt}%</td>
+              <td style={num}>{r.qty}</td>
+              <td style={num}>{formatCurrency(r.txval)}</td>
+              <td style={num}>{formatCurrency(r.camt)}</td>
+              <td style={num}>{formatCurrency(r.samt)}</td>
+              <td style={num}>{formatCurrency(r.iamt)}</td>
+              <td style={num} className="font-bold">{formatCurrency(rowTax(r))}</td>
+              <td style={num}>{formatCurrency(hsnRowValue(r))}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot><tr style={{ fontWeight: 'bold', borderTop: '2px solid var(--border)' }}>
+          <td colSpan={5}>Total</td>
+          <td style={num}>{formatCurrency(sumOf(rows, (r) => r.txval))}</td>
+          <td style={num}>{formatCurrency(sumOf(rows, (r) => r.camt))}</td>
+          <td style={num}>{formatCurrency(sumOf(rows, (r) => r.samt))}</td>
+          <td style={num}>{formatCurrency(sumOf(rows, (r) => r.iamt))}</td>
+          <td style={num}>{formatCurrency(sumOf(rows, rowTax))}</td>
+          <td style={num}>{formatCurrency(sumOf(rows, hsnRowValue))}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+  );
+}
+
 // v1.10.74 - filed marks for one business, falling back to the old shared key.
 function readFilingStatus(key) {
   try { return JSON.parse(localStorage.getItem(key) || localStorage.getItem('gst_filing_status') || '{}'); } catch { return {}; }
 }
 
-// The per-line split lives in utils.js (splitLineTax) so it can be tested;
-// see v1.10.77 (#89) there.
-// v1.10.83 - an export / SEZ invoice under a LUT charged no IGST
-// (totals.lutZeroRated): its lines report their value and rate with zero tax,
-// as the invoice printed them. Tax-inclusive prices had no tax in them.
+// billSplit, billIsInterstate and isExportBill live in utils/gstr1Json.js so
+// the HSN summary (Table 12) can be tested; see v1.10.84 (#166) there.
 // v1.10.83 - SEZ "without payment" (SEWOP) only when the invoice charged no
 // tax. The LUT tick, or LUT words in the terms (old invoices; the export terms
 // preset has them), cannot make an invoice that charged IGST into SEWOP.
@@ -50,10 +88,6 @@ function readFilingStatus(key) {
 const TAX_KEYS = ['igst', 'cgst', 'sgst', 'utgst', 'rcmTaxIgst', 'rcmTaxCgst', 'rcmTaxSgst', 'rcmTaxUtgst'];
 const billIsLut = (bill) => (!!bill?.data?.invoiceOptions?.isLUT || /\bLUT\b|Letter of Undertaking/i.test(bill?.data?.customTerms || ''))
   && !TAX_KEYS.some((k) => Number(bill?.data?.totals?.[k]) > 0);
-const billSplit = (bill, item, isInter, taxInclusive, isIntraUT) => {
-  if (!bill?.data?.totals?.lutZeroRated) return splitLineTax(item, isInter, taxInclusive, isIntraUT);
-  return { ...splitLineTax(item, isInter, false, isIntraUT), cgst: 0, sgst: 0, utgst: 0, igst: 0, cess: 0 };
-};
 
 function getTaxableAmount(totals) {
   return totals?.taxableAmount ?? ((totals?.subtotal || 0) - (totals?.totalDiscount || 0));
@@ -171,29 +205,6 @@ function buildReconciliation(twoBData, purchases, periodPurchases = purchases) {
   });
 
   return rows;
-}
-
-// Inter-state status of a bill — follows place of supply when set explicitly,
-// SEZ supplies always interstate, else compares seller and client state.
-//
-// v1.10.66 (#61) — the invoice's own saved decision comes first. Every bill
-// keeps the totals the tax engine produced, `isInterstate` included, and a
-// return has to report the tax the way the invoice actually charged it.
-// Re-deriving it here from state NAMES disagreed with the engine where the
-// engine works from codes — a client known only by GSTIN, or a client abroad —
-// and filed IGST for an invoice that charged CGST + SGST. The name comparison
-// below remains only for bills saved before the flag existed.
-function billIsInterstate(bill) {
-  const saved = bill.data?.totals?.isInterstate;
-  if (typeof saved === 'boolean') return saved;
-  const prof = bill.data?.profile;
-  const client = bill.data?.client;
-  const details = bill.data?.details;
-  if (client?.isSEZ) return true;
-  const sellerState = (prof?.state || '').trim().toLowerCase();
-  const placeOfSupply = (details?.placeOfSupply || client?.state || '').trim().toLowerCase();
-  if (!sellerState || !placeOfSupply) return false;
-  return sellerState !== placeOfSupply;
 }
 
 // ========== Filing Guide Steps ==========
@@ -650,26 +661,8 @@ export default function GSTReturns() {
   // ========== Classification ==========
   const creditNotes = filteredBills.filter(b => (b.invoiceType || 'tax-invoice') === 'credit-note');
   const regularBills = filteredBills.filter(b => (b.invoiceType || 'tax-invoice') !== 'credit-note');
-  // v1.10.74 - the HSN summary (Table 12) is net of credit notes: a credit
-  // note's quantity, value and tax reduce its HSN row instead of adding to it.
-  const hsnSign = (bill) => ((bill.invoiceType || 'tax-invoice') === 'credit-note' ? -1 : 1);
-  // v1.10.66 (#61) — exports. The tax engine now charges a client outside India
-  // IGST, so such an invoice can no longer sit in B2C with your own state as
-  // place of supply: the portal rejects an inter-state row for the home state.
-  // Exports belong in GSTR-1 Table 6A — which needs shipping-bill and port
-  // details this app does not record — and in GSTR-3B 3.1(b). They are kept
-  // out of B2B / B2C and 3.1(a), counted in 3.1(b), and flagged so they are
-  // entered in Table 6A on the portal. They stay in regularBills, so the HSN
-  // and document summaries still include them. An older invoice whose saved
-  // totals charged CGST + SGST stays exactly where it was, so tax it collected
-  // can never drop out of 3.1(a).
-  const isExportBill = (bill) => {
-    const country = String(bill.data?.client?.country || '').trim();
-    return (bill.data?.profile?.country || 'India') === 'India'
-      && !!country && country !== 'India'
-      && !getStateCode(String(bill.data?.details?.placeOfSupply || '').trim())
-      && bill.data?.totals?.isInterstate !== false;
-  };
+  // v1.10.66 (#61) - exports (isExportBill, utils/gstr1Json.js) stay in
+  // regularBills, so the HSN and document summaries still include them.
   const exportBills = regularBills.filter(isExportBill);
   // v1.10.84 - an export is without payment (WOPAY) when it charged no IGST
   // under a LUT: the zero-rated totals, or the LUT tick / LUT words with no tax.
@@ -803,33 +796,12 @@ export default function GSTReturns() {
   })();
 
   // ========== HSN Summary ==========
-  // v1.10.31 — GST-H3 fix: key by hsn+rate+uqc so items with the same HSN
-  // but different UQCs (KGS vs NOS vs PCS) don't get their quantities
-  // summed nonsensically. Also GST-C3 + C2: include cess + UTGST in totals.
-  const hsnMap = {};
-  [...filteredBills, ...supplyBills].forEach(bill => { // v1.10.84 - bills of supply too
-    const { items } = bill.data;
-    const isInterState = billIsInterstate(bill);
-    const isIntraUT = billIsIntraUT(bill);
-    (items || []).forEach(item => {
-      const hsn = item.hsn || 'N/A';
-      const rate = item.taxPercent || 0;
-      const uqc = item.unit || 'OTH';
-      const key = `${hsn}|${rate}|${uqc}`;
-      if (!hsnMap[key]) hsnMap[key] = { hsn, rate, uqc, description: item.name || '', quantity: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, totalTax: 0 };
-      const split = billSplit(bill, item, isInterState, !!bill.data?.taxInclusive, isIntraUT);
-      const sign = hsnSign(bill);
-      hsnMap[key].quantity += sign * (item.quantity || 0);
-      hsnMap[key].taxable += sign * split.taxable;
-      hsnMap[key].cgst += sign * split.cgst;
-      hsnMap[key].sgst += sign * (split.sgst + split.utgst);
-      hsnMap[key].igst += sign * split.igst;
-      hsnMap[key].cess += sign * split.cess;
-      hsnMap[key].totalTax += sign * (split.cgst + split.sgst + split.utgst + split.igst + split.cess);
-    });
-  });
-  const hsnRows = Object.values(hsnMap).map((r) => ({ ...r, quantity: roundQty(r.quantity) }))
-    .sort((a, b) => (a.hsn || '').localeCompare(b.hsn || ''));
+  // v1.10.84 (#166) - one builder (utils/gstr1Json.js hsnSummary) for the
+  // screen, the CSV files and the JSON, so the three always agree.
+  const hsnSum = hsnSummary([...filteredBills, ...supplyBills]); // v1.10.84 - bills of supply too
+  const hsnRows = hsnSum.rows;
+  const hsnB2B = hsnRows.filter((r) => r.b2b);
+  const hsnB2C = hsnRows.filter((r) => !r.b2b);
 
   // ========== Totals ==========
   // v1.10.31 — GST-C3: sumRows now carries cess. GST-H2: credit notes
@@ -1007,6 +979,8 @@ export default function GSTReturns() {
     const fy = fyOptions.find(f => f.value === fyFilter);
     return fy ? `03${fy.to.slice(0, 4)}` : getFilingPeriod(new Date().toISOString());
   };
+  // Table 12 comes in a B2B and a B2C list from the May 2025 return.
+  const hsnSplit = hsnSplitFrom(getReturnPeriod());
   const periodFiling = filingStatus[periodKey] || {};
 
   // v1.10.18 — reported: "in every option give option to change or edit
@@ -1083,55 +1057,17 @@ export default function GSTReturns() {
 
   const exportHSN = () => {
     if (hsnRows.length === 0) { toast('No HSN data', 'warning'); return; }
-    // v1.10.31 — GST-H3: key by hsn+rate+uqc so mixed-UQC items don't
-    // aggregate nonsensically. GST-C3: cess included. GST-C2: UTGST folded.
-    const hsnDetailed = {};
-    [...filteredBills, ...supplyBills].forEach(bill => {
-      const { items } = bill.data;
-      const isInter = billIsInterstate(bill);
-      const isIntraUT = billIsIntraUT(bill);
-      (items || []).forEach(item => {
-        const hsn = item.hsn || 'N/A';
-        const rate = item.taxPercent || 0;
-        const uqc = hsnUqc(item) || 'NOS';
-        const key = `${hsn}|${rate}|${uqc}`;
-        if (!hsnDetailed[key]) hsnDetailed[key] = { hsn, desc: item.name || '', uqc, qty: 0, rate, taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, totalValue: 0 };
-        const split = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, isIntraUT);
-        const sign = hsnSign(bill); // v1.10.74 - credit notes reduce the row
-        hsnDetailed[key].qty += uqc === 'NA' ? 0 : sign * (item.quantity || 0);
-        hsnDetailed[key].taxable += sign * split.taxable;
-        hsnDetailed[key].cgst += sign * split.cgst;
-        hsnDetailed[key].sgst += sign * (split.sgst + split.utgst);
-        hsnDetailed[key].igst += sign * split.igst;
-        hsnDetailed[key].cess += sign * split.cess;
-        hsnDetailed[key].totalValue += sign * (split.taxable + split.cgst + split.sgst + split.utgst + split.igst + split.cess);
+    // v1.10.84 (#166) - from the May 2025 return the portal takes Table 12 as
+    // two lists, so the CSV comes as two files (a list with no rows is left
+    // out). Earlier periods keep the one combined file.
+    if (!hsnSplit) {
+      downloadCSV('GSTR1_HSN_Summary.csv', HSN_CSV_HEADERS, hsnRows.map(hsnCsvRow));
+    } else {
+      [['B2B', hsnB2B], ['B2C', hsnB2C]].forEach(([part, rows]) => {
+        if (rows.length) downloadCSV(`GSTR1_HSN_${part}.csv`, HSN_CSV_HEADERS, rows.map(hsnCsvRow));
       });
-    });
-    // v1.10.31 — Column order + header labels now match the GSTR-1
-    // offline utility's Table 12 CSV template (v3.1.6+). The prior order
-    // put "Total Value" LAST and used "Rate %" — the portal importer
-    // rejects those with "Invalid file format". Correct order (portal):
-    //   HSN, Description, UQC, Total Quantity, Total Value, Rate,
-    //   Taxable Value, Integrated Tax Amount, Central Tax Amount,
-    //   State/UT Tax Amount, Cess Amount
-    downloadCSV(
-      'GSTR1_HSN_Summary.csv',
-      ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Rate', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount', 'State/UT Tax Amount', 'Cess Amount'],
-      Object.values(hsnDetailed).map(r => [
-        r.hsn,
-        r.desc,
-        r.uqc,
-        roundQty(r.qty, 2),
-        r.totalValue.toFixed(2),
-        r.rate,
-        r.taxable.toFixed(2),
-        r.igst.toFixed(2),
-        r.cgst.toFixed(2),
-        r.sgst.toFixed(2),
-        r.cess.toFixed(2),
-      ])
-    );
-    toast('HSN CSV downloaded — GSTR-1 Table 12 format', 'success');
+    }
+    toast(hsnSplit ? 'HSN CSV downloaded - B2B and B2C files, GSTR-1 Table 12 format' : 'HSN CSV downloaded - GSTR-1 Table 12 format', 'success');
   };
 
   const exportCDNR = () => {
@@ -1524,37 +1460,9 @@ export default function GSTReturns() {
         itms: Object.entries(rateMap).map(([rt, d], i) => ({ num: i + 1, itm_det: { rt: Number(rt), txval: round2(d.txval), iamt: round2(d.iamt), camt: round2(d.camt), samt: round2(d.samt), csamt: round2(d.csamt) } })) });
     });
 
-    const hsnJsonMap = {};
-    let unknownUnitCount = 0;
-    [...filteredBills, ...supplyBills].forEach(bill => {
-      const { items } = bill.data;
-      const isInter = billIsInterstate(bill);
-      const isIntraUT = billIsIntraUT(bill);
-      (items || []).forEach(item => {
-        // v1.10.43 — HSN Table 12 rule: portal rejects `hsn_sc: 'N/A'`
-        // or empty. Silently DROP items with no HSN so the file uploads;
-        // the pre-flight warning already told the user how many were
-        // dropped and to fix the source products.
-        const hsnRaw = String(item.hsn || '').trim();
-        if (!hsnRaw || hsnRaw === 'N/A') return;
-        const hsn = hsnRaw;
-        // One row per HSN, rate AND unit, as in the CSV: two units under one
-        // HSN used to add kilograms to pieces under the first row's unit.
-        const uqc = hsnUqc(item);
-        // v1.10.83 (#133) - Table 12 has a B2B list (buyers with a GSTIN, SEZ
-        // too) and a B2C list (no GSTIN, and exports).
-        const b2b = !!bill.data?.client?.gstin && !isExportBill(bill);
-        const rate = Number(item.taxPercent) || 0; const key = `${b2b ? 'B2B' : 'B2C'}_${hsn}_${rate}_${uqc}`;
-        if (uqc === 'OTH' && item.unit) unknownUnitCount += 1;
-        if (!hsnJsonMap[key]) hsnJsonMap[key] = { b2b, hsn_sc: hsn, desc: item.name || '', uqc, qty: 0, rt: rate, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
-        // UTGST goes in samt (it was dropped for intra-UT invoices, so the
-        // JSON's HSN table disagreed with B2B and with the CSV).
-        const split = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, isIntraUT);
-        const sign = hsnSign(bill); // v1.10.74 - credit notes reduce the row
-        hsnJsonMap[key].qty += uqc === 'NA' ? 0 : sign * (item.quantity || 0); hsnJsonMap[key].txval += sign * split.taxable; hsnJsonMap[key].iamt += sign * split.igst; hsnJsonMap[key].camt += sign * split.cgst; hsnJsonMap[key].samt += sign * (split.sgst + split.utgst);
-        hsnJsonMap[key].csamt += sign * split.cess;
-      });
-    });
+    // v1.10.43 - the portal rejects an HSN of 'N/A' or blank, so hsnSummary
+    // leaves those lines out; the pre-flight warning told the user how many.
+    const unknownUnitCount = hsnSum.customUnit;
 
     const docDet = docIssueDetails(docSummary);
 
@@ -1572,7 +1480,7 @@ export default function GSTReturns() {
       cdnur: cdnurArr,
       exp: expArr,
       nil: nilTable(nilRows),
-      hsn: hsnTable(Object.values(hsnJsonMap).map((r) => ({ ...r, qty: roundQty(r.qty, 2), txval: round2(r.txval), iamt: round2(r.iamt), camt: round2(r.camt), samt: round2(r.samt), csamt: round2(r.csamt) })), fp),
+      hsn: hsnTable(hsnRows, fp),
       doc_issue: { doc_det: docDet },
     });
 
@@ -1917,39 +1825,21 @@ export default function GSTReturns() {
               <h3>HSN Summary — Table 12<HelpButton title="HSN Summary" doc="gst-returns#hsn-summary" size={16} /></h3>
               <span className="text-muted" style={{ fontSize: '0.82rem' }}>{hsnRows.length} code{hsnRows.length !== 1 ? 's' : ''}</span>
             </div>
+            {hsnSum.missingHsn > 0 && (
+              <p style={{ padding: '0.5rem 0.75rem', margin: '0 1.25rem 0.5rem', borderRadius: '8px', fontSize: '0.8rem', background: 'var(--warn-bg)', color: 'var(--warn-text)' }}>
+                <AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> {hsnSum.missingHsn} invoice line{hsnSum.missingHsn !== 1 ? 's have' : ' has'} no HSN code and {hsnSum.missingHsn !== 1 ? 'are' : 'is'} left out of Table 12 - the portal needs an HSN for every line. Add the HSN to the product (Products page) and to the invoice.
+              </p>
+            )}
             {hsnRows.length === 0 ? (
               <p style={{ padding: '1rem 1.25rem', margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>No items found.</p>
-            ) : (
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead><tr><th>HSN</th><th>Description</th><th style={{ textAlign: 'right' }}>Qty</th><th style={{ textAlign: 'right' }}>Taxable</th><th style={{ textAlign: 'right' }}>CGST</th><th style={{ textAlign: 'right' }}>SGST</th><th style={{ textAlign: 'right' }}>IGST</th><th style={{ textAlign: 'right' }}>Total Tax</th></tr></thead>
-                  <tbody>
-                    {/* v1.10.6 — audit L13: HSN code is unique per row. */}
-                    {hsnRows.map((r, i) => (
-                      <tr key={r.hsn || `hsn-${i}`}>
-                        <td><span className="invoice-badge">{r.hsn}</span></td>
-                        <td className="font-medium">{r.description}</td>
-                        <td style={{ textAlign: 'right' }}>{r.quantity}</td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.taxable)}</td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.cgst)}</td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.sgst)}</td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.igst)}</td>
-                        <td style={{ textAlign: 'right' }} className="font-bold">{formatCurrency(r.totalTax)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot><tr style={{ fontWeight: 'bold', borderTop: '2px solid var(--border)' }}>
-                    <td colSpan={2}>Total</td>
-                    <td style={{ textAlign: 'right' }}>{hsnRows.reduce((s, r) => s + r.quantity, 0)}</td>
-                    <td style={{ textAlign: 'right' }}>{formatCurrency(hsnRows.reduce((s, r) => s + r.taxable, 0))}</td>
-                    <td style={{ textAlign: 'right' }}>{formatCurrency(hsnRows.reduce((s, r) => s + r.cgst, 0))}</td>
-                    <td style={{ textAlign: 'right' }}>{formatCurrency(hsnRows.reduce((s, r) => s + r.sgst, 0))}</td>
-                    <td style={{ textAlign: 'right' }}>{formatCurrency(hsnRows.reduce((s, r) => s + r.igst, 0))}</td>
-                    <td style={{ textAlign: 'right' }}>{formatCurrency(hsnRows.reduce((s, r) => s + r.totalTax, 0))}</td>
-                  </tr></tfoot>
-                </table>
+            ) : (hsnSplit ? [['B2B (buyers with a GSTIN)', hsnB2B], ['B2C', hsnB2C]] : [['', hsnRows]]).map(([title, rows]) => (
+              <div key={title || 'all'}>
+                {title && <h4 style={{ margin: 0, padding: '0.75rem 1.25rem 0.4rem', fontSize: '0.9rem' }}>{title} <span className="text-muted" style={{ fontWeight: 'normal', fontSize: '0.8rem' }}>- {rows.length} row{rows.length !== 1 ? 's' : ''}</span></h4>}
+                {rows.length === 0 ? (
+                  <p style={{ padding: '0 1.25rem 0.75rem', margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>None in this period.</p>
+                ) : <HsnTable rows={rows} />}
               </div>
-            )}
+            ))}
           </div>
 
           {/* Document Summary — Table 13 */}

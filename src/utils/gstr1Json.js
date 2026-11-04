@@ -7,6 +7,8 @@
 // and SEZ buyers in B2B, unregistered and overseas in B2C, descriptions cut to
 // 30 characters, blanks removed before the file is written.
 
+import { getStateCode, splitLineTax, hsnUqc, roundQty } from '../utils.js';
+
 export const HSN_DESC_MAX = 30;
 
 // fp is the return period, MMYYYY.
@@ -186,3 +188,106 @@ export function docIssueDetails(summary) {
     docs: list.map((d, i) => ({ num: i + 1, from: d.from, to: d.to, totnum: d.total, cancel: d.cancelled, net_issue: d.total - d.cancelled })),
   }));
 }
+// ---- Shared by the GST Returns screen, the CSV files and the JSON ----------
+
+// Inter-state status of a bill - follows place of supply when set explicitly,
+// SEZ supplies always interstate, else compares seller and client state.
+//
+// v1.10.66 (#61) - the invoice's own saved decision comes first. Every bill
+// keeps the totals the tax engine produced, `isInterstate` included, and a
+// return has to report the tax the way the invoice actually charged it.
+// Re-deriving it here from state NAMES disagreed with the engine where the
+// engine works from codes - a client known only by GSTIN, or a client abroad -
+// and filed IGST for an invoice that charged CGST + SGST. The name comparison
+// below remains only for bills saved before the flag existed.
+export function billIsInterstate(bill) {
+  const saved = bill.data?.totals?.isInterstate;
+  if (typeof saved === 'boolean') return saved;
+  const prof = bill.data?.profile;
+  const client = bill.data?.client;
+  const details = bill.data?.details;
+  if (client?.isSEZ) return true;
+  const sellerState = (prof?.state || '').trim().toLowerCase();
+  const placeOfSupply = (details?.placeOfSupply || client?.state || '').trim().toLowerCase();
+  if (!sellerState || !placeOfSupply) return false;
+  return sellerState !== placeOfSupply;
+}
+
+// The per-line split lives in utils.js (splitLineTax) so it can be tested;
+// see v1.10.77 (#89) there.
+// v1.10.83 - an export / SEZ invoice under a LUT charged no IGST
+// (totals.lutZeroRated): its lines report their value and rate with zero tax,
+// as the invoice printed them. Tax-inclusive prices had no tax in them.
+export const billSplit = (bill, item, isInter, taxInclusive, isIntraUT) => {
+  if (!bill?.data?.totals?.lutZeroRated) return splitLineTax(item, isInter, taxInclusive, isIntraUT);
+  return { ...splitLineTax(item, isInter, false, isIntraUT), cgst: 0, sgst: 0, utgst: 0, igst: 0, cess: 0 };
+};
+
+// v1.10.66 (#61) - exports. The tax engine now charges a client outside India
+// IGST, so such an invoice can no longer sit in B2C with your own state as
+// place of supply: the portal rejects an inter-state row for the home state.
+// Exports belong in GSTR-1 Table 6A - which needs shipping-bill and port
+// details this app does not record - and in GSTR-3B 3.1(b). They are kept
+// out of B2B / B2C and 3.1(a), counted in 3.1(b), and flagged so they are
+// entered in Table 6A on the portal. The HSN and document summaries still
+// include them. An older invoice whose saved totals charged CGST + SGST stays
+// exactly where it was, so tax it collected can never drop out of 3.1(a).
+export const isExportBill = (bill) => {
+  const country = String(bill.data?.client?.country || '').trim();
+  return (bill.data?.profile?.country || 'India') === 'India'
+    && !!country && country !== 'India'
+    && !getStateCode(String(bill.data?.details?.placeOfSupply || '').trim())
+    && bill.data?.totals?.isInterstate !== false;
+};
+
+// v1.10.83 (#133) - Table 12 has a B2B list (buyers with a GSTIN, SEZ too) and
+// a B2C list (no GSTIN, and exports).
+export const hsnIsB2B = (bill) => !!bill.data?.client?.gstin && !isExportBill(bill);
+
+// v1.10.74 - Table 12 is net of credit notes: a credit note's quantity, value
+// and tax reduce its HSN row instead of adding to it.
+export const hsnSign = (bill) => ((bill.invoiceType || 'tax-invoice') === 'credit-note' ? -1 : 1);
+
+// v1.10.84 (#166) - the Table 12 rows, worked out in ONE place. The screen, the
+// HSN CSV and the JSON were three separate loops and drifted apart (the screen
+// showed one combined table, its own units and an "N/A" row). One row per list
+// (B2B / B2C), HSN, rate and unit. A line with no HSN is left out - the portal
+// rejects it - and counted so the screen can say so. UTGST goes in samt: the
+// portal has no separate field for it.
+// Returns { rows: [{ b2b, hsn_sc, desc, uqc, qty, rt, txval, iamt, camt, samt,
+// csamt }], missingHsn, customUnit }.
+export function hsnSummary(bills) {
+  const map = {};
+  let missingHsn = 0, customUnit = 0;
+  for (const bill of bills || []) {
+    const isInter = billIsInterstate(bill);
+    const b2b = hsnIsB2B(bill);
+    const sign = hsnSign(bill);
+    for (const item of bill.data?.items || []) {
+      const hsn = String(item.hsn || '').trim();
+      if (!hsn || hsn === 'N/A') { missingHsn += 1; continue; }
+      const uqc = hsnUqc(item);
+      if (uqc === 'OTH' && item.unit) customUnit += 1;
+      const rt = Number(item.taxPercent) || 0;
+      const key = `${b2b ? 'B2B' : 'B2C'}_${hsn}_${rt}_${uqc}`;
+      if (!map[key]) map[key] = { b2b, hsn_sc: hsn, desc: item.name || '', uqc, qty: 0, rt, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
+      const r = map[key];
+      const s = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, !!bill.data?.totals?.isIntraUT);
+      if (uqc !== 'NA') r.qty += sign * (Number(item.quantity) || 0);
+      r.txval += sign * s.taxable; r.iamt += sign * s.igst; r.camt += sign * s.cgst;
+      r.samt += sign * (s.sgst + s.utgst); r.csamt += sign * s.cess;
+    }
+  }
+  const rows = Object.values(map)
+    .map((r) => ({ ...r, qty: roundQty(r.qty, 2), txval: r2(r.txval), iamt: r2(r.iamt), camt: r2(r.camt), samt: r2(r.samt), csamt: r2(r.csamt) }))
+    .sort((a, b) => a.hsn_sc.localeCompare(b.hsn_sc) || a.rt - b.rt);
+  return { rows, missingHsn, customUnit };
+}
+
+// Total value of a row: taxable value plus every tax.
+export const hsnRowValue = (r) => r2(r.txval + r.iamt + r.camt + r.samt + r.csamt);
+
+// v1.10.31 - the HSN CSV in the GSTR-1 offline utility's Table 12 column order
+// (v3.1.6+). "Total Value" last or "Rate %" made the importer refuse the file.
+export const HSN_CSV_HEADERS = ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Rate', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount', 'State/UT Tax Amount', 'Cess Amount'];
+export const hsnCsvRow = (r) => [r.hsn_sc, r.desc, r.uqc, r.qty, hsnRowValue(r).toFixed(2), r.rt, r.txval.toFixed(2), r.iamt.toFixed(2), r.camt.toFixed(2), r.samt.toFixed(2), r.csamt.toFixed(2)];
