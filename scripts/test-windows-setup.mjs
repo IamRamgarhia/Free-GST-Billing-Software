@@ -334,8 +334,9 @@ try {
   `C: old Desktop, Startup, taskbar-pin and Start-menu-subfolder shortcuts all moved to the backup folder (${backC.join(', ')})`);
   const same = ['data', 'Saved Invoices', 'Trash'].every((f) => {
     const a = fingerprint(path.join(oldC.sys, f)); const b = fingerprint(path.join(docsC, f));
-    // data/port.txt is the one file Setup changes in the copy, after the check (H2).
-    return a.files > 0 && a.lines.filter((l) => !l.startsWith('port.txt ')).every((l) => b.lines.includes(l));
+    // data/port.txt is the one file Setup changes in the copy, after the check (H2);
+    // data/server.lock is the running server's own (the new app's server takes it over).
+    return a.files > 0 && a.lines.filter((l) => !l.startsWith('port.txt ') && !l.startsWith('server.lock ')).every((l) => b.lines.includes(l));
   });
   ok(same, 'C: data, Saved Invoices and Trash copied - every file with the same SHA-256');
   const logC = fs.readFileSync(path.join(docsC, 'Free GST Billing - install log.txt'), 'utf8');
