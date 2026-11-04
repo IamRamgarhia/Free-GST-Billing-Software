@@ -75,9 +75,11 @@ npm run release:exe            # = node scripts/build-installer.mjs
    `build-installer.mjs` and its signature must be valid, Microsoft
    Corporation. Microsoft updates that file now and then: a fresh download
    needs its new hash there.
-5. Adds the official portable `node.exe` (the version is `$PortableNodeVersion`
-   in `ensure-node.ps1`): downloaded once into `.installer-cache/`, refused
-   unless its SHA-256 matches nodejs.org's `SHASUMS256.txt`.
+5. Adds the official portable `node.exe`, **Node.js 22 LTS** (the version is
+   `SETUP_NODE_VERSION` in `build-installer.mjs`, now v22.23.4): downloaded
+   once into `.installer-cache/`, refused unless its SHA-256 matches
+   nodejs.org's `SHASUMS256.txt`. The ZIP still uses `$PortableNodeVersion` in
+   `ensure-node.ps1` (Node.js 20); ZIP users move in a later release.
 6. Compiles with `ISCC.exe` (found in `%LOCALAPPDATA%\Programs\Inno Setup 6`,
    Program Files, or `ISCC=<path>`) into
    `release-build/Free-GST-Billing-Windows-Setup.exe` (about 30 MB).
@@ -268,5 +270,6 @@ By hand, a test install and its removal:
 - Code signing (SmartScreen warning on downloaded copies).
 - The Control Panel's *Remove the App* opens the guide for a Setup copy;
   removing is done in Settings -> Apps.
-- Node.js 20 is past its end of life (April 2026); move `$PortableNodeVersion`
-  to the current LTS once the ZIP's portable Node.js moves too.
+- The Setup carries Node.js 22 LTS; the ZIP's portable Node.js
+  (`$PortableNodeVersion`, 20, past its end of life in April 2026) moves in a
+  later release.

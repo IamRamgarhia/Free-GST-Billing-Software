@@ -14,7 +14,8 @@
 // production packages. Then the ZIP-only files are taken out and the official
 // portable node.exe is added - downloaded once from nodejs.org into
 // .installer-cache/ and checked against nodejs.org's SHASUMS256.txt.
-// The Node.js version is ensure-node.ps1's $PortableNodeVersion: one place.
+// The Setup's Node.js version is SETUP_NODE_VERSION below (22 LTS); the ZIP's
+// is still ensure-node.ps1's $PortableNodeVersion (20), so ZIP users move later.
 //
 // docs/WINDOWS_SETUP.md explains the Setup for maintainers.
 
@@ -52,11 +53,16 @@ async function download(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+// The Setup carries its own Node.js: 22 LTS ("Jod", supported until April
+// 2027). Node.js 20 is past its end of life (April 2026). Only the Setup moves
+// now: the ZIP keeps ensure-node.ps1's $PortableNodeVersion until its users
+// are moved in a later release. A newer 22.x: change it here (the SHA-256 is
+// checked against nodejs.org's SHASUMS256.txt on download).
+const SETUP_NODE_VERSION = 'v22.23.4';
+
 // The official portable node.exe, checked against nodejs.org's checksums.
 async function portableNode() {
-  const ps = readFileSync(join(ROOT, 'release-templates', '_system-scripts', 'ensure-node.ps1'), 'utf8');
-  const nodeVersion = (/\$PortableNodeVersion = '(v\d+\.\d+\.\d+)'/.exec(ps) || [])[1];
-  if (!nodeVersion) fail('$PortableNodeVersion not found in ensure-node.ps1.');
+  const nodeVersion = SETUP_NODE_VERSION;
   const name = `node-${nodeVersion}-win-x64`;
   const exe = join(CACHE, name, 'node.exe');
   if (existsSync(exe)) return { exe, nodeVersion };
