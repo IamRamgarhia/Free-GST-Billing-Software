@@ -100,6 +100,8 @@ async function until(fn, ms) {
 }
 const version = async (port) => (await (await answers(port))?.json())?.current;
 const bills = async (port) => (await (await answers(port, '/api/bills'))?.json() || []).length;
+// A real install's entry (the maintainer's PC has one): every value, read only.
+const realEntry = () => { try { return execFileSync('reg', ['query', `${UNINSTALL_KEY}\\FreeGSTBilling_is1`], { encoding: 'utf8' }).trim(); } catch { return ''; } };
 const uninstallKeys = () => { try { return execFileSync('reg', ['query', UNINSTALL_KEY], { encoding: 'utf8' }).split(/\r?\n/).filter((l) => l.startsWith('HKEY')).map((l) => l.split('\\').pop()).sort(); } catch { return []; } };
 // A listener: remote end 0.0.0.0:0, whatever the state word (some Windows builds print CLOSED).
 const listenerPid = (port) => (execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' }).split(/\r?\n/).find((l) => new RegExp(`:${port}\\s+0\\.0\\.0\\.0:0\\s`).test(l)) || '').trim().split(/\s+/).pop() || '';
@@ -205,12 +207,13 @@ function checkInstallFiles(root, home, logDir, label, app = appOf(root)) {
   ok(fs.existsSync(path.join(app, 'node', 'node.exe')) && fs.existsSync(path.join(app, 'node_modules', 'express', 'package.json')), `${label}: node.exe and the server packages are installed`);
   ok(!fs.existsSync(path.join(app, 'update-windows.ps1')) && !fs.existsSync(path.join(app, 'data')), `${label}: no ZIP updater and no books in the program folder`);
   ok(/testroot=/.test(fs.readFileSync(path.join(app, 'installed.txt'), 'utf8')), `${label}: installed.txt marks a Setup copy (test mode)`);
-  ok(uninstallKeys().includes(TEST_APP_ID) && !uninstallKeys().includes('FreeGSTBilling_is1'), `${label}: only the TEST uninstall entry (${TEST_APP_ID}) exists`);
+  ok(uninstallKeys().includes(TEST_APP_ID) && JSON.stringify(uninstallKeys().filter((k) => k !== TEST_APP_ID)) === JSON.stringify(realBefore.keys) && realEntry() === realBefore.entry,
+    `${label}: the TEST uninstall entry (${TEST_APP_ID}) exists; the real ones are as before`);
   ok(fs.existsSync(path.join(logDir, 'Free GST Billing - install log.txt')), `${label}: install log in ${logDir}`);
 }
 
 // ---------------------------------------------------------------- run
-const realBefore = { keys: uninstallKeys(), icons: realIcons(), p47373: listenerPid(47373) };
+const realBefore = { keys: uninstallKeys(), entry: realEntry(), icons: realIcons(), p47373: listenerPid(47373) };
 console.log(`\nTest folders under ${BASE}\nSetup: ${SETUP}\nUpdate: ${UPGRADE}\n`);
 try {
   // ======== A: no earlier copy =========================================
@@ -549,7 +552,8 @@ try {
 }
 
 console.log('\nThis PC (nothing real may change):');
-ok(JSON.stringify(uninstallKeys()) === JSON.stringify(realBefore.keys), `Windows' uninstall list is as before (${realBefore.keys.length} entries, no FreeGSTBilling*)`, uninstallKeys().filter((k) => /freegst/i.test(k)).join(','));
+ok(JSON.stringify(uninstallKeys()) === JSON.stringify(realBefore.keys) && realEntry() === realBefore.entry,
+  `Windows' uninstall list is as before (${realBefore.keys.length} entries; the real FreeGSTBilling_is1 ${realBefore.entry ? 'unchanged, every value' : 'absent'})`, uninstallKeys().filter((k) => /freegst/i.test(k)).join(','));
 ok(realIcons() === realBefore.icons, 'The real Desktop, Start-menu and Startup icons are as before (names and times)');
 ok(listenerPid(47373) === realBefore.p47373, `Port 47373 (the real app) has the same process as before (${realBefore.p47373 || 'none'})`);
 
