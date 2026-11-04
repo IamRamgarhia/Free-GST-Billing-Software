@@ -36,13 +36,12 @@ function round2(n) { return Math.round(n * 100) / 100; }
 // v1.10.84 (#166) - one Table 12 list (B2B or B2C) with its own total. Rows
 // come from hsnSummary, the same rows the CSV and the JSON are written from.
 const num = { textAlign: 'right' };
-const rowTax = (r) => r.iamt + r.camt + r.samt + r.csamt;
 const sumOf = (rows, f) => rows.reduce((s, r) => s + f(r), 0);
 function HsnTable({ rows }) {
   return (
     <div className="table-scroll">
       <table className="data-table">
-        <thead><tr><th>HSN</th><th>Description</th><th>UQC</th><th style={num}>Rate</th><th style={num}>Qty</th><th style={num}>Taxable</th><th style={num}>CGST</th><th style={num}>SGST</th><th style={num}>IGST</th><th style={num}>Total Tax</th><th style={num}>Total Value</th></tr></thead>
+        <thead><tr><th>HSN</th><th>Description</th><th>UQC</th><th style={num}>Rate</th><th style={num}>Qty</th><th style={num}>Taxable</th><th style={num}>CGST</th><th style={num}>SGST</th><th style={num}>IGST</th><th style={num}>Total Value</th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={`${r.hsn_sc}|${r.rt}|${r.uqc}`}>
@@ -55,8 +54,7 @@ function HsnTable({ rows }) {
               <td style={num}>{formatCurrency(r.camt)}</td>
               <td style={num}>{formatCurrency(r.samt)}</td>
               <td style={num}>{formatCurrency(r.iamt)}</td>
-              <td style={num} className="font-bold">{formatCurrency(rowTax(r))}</td>
-              <td style={num}>{formatCurrency(hsnRowValue(r))}</td>
+              <td style={num} className="font-bold">{formatCurrency(hsnRowValue(r))}</td>
             </tr>
           ))}
         </tbody>
@@ -66,7 +64,6 @@ function HsnTable({ rows }) {
           <td style={num}>{formatCurrency(sumOf(rows, (r) => r.camt))}</td>
           <td style={num}>{formatCurrency(sumOf(rows, (r) => r.samt))}</td>
           <td style={num}>{formatCurrency(sumOf(rows, (r) => r.iamt))}</td>
-          <td style={num}>{formatCurrency(sumOf(rows, rowTax))}</td>
           <td style={num}>{formatCurrency(sumOf(rows, hsnRowValue))}</td>
         </tr></tfoot>
       </table>

@@ -337,7 +337,7 @@ export default function ReportsView() {
       {activeTab === 'pl' && (
         <>
           {/* P&L Summary Cards */}
-          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '1.5rem' }}>
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1.5rem' }}>
             <div className="stat-card">
               <div className="stat-icon stat-icon-green"><TrendingUp size={22} /></div>
               <div><p className="stat-label">Revenue (ex. tax)</p><h2 className="stat-value stat-value-green">{formatCurrency(revenueExTax, shownCurrency)}</h2></div>
@@ -358,11 +358,9 @@ export default function ReportsView() {
                 <p className="stat-label">Net {netProfit >= 0 ? 'Profit' : 'Loss'}</p>
                 {/* v1.10.74 - a loss shows a minus sign, not just red colour */}
                 <h2 className="stat-value" style={{ color: netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(netProfit, shownCurrency)}</h2>
+                {/* v1.10.84 - the margin moved here to make room for Cost of goods sold */}
+                <p className="text-muted" style={{ margin: 0, fontSize: '0.78rem' }}>Margin {revenueExTax > 0 ? Math.round((netProfit / revenueExTax) * 100) : 0}%</p>
               </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon stat-icon-blue"><BarChart3 size={22} /></div>
-              <div><p className="stat-label">Margin</p><h2 className="stat-value">{revenueExTax > 0 ? Math.round((netProfit / revenueExTax) * 100) : 0}%</h2></div>
             </div>
           </div>
 
