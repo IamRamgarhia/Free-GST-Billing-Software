@@ -3,6 +3,7 @@ import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, Refr
 import { getAllProfiles, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
+import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
 // Dashboard downloaded and parsed GSTReturns (1952), InvoiceGenerator
@@ -132,6 +133,7 @@ function App() {
   // after that dismissal will re-show the banner.
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [notifyAsked, setNotifyAsked] = useState(false);
   const updateBannerVisible = updateInfo?.updateAvailable
     && localStorage.getItem('freegstbill_dismissedUpdate') !== updateInfo.latest;
 
@@ -145,6 +147,8 @@ function App() {
         const res = await fetch('/api/check-update');
         const data = await res.json();
         if (!cancelled) setUpdateInfo(data);
+        // v1.10.84 - and a Windows notification, once per version (if allowed).
+        if (!cancelled && data?.updateAvailable && localStorage.getItem('freegstbill_dismissedUpdate') !== data.latest) notifyUpdate(data.latest);
       } catch { /* offline — quietly skip */ }
     };
     // First check ~5 seconds after mount so it doesn't fight the initial load.
@@ -559,9 +563,11 @@ function App() {
   // program ("Invoices - Dice Codes"), not the long search-engine title.
   const pageLabel = (NAV_EXTRAS[currentView] || menu.find(m => m.id === currentView))?.label;
   const windowName = String(brand?.businessName || '').trim() || 'Free GST Billing';
+  // v1.10.84 - and says so when an update is waiting (the taskbar shows it too).
+  const updateNote = updateBannerVisible ? ` (update ${updateInfo.latest} available)` : '';
   useEffect(() => {
-    document.title = pageLabel ? `${pageLabel} - ${windowName}` : windowName;
-  }, [pageLabel, windowName]);
+    document.title = (pageLabel ? `${pageLabel} - ${windowName}` : windowName) + updateNote;
+  }, [pageLabel, windowName, updateNote]);
   const topActions = topIds.map(id => ({
     guide: (
       <button key={id} type="button" className="topbar-btn" onClick={openDocs}
@@ -1320,6 +1326,14 @@ function App() {
                 </button>
               )}
             </div>
+            {!notifyAsked && canAskToNotify() && (
+              <p style={{ fontSize: '0.78rem', marginTop: '0.6rem', marginBottom: 0 }}>
+                <button type="button" className="btn-link" onClick={() => { setNotifyAsked(true); askToNotify(updateInfo.latest); }}
+                  style={{ background: 'none', border: 0, color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}>
+                  Tell me with a Windows notification when the next update comes out
+                </button>
+              </p>
+            )}
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.6rem', marginBottom: 0 }}>
               {updateInfo.updateHint || <><em>Update Now</em> backs up your data, then fetches the newest release. It takes about a minute — leave this window open, then reload the page when it finishes.</>}
             </p>

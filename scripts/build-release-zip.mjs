@@ -155,7 +155,8 @@ copyFileSync(join(REPO_ROOT, 'src', 'utils', 'errorReport.js'), join(SYSTEM, 'sr
 copyFileSync(join(REPO_ROOT, 'src', 'utils', 'cashBook.js'), join(SYSTEM, 'src', 'utils', 'cashBook.js'));
 // Supplier payments are checked on save (#123): purchasePayments.js imports
 // purchaseOrders.js, which imports ../utils.js only.
-for (const f of ['purchasePayments.js', 'purchaseOrders.js']) {
+// v1.10.84 - the books folder (home.txt) and the one-server-per-books lock.
+for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js']) {
   copyFileSync(join(REPO_ROOT, 'src', 'utils', f), join(SYSTEM, 'src', 'utils', f));
 }
 
@@ -328,6 +329,12 @@ function assertNoDeadProtocolLinks() {
   console.log('  → No dead URL-protocol links in the packaged app');
 }
 assertNoDeadProtocolLinks();
+
+// v1.10.84 - scripts/build-installer.mjs needs the staged folder only.
+if (process.argv.includes('--no-zip')) {
+  console.log(`\n  ✅ Staged (no ZIP): ${STAGING}\n`);
+  process.exit(0);
+}
 
 // --- ZIP it up ---
 const zipName = `Free-GST-Billing-v${version}.zip`;

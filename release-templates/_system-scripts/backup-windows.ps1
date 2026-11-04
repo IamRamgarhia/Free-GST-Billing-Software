@@ -9,7 +9,14 @@ $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Backup'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SystemDir = $ScriptDir
-$dataDir = Join-Path $SystemDir 'data'
+# v1.10.84 - the books folder: FGSB_HOME, else home.txt, else this folder (as server.js).
+$HomeDir = $SystemDir
+if ($env:FGSB_HOME) { $HomeDir = $env:FGSB_HOME.Trim() }
+elseif (Test-Path -LiteralPath (Join-Path $SystemDir 'home.txt')) {
+  $h = [string](Get-Content -LiteralPath (Join-Path $SystemDir 'home.txt') -Encoding UTF8 -TotalCount 1)
+  if ($h.Trim()) { $HomeDir = $h.Trim() }
+}
+$dataDir = Join-Path $HomeDir 'data'
 
 if (-not (Test-Path $dataDir)) {
   Write-Host '  No data folder found - nothing to back up.' -ForegroundColor Yellow

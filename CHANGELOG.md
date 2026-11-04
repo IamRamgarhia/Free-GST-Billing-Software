@@ -45,6 +45,17 @@ Your invoices, clients, products and settings are never touched by an update;
 a backup is made first.
 
 ### Added
+- **A Windows Setup program** (`Free-GST-Billing-Windows-Setup.exe`): installs
+  like other software (Start menu, Desktop icon, optional start with Windows,
+  Settings → Apps to remove; no administrator password), opens in its own
+  window, and updates itself from **Update Now** - no reinstalling. It asks
+  where your books go and finds an earlier copy: keep using it where it is, or
+  copy it to `Documents\Free GST Billing` (every file checked; the old folder
+  is never changed, its icons are moved to a backup folder). Not signed yet:
+  Windows SmartScreen asks once (More info → Run anyway).
+- **One copy of the server per set of books.** Two copies started on the same
+  data folder (two launchers, two icons) used to both write the same files;
+  the second now does not start and the running one opens instead.
 - **Import from Vyapar, Tally and Excel** (#130, #131). Clients and Products
   import take a CSV, an Excel `.xlsx` (a *Sheet* list appears when the file has
   several) or Tally's masters export (`.xml`, *Gateway of Tally → Export →

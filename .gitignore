@@ -13,6 +13,8 @@ dist-ssr
 release-build
 # scripts/build-linux.mjs: downloads (checksum-verified) and staging
 .cache/
+# Node.js for the Windows Setup, downloaded and checked by scripts/build-installer.mjs
+.installer-cache
 *.local
 
 # Invoice data (personal/financial - keep local only)
