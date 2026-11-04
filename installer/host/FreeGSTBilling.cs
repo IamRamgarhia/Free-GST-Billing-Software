@@ -20,8 +20,15 @@
 //   - An update renames this exe and its DLLs while the window is open (Windows
 //     allows that for a running program) and installs the new ones; the page
 //     reloads by itself. The renamed "*.old" files are removed on the next start.
+//   - Close (X) hides the window to the tray (the icon near the clock; a tip
+//     the first time). Open from the icon; Quit (its right-click menu) closes
+//     the window AND stops this install's server (stop-app.ps1, by its own id).
+//     Windows shutting down or Task Manager close it for real. "/tray" (the
+//     Startup icon) starts the server and waits in the tray, no window.
+//   - Named events per program folder, "Local\FreeGSTBillingHost-<hash>-show",
+//     "-close" (uninstall: stop-app.ps1 -CloseWindow) and "-quit".
 //   - FGSB_HOST_SMOKE=<file> (tests): load the app, open Settings, write what was
-//     seen to <file> and close.
+//     seen to <file> and close. FGSB_HOST_TRACE=<file>: tray events, one a line.
 
 using System;
 using System.Diagnostics;
@@ -44,8 +51,9 @@ static class Program
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
 
-    public static string AppDir, DataDir, Aumid, SmokeFile;
+    public static string AppDir, DataDir, Aumid, SmokeFile, TraceFile;
 
     [STAThread]
     static int Main()
@@ -60,17 +68,23 @@ static class Program
         Aumid = testRoot != null ? "DiceCodes.FreeGSTBilling.Test" : "DiceCodes.FreeGSTBilling";
         SmokeFile = Environment.GetEnvironmentVariable("FGSB_HOST_SMOKE");
         if (SmokeFile == "") SmokeFile = null;
+        TraceFile = Environment.GetEnvironmentVariable("FGSB_HOST_TRACE");
+        if (TraceFile == "") TraceFile = null;
+        bool tray = false;
+        foreach (string a in Environment.GetCommandLineArgs()) if (string.Equals(a, "/tray", StringComparison.OrdinalIgnoreCase)) tray = true;
 
         // Sharp text on high-DPI screens (per-monitor v2, Windows 10 1703+).
         try { if (!SetProcessDpiAwarenessContext(new IntPtr(-4))) SetProcessDPIAware(); } catch (Exception) { try { SetProcessDPIAware(); } catch (Exception) { } }
         SetCurrentProcessExplicitAppUserModelID(Aumid);
 
         bool first;
-        using (Mutex one = new Mutex(true, @"Local\FreeGSTBillingHost-" + Hash(AppDir.ToLowerInvariant()), out first))
+        string name = @"Local\FreeGSTBillingHost-" + Hash(AppDir.ToLowerInvariant());
+        using (Mutex one = new Mutex(true, name, out first))
         {
             if (!first)
             {
-                Smoke("instance=second\r\nforwarded=" + (BringForward() ? "1" : "0") + "\r\n");
+                // The first copy shows its window, also from the tray.
+                Smoke("instance=second\r\nforwarded=" + (Signal(name + "-show") || BringForward() ? "1" : "0") + "\r\n");
                 return 0;
             }
             CleanOld();
@@ -83,7 +97,9 @@ static class Program
             }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm(runtime));
+            MainForm form = new MainForm(runtime, name);
+            if (tray) form.StartInTray(); else form.Show();
+            Application.Run(); // until the window really closes (ExitThread)
             GC.KeepAlive(one);
         }
         return 0;
@@ -112,8 +128,39 @@ static class Program
         return sb.ToString();
     }
 
-    // The window of this program folder's first copy (an update may have
-    // renamed its exe: the folder is compared, not the file).
+    static bool Signal(string eventName)
+    {
+        try
+        {
+            using (EventWaitHandle ev = EventWaitHandle.OpenExisting(eventName))
+            {
+                AllowSetForegroundWindow(-1); // this start was the user's: the first copy may come to the front
+                ev.Set();
+                return true;
+            }
+        }
+        catch (Exception) { return false; }
+    }
+
+    public static void Trace(string line)
+    {
+        if (TraceFile == null) return;
+        try { File.AppendAllText(TraceFile, line + "\r\n", new UTF8Encoding(false)); } catch (Exception) { }
+    }
+
+    // Stops this install's server by its own id - the uninstaller's way.
+    public static void StopServer()
+    {
+        string ps = Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
+        ProcessStartInfo psi = new ProcessStartInfo(ps, "-NoProfile -ExecutionPolicy Bypass -File \"" +
+            Path.Combine(AppDir, "stop-app.ps1") + "\" -Sys \"" + AppDir + "\"");
+        psi.UseShellExecute = false;
+        psi.CreateNoWindow = true;
+        try { using (Process p = Process.Start(psi)) { p.WaitForExit(30000); } } catch (Exception) { }
+    }
+
+    // An older copy's window (no events): the folder is compared, not the
+    // file (an update may have renamed its exe).
     static bool BringForward()
     {
         int me = Process.GetCurrentProcess().Id;
@@ -212,16 +259,34 @@ class MainForm : Form
     readonly Label status = new Label();
     readonly string runtime;
     readonly string placeFile = Path.Combine(Program.DataDir, "window.txt");
+    readonly string tipFile = Path.Combine(Program.DataDir, "tray-tip-shown.txt");
+    readonly NotifyIcon tray = new NotifyIcon();
+    readonly EventWaitHandle showEvent, closeEvent, quitEvent;
     string origin = "";
     int smokeStep;
     string smokeText = "";
+    bool reallyClose, problem;
 
-    public MainForm(string runtime)
+    public MainForm(string runtime, string eventName)
     {
         this.runtime = runtime;
         Text = "Free GST Billing";
         BackColor = Color.White;
         try { Icon = new Icon(Path.Combine(Program.AppDir, "app-icon.ico")); } catch (Exception) { }
+        // The icon near the clock: click = the window; right-click = Open / Quit.
+        tray.Icon = Icon;
+        tray.Text = "Free GST Billing";
+        ContextMenuStrip menu = new ContextMenuStrip();
+        ToolStripItem open = menu.Items.Add("Open Free GST Billing", null, delegate { ShowFromTray(); });
+        open.Font = new Font(open.Font, FontStyle.Bold);
+        menu.Items.Add("Quit (stop the app)", null, delegate { Quit(); });
+        tray.ContextMenuStrip = menu;
+        tray.MouseClick += delegate (object o, MouseEventArgs a) { if (a.Button == MouseButtons.Left) ShowFromTray(); };
+        tray.Visible = true;
+        Program.Trace("tray=1");
+        showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName + "-show");
+        closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName + "-close");
+        quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName + "-quit");
         status.Dock = DockStyle.Fill;
         status.TextAlign = ContentAlignment.MiddleCenter;
         status.Font = new Font("Segoe UI", 12f);
@@ -232,7 +297,96 @@ class MainForm : Form
         Controls.Add(web);
         Controls.Add(status);
         RestorePlace();
-        FormClosing += delegate { SavePlace(); };
+        FormClosing += OnClosing;
+        FormClosed += delegate
+        {
+            tray.Visible = false;
+            tray.Dispose();
+            Application.ExitThread();
+        };
+    }
+
+    // "/tray": the server starts, no window; opening it from the icon starts it as usual.
+    public void StartInTray()
+    {
+        IntPtr made = Handle; // the events need a window handle to post to
+        Program.Trace("start-tray handle=" + (made != IntPtr.Zero ? "1" : "0"));
+        Task.Run(() => { string[] r = Program.StartServer(); Program.Trace("server url=" + (r[0] ?? "none")); });
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Thread waiter = new Thread(delegate ()
+        {
+            WaitHandle[] all = new WaitHandle[] { showEvent, closeEvent, quitEvent };
+            while (true)
+            {
+                int i = WaitHandle.WaitAny(all);
+                try
+                {
+                    if (i == 0) BeginInvoke((MethodInvoker)ShowFromTray);
+                    else if (i == 1) { BeginInvoke((MethodInvoker)delegate { Program.Trace("close"); ExitNow(); }); return; }
+                    else { BeginInvoke((MethodInvoker)Quit); return; }
+                }
+                catch (Exception) { return; } // the window is gone
+            }
+        });
+        waiter.IsBackground = true;
+        waiter.Start();
+    }
+
+    void OnClosing(object sender, FormClosingEventArgs e)
+    {
+        // X (or Alt+F4): to the tray. Windows shutting down, Task Manager, Quit,
+        // the uninstaller and a window that only shows a problem: really closed.
+        if (!reallyClose && !problem && e.CloseReason == CloseReason.UserClosing)
+        {
+            e.Cancel = true;
+            SavePlace();
+            Hide();
+            Program.Trace("hidden");
+            if (!File.Exists(tipFile))
+            {
+                tray.ShowBalloonTip(8000, "Free GST Billing", "Free GST Billing is still running. Click the icon near the clock to open it.", ToolTipIcon.Info);
+                try { Directory.CreateDirectory(Program.DataDir); File.WriteAllText(tipFile, DateTime.Now.ToString("s")); } catch (Exception) { }
+                Program.Trace("tip");
+            }
+            return;
+        }
+        if (Visible) SavePlace();
+    }
+
+    void ShowFromTray()
+    {
+        if (reallyClose) return;
+        if (!Visible) Show();
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Activate();
+        Program.Trace("shown");
+    }
+
+    // Quit: the window, the tray icon and this install's server.
+    async void Quit()
+    {
+        if (reallyClose) return;
+        reallyClose = true;
+        tray.Visible = false;
+        if (Visible) SavePlace();
+        Hide();
+        Program.Trace("quit");
+        await Task.Run(() => Program.StopServer());
+        Program.Trace("server stopped");
+        ExitNow();
+    }
+
+    // Really closed - also a window that was never shown ("/tray").
+    void ExitNow()
+    {
+        reallyClose = true;
+        tray.Visible = false;
+        if (Visible) Close();
+        Application.ExitThread();
     }
 
     protected override async void OnShown(EventArgs e)
@@ -249,7 +403,7 @@ class MainForm : Form
         {
             if (IsDisposed) return; // closed while starting
             Program.Fallback("WebView2 did not start: " + ex.Message);
-            Close();
+            ExitNow();
             return;
         }
         if (IsDisposed) return;
@@ -260,7 +414,7 @@ class MainForm : Form
         {
             Program.Smoke("mode=error\r\ntext=" + r[1].Replace("\r\n", " | ") + "\r\n");
             Problem(r[1].Length > 0 ? r[1] : "The app's server did not start.");
-            if (Program.SmokeFile != null) Close();
+            if (Program.SmokeFile != null) ExitNow();
             return;
         }
         origin = new Uri(r[0]).GetLeftPart(UriPartial.Authority);
@@ -342,11 +496,12 @@ class MainForm : Form
         if (smokeStep != 2) return;
         Program.Smoke("mode=webview2\r\nruntime=" + runtime + "\r\nurl=" + origin + "/\r\n" + smokeText +
             "aumid=" + Program.Aumid + "\r\nuserdata=" + Path.Combine(Program.DataDir, "WebView2") + "\r\n");
-        Close();
+        ExitNow();
     }
 
     void Problem(string text)
     {
+        problem = true; // X closes such a window for real
         TextBox box = new TextBox();
         box.Multiline = true;
         box.ReadOnly = true;

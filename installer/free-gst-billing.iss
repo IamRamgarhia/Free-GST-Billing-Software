@@ -38,6 +38,9 @@
 ;                                   the search for earlier copies) stays inside
 ;                                   that folder; its own AppId; no window opens
 ;   /PORT=<n>                       test mode: port for new books (47461)
+;   /FAKEWEBVIEW2=<program>         test mode: act as if the WebView2 Runtime
+;                                   were missing and run <program> instead of
+;                                   Microsoft's installer (never a real install)
 
 #ifndef AppVersion
   #error AppVersion is not defined - build with npm run release:exe
@@ -47,6 +50,9 @@
 #endif
 #ifndef NodeExe
   #error NodeExe is not defined - build with npm run release:exe
+#endif
+#ifndef Bootstrapper
+  #error Bootstrapper is not defined - build with npm run release:exe
 #endif
 #ifndef OutputDir
   #define OutputDir "..\release-build"
@@ -94,6 +100,9 @@ Name: startup; Description: "Open Free GST Billing when Windows starts"; Flags: 
 ; First, so Setup can unpack them quickly to look for an earlier copy.
 Source: "{#NodeExe}"; DestDir: "{app}\node"; Flags: ignoreversion
 Source: "setup-helper.mjs"; Flags: dontcopy
+; Microsoft's WebView2 Runtime installer (Evergreen bootstrapper, about 2 MB),
+; unpacked to {tmp} and run only when the runtime is missing (EnsureWebView2).
+Source: "{#Bootstrapper}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 Source: "stop-app.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; (No [InstallDelete]: old program files go only after the new ones are in -
@@ -106,7 +115,8 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs c
 [Icons]
 Name: "{code:IconDir|programs}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"
 Name: "{code:IconDir|desktop}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"; Tasks: desktopicon; Check: DesktopOK
-Name: "{code:IconDir|startup}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"; Tasks: startup
+; At Windows start-up: the server starts and the app waits near the clock (/tray).
+Name: "{code:IconDir|startup}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; Parameters: "/tray"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"; Tasks: startup
 
 [Run]
 Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; Description: "Open Free GST Billing now"; Flags: postinstall nowait skipifsilent; Check: MayStart
@@ -125,6 +135,7 @@ Type: files; Name: "{app}\installed.txt"
 Type: files; Name: "{app}\*.old"
 Type: filesandordirs; Name: "{code:HostDataDir}\WebView2"
 Type: files; Name: "{code:HostDataDir}\window.txt"
+Type: files; Name: "{code:HostDataDir}\tray-tip-shown.txt"
 Type: dirifempty; Name: "{code:HostDataDir}"
 
 [Code]
@@ -436,6 +447,52 @@ begin
     AddStr(SetAside, Dest);
   end;
   if GetArrayLength(SetAside) > 0 then AddLog('Set aside the app window''s files for the update (' + IntToStr(GetArrayLength(SetAside) div 2) + ' files, renamed to *.old).');
+end;
+
+{ The app's window needs the WebView2 Runtime (Windows 11 and most Windows
+  10 PCs have it). Missing: Microsoft's own installer is run, per user, with
+  a time limit. If that fails (offline), Setup carries on and the window
+  uses Edge's app window instead. Test mode never installs anything real:
+  /FAKEWEBVIEW2=<program> says "missing" and runs that program instead. }
+const
+  WebView2Key = '\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+function WebView2Version: String;
+var
+  V: String;
+begin
+  Result := '';
+  if RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node' + WebView2Key, 'pv', V) and (V <> '') and (V <> '0.0.0.0') then Result := V
+  else if RegQueryStringValue(HKCU, 'Software' + WebView2Key, 'pv', V) and (V <> '') and (V <> '0.0.0.0') then Result := V;
+end;
+
+procedure EnsureWebView2;
+var
+  Exe, V: String;
+  Res: TArrayOfString;
+begin
+  V := '';
+  if IsTest then begin
+    Exe := ExpandConstant('{param:FAKEWEBVIEW2|}');
+    if Exe = '' then begin
+      AddLog('Test mode: the WebView2 Runtime is not checked or installed.');
+      exit;
+    end;
+  end else begin
+    V := WebView2Version;
+    if V <> '' then begin
+      AddLog('WebView2 Runtime ' + V + ' is installed (the app''s window uses it).');
+      exit;
+    end;
+    ExtractTemporaryFile('MicrosoftEdgeWebview2Setup.exe');
+    Exe := ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe');
+  end;
+  AddLog('The WebView2 Runtime is missing: installing it with Microsoft''s installer (it downloads about 150 MB)...');
+  WizardForm.StatusLabel.Caption := 'Installing the Microsoft WebView2 Runtime (for the app''s window)...';
+  RunHelper('run-timed ' + Q(Exe) + ' 600 /silent /install', Res);
+  if not IsTest then V := WebView2Version;
+  if V <> '' then AddLog('WebView2 Runtime ' + V + ' is now installed.')
+  else AddLog('The WebView2 Runtime could not be installed (no internet?). The app opens in Edge''s app window instead; nothing else is affected.');
 end;
 
 { PutBack: the update did not finish - the window's files go back to their
@@ -1084,6 +1141,7 @@ begin
     MoveOldShortcutsIn(IconDir('startup'), 'Startup', False);
     MoveOldShortcutsIn(IconDir('taskbar'), 'Taskbar', False);
   end;
+  EnsureWebView2;
   InstallDone := True;
   AddLog('Installed version {#AppVersion} in ' + ExpandConstant('{app}') + '; books folder: ' + Home);
   SaveLog;

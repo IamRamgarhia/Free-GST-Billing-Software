@@ -67,6 +67,14 @@ npm run release:exe            # = node scripts/build-installer.mjs
    three files used are checked against SHA-256s in `build-installer.mjs`;
    another SDK version needs new hashes there (check `Get-AuthenticodeSignature`:
    *Valid*, *Microsoft Corporation*).
+   It also takes Microsoft's WebView2 Runtime installer (the Evergreen
+   bootstrapper `MicrosoftEdgeWebview2Setup.exe`, about 2 MB, from
+   <https://go.microsoft.com/fwlink/p/?LinkId=2124703>) from
+   `release-build/tools/webview2-bootstrapper/` (or
+   `WEBVIEW2_BOOTSTRAPPER=<file>`): its SHA-256 is pinned in
+   `build-installer.mjs` and its signature must be valid, Microsoft
+   Corporation. Microsoft updates that file now and then: a fresh download
+   needs its new hash there.
 5. Adds the official portable `node.exe` (the version is `$PortableNodeVersion`
    in `ensure-node.ps1`): downloaded once into `.installer-cache/`, refused
    unless its SHA-256 matches nodejs.org's `SHASUMS256.txt`.
@@ -149,6 +157,20 @@ Updates from inside the app are not affected (a file Node.js downloads has no
   *Also delete your books?* (default **No**; silent: `/DELETEBOOKS=yes`).
   Books in an earlier copy's own folder (Keep) are never deleted by it.
 
+## The WebView2 Runtime
+
+Windows 11 and nearly every Windows 10 PC have it. After installing, Setup
+looks for it (registry `pv` of `{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` under
+`HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients` and
+`HKCU\Software\Microsoft\EdgeUpdate\Clients`, not empty and not `0.0.0.0`).
+Missing: it runs the bundled bootstrapper `/silent /install` (per user, no
+administrator, at most 10 minutes; it downloads the runtime, so it needs the
+internet) through `setup-helper.mjs run-timed`, and writes the result in the
+install log. A failure never stops Setup: the window then uses Edge's app
+window. In test mode nothing real is installed; `/FAKEWEBVIEW2=<program>`
+acts as if it were missing and runs that program instead (scenario H uses a
+stand-in that fails).
+
 ## The app's own window (`Free GST Billing.exe`)
 
 Only the Setup has it; the ZIP (Mac, Linux, Windows without installing) is
@@ -159,7 +181,11 @@ engine every Windows 10/11 has).
 | What | How |
 | --- | --- |
 | Start | Shows "Starting Free GST Billing..." at once; runs `start-windows.ps1 -PrintUrl` and opens the address it prints. If the launcher fails, its text is shown in the window (never a blank page). |
-| No WebView2 Runtime (or it fails to start) | Hands over to `start-windows.ps1 -AppWindow -Hidden`: Edge's app window as before, else the default browser. |
+| No WebView2 Runtime (or it fails to start) | Setup installs it first (below). Still missing: hands over to `start-windows.ps1 -AppWindow -Hidden`, Edge's app window as before, else the default browser. That fallback has no tray icon. |
+| Close (X) | Hides the window to the tray (the icon near the clock); the app and its server keep running, no taskbar button. The first time, a tip says so (`tray-tip-shown.txt` in the window's folder). Click the icon, or start the app again, to show it. Windows shutting down / logging off and Task Manager's End task (a bare WM_CLOSE) close it for real. A window that only shows a start-up problem closes for real. |
+| Tray menu | **Open Free GST Billing**, **Quit (stop the app)**: Quit closes the window and the tray icon and stops this install's server by its own id (`stop-app.ps1 -Sys`, as the uninstaller), never "all node.exe". |
+| Start with Windows | The Startup icon runs `Free GST Billing.exe /tray`: the server starts and the app waits near the clock, no window. |
+| Events | `Local\FreeGSTBillingHost-<first 8 bytes of SHA-1 of the lower-case program folder>` + `-show` (a second start), `-close` (the uninstaller: `stop-app.ps1 -CloseWindow`, which kills only if the window has not closed within 5 s) and `-quit`. |
 | Title | The page's `document.title` ("Invoices - DiceCodes"). |
 | Taskbar | AppUserModelID `DiceCodes.FreeGSTBilling` on the window and on the Setup's icons ([Icons] `AppUserModelID`), so a pin is this program with its icon (test mode: `DiceCodes.FreeGSTBilling.Test`). |
 | One window | A mutex per program folder; a second start brings the open window forward. |
@@ -194,6 +220,7 @@ starts those few with their defaults.
 | `/DELETEBOOKS=yes` | uninstaller: also delete the books |
 | `/TESTROOT=<folder>` | **test mode** (below) |
 | `/PORT=<n>` | test mode: the port for new books (default 47461; 47371-47373 and 47398 refused) |
+| `/FAKEWEBVIEW2=<program>` | test mode: act as if the WebView2 Runtime were missing and run `<program>` instead of Microsoft's installer |
 
 ## Test mode - use it for every test on a PC with real books
 

@@ -124,6 +124,20 @@ if (arg('version')) {
     join(ROOT, 'installer', 'host', 'FreeGSTBilling.cs')]);
 }
 
+// Microsoft's WebView2 Runtime installer (Evergreen bootstrapper, from
+// https://go.microsoft.com/fwlink/p/?LinkId=2124703), which Setup runs only on
+// a PC without the runtime. Checked: this SHA-256 (a newer download needs a
+// new hash here) and a valid Microsoft Corporation signature.
+// WEBVIEW2_BOOTSTRAPPER=<file> or release-build/tools/webview2-bootstrapper/.
+const bootstrapper = resolve(process.env.WEBVIEW2_BOOTSTRAPPER || join(ROOT, 'release-build', 'tools', 'webview2-bootstrapper', 'MicrosoftEdgeWebview2Setup.exe'));
+{
+  if (!existsSync(bootstrapper)) fail(`${bootstrapper} is missing. Download it from https://go.microsoft.com/fwlink/p/?LinkId=2124703, or set WEBVIEW2_BOOTSTRAPPER=<file>.`);
+  const sha = createHash('sha256').update(readFileSync(bootstrapper)).digest('hex');
+  if (sha !== 'cf2f2445fef0c5c14e372045f84998771eeb8bb01d59be4afd00692fa160082e') fail(`${bootstrapper} is not the checked WebView2 installer (SHA-256 ${sha}). Not used.`);
+  const sig = execFileSync('powershell.exe', ['-NoProfile', '-Command', `$s = Get-AuthenticodeSignature -LiteralPath '${bootstrapper.replace(/'/g, "''")}'; [string]$s.Status + '|' + $s.SignerCertificate.Subject`], { encoding: 'utf8' }).trim();
+  if (!/^Valid\|CN=Microsoft Corporation,/.test(sig)) fail(`${bootstrapper}: signature is not a valid Microsoft one (${sig}). Not used.`);
+}
+
 // Every program file of this version: an update removes the old version's
 // leftovers in dist / node_modules / src only AFTER all of these are in place
 // (setup-helper.mjs prune), so a failed update never leaves a broken app.
@@ -136,7 +150,7 @@ if (arg('version')) {
 // 4. Node.js, and compile.
 const { exe: nodeExe, nodeVersion } = await portableNode();
 mkdirSync(OUT_DIR, { recursive: true });
-run(iscc, ['/Q', `/DAppVersion=${version}`, `/DStageDir=${APP}`, `/DNodeExe=${nodeExe}`, `/DOutputDir=${OUT_DIR}`,
+run(iscc, ['/Q', `/DAppVersion=${version}`, `/DStageDir=${APP}`, `/DNodeExe=${nodeExe}`, `/DBootstrapper=${bootstrapper}`, `/DOutputDir=${OUT_DIR}`,
   join(ROOT, 'installer', 'free-gst-billing.iss')]);
 rmSync(STAGE_ROOT, { recursive: true, force: true });
 

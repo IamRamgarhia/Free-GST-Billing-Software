@@ -19,8 +19,9 @@
 #          separate arguments, never a -Command string: a folder name with
 #          curly quotes cannot break or change the command)
 #   -CloseWindow  also close the app's own window (Free GST Billing.exe) of
-#          THIS program folder, first politely, then by its id (uninstall
-#          only: an update leaves the window open and it reloads)
+#          THIS program folder, also when it is hidden near the clock: its
+#          "close" event first, then by its id (uninstall only: an update
+#          leaves the window open and it reloads)
 #
 # Keep this file pure ASCII (ERR-001).
 
@@ -33,7 +34,11 @@ $closed = ''
 if ($CloseWindow) {
   # Only windows whose exe is in this folder (an update may have renamed it to *.old).
   $wins = @(Get-Process -Name 'Free GST Billing' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ((Split-Path -Parent $_.Path).TrimEnd('\') -eq $Sys) })
-  foreach ($w in $wins) { [void]$w.CloseMainWindow() }
+  # The window listens for this (installer\host\FreeGSTBilling.cs: the same name rule).
+  # Closing it by message would only hide it near the clock.
+  $h = [Security.Cryptography.SHA1]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Sys.ToLower()))
+  $evName = 'Local\FreeGSTBillingHost-' + (($h[0..7] | ForEach-Object { $_.ToString('x2') }) -join '') + '-close'
+  try { $ev = [System.Threading.EventWaitHandle]::OpenExisting($evName); [void]$ev.Set(); $ev.Dispose() } catch { }
   $deadline = (Get-Date).AddSeconds(5)
   while ((Get-Date) -lt $deadline -and @($wins | Where-Object { -not $_.HasExited }).Count) { Start-Sleep -Milliseconds 250 }
   foreach ($w in $wins) { if (-not $w.HasExited) { Stop-Process -Id $w.Id -Force -ErrorAction SilentlyContinue } }

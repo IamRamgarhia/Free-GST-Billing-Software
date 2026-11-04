@@ -49,9 +49,13 @@ a backup is made first.
   like other software (Start menu, Desktop icon, optional start with Windows,
   Settings → Apps to remove; no administrator password), opens in a window of
   its own - a real program window with its own taskbar icon (pin it), which
-  remembers its size and place; without the WebView2 engine it uses Edge's app
-  window as before - and updates itself from **Update Now** with that window
-  open, no reinstalling and no restart. It asks
+  remembers its size and place. Closing it with X keeps the app running near
+  the clock (click the icon to open it again; right-click → Quit to stop it),
+  and with "Open when Windows starts" it waits there quietly. Setup installs
+  Microsoft's WebView2 engine if your PC does not have it (needs the
+  internet; without it the app opens in Edge's app window as before). It
+  updates itself from **Update Now** with that window open, no reinstalling
+  and no restart. It asks
   where your books go and finds an earlier copy: keep using it where it is, or
   copy it to `C:\Users\<your name>\Free GST Billing` (every file checked; the old folder
   is never changed, its icons are moved to a backup folder). Not signed yet:

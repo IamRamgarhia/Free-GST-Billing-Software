@@ -8,6 +8,8 @@
 //   node setup-helper.mjs writable <folder> [<folder>...] <out.txt>
 //   node setup-helper.mjs backup <oldHome> <toFolder> <out.txt>
 //   node setup-helper.mjs copy   <oldHome> <newHome> <out.txt>
+//   node setup-helper.mjs run-timed <program> <seconds> [<arg>...] <out.txt>
+//        (Microsoft's WebView2 installer, with a time limit; never fails)
 //
 // The top rule (the maintainer's): nothing here ever writes, moves, renames
 // or deletes anything inside an earlier installation. "detect" only reads,
@@ -24,6 +26,7 @@ import crypto from 'crypto';
 import net from 'net';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+import { spawnSync } from 'child_process';
 
 export const BOOK_FOLDERS = ['data', 'Saved Invoices', 'Trash'];
 const APP_PACKAGE_NAME = 'free-gst-billing-software';
@@ -418,6 +421,13 @@ async function main([cmd, ...rest]) {
       writeOut(out, [['files', v.files], ['bytes', v.bytes], ['port', port],
         ['log', `Copied ${v.files} files (${v.bytes} bytes) from ${from} to ${to}; every file checked: same count, same sizes, same SHA-256. The old folder was only read.`],
         ['log', `The copied books use port ${port} (the old copy used ${oldPort || 'none'}), so an old icon can never open them by mistake.`]]);
+    } else if (cmd === 'run-timed') {
+      // Runs a program with its arguments (no shell) and a time limit, and
+      // reports how it ended; the Setup carries on whatever happened.
+      const [program, seconds, ...programArgs] = args;
+      const r = spawnSync(program, programArgs, { timeout: Number(seconds) * 1000, windowsHide: true });
+      const how = r.error?.code === 'ETIMEDOUT' ? `did not finish within ${seconds} s` : r.error ? `could not run (${r.error.message})` : `finished with code ${r.status}`;
+      writeOut(out, [['code', r.status ?? -1], ['log', `${path.basename(program)} ${programArgs.join(' ')}: ${how}`]]);
     } else if (cmd === 'prune') {
       const [appDir, manifest] = args;
       const keep = new Set(fs.readFileSync(manifest, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean));

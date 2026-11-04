@@ -32,7 +32,12 @@
 //      DevTools protocol: no reboot, same window, the page reloads as
 //      1.10.99); the next start tidies up; no WebView2 -> the Edge fallback;
 //      a server that cannot start -> the launcher's text in the window;
-//      uninstall with the window open closes it and removes its profile.
+//      the tray: X hides it (app + server keep running, a one-time tip), a
+//      second start shows it, Quit stops window and server, Task Manager's
+//      End task really closes it, the Startup icon's /tray starts hidden;
+//      uninstall with the window hidden near the clock closes it (its close
+//      event) and removes its profile; WebView2 "missing" (test hook): the
+//      installer is run with /silent /install and its failure is tolerated.
 //   Also: a second Setup while one runs does not run (A); old program files
 //   go after the new ones are in (B).
 // The earlier copy is hashed (SHA-256 of every file) before and after each
@@ -103,8 +108,9 @@ const bills = async (port) => (await (await answers(port, '/api/bills'))?.json()
 // A real install's entry (the maintainer's PC has one): every value, read only.
 const realEntry = () => { try { return execFileSync('reg', ['query', `${UNINSTALL_KEY}\\FreeGSTBilling_is1`], { encoding: 'utf8' }).trim(); } catch { return ''; } };
 const uninstallKeys = () => { try { return execFileSync('reg', ['query', UNINSTALL_KEY], { encoding: 'utf8' }).split(/\r?\n/).filter((l) => l.startsWith('HKEY')).map((l) => l.split('\\').pop()).sort(); } catch { return []; } };
-// A listener: remote end 0.0.0.0:0, whatever the state word (some Windows builds print CLOSED).
-const listenerPid = (port) => (execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' }).split(/\r?\n/).find((l) => new RegExp(`:${port}\\s+0\\.0\\.0\\.0:0\\s`).test(l)) || '').trim().split(/\s+/).pop() || '';
+// A listener's process ids (remote port 0). Get-NetTCPConnection, not netstat: on
+// Windows 10.0.28020 "netstat -p TCP" sometimes leaves a 127.0.0.1 listener out.
+const listenerPid = (port) => ps(`@(Get-NetTCPConnection -LocalPort ${Number(port)} -ErrorAction SilentlyContinue | Where-Object { $_.RemotePort -eq 0 } | ForEach-Object { $_.OwningProcess } | Select-Object -Unique) -join ','; exit 0`);
 // The real icons: names and times only (read, never opened or changed).
 const realIcons = () => ps("foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Startup'))) { Get-ChildItem -LiteralPath $d -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName + ' ' + $_.LastWriteTimeUtc.Ticks } }");
 // Shortcuts are read and written through Shell.Application (Unicode), as Setup
@@ -235,6 +241,7 @@ try {
   let r = { code: firstCode, log: path.join(A, 'first.log') };
   ok(r.code === 0, 'A: silent install exit 0', r.log);
   checkInstallFiles(A, docsA, docsA, 'A');
+  ok(/Test mode: the WebView2 Runtime is not checked or installed/.test(fs.readFileSync(path.join(docsA, 'Free GST Billing - install log.txt'), 'utf8')), 'A: test mode never installs the real WebView2 Runtime');
   ok(await until(() => answers(NEW_PORT), 90000), `A: the app answers on test port ${NEW_PORT}`);
   const lockA = JSON.parse(fs.readFileSync(path.join(docsA, 'data', 'server.lock'), 'utf8'));
   ok(nodePathOf(lockA.pid).toLowerCase() === path.join(A, 'Programs', 'Free GST Billing', 'node', 'node.exe').toLowerCase(), 'A: served by the installed node.exe');
@@ -449,10 +456,25 @@ try {
   const docsH = path.join(H, 'Free GST Billing');
   const hostData = path.join(H, 'LocalAppData', 'Free GST Billing');
   const iconH = path.join(H, 'Desktop', 'Free GST Billing.lnk');
+  const traceH = path.join(H, 'trace.txt');
+  const trace = (f = traceH) => { try { return fs.readFileSync(f, 'utf8').split(/\r?\n/).filter(Boolean); } catch { return []; } };
+  // The X button: WM_SYSCOMMAND SC_CLOSE. (A bare WM_CLOSE, as Task Manager sends, closes it for real.)
+  const xClose = (pid) => ps(`Add-Type -Name W -Namespace FgsbTest -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'; [FgsbTest.W]::PostMessage((Get-Process -Id ${Number(pid)}).MainWindowHandle, 0x112, [IntPtr]0xF060, [IntPtr]::Zero)`);
+  const hostVisible = (pid) => ps(`(Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue).MainWindowHandle -ne 0`) === 'True';
+  const hostEvent = (what) => ps(`$e = [System.Threading.EventWaitHandle]::OpenExisting('Local\\FreeGSTBillingHost-${crypto.createHash('sha1').update(appH.toLowerCase(), 'utf8').digest('hex').slice(0, 16)}-${what}'); [void]$e.Set(); 'ok'`);
+  // A PC without the WebView2 Runtime (test hook): a stand-in for Microsoft's
+  // installer that writes down how it was called and fails (offline).
+  const fakeWv = path.join(H, 'fake-webview2', 'fake-webview2.exe');
+  fs.mkdirSync(path.dirname(fakeWv), { recursive: true });
+  fs.writeFileSync(`${fakeWv}.cs`, 'class F { static int Main(string[] a) { System.IO.File.WriteAllText(System.Reflection.Assembly.GetEntryAssembly().Location + ".args.txt", string.Join(" ", a)); return 3; } }');
+  execFileSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe'), ['/nologo', `/out:${fakeWv}`, `${fakeWv}.cs`]);
   const hh0 = fingerprint(oldH.old);
-  r = runSetup(SETUP, H, ['/DATAMODE=move', '/NOSTART=1']);
+  r = runSetup(SETUP, H, ['/DATAMODE=move', '/NOSTART=1', `/FAKEWEBVIEW2=${fakeWv}`]);
   ok(r.code === 0, 'H: silent install (copy), exit 0', r.log);
   proof('H install (copy)', hh0, fingerprint(oldH.old));
+  const logH = () => fs.readFileSync(path.join(docsH, 'Free GST Billing - install log.txt'), 'utf8');
+  ok(fs.existsSync(`${fakeWv}.args.txt`) && fs.readFileSync(`${fakeWv}.args.txt`, 'utf8') === '/silent /install' && /fake-webview2\.exe \/silent \/install: finished with code 3/.test(logH()) && /could not be installed/.test(logH()),
+    'H: WebView2 "missing" (test hook): Microsoft\'s installer is run with /silent /install; its failure is logged and the install carries on');
   ok(['Free GST Billing.exe', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll'].every((f) => fs.existsSync(path.join(appH, f))), 'H: the window and its WebView2 files are installed');
   // 1. The icon opens the window; it starts the server for these books.
   const smoke1 = path.join(H, 'smoke1.txt');
@@ -467,7 +489,7 @@ try {
   ok(await bills(NEW_PORT) === 3, 'H: the server the window started serves the 3 copied invoices');
   // 2. The window open (with the DevTools protocol, to drive it); a second start.
   const { chromium } = await import('playwright');
-  openIcon(iconH, { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}` });
+  openIcon(iconH, { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`, FGSB_HOST_TRACE: traceH });
   const browser = await until(async () => { try { return await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`); } catch { return null; } }, 90000);
   const page = browser && await until(() => browser.contexts()[0]?.pages().find((p) => p.url().startsWith(`http://localhost:${NEW_PORT}/`)), 90000);
   ok(page, 'H: the window shows the app');
@@ -504,14 +526,30 @@ try {
   await sleep(7000);
   proof('H update with the window open', hh1, fingerprint(oldH.old));
   await browser.close();
-  // 4. Closed and opened again: the set-aside files are gone.
-  ps(`[void](Get-Process -Id ${Number(pid1)}).CloseMainWindow()`);
-  ok(await until(() => !hostPids(appH), 20000), 'H: the window closes');
+  // 4. X hides it near the clock; a second start shows it; Quit stops it and the server.
+  xClose(pid1);
+  ok(await until(() => trace().includes('hidden'), 15000) && hostPids(appH) === pid1 && !hostVisible(pid1) && await answers(NEW_PORT)
+    && trace().includes('tray=1') && trace().includes('tip') && fs.existsSync(path.join(hostData, 'tray-tip-shown.txt')),
+  'H: X hides the window (no taskbar button), the app and its server keep running, the tray icon is there, the one-time tip was shown');
+  const smoke6 = path.join(H, 'smoke6.txt');
+  openIcon(iconH, { FGSB_HOST_SMOKE: smoke6 });
+  ok((await until(() => readSmoke(smoke6), 30000))?.forwarded === '1' && await until(() => hostVisible(pid1), 15000) && trace().includes('shown') && hostPids(appH) === pid1,
+    'H: starting it again while it is near the clock shows the same window');
+  xClose(pid1);
+  ok(await until(() => trace().filter((l) => l === 'hidden').length === 2, 15000) && trace().filter((l) => l === 'tip').length === 1, 'H: X again hides it; the tip is not shown a second time');
+  ok(hostEvent('quit') === 'ok' && await until(() => !hostPids(appH), 45000) && await until(async () => !await answers(NEW_PORT), 20000) && trace().includes('server stopped'),
+    'H: Quit (the tray menu\'s) closes the window and the tray icon AND stops this install\'s server');
+  // Opened again: the set-aside files are gone.
   const smoke3 = path.join(H, 'smoke3.txt');
   openIcon(iconH, { FGSB_HOST_SMOKE: smoke3 });
   const s3 = await until(() => readSmoke(smoke3), 120000) || {};
   ok(s3.mode === 'webview2' && !fs.readdirSync(appH).some((f) => f.endsWith('.old')), 'H: the next start of the updated window removed the *.old files');
   await until(() => !hostPids(appH), 30000);
+  // Task Manager's "End task" (a bare WM_CLOSE) really closes it; the server stays, as with X before.
+  openIcon(iconH);
+  const pidTm = await until(() => { const p = hostPids(appH); return p && hostVisible(p) ? p : null; }, 90000);
+  ps(`[void](Get-Process -Id ${Number(pidTm)}).CloseMainWindow()`);
+  ok(pidTm && await until(() => !hostPids(appH), 20000) && await answers(NEW_PORT), 'H: Task Manager\'s End task (WM_CLOSE) really closes the window, not to the tray');
   // 5. No WebView2 Runtime (simulated: the loader is pointed at an empty folder).
   const smoke4 = path.join(H, 'smoke4.txt');
   openIcon(iconH, { FGSB_HOST_SMOKE: smoke4, WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: path.join(H, 'no-webview2-here') });
@@ -527,16 +565,24 @@ try {
   fs.renameSync(`${docsH}-away`, docsH);
   ok(s5.mode === 'error' && /folder with your books is not there/.test(s5.text || ''), `H: when the server cannot start, the window shows the launcher's text ("${(s5.text || '').slice(0, 70)}...")`, JSON.stringify(s5));
   await until(() => !hostPids(appH), 20000);
-  // 7. Uninstall with the window open.
-  openIcon(iconH);
-  ok(await until(() => hostPids(appH), 30000), 'H: the window is open again');
-  await sleep(8000);
+  // 7. The Startup icon: "/tray" - the server starts, no window, the icon near the clock.
+  const startupH = path.join(H, 'Startup', 'Free GST Billing.lnk');
+  ok(/Free GST Billing\.exe \/tray$/.test(lnk(startupH).trim()) && !/\/tray/.test(lnk(iconH)), 'H: the Startup icon (the old copy had one) starts it with /tray; the Desktop icon does not');
+  const traceTray = path.join(H, 'trace-tray.txt');
+  openIcon(startupH, { FGSB_HOST_TRACE: traceTray });
+  const pidTray = await until(async () => { const p = hostPids(appH); return p && await answers(NEW_PORT) ? p : null; }, 120000);
+  await sleep(2000);
+  ok(pidTray && !hostVisible(pidTray) && trace(traceTray).includes('tray=1') && trace(traceTray).includes(`server url=http://localhost:${NEW_PORT}/`),
+    'H: /tray starts the server and waits near the clock, no window');
+  // 8. Uninstall with the window hidden near the clock.
   const hh2 = fingerprint(oldH.old);
-  ok(await runUninstall(H), 'H: uninstall finished with the window open');
-  ok(!hostPids(appH), 'H: ...it closed the window');
-  ok(!fs.existsSync(path.join(hostData, 'WebView2')) && !fs.existsSync(path.join(hostData, 'window.txt')), 'H: ...and removed the window\'s WebView2 profile and place');
+  const t0 = Date.now();
+  ok(await runUninstall(H), 'H: uninstall finished with the window hidden near the clock');
+  ok(!hostPids(appH) && trace(traceTray).includes('close'), `H: ...it closed that window through its close event, not by force (uninstall took ${Math.round((Date.now() - t0) / 1000)} s)`);
+  ok(!await answers(NEW_PORT), 'H: ...and stopped the server');
+  ok(!fs.existsSync(path.join(hostData, 'WebView2')) && !fs.existsSync(path.join(hostData, 'window.txt')) && !fs.existsSync(path.join(hostData, 'tray-tip-shown.txt')), 'H: ...and removed the window\'s WebView2 profile, place and tip mark');
   ok(listFiles(path.join(docsH, 'data', 'bills')).length === 3, 'H: the books are kept');
-  proof('H uninstall with the window open', hh2, fingerprint(oldH.old));
+  proof('H uninstall with the window near the clock', hh2, fingerprint(oldH.old));
 } catch (e) {
   failed++;
   console.log(`  FAIL ${e.stack || e.message}`);
