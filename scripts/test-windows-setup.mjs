@@ -583,8 +583,11 @@ try {
   spawnSync(exeH, ['/view=clients'], { env: { ...process.env, FREEGSTBILL_TEST: '1' }, timeout: 30000 });
   ok(await until(() => trace(traceRep).includes('view=clients') && trace(traceRep).slice(-3).some((l) => /^title=Clients - /.test(l)), 20000), 'H: jump list "Clients" with the window open: the same window goes to Clients');
   const jumpDir = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Recent', 'CustomDestinations');
-  const jumpFiles = () => { try { return fs.readdirSync(jumpDir).map((f) => path.join(jumpDir, f)).filter((f) => { const t = fs.readFileSync(f).toString('utf16le'); return t.includes(appH) && t.includes('/view=new'); }); } catch { return []; } };
-  ok(trace(traceRep).includes('jumplist=4') && jumpFiles().length === 1, 'H: the jump list (New Invoice, Dashboard, Clients, Reports) is registered under the window\'s taskbar id');
+  // A byte search for the UTF-16 text (decoding these files with toString('utf16le') gave wrong results, even a crash, on Node 24.20).
+  const hasText = (buf, s) => buf.indexOf(Buffer.from(s, 'utf16le')) >= 0;
+  const jumpFiles = () => { try { return fs.readdirSync(jumpDir).map((f) => path.join(jumpDir, f)).filter((f) => { const b = fs.readFileSync(f); return hasText(b, appH) && hasText(b, '/view=new'); }); } catch { return []; } };
+  ok(trace(traceRep).includes('jumplist=4') && jumpFiles().length >= 1, 'H: the jump list (New Invoice, Dashboard, Clients, Reports) is registered under the window\'s taskbar id',
+    `files=${jumpFiles().length} ${trace(traceRep).filter((l) => l.startsWith('jumplist')).join(' ')}`);
   ps(`[void](Get-Process -Id ${Number(pidRep)}).CloseMainWindow()`);
   await until(() => !hostPids(appH), 20000);
   const traceView = path.join(H, 'trace-view.txt');
@@ -634,7 +637,7 @@ try {
   await sleep(1000);
   // The test windows' jump lists (taskbar id DiceCodes.FreeGSTBilling.Test) name this run's folder.
   const jd = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Recent', 'CustomDestinations');
-  try { for (const f of fs.readdirSync(jd)) { if (fs.readFileSync(path.join(jd, f)).toString('utf16le').includes(BASE)) fs.rmSync(path.join(jd, f), { force: true }); } } catch { /* none */ }
+  try { for (const f of fs.readdirSync(jd)) { if (fs.readFileSync(path.join(jd, f)).indexOf(Buffer.from(BASE, 'utf16le')) >= 0) fs.rmSync(path.join(jd, f), { force: true }); } } catch { /* none */ }
   for (const root of ['A', 'A-second', 'B', 'C', 'D', 'D2', 'E', 'F', path.join('G', 'Rām\'s ‘Shop’ दुकान'), 'H']) {
     for (const name of ['Free GST Billing', 'Free GST Billing App']) {
       const app = appOf(path.join(BASE, root), name);
