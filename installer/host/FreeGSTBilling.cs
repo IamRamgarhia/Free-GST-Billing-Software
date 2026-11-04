@@ -34,6 +34,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -146,6 +147,33 @@ static class Program
     {
         if (TraceFile == null) return;
         try { File.AppendAllText(TraceFile, line + "\r\n", new UTF8Encoding(false)); } catch (Exception) { }
+    }
+
+    // Does the server answer? Quiet: no window, no log while it is healthy.
+    public static bool Alive(string origin)
+    {
+        try
+        {
+            HttpWebRequest q = (HttpWebRequest)WebRequest.Create(origin + "/api/version");
+            q.Proxy = null; // never the system proxy for this PC's own server (start-windows.ps1 says why)
+            q.Timeout = 5000;
+            using (HttpWebResponse r = (HttpWebResponse)q.GetResponse()) return r.StatusCode == HttpStatusCode.OK;
+        }
+        catch (Exception) { return false; }
+    }
+
+    // A Setup (an update) or its uninstaller is at work: never start the
+    // server under it. (SetupMutex=FreeGSTBillingSetup in the .iss.)
+    public static bool SetupRunning()
+    {
+        try
+        {
+            Mutex m;
+            if (!Mutex.TryOpenExisting("FreeGSTBillingSetup", out m)) return false;
+            m.Dispose();
+            return true;
+        }
+        catch (Exception) { return true; } // it exists, though we may not open it
     }
 
     // Stops this install's server by its own id - the uninstaller's way.
@@ -266,6 +294,10 @@ class MainForm : Form
     int smokeStep;
     string smokeText = "";
     bool reallyClose, problem;
+    // Self-repair: a light check of the server every 12 s (window open or in the tray).
+    readonly System.Windows.Forms.Timer health = new System.Windows.Forms.Timer();
+    int healthMisses;
+    bool repairing, checking, pageFailed;
 
     public MainForm(string runtime, string eventName)
     {
@@ -297,6 +329,9 @@ class MainForm : Form
         Controls.Add(web);
         Controls.Add(status);
         RestorePlace();
+        health.Interval = 12000;
+        health.Tick += OnHealthTick;
+        health.Start();
         FormClosing += OnClosing;
         FormClosed += delegate
         {
@@ -311,7 +346,13 @@ class MainForm : Form
     {
         IntPtr made = Handle; // the events need a window handle to post to
         Program.Trace("start-tray handle=" + (made != IntPtr.Zero ? "1" : "0"));
-        Task.Run(() => { string[] r = Program.StartServer(); Program.Trace("server url=" + (r[0] ?? "none")); });
+        Task.Run(() =>
+        {
+            string[] r = Program.StartServer();
+            Program.Trace("server url=" + (r[0] ?? "none"));
+            // Known now, so the self-repair check watches it in the tray too.
+            if (r[0] != null) BeginInvoke((MethodInvoker)delegate { if (origin.Length == 0) origin = new Uri(r[0]).GetLeftPart(UriPartial.Authority); });
+        });
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -378,6 +419,62 @@ class MainForm : Form
         await Task.Run(() => Program.StopServer());
         Program.Trace("server stopped");
         ExitNow();
+    }
+
+    async void OnHealthTick(object sender, EventArgs e)
+    {
+        if (origin.Length == 0 || repairing || checking || reallyClose || problem) return;
+        checking = true;
+        string o = origin;
+        bool up = await Task.Run(() => Program.Alive(o));
+        checking = false;
+        if (up)
+        {
+            healthMisses = 0;
+            // Back after an update or a repair while the page showed an error: reload it.
+            if (pageFailed && web.CoreWebView2 != null) { pageFailed = false; web.CoreWebView2.Navigate(origin + "/"); }
+            return;
+        }
+        if (++healthMisses >= 2) Repair("the server did not answer");
+    }
+
+    // The server stopped or crashed: start it again the launcher's way (it
+    // never starts a second server for the same books: data\server.lock),
+    // then reload. A Setup at work or Quit: leave it alone. After 3 tries:
+    // the launcher's own text.
+    async void Repair(string why)
+    {
+        if (repairing || reallyClose || problem || origin.Length == 0) return;
+        if (Program.SetupRunning()) { Program.Trace("repair skipped: Setup is running"); return; }
+        repairing = true;
+        Program.Trace("repair: " + why);
+        status.Text = "Starting again...";
+        status.Visible = true;
+        status.BringToFront();
+        web.Visible = false;
+        string[] r = new string[] { null, "" };
+        for (int t = 1; t <= 3 && !reallyClose; t++)
+        {
+            Program.Trace("repair try=" + t);
+            r = await Task.Run(() => Program.StartServer());
+            if (r[0] != null || reallyClose || Program.SetupRunning()) break;
+            await Task.Delay(3000);
+        }
+        repairing = false;
+        healthMisses = 0;
+        if (reallyClose) return;
+        if (r[0] == null)
+        {
+            if (Program.SetupRunning()) return; // an update took over: it starts the server itself
+            Program.Trace("repair gave up");
+            Problem(r[1].Length > 0 ? r[1] : "The app's server stopped and did not start again.");
+            return;
+        }
+        origin = new Uri(r[0]).GetLeftPart(UriPartial.Authority);
+        Program.Trace("repaired url=" + r[0]);
+        pageFailed = false;
+        if (web.CoreWebView2 != null) web.CoreWebView2.Navigate(r[0]);
+        else status.Visible = false; // never shown yet ("/tray"): it navigates when opened
     }
 
     // Really closed - also a window that was never shown ("/tray").
@@ -476,7 +573,20 @@ class MainForm : Form
 
     async void OnNavigated(object sender, CoreWebView2NavigationCompletedEventArgs a)
     {
-        if (a.IsSuccess && !web.Visible)
+        if (!a.IsSuccess && (a.WebErrorStatus == CoreWebView2WebErrorStatus.CannotConnect || a.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionAborted ||
+            a.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionReset || a.WebErrorStatus == CoreWebView2WebErrorStatus.Disconnected ||
+            a.WebErrorStatus == CoreWebView2WebErrorStatus.ServerUnreachable || a.WebErrorStatus == CoreWebView2WebErrorStatus.Timeout))
+        {
+            // Not Chromium's error page: our own state, and the server again.
+            pageFailed = true;
+            web.Visible = false;
+            status.Text = "Starting again...";
+            status.Visible = true;
+            status.BringToFront();
+            Repair("the page could not load (" + a.WebErrorStatus + ")");
+            return;
+        }
+        if (a.IsSuccess && !web.Visible && !repairing)
         {
             web.Visible = true;
             status.Visible = false;
