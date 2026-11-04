@@ -1772,10 +1772,16 @@ export default function SettingsView({ onSaved }) {
         {updateInfo?.updateAvailable && (
           <div className="update-available-box">
             <p><strong>New version v{updateInfo.latest} is available!</strong></p>
-            <p>Your data is backed up first and is not affected. Click below to update:</p>
-            <button type="button" className="btn btn-primary" disabled={updatingNow} onClick={handleSettingsUpdateNow} style={{ marginTop: '0.5rem', display: 'inline-flex' }}>
-              <Download size={18} /> {updatingNow ? 'Updating…' : 'Update Now'}
-            </button>
+            {updateInfo.updateHint ? (
+              <p>{updateInfo.updateHint}{updateInfo.releaseUrl && <> <a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer">Open the release page</a></>}</p>
+            ) : (
+              <>
+                <p>Your data is backed up first and is not affected. Click below to update:</p>
+                <button type="button" className="btn btn-primary" disabled={updatingNow} onClick={handleSettingsUpdateNow} style={{ marginTop: '0.5rem', display: 'inline-flex' }}>
+                  <Download size={18} /> {updatingNow ? 'Updating…' : 'Update Now'}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

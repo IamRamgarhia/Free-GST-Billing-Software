@@ -2,7 +2,7 @@
 # Free GST Billing — Unix backup.
 set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-DATA_DIR="$SCRIPT_DIR/data"
+DATA_DIR="${FGSB_HOME:-$SCRIPT_DIR}/data"   # FGSB_HOME: the .deb / AppImage keep data outside the app
 BACKUPS_HOME="$HOME/Documents/FreeGSTBill Backups"
 
 if [ ! -d "$DATA_DIR" ]; then
