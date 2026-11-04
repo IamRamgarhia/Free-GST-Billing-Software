@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 release-build
+# scripts/build-linux.mjs: downloads (checksum-verified) and staging
+.cache/
 *.local
 
 # Invoice data (personal/financial - keep local only)

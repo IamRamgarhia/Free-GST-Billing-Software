@@ -1,0 +1,107 @@
+#!/bin/sh
+# Free GST Billing - opens the app for the user who clicked it.
+# Used by the .deb (/opt/free-gst-billing, /usr/bin/free-gst-billing) and as
+# the AppImage's AppRun. No root, no system service: the server runs as this
+# user and answers 127.0.0.1 only.
+#
+# The program folder is read-only. The books live in FGSB_HOME, by default
+# ~/.local/share/free-gst-billing-data. (Not ~/.local/share/free-gst-billing:
+# the one-line ZIP install keeps its own copy there, and an earlier copy is
+# never written to.)
+#
+# FGSB_NO_BROWSER=1 starts the server and opens no window (tests, headless).
+# Plain POSIX sh, ASCII only.
+
+APP=$(CDPATH='' cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd -P)
+NODE="$APP/node/bin/node"
+KIND=$(cat "$APP/install-kind.txt" 2>/dev/null)
+FGSB_HOME=${FGSB_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/free-gst-billing-data}
+export FGSB_HOME
+
+has_screen() { [ -z "${FGSB_NO_BROWSER:-}" ] && { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; }
+
+problem() {
+  msg="Free GST Billing could not start: $1"
+  printf '  %s\n' "$msg" >&2
+  if has_screen && command -v zenity >/dev/null 2>&1; then
+    zenity --error --no-markup --title='Free GST Billing' --text="$msg" >/dev/null 2>&1
+  fi
+  exit 1
+}
+
+[ -x "$NODE" ] || problem "its files are incomplete ($NODE is missing). Install the package again."
+
+# First run: say where an earlier copy's books are. Nothing is moved.
+if [ ! -d "$FGSB_HOME/data" ]; then
+  mkdir -p "$FGSB_HOME" || problem "the folder $FGSB_HOME could not be created."
+  NOTE=$("$NODE" "$APP/linux/old-installs.mjs" "$HOME" "$FGSB_HOME" 2>/dev/null)
+  if [ -n "$NOTE" ]; then
+    printf '\n%s\n\n' "$NOTE"
+    if has_screen && command -v zenity >/dev/null 2>&1; then
+      zenity --info --no-wrap --no-markup --title='Free GST Billing' --text="$NOTE" >/dev/null 2>&1 &
+    fi
+  fi
+fi
+
+# The server writes the port it really got (another program may hold ours).
+read_port() {
+  PORT=$(tr -cd '0-9' < "$FGSB_HOME/data/port.txt" 2>/dev/null)
+  [ -n "$PORT" ] || PORT=47371
+  URL="http://localhost:$PORT/"
+}
+
+# Is the server on that port this user's copy, on these books? (An earlier
+# ZIP copy may be running on the same port with other books.)
+ours() {
+  "$NODE" -e "fetch('http://127.0.0.1:$PORT/api/control-panel/status').then((r) => r.json())
+    .then((s) => process.exit(s.dataFolder === require('path').resolve(process.argv[1], 'data') ? 0 : 1))
+    .catch(() => process.exit(1))" "$FGSB_HOME" 2>/dev/null
+}
+
+PID=''
+read_port
+if ! ours; then
+  printf '  Starting Free GST Billing...\n'
+  cd "$FGSB_HOME" || problem "the folder $FGSB_HOME could not be opened."
+  if [ "$KIND" = appimage ]; then
+    "$NODE" "$APP/server.js" > "$FGSB_HOME/last-start.log" 2>&1 &
+    PID=$!
+  else
+    nohup "$NODE" "$APP/server.js" > "$FGSB_HOME/last-start.log" 2>&1 &
+  fi
+  i=0
+  while ! ours; do
+    i=$((i + 1))
+    [ "$i" -gt 90 ] && problem "it did not answer in 90 seconds. See $FGSB_HOME/last-start.log"
+    sleep 1
+    read_port
+  done
+fi
+
+if [ -n "${FGSB_NO_BROWSER:-}" ] || ! has_screen; then
+  printf '  Free GST Billing is running at %s\n  Books: %s\n' "$URL" "$FGSB_HOME"
+else
+  opened=''
+  for b in google-chrome google-chrome-stable chromium chromium-browser microsoft-edge microsoft-edge-stable brave-browser; do
+    if command -v "$b" >/dev/null 2>&1; then
+      nohup "$b" --app="$URL" >/dev/null 2>&1 &
+      opened=1
+      break
+    fi
+  done
+  if [ -z "$opened" ]; then
+    if command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1 &
+    else printf '  Open %s in your browser.\n' "$URL"; fi
+  fi
+fi
+
+# AppImage: its files disappear when this script ends, so it stays while the
+# server runs. Control Panel > Restart starts a new server and this one exits;
+# keep waiting while that one answers.
+if [ -n "$PID" ]; then
+  wait "$PID"
+  sleep 3
+  read_port
+  while ours; do sleep 5; read_port; done
+fi
+exit 0

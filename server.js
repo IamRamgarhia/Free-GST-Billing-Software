@@ -19,7 +19,11 @@ import { validatePurchasePayments } from './src/utils/purchasePayments.js';
 import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES } from './src/utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, 'data');
+// FGSB_HOME moves data/, Saved Invoices/ and Trash/ together (the Linux
+// packages, the Windows Setup and the Docker image keep them outside the
+// program folder). Not set = this folder, as in every ZIP install.
+const APP_HOME = process.env.FGSB_HOME ? path.resolve(process.env.FGSB_HOME) : __dirname;
+const DATA_DIR = path.join(APP_HOME, 'data');
 
 // Port choice — we deliberately default to a high, unusual number rather than
 // the conventional 3001. The 3000-range is heavily used by every other Node /
@@ -31,7 +35,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 // wins over this default — so a single user who genuinely needs 47371 for
 // something else can edit that file and we'll respect it forever.
 const DEFAULT_PORT = 47371;
-const PORT_FILE = path.join(__dirname, 'data', 'port.txt');
+const PORT_FILE = path.join(DATA_DIR, 'port.txt');
 
 // Read the persisted port (if any) — written once on first successful start
 // and every time we get bumped off our preferred port by EADDRINUSE.
@@ -828,7 +832,9 @@ app.post(LOCAL_PREFS_ROUTE, express.json({ limit: '25mb' }), (req, res) => {
 // stored. Forgotten PIN: put a file named RESET-PIN (or RESET-PIN.txt) in the
 // app folder; the next check removes the PIN and the file.
 const PIN_RE = /^(\d{6}|\d{8})$/;
-const RESET_PIN_FILES = [path.join(__dirname, '..'), __dirname]
+// v1.10.84 - also the books folder (FGSB_HOME): an installed copy keeps its program
+// files where the user may not write (/opt, Program Files).
+const RESET_PIN_FILES = [...new Set([path.join(__dirname, '..'), __dirname, APP_HOME])]
   .flatMap((dir) => ['RESET-PIN', 'RESET-PIN.txt'].map((n) => path.join(dir, n)));
 const pinHash = (pin, salt) => crypto.scryptSync(String(pin), salt, 32).toString('hex');
 const pinMatches = (lock, pin) => {
@@ -1058,7 +1064,7 @@ app.post('/api/import', (req, res) => {
 // ========================
 // Save PDF to local folder
 // ========================
-const INVOICES_DIR = path.join(__dirname, 'Saved Invoices');
+const INVOICES_DIR = path.join(APP_HOME, 'Saved Invoices');
 if (!fs.existsSync(INVOICES_DIR)) fs.mkdirSync(INVOICES_DIR, { recursive: true });
 
 app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }), (req, res) => {
@@ -1205,7 +1211,7 @@ app.post('/api/saved-pdf/cancel-mark', express.json(), async (req, res) => {
 // ========================
 // Move saved PDF to Trash
 // ========================
-const TRASH_DIR = path.join(__dirname, 'Trash');
+const TRASH_DIR = path.join(APP_HOME, 'Trash');
 
 if (!fs.existsSync(TRASH_DIR)) fs.mkdirSync(TRASH_DIR, { recursive: true });
 
@@ -1277,6 +1283,18 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
 // Version check
 // ========================
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+
+// The Linux packages and the Docker image carry install-kind.txt ("deb",
+// "appimage" or "docker"). They are updated by installing the new package, so
+// the ZIP updater never runs there and the app says what to do instead.
+const INSTALL_KIND = (() => {
+  try { return fs.readFileSync(path.join(__dirname, 'install-kind.txt'), 'utf-8').trim(); } catch { return ''; }
+})();
+const updateHint = (latest) => ({
+  deb: `This copy was installed from the .deb package. To update, download free-gst-billing_${latest || '<version>'}_amd64.deb from the release page and open it (or run: sudo apt install ./free-gst-billing_${latest || '<version>'}_amd64.deb). Your invoices are kept.`,
+  appimage: 'This copy is the AppImage. To update, download the new Free-GST-Billing-Linux-x86_64.AppImage from the release page and use it instead of the old file. Your invoices are kept.',
+  docker: 'This copy runs in Docker. To update, put the new version in the image: line of docker-compose.yml and run: docker compose up -d. Your invoices stay in the /data volume.',
+}[INSTALL_KIND] || null);
 
 app.get('/api/version', (req, res) => {
   res.json({ current: pkg.version });
@@ -1401,6 +1419,7 @@ app.get('/api/check-update', async (req, res) => {
       releaseUrl,
       releasePublishedAt,
       releaseTag,
+      updateHint: updateHint(latest),
     });
   } catch {
     res.json({ current: pkg.version, latest: null, updateAvailable: false, error: 'Could not check for updates' });
@@ -1518,6 +1537,7 @@ app.get('/api/control-panel/status', (req, res) => {
     launcherType: controlScriptDir ? (isWindows ? 'hta' : (isMac ? 'command' : 'sh')) : 'none',
     canRemove: path.basename(__dirname) === '_system' && !!pickScript('uninstall'),
     appFolder: path.dirname(__dirname),
+    installKind: INSTALL_KIND || 'zip',
   });
 });
 
@@ -1558,6 +1578,7 @@ app.post('/api/control-panel/launch-script', async (req, res) => {
     setTimeout(() => process.exit(0), 400);
     return;
   }
+  if (action === 'update' && updateHint()) { res.json({ ok: false, error: updateHint() }); return; }
   const script = pickScript(action);
   const result = await runControlScript(script);
   res.json(result);
@@ -2198,9 +2219,14 @@ process.on('unhandledRejection', (err) => { console.error(`  Unexpected error (t
 // Try ports starting from STARTING_PORT (persisted preference) until one is available.
 // Bound to 127.0.0.1 explicitly so the server can NEVER be reached from the LAN —
 // every byte stays on the user's machine, which the privacy promise depends on.
+// FGSB_ALLOW_UNSAFE_LAN=1 is for the Docker image only: a container's
+// 127.0.0.1 cannot be reached through a port mapping, so it listens on every
+// address INSIDE the container, and docker-compose.yml publishes the port to
+// the NAS's own 127.0.0.1. There is no login yet, so never set it elsewhere.
+const LISTEN_HOST = process.env.FGSB_ALLOW_UNSAFE_LAN === '1' ? '0.0.0.0' : '127.0.0.1';
 let activeServer = null;
 function startServer(port) {
-  const server = app.listen(port, '127.0.0.1', () => {
+  const server = app.listen(port, LISTEN_HOST, () => {
     activeServer = server;
     // Persist the chosen port — the .bat launcher reads this for the browser URL.
     // Writing on EVERY successful boot means: if our preferred 47371 was busy and

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Free GST Billing
+GenericName=GST Billing
+Comment=GST invoices and billing, kept on this computer
+Exec=free-gst-billing
+Icon=free-gst-billing
+Terminal=false
+Categories=Office;Finance;
+Keywords=GST;invoice;billing;bill;
+StartupNotify=false

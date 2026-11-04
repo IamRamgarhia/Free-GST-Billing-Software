@@ -95,6 +95,7 @@ export default [
 <h2>Other computers cannot open it</h2>
 <p>The app has a small built-in server that your browser talks to. It listens only on this computer's own internal address, <code>127.0.0.1</code>, so other computers on your Wi-Fi or office network cannot open the app or read your data.</p>
 <p>It also refuses requests from other websites: a web page you visit cannot quietly read your books from the app in the background.</p>
+<p><b>A computer shared by several people with their own Windows, Mac or Linux logins:</b> the address <code>127.0.0.1</code> belongs to the whole computer, so someone signed in with another login on the same computer at the same time could also reach the app while it is running. Use the app on a computer only you (or people you trust) sign in to, and turn on the <a href="settings.html#lock">PIN lock</a>. A login checked by the app's own server is planned with the secure phone and network access.</p>
 <p>This is also why several people cannot use it from different computers at the same time. See <a href="limitations.html#multi-user">Several people, or several computers</a>.</p>
 </section>
 
@@ -108,7 +109,7 @@ export default [
   <li><strong>The "free" plans are not free for long.</strong> Most now give a trial credit and then charge every month, plus extra for storage that keeps your files.</li>
 </ul>
 <p>Hosting it online would also send your books to someone else's server, which is the one thing this app promises not to do.</p>
-<p><b>What you can do instead:</b> keep the app on one computer and take a <a href="backup.html">backup</a> often. To move to a new computer, see <a href="backup.html#move-pc">moving to a new computer</a>. Using the app from a phone or tablet on the <b>same Wi-Fi</b>, with a PIN that the app's server checks, is planned for the update on Saturday 7 November 2026. Using it over the internet may come later, but only after the app has a proper login of its own; this page will say so when it does.</p>
+<p><b>What you can do instead:</b> keep the app on one computer and take a <a href="backup.html">backup</a> often. To move to a new computer, see <a href="backup.html#move-pc">moving to a new computer</a>. Using the app from a phone or tablet on the <b>same Wi-Fi</b>, with a PIN that the app's server checks, is planned for the update on Saturday 14 November 2026, over an encrypted (HTTPS) connection. Using it over the internet may come later, but only after the app has a proper login of its own; this page will say so when it does.</p>
 </section>
 
 <section id="check-yourself">

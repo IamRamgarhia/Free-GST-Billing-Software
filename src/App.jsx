@@ -1313,12 +1313,15 @@ function App() {
                   View on GitHub
                 </a>
               )}
-              <button type="button" className="btn btn-primary" disabled={updating} onClick={handleUpdateNow}>
-                <Download size={16} /> {updating ? 'Updating…' : 'Update Now'}
-              </button>
+              {/* The .deb, AppImage and Docker copies update by installing the new package (server.js updateHint). */}
+              {!updateInfo.updateHint && (
+                <button type="button" className="btn btn-primary" disabled={updating} onClick={handleUpdateNow}>
+                  <Download size={16} /> {updating ? 'Updating…' : 'Update Now'}
+                </button>
+              )}
             </div>
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.6rem', marginBottom: 0 }}>
-              <em>Update Now</em> backs up your data, then fetches the newest release. It takes about a minute — leave this window open, then reload the page when it finishes.
+              {updateInfo.updateHint || <><em>Update Now</em> backs up your data, then fetches the newest release. It takes about a minute — leave this window open, then reload the page when it finishes.</>}
             </p>
           </div>
         </div>

@@ -13,3 +13,6 @@
 
 # HTA runs via mshta.exe on Windows — CRLF is fine.
 *.hta         text eol=crlf
+
+# Linux packages and the Docker image: every file is read on Linux.
+packaging/**  text eol=lf
