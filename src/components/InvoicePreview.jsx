@@ -151,6 +151,11 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   // measurable hot spot. Now: one lookup + downstream aliases keep
   // JSX shape untouched.
   const _ps = getPrintSettings();
+  // Room (px; 794 px = 210 mm) to leave above the e-invoice block so the
+  // PDF's copy label (drawn 4-10 mm from the top) does not cover its QR code.
+  const copyLabelGap = _ps.multiCopyEnabled && Number(_ps.multiCopyCount) > 1
+    ? Math.max(0, Math.round((12 - (Number(_ps.marginTop) || 0)) * 3.78 / Math.max(0.5, Number(_ps.pdfFontScale) || 1)))
+    : 0;
 
   // Print Settings -> Formatting (number grouping, decimals, symbol position,
   // date format) was saved but never used on the invoice. The defaults keep
@@ -1135,8 +1140,12 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
         </div>
       )}
       {/* v1.10.83 (#111) - one block, at the top of every design. */}
+      {/* v1.10.84 - reported (email, Bir Pandey): the copy label ("ORIGINAL
+          FOR RECIPIENT"), stamped on the PDF's top-right corner 4-10 mm from
+          the top, sat on the IRN QR code. With copy labels on, the block
+          starts below the label (about 12 mm, less any top print margin). */}
       {einv && (
-        <div data-pdf-page-boundary="" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.6rem 1.25rem', borderBottom: '1px solid #cbd5e1', fontSize: '0.72rem', color: '#0f172a', lineHeight: 1.6 }}>
+        <div data-pdf-page-boundary="" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.6rem 1.25rem', ...(copyLabelGap ? { paddingTop: copyLabelGap } : {}), borderBottom: '1px solid #cbd5e1', fontSize: '0.72rem', color: '#0f172a', lineHeight: 1.6 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, letterSpacing: '0.04em', color: '#334155' }}>E-INVOICE</div>
             <div><strong>IRN:</strong> <span style={{ wordBreak: 'break-all' }}>{einv.irn}</span></div>

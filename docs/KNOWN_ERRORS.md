@@ -730,6 +730,28 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-081 - The copy label ("ORIGINAL FOR RECIPIENT") covered the e-invoice QR code
+
+**Version:** since v1.10.83 (e-invoicing) · fixed in v1.10.84
+**Reported by:** Bir Pandey, by email "pdf rectification" (2026-11-04)
+
+**Symptom** - an e-invoice with Multi-copy on: the PDF's ORIGINAL / DUPLICATE
+label box is printed over the top of the IRN QR code.
+
+**Cause** - the copy label is drawn by jsPDF on the finished page, 4-10 mm
+from the top right. The e-invoice block is the first thing on the page and its
+QR sits in that same corner, about 3 mm from the top.
+
+**Rule** - anything placed in the page's top-right corner must leave the
+label's 4-10 mm band free when Multi-copy is on. The e-invoice block gets that
+room (`copyLabelGap` in InvoicePreview: 12 mm less any top print margin,
+scaled for the PDF text size).
+
+**Guard** - checked in a browser on a test copy: QR top 2.8 mm with labels
+off, 12.2 mm with labels on. No smoke check yet (needs an invoice with an IRN).
+
+---
+
 ## ERR-080 - Unticking "Tax % column" turned GST off for the whole invoice
 
 **Version:** since the switch existed · fixed in v1.10.84

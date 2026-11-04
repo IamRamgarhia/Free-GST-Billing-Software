@@ -107,6 +107,10 @@ a backup is made first.
 - **Enter after an item put the cursor in HSN**, not the next Item box (#151, ERR-078).
 - **With the preview hidden, Save / Download / Print opened it and closed it
   again** (#161, ERR-079).
+- **Enter moves to the next box** on an item row: Item → HSN → Qty → Unit →
+  Rate; Enter in Rate starts the next row. Picking a product jumps to Qty (#167).
+- **The copy label (ORIGINAL FOR RECIPIENT) no longer covers the e-invoice QR**
+  code (ERR-081).
 
 ### Security
 - The app answers only requests addressed to `localhost` / `127.0.0.1`, so a

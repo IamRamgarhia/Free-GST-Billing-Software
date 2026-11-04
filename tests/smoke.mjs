@@ -295,6 +295,15 @@ try {
   await rowNums.nth(1).fill('500');              // rate
   await sleep(800);
 
+  // #167: Enter moves along the row like a billing program: Item -> HSN -> Qty.
+  await row.locator('textarea.line-item-name').first().press('Enter');
+  await sleep(200);
+  const afterItem = await page.evaluate(() => document.activeElement?.className || '');
+  await page.keyboard.press('Enter');
+  await sleep(200);
+  const inQty = await page.evaluate(() => document.activeElement === document.querySelector('.line-item-row input[type="number"]'));
+  check('#167 Enter moves Item -> HSN -> Qty', /line-item-hsn/.test(afterItem) && inQty, `after Item: "${afterItem}", in Qty: ${inQty}`);
+
   // ERR-078 (#151): Enter on the last row adds a row and puts the cursor in
   // its Item box (it went to HSN once the box became a textarea). The new
   // row is removed again so the rest of the run sees one line.

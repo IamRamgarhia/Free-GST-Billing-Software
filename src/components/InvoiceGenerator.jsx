@@ -263,6 +263,18 @@ const currencySymbolFor = (code) =>
 // dropdown, with keyboard navigation. Extracted so LineItem stays lean
 // and the local `activeIdx` state doesn't cause other row fields to
 // re-render on every arrow-key press.
+// #167 - the boxes of a line item in order, for Enter to move along.
+function rowFields(row) {
+  return [...(row?.querySelectorAll('input, select, textarea') || [])].filter((el) => !el.disabled
+    && el.type !== 'checkbox' && el.type !== 'hidden' && el.offsetParent !== null
+    && !el.closest('.line-item-description-row'));
+}
+function focusField(el) {
+  if (!el) return;
+  el.focus();
+  if (typeof el.select === 'function' && el.tagName !== 'SELECT') el.select();
+}
+
 function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, onSetProductSearch, currency }) {
   const [activeIdx, setActiveIdx] = useState(-1);
   // v1.10.83 - the name box grows with the text (and can be dragged taller), so
@@ -279,7 +291,16 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
   useEffect(() => { setActiveIdx(-1); }, [item.name, suggestions.length]);
   const commit = (idx) => {
     const pick = suggestions[idx] ?? suggestions[0];
-    if (pick) onSelectProduct(item.id, pick);
+    if (!pick) return;
+    onSelectProduct(item.id, pick);
+    // #167 - a picked product fills HSN, rate and GST: the cursor goes on to
+    // the box after HSN (Qty, or Length on a size line) once the row has drawn.
+    const row = boxRef.current?.closest('.line-item-row');
+    requestAnimationFrame(() => {
+      const fields = rowFields(row);
+      const hsnAt = fields.findIndex((el) => el.classList.contains('line-item-hsn'));
+      focusField(fields[(hsnAt >= 0 ? hsnAt : fields.indexOf(boxRef.current)) + 1]);
+    });
   };
   const handleKey = (e) => {
     // A name is one line: Enter never breaks it (the row's Enter-adds-a-row still runs).
@@ -433,15 +454,23 @@ const LineItem = memo(function LineItem({
   // new blank row". Excludes Shift+Enter (soft newline in text
   // fields) and only fires on isLastRow to avoid Enter-mashing on
   // middle rows creating trailing empty rows.
+  // v1.10.84 (#167) - Enter moves along the row like a billing program: Item
+  // -> HSN -> Qty -> Unit -> Rate. Enter in Rate (or a box after it) finishes
+  // the row: the next row's Item box, or a new row on the last one (#151).
   const handleRowKeyDown = (e) => {
-    if (e.key !== 'Enter' || e.shiftKey || !isLastRow) return;
-    // Only fire when the input has SOME meaningful content in the
-    // row, so an accidental Enter on a completely blank row doesn't
-    // spawn a new blank row.
-    const hasContent = (item.name && item.name.trim()) || Number(item.rate) > 0 || Number(item.quantity) > 0;
-    if (!hasContent) return;
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.target.closest('.line-item-description-row')) return; // a description can have new lines
+    const fields = rowFields(e.currentTarget);
+    const at = fields.indexOf(e.target);
+    if (at < 0) return;
+    const rateAt = fields.findIndex((el) => el.classList.contains('line-item-rate'));
     e.preventDefault();
-    onAddRow?.();
+    if (rateAt < 0 || at < rateAt) { focusField(fields[at + 1]); return; }
+    if (!isLastRow) { focusField(e.currentTarget.nextElementSibling?.querySelector('.line-item-name')); return; }
+    // Only a row with something in it adds a new one, so an accidental Enter
+    // on a blank row doesn't spawn another blank row.
+    const hasContent = (item.name && item.name.trim()) || Number(item.rate) > 0 || Number(item.quantity) > 0;
+    if (hasContent) onAddRow?.();
   };
   return (
     <div className="line-item-row" data-item-id={item.id} onKeyDown={handleRowKeyDown}>
@@ -466,7 +495,7 @@ const LineItem = memo(function LineItem({
       {invoiceOptions.showHSN && (
         <div className="line-item-field" style={{ flex: 1, position: 'relative' }}>
           <label className="form-label">{invoiceMode === 'services' ? 'SAC' : 'HSN/SAC'}</label>
-          <input type="text" className="form-input" value={item.hsn}
+          <input type="text" className="form-input line-item-hsn" value={item.hsn}
             onChange={(e) => {
               const val = e.target.value;
               onFieldChange(item.id, 'hsn', val);
@@ -544,11 +573,11 @@ const LineItem = memo(function LineItem({
         {item.size?.manual ? (
           // #140 - Type amount: the amount is kept on the size; the rate per
           // sq.ft follows from it (so GSTR-1 and stock still see the area).
-          <input type="number" min="0" step="any" className="form-input" value={item.size.amount ?? ''}
+          <input type="number" min="0" step="any" className="form-input line-item-rate" value={item.size.amount ?? ''}
             onFocus={(e) => e.target.select()}
             onChange={(e) => onSizeChange(item.id, { amount: clampNonNeg(e.target.value) })} />
         ) : (
-          <input type="number" min="0" step="any" className="form-input" value={item.rate}
+          <input type="number" min="0" step="any" className="form-input line-item-rate" value={item.rate}
             onFocus={(e) => e.target.select()}
             onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
         )}
