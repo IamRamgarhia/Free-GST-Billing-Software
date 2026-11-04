@@ -13,7 +13,7 @@ import { resolveAppHome } from '../src/utils/appHome.js';
 import { spawnSync } from 'child_process';
 import { lockIsLive, acquireLock, readLock, releaseLock, writeLock } from '../src/utils/serverLock.js';
 import { allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from '../src/utils/setupDownload.js';
-import { findOldInstalls, copyBooks, verifyCopy, backupZip, zipEntries, listFiles, chooseCopyPort, pruneAppFiles } from '../installer/setup-helper.mjs';
+import { findOldInstalls, copyBooks, verifyCopy, backupZip, zipEntries, listFiles, chooseCopyPort, pruneAppFiles, makeDirs, checkWritable } from '../installer/setup-helper.mjs';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -240,6 +240,19 @@ try {
   const oddZip = backupZip(oddOld, at(`${odd}/नई किताबें/Setup backups`), 'odd');
   eq([oddZip.files, zipEntries(oddZip.zip).map((e) => e.name)], [1, ['data/bills/हिसाब-1.json']], '...and backed up to a ZIP there, Hindi file name and all, read back');
   eq(fingerprint(at(`${odd}/old`)), oddBefore, '...and that old copy is unchanged');
+  // ---- folders Windows will not let us make (Controlled folder access) ----
+  // Node's mkdirSync({ recursive: true }) hung for ever there (4 Nov 2026);
+  // makeDirs goes one level at a time and fails at once with a hint.
+  eq(makeDirs(at('mk/a/b')).map((d) => path.relative(T, d)), [path.join('mk'), path.join('mk', 'a'), path.join('mk', 'a', 'b')], 'makeDirs makes each missing folder and says which');
+  eq(makeDirs(at('mk/a/b')), [], '...and nothing when it is there');
+  put('mk/file.txt', 'x');
+  const mkStart = Date.now();
+  throws(() => makeDirs(at('mk/file.txt/sub')), /Controlled folder access/, 'A folder that cannot be made: a clear error naming Controlled folder access');
+  eq(Date.now() - mkStart < 2000, true, '...at once, no hang');
+  checkWritable(at('wr/new/place'));
+  eq(fs.existsSync(at('wr')), false, 'checkWritable takes away the folders it made to test');
+  throws(() => checkWritable(at('mk/file.txt/sub')), /did not let Setup/, 'checkWritable refuses where nothing can be written');
+
   if (process.platform === 'win32') {
     // Setup quotes paths the way Windows programs read them: "E:\" would end
     // in \" (an escaped quote), so a trailing backslash is doubled (iss Q()).

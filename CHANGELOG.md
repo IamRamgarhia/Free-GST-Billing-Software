@@ -50,7 +50,7 @@ a backup is made first.
   Settings → Apps to remove; no administrator password), opens in its own
   window, and updates itself from **Update Now** - no reinstalling. It asks
   where your books go and finds an earlier copy: keep using it where it is, or
-  copy it to `Documents\Free GST Billing` (every file checked; the old folder
+  copy it to `C:\Users\<your name>\Free GST Billing` (every file checked; the old folder
   is never changed, its icons are moved to a backup folder). Not signed yet:
   Windows SmartScreen asks once (More info → Run anyway).
 - **One copy of the server per set of books.** Two copies started on the same

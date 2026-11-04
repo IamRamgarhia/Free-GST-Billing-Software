@@ -5,6 +5,7 @@
 // unpacked to Setup's temp folder, before anything is installed:
 //
 //   node setup-helper.mjs detect <candidates.txt> <newAppDir> <testRoot or ""> <out.txt>
+//   node setup-helper.mjs writable <folder> [<folder>...] <out.txt>
 //   node setup-helper.mjs backup <oldHome> <toFolder> <out.txt>
 //   node setup-helper.mjs copy   <oldHome> <newHome> <out.txt>
 //
@@ -34,6 +35,50 @@ export function isInside(child, parent) {
   return rel === '' || (!!rel && !rel.startsWith('..') && !path.isAbsolute(rel));
 }
 const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
+
+// Windows Security's "Controlled folder access" (ransomware protection) blocks
+// unknown programs from writing in Documents, Desktop, Pictures... Node's
+// mkdirSync({ recursive: true }) then loops for ever instead of failing (seen
+// 4 Nov 2026 on the maintainer's PC: Setup stuck on "Preparing to install").
+// So folders are made one level at a time, which fails at once.
+export const BLOCKED_HINT = 'If Windows Security\'s "Controlled folder access" (ransomware protection) is on, it blocks this. '
+  + 'Choose a folder outside Documents and Desktop (for example C:\\Users\\<your name>\\Free GST Billing), or allow the app in '
+  + 'Windows Security > Virus & threat protection > Ransomware protection > Allow an app through Controlled folder access.';
+
+// Makes dir and any missing parents; returns the folders it made, top first.
+export function makeDirs(dir) {
+  const missing = [];
+  let d = path.resolve(dir);
+  while (!fs.existsSync(d)) {
+    missing.unshift(d);
+    const up = path.dirname(d);
+    if (up === d) break;
+    d = up;
+  }
+  const made = [];
+  for (const m of missing) {
+    try { fs.mkdirSync(m); } catch (e) {
+      throw new Error(`Windows did not let Setup make the folder ${m} (${e.code || e.message}). ${BLOCKED_HINT}`);
+    }
+    made.push(m);
+  }
+  return made;
+}
+
+// Can this app's node.exe write in dir? Makes it if needed, writes and deletes
+// a small file, and takes away again only the folders it made itself.
+export function checkWritable(dir) {
+  const made = makeDirs(dir);
+  const probe = path.join(dir, `.fgsb-write-check-${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(probe, 'ok');
+    fs.unlinkSync(probe);
+  } catch (e) {
+    throw new Error(`Windows did not let Setup write in ${dir} (${e.code || e.message}). ${BLOCKED_HINT}`);
+  } finally {
+    for (const m of made.reverse()) { try { fs.rmdirSync(m); } catch { /* has files now: keep */ } }
+  }
+}
 
 // Every file below dir: Map(relative path -> size).
 export function listFiles(dir) {
@@ -186,7 +231,7 @@ export function copyBooks(from, to) {
   checkCopyTarget(from, to);
   const made = { dirs: [], files: [] };
   try {
-    if (!fs.existsSync(to)) { fs.mkdirSync(to, { recursive: true }); made.dirs.push(to); }
+    made.dirs.push(...makeDirs(to));
     for (const f of BOOK_FOLDERS) {
       if (isDir(path.join(from, f))) copyDir(path.join(from, f), path.join(to, f), made);
     }
@@ -320,7 +365,7 @@ export function backupZip(home, toFolder, stamp = new Date().toLocaleString('sv-
   const data = path.join(home, 'data');
   const want = [...listFiles(data).keys()].filter((r) => !r.startsWith('backups/') && r !== 'server.lock').map((r) => `data/${r}`);
   if (!want.length) return null;
-  fs.mkdirSync(toFolder, { recursive: true });
+  makeDirs(toFolder);
   const zip = path.join(toFolder, `books-before-setup-${stamp}.zip`);
   writeZip(home, want, zip);
   const names = new Set(zipEntries(zip).map((e) => e.name));
@@ -354,6 +399,9 @@ async function main([cmd, ...rest]) {
     } else if (cmd === 'stopped') {
       if (await stillServing(args[0])) throw new Error(`The earlier copy is still running (it answers on its port). Close it, then run Setup again. Nothing was changed.`);
       writeOut(out, [['ok', 1], ['log', `Checked: the earlier copy's server no longer answers.`]]);
+    } else if (cmd === 'writable') {
+      for (const d of args) checkWritable(d);
+      writeOut(out, [['ok', 1], ['log', `Checked: the app can write in ${args.join(' and ')}`]]);
     } else if (cmd === 'backup') {
       const r = backupZip(args[0], args[1]);
       writeOut(out, r ? [['zip', r.zip], ['log', `Backup ZIP of ${path.join(args[0], 'data')}: ${r.zip} (${r.files} files, checked)`]]
@@ -365,7 +413,7 @@ async function main([cmd, ...rest]) {
       try { oldPort = parseInt(fs.readFileSync(path.join(from, 'data', 'port.txt'), 'utf8').trim(), 10) || 0; } catch { oldPort = 0; }
       // Setup passes 47371, or its test port in test mode (never a real one).
       const port = await chooseCopyPort({ oldPort, start: Number(firstPort) || 47371, isFree: portFree });
-      fs.mkdirSync(path.join(to, 'data'), { recursive: true });
+      makeDirs(path.join(to, 'data'));
       fs.writeFileSync(path.join(to, 'data', 'port.txt'), String(port));
       writeOut(out, [['files', v.files], ['bytes', v.bytes], ['port', port],
         ['log', `Copied ${v.files} files (${v.bytes} bytes) from ${from} to ${to}; every file checked: same count, same sizes, same SHA-256. The old folder was only read.`],

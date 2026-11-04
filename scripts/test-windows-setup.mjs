@@ -197,7 +197,7 @@ try {
   // ======== A: no earlier copy =========================================
   console.log('A. New books, update from inside the app, uninstall');
   const A = path.join(BASE, 'A');
-  const docsA = path.join(A, 'Documents', 'Free GST Billing');
+  const docsA = path.join(A, 'Free GST Billing');
   // Review M1: a second Setup while one runs does not run. (Inno needs the
   // folder of a /LOG file to exist.)
   fs.mkdirSync(A, { recursive: true });
@@ -244,7 +244,7 @@ try {
   console.log('\nB. An earlier ZIP copy: keep the books where they are');
   const B = path.join(BASE, 'B');
   const oldB = await makeOldZipCopy(B);
-  const docsB = path.join(B, 'Documents', 'Free GST Billing');
+  const docsB = path.join(B, 'Free GST Billing');
   const h0 = fingerprint(oldB.old);
   r = runSetup(SETUP, B, ['/DATAMODE=keep', '/NOSTART=1']);
   ok(r.code === 0, 'B: silent install (keep) exit 0', r.log);
@@ -279,13 +279,13 @@ try {
   ok(listFiles(path.join(oldB.sys, 'data', 'bills')).length === 3, 'B: the 3 invoices are still in the old folder');
 
   // ======== C: move ====================================================
-  console.log('\nC. An earlier ZIP copy: copy the books to Documents');
+  console.log('\nC. An earlier ZIP copy: copy the books to the user folder');
   const C = path.join(BASE, 'C');
   const oldC = await makeOldZipCopy(C);
   // Also pinned to the taskbar and in a Start-menu subfolder (review H2).
   icon(path.join(C, 'TaskBar'), 'Free GST Billing (pinned).lnk', 'C:\\Windows\\System32\\mshta.exe', `"${path.join(oldC.old, 'Free GST Billing - WINDOWS.hta')}"`);
   icon(path.join(C, 'Programs', 'Billing Apps'), 'GST app.lnk', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', `-File "${path.join(oldC.sys, 'start-windows.ps1')}"`);
-  const docsC = path.join(C, 'Documents', 'Free GST Billing');
+  const docsC = path.join(C, 'Free GST Billing');
   const c0 = fingerprint(oldC.old);
   r = runSetup(SETUP, C, ['/DATAMODE=move']);
   ok(r.code === 0, 'C: silent install (move) exit 0', r.log);
@@ -341,7 +341,7 @@ try {
   ok(r.code === 0, 'D: silent install (keep) exit 0', r.log);
   ok(fs.existsSync(path.join(appD, 'installed.txt')) && !fs.existsSync(path.join(oldD.old, 'installed.txt')), `D: installed to ${path.basename(appD)}, NOT into the old copy's folder`);
   proof('D install (keep, same folder as the old copy)', d0, fingerprint(oldD.old));
-  checkInstallFiles(D, oldD.sys, path.join(D, 'Documents', 'Free GST Billing'), 'D', appD);
+  checkInstallFiles(D, oldD.sys, path.join(D, 'Free GST Billing'), 'D', appD);
   startInstalled(D, appD);
   ok(await bills(OLD_PORT) === 3, 'D: the installed app shows the old copy\'s 3 invoices');
   stopTestServers();
@@ -360,7 +360,7 @@ try {
   r = runSetup(SETUP, D2, ['/DATAMODE=move']);
   ok(r.code === 0, 'D2: silent install (copy) from the one-line installer\'s folder, exit 0', r.log);
   proof('D2 install (copy, same folder as the old copy)', e0, fingerprint(oldD2.old));
-  const docsD2 = path.join(D2, 'Documents', 'Free GST Billing');
+  const docsD2 = path.join(D2, 'Free GST Billing');
   ok(await until(async () => (await bills(readPort(docsD2))) === 3, 90000), 'D2: the app shows the 3 copied invoices');
   ok(await runUninstall(D2, [], appOf(D2, 'Free GST Billing App')), 'D2: uninstall finished');
   proof('D2 uninstall', e0, fingerprint(oldD2.old));
@@ -377,7 +377,7 @@ try {
   proof('E stopped (older copy)', f0[0], fingerprint(older.old));
   proof('E stopped (newer copy)', f0[1], fingerprint(newer.old));
   r = runSetup(SETUP, E, ['/DATAMODE=move', `/OLDDIR=${older.old}`]);
-  const docsE = path.join(E, 'Documents', 'Free GST Billing');
+  const docsE = path.join(E, 'Free GST Billing');
   ok(r.code === 0 && listFiles(path.join(docsE, 'data', 'bills')).length === 4, 'E: /DATAMODE=move /OLDDIR=<the older one> copies exactly that one (4 invoices, not the newer 2)');
   const logE = fs.readFileSync(path.join(docsE, 'Free GST Billing - install log.txt'), 'utf8');
   ok(/Free GST Billing 2.*2 invoices, last changed/.test(logE) && /4 invoices, last changed 2026-01-15/.test(logE), 'E: the log lists both, with invoices and last-change dates');
@@ -409,7 +409,7 @@ try {
   r = runSetup(SETUP, G, ['/DATAMODE=move']);
   ok(r.code === 0, 'G: silent install (copy) in that folder, exit 0', r.log);
   ok(await oldG.srv.done.then(() => true), 'G: the old server there was stopped');
-  const docsG = path.join(G, 'Documents', 'Free GST Billing');
+  const docsG = path.join(G, 'Free GST Billing');
   ok(await until(async () => (await bills(readPort(docsG))) === 3, 90000), 'G: the app answers with the 3 copied invoices');
   proof('G install (odd folder names)', g0, fingerprint(oldG.old));
   const backG = listFiles(path.join(docsG, 'Old shortcuts (backup)'));

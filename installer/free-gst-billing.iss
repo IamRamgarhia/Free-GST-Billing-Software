@@ -13,7 +13,9 @@
 ;     lives in the first folder (never into another program's folder);
 ;   - asks where the books are: every earlier copy found on this PC is listed
 ;     (last changed first) and the user picks one: keep it where it is, or
-;     COPY it to Documents\Free GST Billing; or new books there;
+;     COPY it to C:\Users\<name>\Free GST Billing; or new books there;
+;   - checks first that the app can write there (Controlled folder access,
+;     ERR-082) and that PowerShell is present; Node.js comes inside Setup;
 ;   - the top rule: NOTHING inside an earlier installation is ever written,
 ;     moved, renamed or deleted. Copy checks every file (SHA-256) first; old
 ;     shortcuts are moved into a backup folder after a successful install,
@@ -99,7 +101,7 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs c
 
 [Icons]
 Name: "{code:IconDir|programs}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized
-Name: "{code:IconDir|desktop}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized; Tasks: desktopicon
+Name: "{code:IconDir|desktop}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized; Tasks: desktopicon; Check: DesktopOK
 Name: "{code:IconDir|startup}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized; Tasks: startup
 
 [Run]
@@ -170,10 +172,33 @@ begin
   end;
 end;
 
-function DocsHome: String;
+{ The user's own folder (C:\Users\<name>\Free GST Billing), not Documents:
+  Windows Security's "Controlled folder access" blocks unknown programs from
+  writing in Documents and Desktop, so books there could not be saved (seen on
+  the maintainer's PC, 4 Nov 2026). }
+function BooksHome: String;
 begin
-  if IsTest then Result := TestRoot + '\Documents\Free GST Billing'
-  else Result := ExpandConstant('{userdocs}\Free GST Billing');
+  if IsTest then Result := TestRoot + '\Free GST Billing'
+  else Result := ExpandConstant('{%USERPROFILE}\Free GST Billing');
+end;
+
+{ A desktop that Windows will not let Setup write on: skip the Desktop icon
+  (the Start menu icon is always made) instead of stopping with an error. }
+var
+  DesktopChecked, DesktopWritable: Boolean;
+
+function DesktopOK: Boolean;
+var
+  Probe: String;
+begin
+  if not DesktopChecked then begin
+    DesktopChecked := True;
+    ForceDirectories(IconDir('desktop'));
+    Probe := AddBackslash(IconDir('desktop')) + 'fgsb-write-check.tmp';
+    DesktopWritable := SaveStringToFile(Probe, 'ok', False);
+    if DesktopWritable then DeleteFile(Probe);
+  end;
+  Result := DesktopWritable;
 end;
 
 function NoSlash(S: String): String;
@@ -544,7 +569,7 @@ begin
   AddCandidatesFrom(IconDir('programs'), C, True);
   AddCandidatesFrom(IconDir('startup'), C, False);
   AddCandidatesFrom(IconDir('taskbar'), C, False);
-  AddStr(C, DocsHome);
+  AddStr(C, BooksHome);
   if IsTest then begin
     AddStr(C, TestRoot + '\Programs\Free GST Billing');
     AddGstFolders(TestRoot + '\Downloads', C);
@@ -606,7 +631,7 @@ end;
 function TargetHome: String;
 begin
   Result := NoSlash(ExpandConstant('{param:DATADIR|}'));
-  if (Result = '') or (Mode = 'choose') then Result := DocsHome;
+  if (Result = '') or (Mode = 'choose') then Result := BooksHome;
 end;
 
 { Checks the choice; '' when fine, else what is wrong. Sets Home, SrcHome, SrcSys. }
@@ -658,7 +683,7 @@ procedure SettleLogDir;
 begin
   LogDir := Home;
   if (Mode = 'keep') or (Mode = 'choose') then begin
-    LogDir := DocsHome;
+    LogDir := BooksHome;
     if IsInside(LogDir, SrcHome) or IsInside(SrcHome, LogDir) or ((SrcSys <> '') and IsInside(LogDir, SrcSys)) then
       LogDir := LogDir + ' Setup';
   end;
@@ -700,6 +725,16 @@ var
   P: Integer;
 begin
   Result := True;
+  { What the app needs that Setup does not carry: Windows 10/11 64-bit is
+    checked by MinVersion / ArchitecturesAllowed, Node.js comes inside Setup,
+    Edge is optional (the default browser is used without it). PowerShell
+    starts the app, and is part of every Windows 10/11 - unless removed. }
+  if not FileExists(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe')) then begin
+    MsgBox('Windows PowerShell is missing on this computer, and Free GST Billing needs it to start.' + #13#10#13#10 +
+      'Turn it back on in Settings > System > Optional features (Windows PowerShell), then run Setup again. Nothing was changed.', mbError, MB_OK);
+    Result := False;
+    exit;
+  end;
   LogLines := TStringList.Create;
   TestRoot := NoSlash(ExpandConstant('{param:TESTROOT|}'));
   if TestRoot <> '' then begin
@@ -728,7 +763,7 @@ begin
     { Review M3: never create a missing books folder, never write into an
       earlier copy's own folder ("Keep" points at one). }
     if not DirExists(Home) then LogDir := GetAppDir('')
-    else if FileExists(AddBackslash(Home) + 'server.js') then LogDir := DocsHome + ' Setup'
+    else if FileExists(AddBackslash(Home) + 'server.js') then LogDir := BooksHome + ' Setup'
     else LogDir := Home;
     AddLog('Updating the copy in ' + GetAppDir('') + '; books stay in ' + Home);
   end else
@@ -759,21 +794,21 @@ begin
   if OldCount > 0 then begin
     DataPage := CreateInputOptionPage(After, 'Your books', 'Where your invoices, clients and settings are kept', DataIntro, True, False);
     DataPage.Add('Keep using my books where they are (do not delete or move that folder afterwards)');
-    DataPage.Add('Copy my books to ' + DocsHome + ' (the old folder stays as it is, as a backup)');
+    DataPage.Add('Copy my books to ' + BooksHome + ' (the old folder stays as it is, as a backup)');
     DataPage.Add('Use books in another folder (browse)');
     DataPage.SelectedValueIndex := 0;
   end else begin
     DataPage := CreateInputOptionPage(After, 'Your books', 'Where your invoices, clients and settings are kept',
-      'Your invoices, clients and settings will be kept in:' + #13#10 + DocsHome + #13#10#13#10 +
+      'Your invoices, clients and settings will be kept in:' + #13#10 + BooksHome + #13#10#13#10 +
       'If you already use Free GST Billing on this computer, choose the folder that holds its books instead.', True, False);
-    DataPage.Add('Start new books in ' + DocsHome);
+    DataPage.Add('Start new books in ' + BooksHome);
     DataPage.Add('I already have my books in another folder (browse)');
     DataPage.SelectedValueIndex := 0;
   end;
   BrowsePage := CreateInputDirPage(DataPage.ID, 'Your books', 'Which folder holds your books?',
     'Choose the folder that has the "data" folder in it. For the ZIP version, that is the "_system" folder inside the app folder. Setup uses the books where they are and changes nothing in that folder.', False, '');
   BrowsePage.Add('');
-  BrowsePage.Values[0] := ExpandConstant('{userdocs}');
+  BrowsePage.Values[0] := ExpandConstant('{%USERPROFILE}');
 end;
 
 function InteractiveMode: String;
@@ -819,7 +854,7 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if (DataPage <> nil) and (CurPageID = DataPage.ID) and (OldCount > 0) then
-    DataPage.CheckListBox.ItemEnabled[1] := not (IsInside(DocsHome, OldHome) or IsInside(OldHome, DocsHome));
+    DataPage.CheckListBox.ItemEnabled[1] := not (IsInside(BooksHome, OldHome) or IsInside(OldHome, BooksHome));
   { An earlier copy that opened by itself at start-up: tick the same here, once. }
   if (CurPageID = wpSelectTasks) and not IsUpgrade and OldHadStartup and not StartupPreset and (InteractiveMode <> 'new') then begin
     WizardSelectTasks('startup');
@@ -857,7 +892,7 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Res: TArrayOfString;
-  CopyPort: String;
+  CopyPort, WriteArgs: String;
 begin
   Result := '';
   if IsUpgrade then begin
@@ -875,7 +910,7 @@ begin
     Result := SettleChoice;
   end;
   SettleLogDir;
-  if LogDir = '' then LogDir := DocsHome + ' Setup';
+  if LogDir = '' then LogDir := BooksHome + ' Setup';
   AddLog('Choice: ' + Mode + '; books folder: ' + Home);
   if Result <> '' then begin
     Result := Stop_(Result);
@@ -883,6 +918,16 @@ begin
   end;
   if (Mode = 'move') and not RunHelper('check-copy ' + Q(SrcHome) + ' ' + Q(Home), Res) then begin
     Result := Stop_('The books cannot be copied there: ' + ValueOf(Res, 'error'));
+    exit;
+  end;
+
+  { 0. Before anything is stopped or copied: can the app's own node.exe write
+    where the books and the backup go? ("Keep" / "choose" books are only read
+    here - the rule: Setup never writes in an earlier copy's folder.) }
+  if (Mode = 'keep') or (Mode = 'choose') then WriteArgs := Q(LogDir)
+  else WriteArgs := Q(Home) + ' ' + Q(LogDir);
+  if not RunHelper('writable ' + WriteArgs, Res) then begin
+    Result := Stop_(ValueOf(Res, 'error') + #13#10#13#10 + 'Nothing was changed. Run Setup again and choose another folder.');
     exit;
   end;
 
@@ -944,6 +989,12 @@ begin
   { Review M2: the earlier copy's shortcuts move only after a successful install. }
   if not IsUpgrade then begin
     MoveOldShortcutsIn(IconDir('desktop'), 'Desktop', False);
+    if WizardIsTaskSelected('desktopicon') and not DesktopOK then begin
+      AddLog('No Desktop icon: Windows did not let Setup write on the Desktop (Controlled folder access?). The Start menu icon was made.');
+      if not WizardSilent then
+        MsgBox('Windows Security did not let Setup put an icon on the Desktop (its "Controlled folder access" protection is on).' + #13#10#13#10 +
+          'Open Free GST Billing from the Start menu instead. Everything else was installed.', mbInformation, MB_OK);
+    end;
     MoveOldShortcutsIn(IconDir('programs'), 'Start menu', True);
     MoveOldShortcutsIn(IconDir('startup'), 'Startup', False);
     MoveOldShortcutsIn(IconDir('taskbar'), 'Taskbar', False);

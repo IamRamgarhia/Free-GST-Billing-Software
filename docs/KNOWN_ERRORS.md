@@ -730,6 +730,40 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-082 - Windows Setup stuck on "Preparing to Install" (Controlled folder access)
+
+**Version:** the v1.10.84 test Setup (never released) · fixed before release
+**Reported by:** the maintainer, trying the test exe on their own PC (2026-11-04)
+
+**Symptom** - the Setup window shows "Preparing to Install - Setup is preparing
+to install Free GST Billing on your computer." with an empty page and only
+Cancel (greyed out), for ever. Windows Security logged event 1123: node.exe
+"has been blocked from modifying %userprofile%\Documents by Controlled Folder
+Access".
+
+**Cause** - Windows Security's ransomware protection ("Controlled folder
+access") was on. It refuses unknown programs any write in Documents, Desktop,
+Pictures... The Setup's helper made the backup folder with
+`fs.mkdirSync(dir, { recursive: true })`, and Node's recursive mkdir on Windows
+LOOPS FOR EVER when the write is refused this way (a plain mkdir fails at once
+with ENOENT). The default books folder was also in Documents, so even a
+finished install could not have saved an invoice.
+
+**Rule** - never `mkdirSync({ recursive: true })` in code that may write in a
+user folder on Windows: make folders one level at a time (`makeDirs` in
+installer/setup-helper.mjs). Check that the app's own node.exe can write
+before anything is stopped or copied (`writable`). Default data folders go
+outside Documents/Desktop: `C:\Users\<name>\Free GST Billing`. A Desktop icon
+Windows refuses is skipped with a message, not an error.
+
+**Guard** - `scripts/installer-test.mjs`: makeDirs on a folder that cannot be
+made fails within 2 s with "Controlled folder access" in the message;
+checkWritable cleans up after itself. Checked by hand on the maintainer's PC
+(protection on): the bundled node.exe gets the clear error in 0.3 s for
+Documents and passes for the user folder.
+
+---
+
 ## ERR-081 - The copy label ("ORIGINAL FOR RECIPIENT") covered the e-invoice QR code
 
 **Version:** since v1.10.83 (e-invoicing) · fixed in v1.10.84

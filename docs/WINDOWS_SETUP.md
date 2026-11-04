@@ -23,7 +23,7 @@ earlier copy's folder (its `data/`, `Saved Invoices/`, `Trash/`, scripts,
 - Everything is written to `Free GST Billing - install log.txt` in the new
   folder; the last page shows its path.
 - With Keep (or "use books in another folder"), the log, backup ZIP and old
-  shortcuts go to `Documents\Free GST Billing` instead - never into the old copy.
+  shortcuts go to `C:\Users\<name>\Free GST Billing` instead - never into the old copy.
 
 `scripts/test-windows-setup.mjs` hashes the whole earlier copy before and after
 every install, update and uninstall and fails on any difference.
@@ -98,7 +98,7 @@ Updates from inside the app are not affected (a file Node.js downloads has no
 | What | Where |
 | --- | --- |
 | Program | `%LOCALAPPDATA%\Programs\Free GST Billing` (per user, no admin), with `node\node.exe`; `...\Free GST Billing App` when the one-line installer's copy is in the first folder |
-| Books folder | `home.txt` next to `server.js` (one line, the full path); default `Documents\Free GST Billing` |
+| Books folder | `home.txt` next to `server.js` (one line, the full path); default `C:\Users\<name>\Free GST Billing` (not Documents: Windows Security's Controlled folder access blocks unknown programs there, ERR-082) |
 | "Installed by Setup" marker | `installed.txt` next to `server.js` (test mode: `testroot=...`) |
 | Uninstall entry | `HKCU\...\Uninstall\FreeGSTBilling_is1` (test mode: `FreeGSTBilling-TEST_is1`) |
 | Icons | Start menu, Desktop (task, ticked), Startup (task; ticked when the old copy had one) |
@@ -145,7 +145,7 @@ Updates from inside the app are not affected (a file Node.js downloads has no
 ## Test mode - use it for every test on a PC with real books
 
 `/TESTROOT=<folder>`: the program goes to `<folder>\Programs\Free GST Billing`,
-books to `<folder>\Documents\Free GST Billing`, icons to `<folder>\Desktop`,
+books to `<folder>\Free GST Billing`, icons to `<folder>\Desktop`,
 `\Programs`, `\Startup`; earlier copies are looked for **only** inside the
 folder; its own AppId (`FreeGSTBilling-TEST`), so its uninstall entry cannot
 touch a real one; port 47461; no window opens (`FREEGSTBILL_TEST`); and the
