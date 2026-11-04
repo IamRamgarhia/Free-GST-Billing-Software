@@ -602,6 +602,19 @@ export const runUpdateNow = async () => {
     });
     const data = await res.json();
     if (!data.ok) return { ok: false, error: data.error || data.stderr || 'The update script did not finish.' };
+    // v1.10.84 - a copy installed by the Windows Setup: the new Setup is now
+    // running. It stops this server, installs and starts the new version;
+    // reload when the new version answers, so nobody has to.
+    if (data.installer) {
+      for (let i = 0; i < 120; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        try {
+          const v = await (await fetch('/api/version', { cache: 'no-store' })).json();
+          if (v.current && v.current !== data.version) { window.location.reload(); return { ok: true }; }
+        } catch { /* stopped for the update: still installing */ }
+      }
+      return { ok: false, error: 'The new version did not start within 6 minutes. Open Free GST Billing again from its icon.' };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };

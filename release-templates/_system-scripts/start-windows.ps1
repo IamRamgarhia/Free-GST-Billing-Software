@@ -10,13 +10,32 @@
 # it. -Hidden says nobody can see this console (the icon runs it hidden), so
 # a problem re-opens this script in a window that shows it and waits.
 
-param([switch]$AppWindow, [switch]$Hidden)
+#
+# v1.10.84 - -NoWindow starts the server and opens nothing (the Windows Setup
+# uses it after a silent update: the app's window is already open and
+# reloads by itself).
+
+param([switch]$AppWindow, [switch]$Hidden, [switch]$NoWindow)
 
 $ErrorActionPreference = 'Continue'
 $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Server'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SystemDir = $ScriptDir
+
+# v1.10.84 - the Windows Setup keeps the books (data, Saved Invoices, Trash)
+# in the folder the user chose, named in home.txt; without home.txt they are
+# next to this script, as in the ZIP (FGSB_HOME, if set, wins: the same order
+# as server.js). installed.txt marks a Setup install: it carries its own
+# Node.js and packages, and none of the ZIP tidy-ups apply.
+$HomeDir = $SystemDir
+$homeTxt = Join-Path $SystemDir 'home.txt'
+if ($env:FGSB_HOME) { $HomeDir = $env:FGSB_HOME.Trim() }
+elseif (Test-Path -LiteralPath $homeTxt) {
+  $h = [string](Get-Content -LiteralPath $homeTxt -Encoding UTF8 -TotalCount 1)
+  if ($h.Trim()) { $HomeDir = $h.Trim() }
+}
+$Installed = Test-Path -LiteralPath (Join-Path $SystemDir 'installed.txt')
 
 # v1.10.69 - the Windows launcher was renamed from "Free GST Billing.hta" to
 # "Free GST Billing - WINDOWS.hta". An update to this version is carried out
@@ -61,7 +80,7 @@ function Move-ToRenamedLauncher {
     # in which case Windows will not delete it. The next Open App will.
   }
 }
-Move-ToRenamedLauncher
+if (-not $Installed) { Move-ToRenamedLauncher }
 
 # v1.10.83 - the Desktop and Start Menu icons open the app directly (see
 # app-shortcut.ps1); before, the ZIP install's icons opened the launcher and
@@ -85,7 +104,7 @@ function Move-IconsToApp {
     # The old icon still opens the launcher, which still works.
   }
 }
-Move-IconsToApp
+if (-not $Installed) { Move-IconsToApp }
 
 # v1.10.75 - updating only ever ADDED files, so an install that started on an
 # older version kept launchers and scripts that no longer do anything (and
@@ -139,10 +158,10 @@ function Remove-ObsoleteFiles {
     }
   }
 }
-Remove-ObsoleteFiles
+if (-not $Installed) { Remove-ObsoleteFiles }
 
 # Read persisted port (server writes this after successful bind).
-$portFile = Join-Path $SystemDir 'data\port.txt'
+$portFile = Join-Path $HomeDir 'data\port.txt'
 $port = 47371
 if (Test-Path $portFile) {
   $p = (Get-Content $portFile -Raw).Trim()
@@ -178,7 +197,7 @@ function TestServerUp {
 # FREEGSTBILL_TEST (the installer's test mode) opens nothing.
 function Open-App([int]$p) {
   $url = "http://localhost:$p/"
-  if ($env:FREEGSTBILL_TEST) { Write-Host "  (test mode: would open $url)"; return }
+  if ($env:FREEGSTBILL_TEST -or $NoWindow) { Write-Host "  (not opening a window: $url)"; return }
   if ($AppWindow) {
     foreach ($d in @(${env:ProgramFiles(x86)}, $env:ProgramFiles, $env:LOCALAPPDATA)) {
       if (-not $d) { continue }
@@ -192,6 +211,7 @@ function Open-App([int]$p) {
 # Stops with the problem on screen. Run hidden (from the icon), nobody would
 # see it, so the same script is opened again in a normal window instead.
 function Exit-WithProblem {
+  if ($env:FREEGSTBILL_TEST) { exit 1 }   # test mode: no window, nobody to press Enter
   if ($Hidden) {
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -AppWindow"
     exit 1
@@ -213,12 +233,27 @@ if (TestServerUp -p $port) {
 # trusting PATH. 'node.exe' alone would be resolved by PATH only.
 # v1.10.81 (#109) - only a Node.js new enough (see ensure-node.ps1): Node 6
 # on PATH was started here and never answered.
+# v1.10.84 - the books folder may be on a drive that is not connected.
+if (-not (Test-Path -LiteralPath $HomeDir)) {
+  Write-Host "  The folder with your books is not there: $HomeDir" -ForegroundColor Yellow
+  Write-Host '  If it is on a USB or network drive, connect it, then open the app again.'
+  Exit-WithProblem
+}
+if ($Installed) {
+  # v1.10.84 - the Setup put Node.js and the packages in place; nothing to fetch.
+  $NodeExe = Join-Path $SystemDir 'node\node.exe'
+  if (-not (Test-Path -LiteralPath $NodeExe)) {
+    Write-Host "  $NodeExe is missing. Run Free-GST-Billing-Setup.exe again to repair the app (your books are kept)." -ForegroundColor Yellow
+    Exit-WithProblem
+  }
+} else {
 . (Join-Path $SystemDir 'ensure-node.ps1')
 $NodeExe = Use-GoodNode
 if (-not $NodeExe) { Exit-WithProblem }
+}
 # v1.10.83 - the ZIP ships complete packages, which work with any Node.js 18+;
 # only a missing or half-done node_modules (an old npm, ERR-060) is redone.
-if (-not (Test-PackagesReady)) {
+if (-not $Installed -and -not (Test-PackagesReady)) {
   # The packages were installed by the old Node.js (or not at all): again.
   Write-Host '  Installing the app packages for this Node.js (one time)...'
   Reset-Packages

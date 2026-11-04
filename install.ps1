@@ -210,6 +210,11 @@ function Install-App {
     Fail 'This computer runs an old Windows.' 'Free GST Billing needs Windows 10 or 11 (Node.js no longer runs on Windows 7 or 8).'
   }
   $dest = Find-Install
+  # v1.10.84 - the Windows Setup installs to the same folder this line would
+  # use. Its copy updates with the Setup (Update now in the app), never this.
+  if (Test-Path -LiteralPath (Join-Path $dest 'installed.txt')) {
+    Fail "Free GST Billing was installed in $dest with its Setup program." 'Update it from the app (Update now), or run Free-GST-Billing-Windows-Setup.exe from the Releases page. Nothing was changed.'
+  }
   $sys = Join-Path $dest '_system'
   $isUpdate = Test-Path -LiteralPath (Join-Path $sys 'server.js')
   if (-not (Test-Writable $dest)) {

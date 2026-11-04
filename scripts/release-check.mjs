@@ -78,6 +78,11 @@ else {
     check('ZIP size looks right (12-60 MB; the server packages only)', statSync(appZip).size > 1.2e7 && statSync(appZip).size < 6e7, `It is ${(statSync(appZip).size / 1e6).toFixed(1)} MB.`);
   }
 }
+// v1.10.84 - the Windows Setup (docs/WINDOWS_SETUP.md). Reported, not
+// required, until the maintainer ships it with every release.
+const setupExe = join(ROOT, 'release-build', 'Free-GST-Billing-Windows-Setup.exe');
+if (existsSync(setupExe)) check('Windows Setup exe looks right (20-60 MB)', statSync(setupExe).size > 2e7 && statSync(setupExe).size < 6e7, `It is ${(statSync(setupExe).size / 1e6).toFixed(1)} MB.`);
+else console.log('  - Windows Setup not built (npm run release:exe after release:zip); installed copies update from it once it is on a release.');
 
 console.log('\nDocs ZIP');
 const docsZip = join(ROOT, 'release-build', `docs-v${version}.zip`);

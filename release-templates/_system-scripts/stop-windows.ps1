@@ -7,7 +7,14 @@ $ErrorActionPreference = 'SilentlyContinue'
 $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Stop Server'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$portFile = Join-Path $ScriptDir 'data\port.txt'
+# v1.10.84 - the books folder: FGSB_HOME, else home.txt, else this folder (as server.js).
+$HomeDir = $ScriptDir
+if ($env:FGSB_HOME) { $HomeDir = $env:FGSB_HOME.Trim() }
+elseif (Test-Path -LiteralPath (Join-Path $ScriptDir 'home.txt')) {
+  $h = [string](Get-Content -LiteralPath (Join-Path $ScriptDir 'home.txt') -Encoding UTF8 -TotalCount 1)
+  if ($h.Trim()) { $HomeDir = $h.Trim() }
+}
+$portFile = Join-Path $HomeDir 'data\port.txt'
 $port = 47371
 if (Test-Path $portFile) {
   $p = (Get-Content $portFile -Raw).Trim()

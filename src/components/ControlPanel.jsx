@@ -4,6 +4,7 @@ import PageHeader from './PageHeader';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import { docsLink } from '../utils';
+import { runUpdateNow } from '../store';
 
 // v1.10.44 — In-app Control Panel.
 //
@@ -72,6 +73,17 @@ export default function ControlPanel() {
     } finally {
       setBusy(null);
     }
+  };
+
+  // v1.10.84 - installed with the Windows Setup: the new Setup installs the
+  // update and the page reloads by itself (runUpdateNow).
+  const updateInstalled = async () => {
+    setBusy('update');
+    setLastResult(null);
+    toast('Downloading the new version… the app restarts by itself in about a minute.', 'info', 10000);
+    const r = await runUpdateNow();
+    if (!r.ok) { setLastResult({ action: 'update', ...r }); toast(`Update failed — ${r.error}`, 'error', 10000); }
+    setBusy(null);
   };
 
   // v1.10.83 - restart the server, then reload this page once it answers again.
@@ -201,7 +213,7 @@ export default function ControlPanel() {
           body="Pull the latest release from GitHub. Your data folder is snapshotted first and never touched."
           buttonLabel={label('update', 'Update Now', 'Updating…')}
           disabled={!!busy || !can('update')}
-          onClick={() => launchScript('update')}
+          onClick={() => (status?.installed ? updateInstalled() : launchScript('update'))}
           variant="primary"
         />
         <ActionCard

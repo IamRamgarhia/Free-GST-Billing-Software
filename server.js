@@ -17,9 +17,52 @@ import { redact } from './src/utils/errorReport.js';
 import { validateCashEntry, cleanCashEntry } from './src/utils/cashBook.js';
 import { validatePurchasePayments } from './src/utils/purchasePayments.js';
 import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES } from './src/utils.js';
+import { resolveAppHome } from './src/utils/appHome.js';
+import { LOCK_NAME, acquireLock, writeLock, releaseLock, portAnswers } from './src/utils/serverLock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, 'data');
+// v1.10.84 - data/, Saved Invoices/ and Trash/ live in APP_HOME: the folder
+// the Windows Setup wrote into home.txt, else this folder (the ZIP layout).
+let APP_HOME;
+try {
+  APP_HOME = resolveAppHome(__dirname);
+} catch (err) {
+  console.error(`\n  ${err.message}\n`);
+  process.exit(1);
+}
+const DATA_DIR = path.join(APP_HOME, 'data');
+// v1.10.84 - a copy installed by the Windows Setup (installer/free-gst-billing.iss
+// writes this file) updates with the new Setup, never with update-windows.ps1.
+// In the Setup's test mode the file also names the test folder.
+const INSTALLED_FILE = path.join(__dirname, 'installed.txt');
+const INSTALLED = fs.existsSync(INSTALLED_FILE);
+const INSTALL_TEST_ROOT = INSTALLED
+  ? ((/^testroot=(.+)$/m.exec(fs.readFileSync(INSTALLED_FILE, 'utf8').replace(/^\uFEFF/, '')) || [])[1] || '').trim()
+  : '';
+
+// v1.10.83 - started by Control Panel -> Restart: wait (up to 15 s) for the
+// old copy to exit so this one gets its port (and, v1.10.84, its lock).
+const afterPid = Number(process.argv[process.argv.indexOf('--after-pid') + 1]) || 0;
+if (process.argv.includes('--after-pid') && afterPid) {
+  for (let i = 0; i < 60; i++) {
+    try { process.kill(afterPid, 0); } catch { break; }
+    await new Promise(r => setTimeout(r, 250));
+  }
+}
+
+// v1.10.84 - one server per books folder (see src/utils/serverLock.js). Taken
+// before anything else runs, so a second server never writes a single file.
+const LOCK_FILE = path.join(DATA_DIR, LOCK_NAME);
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* reported below */ }
+{
+  const lock = await acquireLock(LOCK_FILE, { pid: process.pid, answers: portAnswers });
+  if (!lock.ok) {
+    console.log(`\n  Free GST Billing is already running for these books${lock.held.port ? ` at http://localhost:${lock.held.port}` : ''} (process ${lock.held.pid}).`);
+    console.log('  Not starting a second copy: two copies would overwrite each other\'s changes.\n');
+    process.exit(0);
+  }
+  process.on('exit', () => releaseLock(LOCK_FILE, process.pid));
+}
 
 // Port choice — we deliberately default to a high, unusual number rather than
 // the conventional 3001. The 3000-range is heavily used by every other Node /
@@ -31,7 +74,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 // wins over this default — so a single user who genuinely needs 47371 for
 // something else can edit that file and we'll respect it forever.
 const DEFAULT_PORT = 47371;
-const PORT_FILE = path.join(__dirname, 'data', 'port.txt');
+const PORT_FILE = path.join(DATA_DIR, 'port.txt');
 
 // Read the persisted port (if any) — written once on first successful start
 // and every time we get bumped off our preferred port by EADDRINUSE.
@@ -828,7 +871,7 @@ app.post(LOCAL_PREFS_ROUTE, express.json({ limit: '25mb' }), (req, res) => {
 // stored. Forgotten PIN: put a file named RESET-PIN (or RESET-PIN.txt) in the
 // app folder; the next check removes the PIN and the file.
 const PIN_RE = /^(\d{6}|\d{8})$/;
-const RESET_PIN_FILES = [path.join(__dirname, '..'), __dirname]
+const RESET_PIN_FILES = [...new Set([path.join(__dirname, '..'), __dirname, APP_HOME])]
   .flatMap((dir) => ['RESET-PIN', 'RESET-PIN.txt'].map((n) => path.join(dir, n)));
 const pinHash = (pin, salt) => crypto.scryptSync(String(pin), salt, 32).toString('hex');
 const pinMatches = (lock, pin) => {
@@ -1058,7 +1101,7 @@ app.post('/api/import', (req, res) => {
 // ========================
 // Save PDF to local folder
 // ========================
-const INVOICES_DIR = path.join(__dirname, 'Saved Invoices');
+const INVOICES_DIR = path.join(APP_HOME, 'Saved Invoices');
 if (!fs.existsSync(INVOICES_DIR)) fs.mkdirSync(INVOICES_DIR, { recursive: true });
 
 app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }), (req, res) => {
@@ -1090,7 +1133,7 @@ app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }
     // Don't leak absolute FS path — client only needs to know it saved
     // and where (relative). Absolute path revealed OS username +
     // install dir to any origin.
-    res.json({ saved: true, relPath: path.relative(__dirname, filePath).split(path.sep).join('/') });
+    res.json({ saved: true, relPath: path.relative(APP_HOME, filePath).split(path.sep).join('/') });
   } catch (err) {
     errRes(res, 500, 'server-error', err);
   }
@@ -1205,7 +1248,7 @@ app.post('/api/saved-pdf/cancel-mark', express.json(), async (req, res) => {
 // ========================
 // Move saved PDF to Trash
 // ========================
-const TRASH_DIR = path.join(__dirname, 'Trash');
+const TRASH_DIR = path.join(APP_HOME, 'Trash');
 
 if (!fs.existsSync(TRASH_DIR)) fs.mkdirSync(TRASH_DIR, { recursive: true });
 
@@ -1439,8 +1482,11 @@ const CONTROL_SCRIPT_CANDIDATES = [
   path.join(__dirname, '_system-scripts'),                       // older layouts
   path.join(__dirname, '..', '_system-scripts'),
 ];
+// v1.10.84 - found by the backup script, which every layout ships: a copy
+// installed by the Windows Setup has no update / move / uninstall scripts (it
+// updates with the new Setup, and Windows' Apps list removes it).
 const controlScriptDir = CONTROL_SCRIPT_CANDIDATES.find(
-  p => fs.existsSync(path.join(p, `update${SCRIPT_SUFFIX}`)),
+  p => fs.existsSync(path.join(p, `backup${SCRIPT_SUFFIX}`)),
 ) || null;
 
 function pickScript(name) {
@@ -1456,7 +1502,7 @@ const CONTROL_ACTIONS = ['update', 'backup', 'restore', 'move', 'stop'];
 // v1.10.83 - Stop works everywhere: on macOS / Linux there is no stop script,
 // so the server stops itself (see launch-script below). The Mac and Linux
 // guides tell people to use it.
-const controlActions = () => Object.fromEntries(CONTROL_ACTIONS.map(a => [a, a === 'stop' && !isWindows ? true : !!pickScript(a)]));
+const controlActions = () => Object.fromEntries(CONTROL_ACTIONS.map(a => [a, (a === 'stop' && !isWindows) || (a === 'update' && INSTALLED) ? true : !!pickScript(a)]));
 
 function runControlScript(scriptPath) {
   return new Promise((resolve) => {
@@ -1518,6 +1564,9 @@ app.get('/api/control-panel/status', (req, res) => {
     launcherType: controlScriptDir ? (isWindows ? 'hta' : (isMac ? 'command' : 'sh')) : 'none',
     canRemove: path.basename(__dirname) === '_system' && !!pickScript('uninstall'),
     appFolder: path.dirname(__dirname),
+    // v1.10.84 - installed by the Windows Setup: removed from Windows' Apps list.
+    installed: INSTALLED,
+    booksFolder: APP_HOME,
   });
 });
 
@@ -1547,6 +1596,45 @@ app.post('/api/control-panel/open-backups-folder', (req, res) => {
   } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
+// v1.10.84 - a copy installed by the Windows Setup updates like other
+// programs: the new Setup is downloaded from the GitHub release and run
+// silently. It stops this server, replaces the program files (home.txt and
+// the books are not among them) and starts the app again; the page waits for
+// the new version and reloads (runUpdateNow in src/store.js). The ZIP's
+// update-windows.ps1 is never used for an installed copy (it is not even
+// installed), and this is never used for a ZIP copy (no installed.txt).
+const SETUP_URL = 'https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe';
+async function updateWithSetup() {
+  // The Setup of the last update cannot delete itself: tidy those up first.
+  for (const old of fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('fgsb-update-'))) {
+    try { fs.rmSync(path.join(os.tmpdir(), old), { recursive: true, force: true }); } catch { /* in use */ }
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fgsb-update-'));
+  const exe = path.join(dir, 'Free-GST-Billing-Windows-Setup.exe');
+  if (INSTALL_TEST_ROOT) {
+    // The Setup's test mode: the new Setup is a file in the test folder, so the
+    // whole update can be tried without publishing a release.
+    fs.copyFileSync(path.join(INSTALL_TEST_ROOT, 'Free-GST-Billing-Windows-Setup.exe'), exe);
+  } else {
+    let res;
+    try {
+      res = await fetch(SETUP_URL, { redirect: 'follow', signal: AbortSignal.timeout(15 * 60 * 1000), headers: { 'User-Agent': 'FreeGSTBill-updater' } });
+    } catch {
+      throw new Error('The new version could not be downloaded. Check the internet connection and try again.');
+    }
+    if (res.status === 404) throw new Error('The new version\'s Setup is not on GitHub yet. Try again later, or download Free-GST-Billing-Windows-Setup.exe from the Releases page.');
+    if (!res.ok || !res.url.startsWith('https://')) throw new Error(`The download failed (${res.status}). Try again later.`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    // A Windows program starts with "MZ"; anything else (an error page) is not run.
+    if (buf.length < 5e6 || buf.toString('latin1', 0, 2) !== 'MZ') throw new Error('The downloaded Setup is incomplete. Try again.');
+    fs.writeFileSync(exe, buf);
+  }
+  const args = ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/LOG=${path.join(dir, 'setup.log')}`];
+  if (INSTALL_TEST_ROOT) args.push(`/TESTROOT=${INSTALL_TEST_ROOT}`);
+  // Detached: the Setup stops this server and must carry on without it.
+  spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+}
+
 app.post('/api/control-panel/launch-script', async (req, res) => {
   // Whitelisted script actions the Control Panel exposes.
   const allowed = new Set(['update', 'restore', 'move', 'stop']);
@@ -1556,6 +1644,15 @@ app.post('/api/control-panel/launch-script', async (req, res) => {
     // Answer first, then exit, so the page can say it stopped.
     res.json({ ok: true, stdout: 'Stopped. Open the app again from its icon or launcher.' });
     setTimeout(() => process.exit(0), 400);
+    return;
+  }
+  if (action === 'update' && INSTALLED) {
+    try {
+      await updateWithSetup();
+      res.json({ ok: true, installer: true, version: pkg.version, stdout: 'The new version is installing. The app restarts by itself in about a minute.' });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
     return;
   }
   const script = pickScript(action);
@@ -1775,7 +1872,7 @@ function runDailyBackup() {
       // Previously excluded → users restoring last week's backup lost every
       // bill they'd trashed since, breaking the 30-day soft-delete promise.
       // We still skip `backups` (no recursion) and log files.
-      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt') continue;
+      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt' || entry.name === LOCK_NAME) continue;
       const src = path.join(DATA_DIR, entry.name);
       const dst = path.join(target, entry.name);
       if (entry.isDirectory()) copyDirRecursive(src, dst);
@@ -1875,7 +1972,7 @@ app.post('/api/backups/:date/restore', (req, res) => {
     ensureDir(snapshotDir);
     const liveEntries = fs.readdirSync(DATA_DIR, { withFileTypes: true });
     for (const entry of liveEntries) {
-      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt') continue;
+      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt' || entry.name === LOCK_NAME) continue;
       const src = path.join(DATA_DIR, entry.name);
       const dst = path.join(snapshotDir, entry.name);
       if (entry.isDirectory()) copyDirRecursive(src, dst);
@@ -2207,6 +2304,8 @@ function startServer(port) {
     // we landed on 47372 instead, next launch tries 47372 first (cuts collision
     // scans in half on repeated reboots of whatever was holding 47371).
     try { fs.writeFileSync(PORT_FILE, String(port), 'utf-8'); } catch { /* ignore */ }
+    // v1.10.84 - the lock now says where this server answers.
+    writeLock(LOCK_FILE, { pid: process.pid, port: server.address().port, at: Date.now() });
     console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
   });
@@ -2485,15 +2584,7 @@ app.post('/api/recurring/:id/generate', (req, res) => {
   }
 });
 
-// v1.10.83 - started by Control Panel -> Restart: wait (up to 15 s) for the
-// old copy to exit so this one gets its port.
-const afterPid = Number(process.argv[process.argv.indexOf('--after-pid') + 1]) || 0;
-if (process.argv.includes('--after-pid') && afterPid) {
-  for (let i = 0; i < 60; i++) {
-    try { process.kill(afterPid, 0); } catch { break; }
-    await new Promise(r => setTimeout(r, 250));
-  }
-}
+// (--after-pid, the wait for the old copy on Restart, is at the top: before the lock.)
 startServer(STARTING_PORT);
 // Fire once after a short delay so the listener is up first; then once a day
 // for users whose server stays up >24h.

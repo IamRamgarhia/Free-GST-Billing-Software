@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 release-build
+# Node.js for the Windows Setup, downloaded and checked by scripts/build-installer.mjs
+.installer-cache
 *.local
 
 # Invoice data (personal/financial - keep local only)

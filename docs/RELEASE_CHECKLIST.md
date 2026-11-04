@@ -101,6 +101,12 @@ gh release create v<NEW> "release-build/Free-GST-Billing.zip" \
 curl -sIL -o /dev/null -w "%{http_code}\n" \
   https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip
 
+# 4b. The Windows Setup (docs/WINDOWS_SETUP.md), on the same release, under
+#     exactly this name: an installed copy's Update now downloads
+#     releases/latest/download/Free-GST-Billing-Windows-Setup.exe.
+npm run release:exe
+gh release upload v<NEW> "release-build/Free-GST-Billing-Windows-Setup.exe"
+
 # 5. Verify what the in-app updater will actually see
 gh api repos/IamRamgarhia/Free-GST-Billing-Software/releases/latest \
   --jq '{tag: .tag_name, asset: .assets[0].name}'
