@@ -509,6 +509,7 @@ try {
   fs.copyFileSync(UPGRADE, path.join(H, 'Free-GST-Billing-Windows-Setup.exe'));
   await sleep(7000);
   const hh1 = fingerprint(oldH.old);
+  await page.evaluate(() => { window.fgsbBeforeUpdate = 1; }); // gone once the page is loaded again
   const upd = await page.evaluate(async () => {
     const res = await (await fetch('/api/control-panel/launch-script', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"action":"update"}' })).json();
     (async () => {
@@ -521,9 +522,10 @@ try {
   });
   ok(upd.ok && upd.installer, 'H: "Update now" in the open window starts the new Setup', JSON.stringify(upd));
   const shown = await until(async () => {
-    try { return await page.evaluate(async () => performance.getEntriesByType('navigation')[0]?.type === 'reload' && (await (await fetch('/api/version')).json()).current); } catch { return null; }
+    // Loaded again (by the page's own update wait, or the window's self-repair once the Setup is done).
+    try { return await page.evaluate(async () => !window.fgsbBeforeUpdate && (await (await fetch('/api/version')).json()).current); } catch { return null; }
   }, 300000);
-  ok(shown === '1.10.99', `H: the update installed with the window open, and the page reloaded by itself as ${shown}`);
+  ok(shown === '1.10.99', `H: the update installed with the window open, and the page loaded again by itself as ${shown}`);
   ok(hostPids(appH) === pid1, 'H: ...in the same window (it stayed open)');
   const setupLogH = fs.existsSync(upd.log || '') ? fs.readFileSync(upd.log, 'utf8') : '';
   ok(/Need to restart Windows\? No/.test(setupLogH) && /Set aside the app window's files/.test(fs.readFileSync(path.join(docsH, 'Free GST Billing - install log.txt'), 'utf8')),

@@ -199,17 +199,23 @@ static class Program
         try { File.AppendAllText(TraceFile, line + "\r\n", new UTF8Encoding(false)); } catch (Exception) { }
     }
 
-    // Does the server answer? Quiet: no window, no log while it is healthy.
-    public static bool Alive(string origin)
+    // The server's process id from /api/version, or 0 when it does not answer.
+    // Quiet: no window, no log while it is healthy.
+    public static int ServerPid(string origin)
     {
         try
         {
             HttpWebRequest q = (HttpWebRequest)WebRequest.Create(origin + "/api/version");
             q.Proxy = null; // never the system proxy for this PC's own server (start-windows.ps1 says why)
-            q.Timeout = 5000;
-            using (HttpWebResponse r = (HttpWebResponse)q.GetResponse()) return r.StatusCode == HttpStatusCode.OK;
+            q.Timeout = 8000;
+            using (HttpWebResponse r = (HttpWebResponse)q.GetResponse())
+            using (StreamReader rd = new StreamReader(r.GetResponseStream(), Encoding.UTF8))
+            {
+                Match m = Regex.Match(rd.ReadToEnd(), "\"pid\"\\s*:\\s*(\\d+)");
+                return r.StatusCode != HttpStatusCode.OK ? 0 : m.Success ? int.Parse(m.Groups[1].Value) : -1;
+            }
         }
-        catch (Exception) { return false; }
+        catch (Exception) { return 0; }
     }
 
     // A Setup (an update) or its uninstaller is at work: never start the
@@ -346,7 +352,7 @@ class MainForm : Form
     bool reallyClose, problem;
     // Self-repair: a light check of the server every 12 s (window open or in the tray).
     readonly System.Windows.Forms.Timer health = new System.Windows.Forms.Timer();
-    int healthMisses;
+    int healthMisses, serverPid;
     bool repairing, checking, pageFailed;
     CoreWebView2Notification lastNote;
     public string PendingView; // the screen to open first ("/view=", the jump list)
@@ -591,16 +597,17 @@ class MainForm : Form
         if (origin.Length == 0 || repairing || checking || reallyClose || problem) return;
         checking = true;
         string o = origin;
-        bool up = await Task.Run(() => Program.Alive(o));
+        int pid = await Task.Run(() => Program.ServerPid(o));
         checking = false;
-        if (up)
+        if (pid != 0)
         {
             healthMisses = 0;
+            serverPid = pid;
             // Back after an update or a repair while the page showed an error: reload it.
             if (pageFailed && web.CoreWebView2 != null) { pageFailed = false; web.CoreWebView2.Navigate(origin + "/"); }
             return;
         }
-        if (++healthMisses >= 2) Repair("the server did not answer");
+        if (++healthMisses >= 3) Repair("the server did not answer");
     }
 
     // The server stopped or crashed: start it again the launcher's way (it
@@ -635,7 +642,21 @@ class MainForm : Form
             Problem(r[1].Length > 0 ? r[1] : "The app's server stopped and did not start again.");
             return;
         }
+        string before = origin;
         origin = new Uri(r[0]).GetLeftPart(UriPartial.Authority);
+        string now = origin;
+        int pidNow = await Task.Run(() => Program.ServerPid(now));
+        if (reallyClose) return;
+        if (!pageFailed && now == before && pidNow != 0 && pidNow == serverPid)
+        {
+            // The same server, only slow (a busy PC): the page is kept as it
+            // was - nothing typed in it is lost.
+            Program.Trace("repair: the server was only slow, the page is kept");
+            status.Visible = false;
+            if (web.CoreWebView2 != null) web.Visible = true;
+            return;
+        }
+        serverPid = pidNow;
         Program.Trace("repaired url=" + r[0]);
         pageFailed = false;
         if (web.CoreWebView2 != null) web.CoreWebView2.Navigate(r[0]);
