@@ -29,10 +29,10 @@ export async function fileToSheets(file, what) {
 const hasRows = (s) => s.rows.filter((r) => r.some((c) => String(c ?? '').trim() !== '')).length >= 2;
 
 // The sheet to open on: the one the screen can import the most from
-// (count(rows) -> how many are ready); else the first with rows under a header.
+// (count(rows, index) -> how many are ready); else the first with rows under a header.
 export function bestSheet(sheets, count) {
   let at = -1;
   let most = 0;
-  sheets.forEach((s, i) => { const n = count(s.rows); if (n > most) { most = n; at = i; } });
+  sheets.forEach((s, i) => { const n = count(s.rows, i); if (n > most) { most = n; at = i; } });
   return at >= 0 ? at : Math.max(0, sheets.findIndex(hasRows));
 }
