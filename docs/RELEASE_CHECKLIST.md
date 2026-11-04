@@ -48,10 +48,37 @@ Yes. Invoices, clients, products and settings live in `_system/data/`,
 which an update never touches. The updater also takes an automatic backup
 to `Documents\FreeGSTBill Backups\` before it changes anything.
 
+### Installed the Linux .deb, the AppImage or Docker?
+The Update button does not apply to those. Download the new file from the
+table below and install it like the first time (.deb: double-click it, or
+`sudo apt install ./free-gst-billing_<NEW>_amd64.deb`; AppImage: use the
+new file instead of the old one). Your books in
+`~/.local/share/free-gst-billing-data` are kept.
+
 ### Something went wrong?
 Open an issue with a screenshot of the error:
 https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues
 ```
+
+### The download table (every release, under the How to update block)
+
+```markdown
+## Downloads
+
+| Your computer | Download this |
+|---|---|
+| Windows | `Free-GST-Billing-Windows-Setup.exe` |
+| Mac | `Free-GST-Billing.zip` (same as always) |
+| Linux: Ubuntu, Linux Mint, Debian | `free-gst-billing_<NEW>_amd64.deb` |
+| Linux: any other (64-bit) | `Free-GST-Billing-Linux-x86_64.AppImage` |
+| NAS / home server (Docker) | coming 14 Nov, with safe access from other PCs |
+
+How to install each: https://dicecodes.com/free-gst-software-documentation/install-linux.html
+```
+
+Never upload a second `.zip`: the in-app updater on Windows takes the
+first `.zip` on the release. The Linux files are `.deb` / `.AppImage` /
+`.yml` on purpose.
 
 ### When a release BREAKS the updater
 
@@ -85,8 +112,10 @@ Write for the person who reported it, not for the compiler.
 
 # 2. Write CHANGELOG.md — including the How to update block above.
 
-# 3. Build
+# 3. Build (release:zip empties release-build/, so it goes first)
 npm run release:zip
+npm run release:linux      # .deb, AppImage, docker-compose.yml + local image
+npm run test:linux         # installs and runs each one in clean containers
 
 # 4. Publish ONE ZIP, under the fixed name (from v1.10.76: two identical
 #    ZIPs on a release confused people). The README's Download button links
@@ -96,6 +125,8 @@ npm run release:zip
 #    them. See ERR-003: one tagged release per version.
 cp "release-build/Free-GST-Billing-v<NEW>.zip" "release-build/Free-GST-Billing.zip"
 gh release create v<NEW> "release-build/Free-GST-Billing.zip" \
+  "release-build/free-gst-billing_<NEW>_amd64.deb" \
+  "release-build/Free-GST-Billing-Linux-x86_64.AppImage" \
   --target main --title "v<NEW> — <short user-facing summary>" \
   --notes-file <notes>
 curl -sIL -o /dev/null -w "%{http_code}\n" \

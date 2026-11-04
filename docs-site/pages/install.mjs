@@ -16,6 +16,8 @@ const WIN_LINE = `powershell -ExecutionPolicy Bypass -c "[Net.ServicePointManage
 const WIN_REMOVE = `powershell -ExecutionPolicy Bypass -c "[Net.ServicePointManager]::SecurityProtocol='Tls12'; &amp; ([scriptblock]::Create((irm ${RAW}/install.ps1))) -Uninstall"`;
 const UNIX_LINE = `curl -fsSL ${RAW}/install.sh | bash`;
 const UNIX_REMOVE = `curl -fsSL ${RAW}/install.sh | bash -s -- --uninstall`;
+// The .deb's name carries the version, so it is linked through the release page.
+const RELEASES = 'https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest';
 
 const which = `
 <div class="note tip"><strong>Which guide is mine?</strong>
@@ -271,9 +273,60 @@ ${which}
   slug: 'install-linux',
   title: 'Install on Linux or a NAS, step by step',
   nav: 'Install on Linux / NAS',
-  lead: 'For Ubuntu, Linux Mint, Debian, Fedora and similar: paste one line into the Terminal and press Enter. No password needed. Each step is explained.',
+  lead: 'Ubuntu, Linux Mint and Debian: install the .deb package like any other program. Any other Linux: the AppImage, one file you double-click. Or paste one line into the Terminal. Each step is explained.',
   body: `
 ${which}
+
+<section id="deb">
+<h2>Ubuntu, Linux Mint, Debian: the .deb package</h2>
+<p>The easiest way. Everything the app needs is inside, including Node.js: nothing else to install.</p>
+<ol class="steps">
+  <li><strong>Download</strong>Open the <a href="${RELEASES}">latest release</a> and, under <b>Assets</b>, click <b>free-gst-billing_<i>version</i>_amd64.deb</b>. It goes into your <b>Downloads</b> folder.</li>
+  <li><strong>Install it</strong>Double-click the file. <b>Software Install</b> (Ubuntu) or <b>Package Installer</b> (Mint) opens: click ${ui('Install')} and type the password you use to log in. Or in the Terminal:
+<pre><code>sudo apt install ~/Downloads/free-gst-billing_*_amd64.deb</code></pre></li>
+  <li><strong>Open it</strong>Open your applications menu and click <b>Free GST Billing</b>. The app opens in its own window if you have Chrome, Chromium or Edge, or in your browser otherwise.</li>
+</ol>
+<p><b>Your books</b> (invoices, clients, settings, saved PDFs) are kept in your home folder, in <code>~/.local/share/free-gst-billing-data</code>. Each person who logs in to the computer has their own. The app answers this computer only.</p>
+<p><b>To update:</b> download the new .deb from the release page and install it the same way. The app says so when a new version is out. Your books are not touched.</p>
+<p><b>To remove the program:</b> <code>sudo apt remove free-gst-billing</code>. Your books stay in <code>~/.local/share/free-gst-billing-data</code>; delete that folder yourself only if you want them gone.</p>
+</section>
+
+<section id="appimage">
+<h2>Any other Linux: the AppImage</h2>
+<ol class="steps">
+  <li><strong>Download</strong><a class="download" href="${RELEASES}/download/Free-GST-Billing-Linux-x86_64.AppImage">Download the AppImage</a> (for 64-bit Intel or AMD computers).</li>
+  <li><strong>Allow it to run, once</strong>Right-click the file → ${ui('Properties')} → ${ui('Permissions')} → tick ${ui('Allow executing file as program')}. Or in the Terminal: <code>chmod +x ~/Downloads/Free-GST-Billing-Linux-x86_64.AppImage</code></li>
+  <li><strong>Double-click it</strong>The app opens. Keep the file somewhere you will find it again, for example your home folder.</li>
+</ol>
+<p>Your books are kept in <code>~/.local/share/free-gst-billing-data</code>, the same folder the .deb uses. <b>To update:</b> download the new AppImage and use it instead of the old file; your books are not touched.</p>
+<p>If nothing happens on an older system, it is missing FUSE: run it once from the Terminal with <code>--appimage-extract-and-run</code> after the file name, or install the .deb instead.</p>
+</section>
+
+<section id="old-books">
+<h2>Used the app before? Your earlier books</h2>
+<p>If you used the ZIP or the one-line install before, the .deb and the AppImage start with <b>empty books</b> and leave the earlier copy exactly as it was. The first time they open, they show where the earlier books are (and keep that note in <code>~/.local/share/free-gst-billing-data/OLD-BOOKS-FOUND.txt</code>). To bring them across, before you enter anything new:</p>
+<ol class="steps">
+  <li><strong>Stop the new app</strong><b>Control Panel</b> in the app → ${ui('Stop Server')}.</li>
+  <li><strong>Copy the books</strong>Paste the copy command from that note into the Terminal. For the one-line install it is:
+<pre><code>cp -a ~/.local/share/free-gst-billing/_system/data/. ~/.local/share/free-gst-billing-data/data/</code></pre>
+  It <b>copies</b>: the earlier copy keeps its books too.</li>
+  <li><strong>Open Free GST Billing again</strong>Your invoices and clients are there.</li>
+</ol>
+<p>Or use the app itself: in the earlier copy, <a href="backup.html#export-import">Settings → Data Management → Export Backup</a>, then import that file in the new app.</p>
+</section>
+
+<section id="nas-docker">
+<h2>On a NAS or home server: Docker</h2>
+<p>For a Synology, QNAP, TrueNAS or any machine with Docker. The app runs in a container; your books are kept in a Docker volume.</p>
+<div class="note warn"><strong>Opening it from other PCs comes on 14 November</strong>
+<p>The app has no login yet, so for now the container answers <b>the NAS itself only</b>. Safe access from the other PCs and phones on your network, with pairing, a PIN and HTTPS, comes with the 14 November update. Until then, from another PC open a tunnel in its Terminal (<code>ssh -L 47371:127.0.0.1:47371 you@your-nas</code>) and go to <code>http://localhost:47371</code>.</p></div>
+<ol class="steps">
+  <li><strong>Get docker-compose.yml</strong>Download it from the <a href="${RELEASES}">latest release</a> into a folder on the NAS.</li>
+  <li><strong>Start it</strong>In that folder: <code>docker compose up -d</code></li>
+  <li><strong>Open it</strong><code>http://localhost:47371</code> on the NAS, or through the tunnel above.</li>
+</ol>
+<p><b>Never change</b> the line <code>"127.0.0.1:47371:47371"</code> to <code>"47371:47371"</code>: everyone on your network could then open and change your books without a password. To update: put the new version number in the <code>image:</code> line and run <code>docker compose up -d</code> again; the books stay in the volume. The container runs as an ordinary user, never as root.</p>
+</section>
 
 <section id="terminal">
 <h2>Open the Terminal</h2>
@@ -282,7 +335,7 @@ ${which}
 </section>
 
 <section id="one-line">
-<h2>Install with one line</h2>
+<h2>Other way: install with one line</h2>
 <ol class="steps">
   <li><strong>Copy this line, paste it into the Terminal, press Enter</strong>
 <pre><code>${UNIX_LINE}</code></pre></li>
@@ -422,6 +475,7 @@ bash "_system/start-unix.sh"</code></pre>
 <p>Use the Update button, or in the Terminal:</p>
 <pre><code>sh ~/Free-GST-Billing/_system/update-unix.sh</code></pre>
 <p>It downloads the newest version, checks every file, keeps <code>_system/data</code>, and rolls back if anything fails. Restart the app afterwards.</p>
+<p><b>Installed the .deb?</b> The Update button does not apply: download the new <b>.deb</b> from the <a href="${RELEASES}">release page</a> and install it over the old one (<a href="install-linux.html#deb">how</a>). <b>The AppImage?</b> Download the new AppImage and use it instead of the old file. <b>Docker?</b> Put the new version in the <code>image:</code> line and run <code>docker compose up -d</code>. Your books are kept every time.</p>
 </section>
 `,
 },
