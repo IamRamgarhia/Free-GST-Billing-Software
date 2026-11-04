@@ -730,6 +730,53 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-080 - Unticking "Tax % column" turned GST off for the whole invoice
+
+**Version:** since the switch existed · fixed in v1.10.84
+**Reported by:** educationtoallsantosh-rgb / LordVikram, issue #152; Jdevloper275, issue #138 (2026-11-01)
+
+**Symptom** - Customize -> Items table -> untick "Tax % column (GST/VAT/etc.)"
+to hide the GST % column: instead no GST is charged at all, the tax rows go,
+and the choice carries over to new invoices. "Hide all" did the same, and
+also removed the round-off line, changing the total.
+
+**Cause** - the switch is `showGST`, which is the invoice's "charge GST" flag,
+not a display option. Its label described a column. "Hide all" listed it (and
+`showRoundOff`) among the display options it switches off.
+
+**Rule** - a switch that changes the money (GST charged, round-off) is never
+labelled or grouped as a display option, and "Hide all" only touches display
+options. `showGST` is now "Charge GST on this invoice" in its own group (Tax);
+hiding the per-line tax columns is `showTaxColumns`.
+
+**Guard** - `tests/smoke.mjs` "#152": unticking "Tax % columns" removes the %
+columns while the totals (CGST) stay identical; the GST switch carries the new
+name.
+
+---
+
+## ERR-079 - With the preview hidden, Save / Download / Print opened it and closed it again
+
+**Version:** since v1.10.26 · fixed in v1.10.84
+**Reported by:** sangwanmail-eng, issue #161 (2026-11-03)
+
+**Symptom** - Live Preview hidden; Save & Download (or Print) makes the
+preview pop open for a moment and close again.
+
+**Cause** - v1.10.26 un-hid the preview for every capture
+(`withPreviewOnScreen`), for a thermal `window.print()` path that no longer
+exists (thermal printing builds its own iframe since v1.10.42). The hidden pane
+is also `opacity: 0`, so html2canvas would capture a blank page without it.
+
+**Rule** - never change the visible layout to take a picture of it. Fix the
+picture's copy instead: `showHiddenPaneInClone` puts the pane back on-screen and
+opaque inside html2canvas's cloned document only.
+
+**Guard** - `tests/smoke.mjs` "#161": with the preview hidden, Save & Download
+never removes `split-view-focus`, and the PDF is still full size (styled).
+
+---
+
 ## ERR-078 - Enter after an item put the cursor in HSN, not the next Item box
 
 **Version:** broke in v1.10.83 · fixed in v1.10.84

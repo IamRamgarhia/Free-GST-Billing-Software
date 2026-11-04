@@ -67,6 +67,9 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   // before; users opt INTO hiding fields via Customize.
   const opt = (key, fallback = true) => options[key] !== undefined ? options[key] : fallback;
   const showGST = opt('showGST', typeConfig.showGST);
+  // v1.10.84 (#152) - hides only the per-line tax columns; GST is still
+  // charged and shown in the totals. showGST is what turns GST off.
+  const showTaxCols = showGST && opt('showTaxColumns');
   const showState = opt('showState');
   const showGSTIN = opt('showGSTIN');
   const showPlaceOfSupply = opt('showPlaceOfSupply', showGST);
@@ -711,10 +714,12 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 const qty = Number(item.quantity) || 0;
                 const rate = Number(item.rate) || 0;
                 // v1.10.83 - no "+18%" on an export under LUT: no tax is charged.
-                const tax = showGST && item.taxPercent > 0 && !totals?.lutZeroRated ? ` +${item.taxPercent}%` : '';
+                const tax = showTaxCols && item.taxPercent > 0 && !totals?.lutZeroRated ? ` +${item.taxPercent}%` : '';
                 const hsnBit = showHSN && item.hsn && !isVeryNarrow ? '  |  HSN ' + item.hsn : '';
                 // v1.10.83 - the receipt follows Customize → Unit too.
                 const unitBit = opt('showItemUnit') && item.unit ? ' ' + item.unit : '';
+                // #143 - unit NA has no quantity; the receipt shows the rate only.
+                const qtyBit = item.unit === 'NA' ? '' : `${qty}${unitBit}`;
                 return (
                   <div key={idx} style={{ marginBottom: 5, fontSize: '0.95em' }}>
                     <div style={{ fontWeight: strongWeight, wordBreak: 'break-word' }}>
@@ -726,8 +731,8 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                     }}>
                       <span style={{ wordBreak: 'break-word' }}>
                         {cap(showRate
-                          ? `${qty}${unitBit} × ${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
-                          : `${qty}${unitBit}${hsnBit}`)}
+                          ? `${qtyBit ? `${qtyBit} × ` : ''}${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
+                          : `${qtyBit}${hsnBit}`.trim())}
                       </span>
                       <span style={{ textAlign: 'right', fontWeight: strongWeight }}>{currencySymbol}{amount.toFixed(2)}</span>
                     </div>
@@ -1168,7 +1173,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
       {/* Items table */}
       <table className="inv-table" style={{ tableLayout: 'auto', ...(pdfStyle === 'modern' ? { margin: '0 2rem', width: 'calc(100% - 4rem)' } : pdfStyle === 'minimal' ? { margin: '0 2rem', width: 'calc(100% - 4rem)', borderTop: 'none' } : {}) }}>
         <thead>
-          {showGST ? (
+          {showTaxCols ? (
             isIndia && isInterstate ? (
               <>
                 <tr>
@@ -1259,10 +1264,10 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   )}
                 </td>
                 {showHSN && <td className="inv-td inv-td-center inv-td-muted">{item.hsn || '-'}</td>}
-                {showItemQty && <td className="inv-td inv-td-center">{item.quantity}{showItemUnit && item.unit ? ` ${item.unit}` : ''}</td>}
+                {showItemQty && <td className="inv-td inv-td-center">{item.unit === 'NA' ? '-' : `${item.quantity}${showItemUnit && item.unit ? ` ${item.unit}` : ''}`}</td>}
                 {showRateColumn && <td className="inv-td inv-td-right">{fmt(item.rate)}</td>}
                 {hasAnyDiscount && <td className="inv-td inv-td-right">{discount > 0 ? fmt(discount) : '-'}</td>}
-                {showGST && (
+                {showTaxCols && (
                   isIndia && isInterstate ? (
                     <>
                       <td className="inv-td inv-td-center">{taxRate}%</td>

@@ -454,7 +454,7 @@ export default [
 
 <section id="no-tax">
 <h3>No GST is charged at all</h3>
-<p>The <b>Tax % column</b> is probably turned off under ${ui('Customize')}. Turning it off removes GST from the invoice, and your choice carries over to new invoices. Tick it again. Bills of supply and delivery challans never charge GST.</p>
+<p><b>Charge GST on this invoice</b> (group <b>Tax</b>) is probably turned off under ${ui('Customize')}. Turning it off removes GST from the invoice, and your choice carries over to new invoices. Tick it again. Bills of supply and delivery challans never charge GST.</p>
 </section>
 
 <section id="gstr1-blocked">

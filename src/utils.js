@@ -1139,7 +1139,7 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
       productDesc: item.name || '',
       hsnCode: Number(item.hsn) || 0,
       quantity: item.quantity || 0,
-      qtyUnit: getUnitUQC(item.unit),
+      qtyUnit: getUnitUQC(item.unit) === 'NA' ? 'OTH' : getUnitUQC(item.unit), // NA is not an e-way bill unit
       taxableAmount: Math.round(taxable * 100) / 100,
       cgstRate: isInterstate ? 0 : taxRate / 2,
       sgstRate: isInterstate ? 0 : taxRate / 2,
@@ -1689,6 +1689,10 @@ export const BUILTIN_UNITS = [
   { label: 'Bag',     uqc: 'BAG', kind: 'goods' },
   { label: 'Roll',    uqc: 'ROL', kind: 'goods' },
   { label: 'Bottle',  uqc: 'BTL', kind: 'goods' },
+  // v1.10.84 (#143) - a service with no quantity: the line's amount is its
+  // rate (quantity is held at 1 and printed as "-"), and GSTR-1 reports UQC
+  // NA with quantity 0, as the portal expects.
+  { label: 'NA',      uqc: 'NA',  kind: 'both' },
 ];
 
 // Default unit per invoice mode — used when adding a new line item so the user
@@ -2391,6 +2395,20 @@ export const formatDocNumber = ({ settings, typePrefix, next, explicitPrefix = f
   // against the portal's 16).
   const fy = s.fyStyle === 'short' ? String(fyLabel).replace(/^\d\d(?=\d\d-)/, '') : fyLabel;
   return s.showFinYear && fy ? `${pfx}${sep}${fy}${sep}${padded}` : `${pfx}${sep}${padded}`;
+};
+
+// v1.10.84 (#145) - the counter value a hand-typed number stands for, when it
+// is written exactly as the series writes its numbers (same prefix, year,
+// separator; any zero padding); otherwise null. `format` is the series'
+// value -> number function.
+export const seriesNumberOf = (typed, format) => {
+  const t = String(typed || '').trim();
+  const m = t.match(/(\d+)$/);
+  const n = m ? Number(m[1]) : 0;
+  if (!(n >= 1) || n > MAX_START_NUMBER) return null;
+  const w = String(format(n));
+  const wm = w.match(/(\d+)$/);
+  return wm && Number(wm[1]) === n && w.slice(0, -wm[1].length) === t.slice(0, -m[1].length) ? n : null;
 };
 
 // GST (CGST Rule 46 / 53): an invoice, bill of supply or credit note number is

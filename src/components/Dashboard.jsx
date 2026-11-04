@@ -7,7 +7,7 @@ import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../ut
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
 import { EInvoiceReport } from './EInvoiceModal';
-import { openWhatsAppShare } from '../utils/share';
+import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import PageHeader from './PageHeader';
 import LockButton from './LockButton';
 import ActionsMenu from './ActionsMenu';
@@ -1210,41 +1210,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // status op payment." On mobile the message rides as WhatsApp caption
   // alongside the PDF; on desktop (where PDF can't attach via Web Share)
   // this text is ALL the client sees, so we want it to stand alone.
-  const buildShareMessage = (bill) => {
-    const currency = bill.currency || bill.data?.invoiceOptions?.currency || 'INR';
-    const fmt = (n) => formatCurrency(Number(n) || 0, currency);
-    const total = Number(bill.totalAmount) || 0;
-    const paidFromArr = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    const paid = paidFromArr > 0 ? paidFromArr : (Number(bill.paidAmount) || 0);
-    const outstanding = amountDue(bill) - paid;
-    const dueDate = bill.data?.details?.dueDate ? new Date(bill.data.details.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-    const invDate = bill.invoiceDate ? new Date(bill.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-    const businessName = profile?.businessName || '';
-    const status = (bill.status || 'unpaid').toUpperCase();
-
-    // Payment line adapts to state: fully paid / overpaid / partial / unpaid.
-    let paymentLine;
-    if (outstanding < -0.005) {
-      paymentLine = `Paid: ${fmt(paid)}  (Overpaid by ${fmt(Math.abs(outstanding))})`;
-    } else if (outstanding <= 0.005) {
-      paymentLine = `Paid: ${fmt(paid)}  ✅ FULLY PAID`;
-    } else if (paid > 0.005) {
-      paymentLine = `Paid: ${fmt(paid)}  ·  *Outstanding: ${fmt(outstanding)}*`;
-    } else {
-      paymentLine = `*Amount Due: ${fmt(total)}*`;
-    }
-
-    const lines = [
-      `*Invoice: ${bill.invoiceNumber}*`,
-      `Date: ${invDate}${dueDate ? `   ·   Due: ${dueDate}` : ''}`,
-      `Client: ${bill.clientName}`,
-      `Total: ${fmt(total)}`,
-      paymentLine,
-      `Status: ${status}`,
-    ];
-    if (businessName) lines.push('', `— ${businessName}`);
-    return lines.join('\n');
-  };
+  // v1.10.84 (#156) - the one message every screen sends (utils/share.js).
+  const buildShareMessage = (bill) => invoiceShareMessage(bill, profile);
 
   const shareWhatsApp = async (bill) => {
     const msg = buildShareMessage(bill);

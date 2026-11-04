@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff, QrCode } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, printedSubtotal, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
+import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, followTypedInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
-import { openWhatsAppShare } from '../utils/share';
+import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect } from './CostCentrePicker';
@@ -218,6 +218,7 @@ const OPTION_GROUP_HELP = {
   'Header & branding': 'invoice-options#show-header',
   'Client / Bill-to': 'invoice-options#show-client',
   'Invoice meta': 'invoice-options#show-meta',
+  'Tax': 'invoice-options#show-items',
   'Items table': 'invoice-options#show-items',
   'Totals': 'invoice-options#show-totals',
   'Compliance flags (India)': 'invoices#reverse-charge',
@@ -407,9 +408,14 @@ const LineItem = memo(function LineItem({
       )}
       <div className="line-item-field" style={{ flex: 0.7 }}>
         <label className="form-label">Qty</label>
-        <input type="number" min="0" step="any" className="form-input" value={item.quantity}
-          onFocus={(e) => e.target.select()}
-          onChange={(e) => onFieldChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
+        {item.unit === 'NA' ? (
+          <input type="text" className="form-input" value="-" disabled
+            title="Unit NA: no quantity - the amount is the rate" />
+        ) : (
+          <input type="number" min="0" step="any" className="form-input" value={item.quantity}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onFieldChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
+        )}
       </div>
       {/* v1.10.83 - a services invoice that does not print the unit has no unit column. */}
       {(invoiceMode !== 'services' || invoiceOptionOn(invoiceOptions, 'showItemUnit')) && <div className="line-item-field" style={{ flex: 0.9 }}>
@@ -563,6 +569,13 @@ const LineItem = memo(function LineItem({
 // terms, bank details and signature stay on page 1. Returns a function that
 // puts everything back. Elements: [data-pdf-spacer="stretch"] rows have their
 // cells shortened; [data-pdf-spacer="row"] rows are hidden whole.
+// #161 - a hidden preview sits off-screen and transparent; in html2canvas's
+// copy of the page it is put back on-screen so the capture is not blank.
+function showHiddenPaneInClone(clonedDoc) {
+  const pane = clonedDoc.querySelector('.preview-pane');
+  if (pane) Object.assign(pane.style, { left: '0px', top: '0px', opacity: '1' });
+}
+
 function fitSpacersToOnePage(container, pageWmm, pageHmm, ps) {
   const m = (k) => Math.max(0, Number(ps?.[k]) || 0);
   const availW = Math.max(20, pageWmm - m('marginLeft') - m('marginRight'));
@@ -1504,7 +1517,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // that actually changed. Prior code created new function identities
   // every render → every keystroke re-rendered EVERY line item.
   const handleItemChange = useCallback((id, field, value) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    // #143 - unit NA has no quantity: the amount is the rate.
+    const naQty = field === 'unit' && value === 'NA' ? { quantity: 1 } : {};
+    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value, ...naQty } : item));
     if (field === 'name') {
       setProductSearch({ itemId: id, query: value });
     }
@@ -1520,6 +1535,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       hsn: product.hsn || '',
       rate: salePrice,
       unit: product.unit || item.unit || 'Nos',
+      ...(product.unit === 'NA' ? { quantity: 1 } : {}),
       taxPercent: product.taxPercent ?? defaultTaxRate,
       // v1.10.84 - nil-rated / exempt / non-GST, for GSTR-1 Table 8.
       gstTreatment: product.gstTreatment || '',
@@ -1818,6 +1834,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         if (!ownNumber) {
           finalInvoiceNumber = await getNextInvoiceNumber(prefix, numOpts);
           setDetails(prev => ({ ...prev, invoiceNumber: finalInvoiceNumber }));
+        } else {
+          // #145 - the next document carries on after a typed number that fits
+          // the series and is higher (a lower one leaves the series alone).
+          await followTypedInvoiceNumber(typed, prefix, numOpts);
         }
         numberReserved.current = true;
       } catch { /* fall back to the peeked value; server will 409 if it collides */ }
@@ -2483,6 +2503,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const mainCanvas = await html2canvas(printRef.current, {
       ...captureOptions(printRef.current),
       onclone: (clonedDoc) => {
+        showHiddenPaneInClone(clonedDoc);
         // v1.10.60 (#51) — embed the stylesheet rather than letting the
         // clone re-fetch it. Without this, any fetch failure yields a
         // completely unstyled PDF with no error shown to the user.
@@ -2731,7 +2752,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     for (const pageEl of extraPages) {
       const c = await html2canvas(pageEl, {
         ...captureOptions(pageEl),
-        onclone: (cd) => { cd.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; }); }
+        onclone: (cd) => { showHiddenPaneInClone(cd); cd.querySelectorAll('*').forEach(n => { n.style.letterSpacing = '0px'; n.style.wordSpacing = '0px'; }); }
       });
       const extraImg = c.toDataURL(imgFormat === 'PNG' ? 'image/png' : 'image/jpeg', jpegQuality);
       const extraH = Math.min((c.height * pdfWidth) / c.width, extraMaxH);
@@ -3149,44 +3170,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // Now: single source of truth — getPaperSize().kind.
   const isThermalPaper = () => getPaperSize(invoiceOptions.paperSize, invoiceOptions).kind === 'thermal';
 
-  // v1.10.26 — Focus mode moves the preview pane off-screen (position:
-  // absolute), which is fine for html2canvas (layout still computed) but
-  // breaks window.print() for thermal (prints visible viewport only).
-  // Un-collapse the preview for the duration of any print / download
-  // operation and restore after.
-  //
-  // v1.10.27 — Reported: "after print, preview panel comes back up and
-  // hiding again have to click." Prior code registered an `afterprint`
-  // listener + 30s safety timeout, which never fired in two of the three
-  // paths and left the preview expanded:
-  //   - Download PDF has NO print dialog → afterprint never fires
-  //   - A4 iframe print → afterprint fires on iframe.contentWindow, not
-  //     the parent window we were listening on
-  //   - Only thermal window.print() correctly fired afterprint on parent
-  //
-  // Fix: restore in the finally block, unconditionally. window.print()
-  // blocks the JS thread until the native dialog closes on all desktop
-  // browsers, so the restore happens after the user is done with print.
-  // On mobile Safari where print() may not block, the DOM was already
-  // captured at the moment print() was invoked, so restoring right after
-  // is safe.
-  const withPreviewOnScreen = async (fn) => {
-    const wasCollapsed = previewCollapsed;
-    if (!wasCollapsed) return fn();
-    setPreviewCollapsed(false);
-    // v1.10.28 — bumped settle from 50ms → 200ms. Reported: PDF sometimes
-    // came out with content shoved to top-left on slower devices. Root
-    // cause: after removing position: absolute, browser needs a real layout
-    // pass; 50ms wasn't enough for React commit + reflow on low-end Android.
-    // Two rAFs + a settle timeout so React commits the DOM change AND
-    // the browser lays out the newly-visible preview before we snapshot.
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))));
-    try {
-      return await fn();
-    } finally {
-      setPreviewCollapsed(true);
-    }
-  };
+  // v1.10.84 (#161) - reported: with the preview hidden, Save / Download /
+  // Print opened it and closed it again (v1.10.26 un-hid it for every
+  // capture). Nothing needs it on screen: thermal printing builds its own
+  // iframe from the receipt HTML (v1.10.42), and html2canvas captures a CLONE
+  // of the page, in which showHiddenPaneInClone puts the hidden pane back at
+  // left 0, fully opaque. The live pane keeps its real 794px layout
+  // off-screen, so the page-break measurements are the same.
 
   // v1.10.36 — Print pipeline split into two functions:
   //   1. `executePrint` — the actual work (buildPDF → printViaIframe).
@@ -3225,7 +3215,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   };
 
   // Prints what the preview shows. Returns true when it was sent to print.
-  const printPreview = () => withPreviewOnScreen(async () => {
+  const printPreview = async () => {
     try {
       // v1.10.42 — Thermal + user hasn't opted out of direct print?
       // Try the vector-HTML path first. If the browser blocks it
@@ -3243,7 +3233,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       toast('Print failed — try Download PDF instead', 'error');
       return false;
     }
-  });
+  };
 
   const executePrint = async () => {
     if (!printRef.current) return;
@@ -3344,7 +3334,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const refreshSavedPdf = async (savedNumber) => {
     if (!hasOutput.current || !printRef.current) return;
     try {
-      const pdf = await withPreviewOnScreen(() => buildPDF({ archive: true }));
+      const pdf = await buildPDF({ archive: true });
       await saveToInvoicesFolder(pdf.output('blob'), `${typeConfig.prefix}_${savedNumber.replace(/\//g, '-')}.pdf`);
       toast('The PDF in Saved Invoices is updated too', 'info');
     } catch (err) {
@@ -3365,8 +3355,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // Save first so the PDF shows the number the invoice was saved under.
       const savedNumber = await saveForOutput();
       if (!savedNumber) return;
-      // v1.10.26 — force preview on-screen so html2canvas can snapshot it.
-      const pdf = await withPreviewOnScreen(() => buildPDF());
+      const pdf = await buildPDF();
       const fileName = `${typeConfig.prefix}_${savedNumber.replace(/\//g, '-')}.pdf`;
       pdf.save(fileName);
 
@@ -3404,20 +3393,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // invoice total. Now uses totals.total (post-tax, post-discount, with
     // round-off + TCS + invoice-level discount all applied) — the same
     // number that appears on the PDF and gets saved as bill.totalAmount.
-    const cur = invoiceOptions.currency || 'INR';
-    const total = formatCurrency(Number(totals.total) || 0, cur);
-    const subtotal = formatCurrency(printedSubtotal(totals), cur);
-    const dateStr = details.invoiceDate ? new Date(details.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-    const businessName = profile?.businessName || '';
-    const lines = [
-      `*Invoice: ${details.invoiceNumber}*`,
-      `Date: ${dateStr}`,
-      `Client: ${client?.name || ''}`,
-      `Subtotal: ${subtotal}`,
-      `*Total: ${total}*`,
-    ];
-    if (businessName) lines.push('', `— ${businessName}`);
-    openWhatsAppShare(client?.phone, lines.join('\n'));
+    // v1.10.84 (#156) - the same full message as the Invoices list, built
+    // from the form (payments and status from the saved invoice, if any).
+    const bill = {
+      invoiceNumber: details.invoiceNumber, invoiceDate: details.invoiceDate, clientName: client?.name,
+      totalAmount: totals.total, currency: invoiceOptions.currency || 'INR',
+      payments: editingBill?._isDuplicate ? [] : editingBill?.payments,
+      paidAmount: editingBill?._isDuplicate ? 0 : editingBill?.paidAmount,
+      status: editingBill?._isDuplicate ? '' : editingBill?.status,
+      data: { details, invoiceOptions, totals },
+    };
+    openWhatsAppShare(client?.phone, invoiceShareMessage(bill, profile));
   };
 
   const exportEWayBill = () => {
@@ -4003,6 +3989,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showInvoiceDate', 'Invoice date'],
                     ['showDueDate', 'Due date'],
                   ]},
+                  // v1.10.84 (#152, #138) - showGST was labelled "Tax % column" but
+                  // has always switched GST off for the whole invoice. It gets
+                  // its own group and a name that says so; hiding the columns
+                  // alone is showTaxColumns below.
+                  { group: 'Tax', items: [
+                    ['showGST', 'Charge GST on this invoice (GST/VAT/etc.) - untick for no tax at all'],
+                  ]},
                   { group: 'Items table', items: [
                     ['showHSN', 'HSN/SAC column'],
                     ['showItemQty', 'Qty column'],
@@ -4016,7 +4009,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ['showItemUnit', 'Unit (Hrs, Nos...) next to Qty'],
                     ['showRateColumn', 'Rate column'],
                     ['showDiscount', 'Discount column'],
-                    ['showGST', 'Tax % column (GST/VAT/etc.)'],
+                    ['showTaxColumns', 'Tax % columns (rate and tax on each line; GST is still charged)'],
                     ['showCess', 'GST Cess % column (India — tobacco/auto/coal)'],
                   ]},
                   { group: 'Totals', items: [
@@ -4186,7 +4179,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
                   <button type="button" className="btn btn-secondary"
                     onClick={() => {
-                      const allKeys = ['showLogo','showBusinessName','showBusinessAddress','showBusinessPhone','showBusinessEmail','showState','showGSTIN','showClientAddress','showClientPhone','showClientEmail','showPlaceOfSupply','showInvoiceNumber','showInvoiceDate','showDueDate','showHSN','showItemQty','showItemUnit','showRateColumn','showDiscount','showGST','showSubtotal','showAmountWords','showRoundOff','showBankDetails','showAccountLabel','showUPI','showSignature','showSignatoryText','showTerms','showNotes','showExportDeclaration'];
+                      // v1.10.84 - display only: Charge GST (showGST) and the round-off
+                      // line change the money, so Hide all leaves them alone.
+                      const allKeys = ['showLogo','showBusinessName','showBusinessAddress','showBusinessPhone','showBusinessEmail','showState','showGSTIN','showClientAddress','showClientPhone','showClientEmail','showPlaceOfSupply','showInvoiceNumber','showInvoiceDate','showDueDate','showHSN','showItemQty','showItemUnit','showRateColumn','showDiscount','showTaxColumns','showSubtotal','showAmountWords','showBankDetails','showAccountLabel','showUPI','showSignature','showSignatoryText','showTerms','showNotes','showExportDeclaration'];
                       setInvoiceOptions(prev => { const out = { ...prev }; allKeys.forEach(k => { out[k] = false; }); return out; });
                     }}
                     style={{ fontSize: '0.72rem', padding: '0.3rem 0.6rem' }}>
@@ -4563,13 +4558,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   </button>
                 </div>
               )}
-              {/* v1.10.83 - GST switched off (Customize → Tax % column) on a tax
+              {/* v1.10.83 - GST switched off (Customize → Charge GST on this invoice) on a tax
                   invoice to a client abroad or in an SEZ: no place of supply, no
                   LUT box and no LUT line, with nothing saying why. */}
               {!showGST && INVOICE_TYPES[invoiceType]?.showGST && profile?.gstin && (profile?.country || 'India') === 'India'
                 && (isForeignClient(client, profile) || client?.isSEZ) && !readOnlyDoc && (
                 <div className="form-group full-width notice notice-warn" style={{ padding: '0.6rem 0.85rem', borderRadius: 6, display: 'block', fontSize: '0.82rem', lineHeight: 1.5 }}>
-                  <strong>Export under LUT? GST is turned off on this invoice.</strong> Without it (Customize → Tax % column), there is no LUT box and the LUT line is not printed. A GST-registered business needs it on an export or SEZ invoice; under the LUT the tax is still 0.{' '}
+                  <strong>Export under LUT? GST is turned off on this invoice.</strong> Without it (Customize → Charge GST on this invoice), there is no LUT box and the LUT line is not printed. A GST-registered business needs it on an export or SEZ invoice; under the LUT the tax is still 0.{' '}
                   <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', marginTop: 4 }}
                     onClick={() => setInvoiceOptions(prev => ({ ...prev, showGST: true, showPlaceOfSupply: true }))}>
                     Turn GST on

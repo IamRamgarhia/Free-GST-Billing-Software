@@ -6,7 +6,7 @@
 // Reported: "I added printing service and it shows out of stock" and "for
 // import features where are the sample files to fill data".
 
-import { stockEffect, stockDelta, stockUpdates, trackedStock, findLowStock, isServiceProduct, toCsvLine } from '../src/utils.js';
+import { stockEffect, stockDelta, stockUpdates, trackedStock, findLowStock, isServiceProduct, toCsvLine, getUnitUQC, hsnUqc, generateEWayBillJSON } from '../src/utils.js';
 import { closingStock, bulkRowToProduct } from '../src/utils/products.js';
 import { productsCsvToList, clientsCsvToList, PRODUCTS_SAMPLE, CLIENTS_SAMPLE } from '../src/utils/listCsv.js';
 
@@ -97,6 +97,17 @@ console.log('\n[#121] Clients sample file imports back with zero errors');
   eq([r.clients[0].state, r.clients[0].gstin], ['Maharashtra', '27AAAAA0000A1Z5'], 'State and GSTIN');
   eq(clientsCsvToList(CLIENTS_SAMPLE, [{ name: ' demo traders ' }]).skipped, 1, 'A client already saved is skipped (any case, trimmed)');
   eq(clientsCsvToList('﻿Customer Name,Mobile\r\nRavi,98000\r\n').clients[0], { name: 'Ravi', address: '', state: '', gstin: '', email: '', phone: '98000' }, 'Excel BOM and other headings (Customer Name, Mobile)');
+}
+
+console.log('\n[#143] Unit NA: a service with no quantity');
+{
+  eq(getUnitUQC('NA'), 'NA', 'NA is a unit with UQC NA');
+  eq(hsnUqc({ unit: 'NA', hsn: '8443' }), 'NA', 'GSTR-1 reports UQC NA even when the code is not a 99 SAC');
+  const ewb = generateEWayBillJSON(
+    { gstin: '29ABCDE1234F1ZW', businessName: 'DiceCodes', state: 'Karnataka', pin: '560001' }, { name: 'Buyer', state: 'Karnataka', pin: '560002' },
+    { invoiceNumber: 'DC/1', invoiceDate: '2026-11-07' }, [{ name: 'Setup fee', hsn: '998313', quantity: 1, unit: 'NA', rate: 500, taxPercent: 18 }],
+    { subtotal: 500, cgst: 45, sgst: 45, igst: 0, total: 590 }, 'tax-invoice');
+  eq(ewb.billLists?.[0]?.itemList?.[0]?.qtyUnit ?? ewb.itemList?.[0]?.qtyUnit, 'OTH', 'E-way bill gets OTH, not NA (not an e-way bill unit)');
 }
 
 console.log('\n────────────────────────────────────────');

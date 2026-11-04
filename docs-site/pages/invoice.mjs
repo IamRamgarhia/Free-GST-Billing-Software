@@ -63,12 +63,12 @@ export default [
 <h3>What changes when you click a chip</h3>
 <ul>
   <li><strong>The number</strong> moves to that type's own series. Any number you typed is replaced.</li>
-  <li><strong>The Tax % column</strong> is turned on for types with GST and off for the others (bill of supply, composition, delivery challan). <b>Place of Supply</b> is shown or hidden the same way.</li>
+  <li><strong>Charge GST on this invoice</strong> is turned on for types with GST and off for the others (bill of supply, composition, delivery challan). <b>Place of Supply</b> is shown or hidden the same way.</li>
   <li><strong>The title</strong> printed at the top changes, unless you typed your own <a href="invoice-options.html#title-currency">Invoice Title</a>.</li>
 </ul>
 <p><strong>Once an invoice is saved, its type is locked.</strong> The other chips are greyed out and a note under them says why: the number and the tax already issued to your client must not change. To make a different document from it, use ${ui('Duplicate')} on the <a href="dashboard.html#row-actions">Dashboard</a>. A quotation, proforma or challan is turned into an invoice with ${ui('Convert to Tax Invoice')} (see <a href="#proforma-to-invoice">Turning a quote into an invoice</a>).</p>
 <div class="note tip"><strong>Something wrong?</strong>
-<p><b>No GST box on the items, or no tax on a new tax invoice?</b> The Tax % column is remembered for the next invoice. After making a bill of supply or a challan, the next new invoice can start without it. Click the ${ui('Tax Invoice')} chip again, or tick <b>Tax % column</b> under ${ui('Customize')}. See <a href="troubleshooting.html#no-tax">No GST is charged at all</a>.</p>
+<p><b>No GST box on the items, or no tax on a new tax invoice?</b> <b>Charge GST on this invoice</b> is remembered for the next invoice. After making a bill of supply or a challan, the next new invoice can start without it. Click the ${ui('Tax Invoice')} chip again, or tick <b>Charge GST on this invoice</b> under ${ui('Customize')} (group <b>Tax</b>). See <a href="troubleshooting.html#no-tax">No GST is charged at all</a>.</p>
 <p><b>The chips are greyed out.</b> The invoice is already saved. Use Duplicate to make a new document of another type.</p></div>
 </section>
 
@@ -195,7 +195,7 @@ export default [
 <ul>
   <li><b>Export under LUT? First set the client's country.</b> You are billing in a foreign currency, but the client is saved in India (the client form starts on India). Click ${ui("Set the client's country")} and choose their country.</li>
   <li><b>Export under LUT? Place of supply is …</b> The client is abroad, but Place of supply is an Indian state. Click ${ui('Make it an export')} to set it back to <b>Outside India (export)</b>.</li>
-  <li><b>Export under LUT? GST is turned off on this invoice.</b> The <b>Tax % column</b> tick in ${ui('Customize')} switches GST off for the whole invoice, which hides the LUT too. Click ${ui('Turn GST on')}; under the LUT the tax is still 0.</li>
+  <li><b>Export under LUT? GST is turned off on this invoice.</b> The <b>Charge GST on this invoice</b> tick in ${ui('Customize')} switches GST off for the whole invoice, which hides the LUT too. Click ${ui('Turn GST on')}; under the LUT the tax is still 0.</li>
 </ul>
 <p>The tick also decides the GST returns and the e-invoice: SEZ invoices go in GSTR-1 as <b>SEZ without payment</b> (SEWOP) or <b>with payment</b> (SEWP), and the e-invoice file uses EXPWOP / SEZWOP or EXPWP / SEZWP. Exports abroad still go in Table 6A on the portal by hand, see <a href="gst-returns.html#top-bar">the warnings above the tabs</a>. The E-Way Bill file uses 0% rates under a LUT. More on export invoices: <a href="gst-basics.html#export-invoice">What to print on an export or SEZ invoice</a>.</p>
 </section>
@@ -706,7 +706,7 @@ export default [
   <tr><td><a href="#show-header">Header &amp; branding</a></td><td>Logo, Business name, Business address, Business phone, Business email, Business state, Tax ID (GSTIN/VAT/etc.)</td><td></td></tr>
   <tr><td><a href="#show-client">Client / Bill-to</a></td><td>Client address, Client phone, Client email, Place of Supply</td><td></td></tr>
   <tr><td><a href="#show-meta">Invoice meta</a></td><td>Invoice number, Invoice date, Due date</td><td></td></tr>
-  <tr><td><a href="#show-items">Items table</a></td><td>HSN/SAC column, Qty column, Unit suffix (next to Qty), Rate column, Discount column, Tax % column (GST/VAT/etc.), GST Cess % column</td><td>GST Cess</td></tr>
+  <tr><td><a href="#show-items">Items table</a></td><td>HSN/SAC column, Qty column, Unit suffix (next to Qty), Rate column, Discount column, Tax % columns, GST Cess % column</td><td>GST Cess</td></tr>
   <tr><td><a href="#show-totals">Totals</a></td><td>Subtotal row, Amount in words, Round-off line, HSN/SAC tax summary table, Tax amount in words</td><td>The HSN summary and tax in words are on only in Tally style. Round-off follows <a href="print-settings.html#round-off">Print &amp; PDF</a> (on for new installs).</td></tr>
   <tr><td><a href="invoices.html#reverse-charge">Compliance flags (India)</a></td><td>Reverse Charge applies (Section 9(3)/9(4)) — recipient pays GST</td><td>Reverse Charge</td></tr>
   <tr><td><a href="#show-footer">Footer</a></td><td>Bank details, "Pay via" account label, UPI QR (rupee invoices), Signature block, "Authorized Signatory" caption, Terms &amp; Conditions, Notes / Remarks, system-generated note, Declaration, "Customer's Seal and Signature" box</td><td>"Pay via" label, system-generated note. Declaration and the seal box are on only in Tally style.</td></tr>
@@ -717,8 +717,8 @@ export default [
   <li>${ui('Hide all')} turns off, in one click, everything in Header &amp; branding, Client / Bill-to and Invoice meta; in Items table everything but GST Cess; in Totals the subtotal, amount in words and round-off; and in Footer the bank details, "Pay via" label, UPI QR, signature, caption, terms and notes. Then tick back only what you want. It leaves the HSN summary, tax in words, reverse charge, system-generated note, declaration and seal box as they were.</li>
   <li>${ui('Reset to default')} puts <em>every</em> option back as it was on a fresh install, including the title, currency, style, colour, paper size, Goods/Services choice, whole-bill discount, recurring, TDS, TCS and reverse charge. The payment account you picked for this invoice stays.</li>
 </ul>
-<div class="note warn"><strong>Hide all also stops GST and rounding</strong>
-<p>It turns off the <b>Tax % column</b>, which removes GST from the invoice, and the <b>Round-off line</b>, which can change the total. Tick both back on a tax invoice.</p></div>
+<div class="note"><strong>Hide all only hides</strong>
+<p>Since v1.10.84 it leaves <b>Charge GST on this invoice</b> and the <b>Round-off line</b> alone, because those change the money, not just what is printed.</p></div>
 </section>
 
 <section id="show-header">
@@ -751,7 +751,8 @@ export default [
   <tr><td>Unit (Hrs, Nos...) next to Qty</td><td>Prints "5" instead of "5 Hrs". In Classic, Modern, Minimal and on thermal receipts the unit is part of the Qty column; in Boxed grid the UNIT column goes away, and in Tally style the "per" column goes away. <b>It turns off by itself</b> when you pick <b>Services</b> for an invoice (and back on for Goods or Mixed), until you tick or untick it yourself; after that your choice stays. A freelancer's invoices start with it off.</td></tr>
   <tr><td>Rate column</td><td>Hides the price per unit; the Amount still prints.</td></tr>
   <tr><td>Discount column</td><td>Hides the Disc. column and the Discount box in each row.</td></tr>
-  <tr><td>Tax % column (GST/VAT/etc.)</td><td>No GST is charged at all: the tax columns and tax rows disappear, and the GST % box goes from the form. Bill of Supply, Composition and Delivery Challan turn it off for you.</td></tr>
+  <tr><td>Tax % columns</td><td>Hides the GST rate and tax amount on each line. GST is still charged: CGST/SGST or IGST still print in the totals. (Until v1.10.84 this switch was called "Tax % column" and turned GST off; that is now <b>Charge GST on this invoice</b>, below.)</td></tr>
+  <tr><td>Charge GST on this invoice (group Tax)</td><td>Untick it and no GST is charged at all: the tax columns and tax rows disappear, and the GST % box goes from the form. Bill of Supply, Composition and Delivery Challan turn it off for you.</td></tr>
   <tr><td>GST Cess % column</td><td>Off to start. Turning it <em>on</em> adds a Cess % box to each row of the form. The printed invoice shows cess as one line in the totals.</td></tr>
 </table></div>
 </section>

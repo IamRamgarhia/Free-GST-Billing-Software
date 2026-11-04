@@ -1,7 +1,7 @@
 // File-based storage via local Express API server
 // All data persists as JSON files in the ./data/ folder
 
-import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, INVOICE_TYPES, savedPdfNameFor, stockUpdates } from './utils';
+import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates } from './utils';
 import { poCounterKey, formatPoNumber } from './utils/purchaseOrders';
 
 import { logProblem } from './utils/problemLog';
@@ -242,11 +242,35 @@ export const setMenuOrder = (order) => {
 // `invoiceDate` (YYYY-MM-DD) picks the financial year printed in the number;
 // without it, today's. A back-dated invoice (31 March, made on 2 April) took
 // the new year's label, so its number disagreed with its own date.
-export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false, explicitPrefix = false, invoiceType = null, businessKey = '', invoiceDate = '' } = {}) => {
+// The series a document numbers in: its counter key, start, and how a counter
+// value is written out (shared by the two functions below).
+const seriesOf = async (prefix, { explicitPrefix = false, invoiceType = null, businessKey = '', invoiceDate = '' }) => {
   const settings = await getNumberSeries(businessKey);
   const typePrefix = settings.own ? (INVOICE_TYPES[invoiceType]?.prefix || prefix) : prefix;
-  const key = counterKeyFor(typePrefix, settings, businessKey);
-  const start = invoiceType ? startFor(invoiceType, settings) : 1;
+  return {
+    key: counterKeyFor(typePrefix, settings, businessKey),
+    start: invoiceType ? startFor(invoiceType, settings) : 1,
+    format: (next) => formatDocNumber({
+      settings, typePrefix, next,
+      explicitPrefix: settings.own ? false : explicitPrefix,
+      fyLabel: getFinancialYearLabel(invoiceDate ? parseLocalDate(invoiceDate) : new Date()),
+    }),
+  };
+};
+
+// v1.10.84 (#145) - a number typed by hand that fits the series and is higher
+// than the counter (the user skipped ahead, or carried on from a paper bill
+// book) moves the counter up to it, so the next invoice follows it. A lower
+// one (an old paper bill entered late) leaves the series alone.
+export const followTypedInvoiceNumber = async (typed, prefix = 'INV', opts = {}) => {
+  const { key, format } = await seriesOf(prefix, opts);
+  const n = seriesNumberOf(typed, format);
+  if (n) await apiFetch(`${API}/meta/${encodeURIComponent(key)}/raise`, { method: 'POST', body: JSON.stringify({ value: n }) });
+  return n;
+};
+
+export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false, explicitPrefix = false, invoiceType = null, businessKey = '', invoiceDate = '' } = {}) => {
+  const { key, start, format } = await seriesOf(prefix, { explicitPrefix, invoiceType, businessKey, invoiceDate });
   let next;
   if (peek) {
     // Encoded: a key can hold a business name ("M/S Sharma", "Shop #12").
@@ -264,11 +288,7 @@ export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false, expli
   // v1.10.53 — the financial year label is India's April-March FY.
   // v1.10.79 — formatting lives in utils (formatDocNumber), shared with the
   // server's recurring invoices.
-  return formatDocNumber({
-    settings, typePrefix, next,
-    explicitPrefix: settings.own ? false : explicitPrefix,
-    fyLabel: getFinancialYearLabel(invoiceDate ? parseLocalDate(invoiceDate) : new Date()),
-  });
+  return format(next);
 };
 
 // ---- Bills ----

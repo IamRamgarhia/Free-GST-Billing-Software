@@ -756,6 +756,18 @@ app.post('/api/meta/:key', (req, res) => {
   res.json({ success: true });
 });
 
+// v1.10.84 (#145) - a hand-typed invoice number ahead of the counter moves
+// the counter up to it (never down), in one synchronous read + write.
+app.post('/api/meta/:key/raise', (req, res) => {
+  if (req.params.key === LOCK_KEY) return errRes(res, 403, 'forbidden');
+  const value = Math.floor(Number(req.body?.value));
+  if (!Number.isFinite(value) || value < 1 || value > 999999999) return errRes(res, 400, 'bad-request');
+  const meta = readJSON(META_PATH, {});
+  const current = Math.max(0, Math.floor(Number(meta[req.params.key]) || 0));
+  if (value > current) { meta[req.params.key] = value; writeJSON(META_PATH, meta); }
+  res.json({ value: Math.max(value, current) });
+});
+
 // Atomic increment for invoice-number counters. Node's I/O is single-threaded
 // and readJSON / writeJSON are both synchronous (fs.readFileSync /
 // writeFileSync), so wrapping read+write in one handler with no awaits is

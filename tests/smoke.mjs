@@ -349,6 +349,31 @@ try {
   } catch { /* leaves pdfBytes 0 → fails below */ }
   check('PDF downloads and is styled', pdfBytes > 300_000, `${pdfBytes} bytes`);
 
+  // #161: with the preview hidden, Save & Download leaves it hidden (it used
+  // to open and close again), and the PDF is still a full, styled page.
+  await page.getByRole('button', { name: /Hide Preview/i }).first().click();
+  await sleep(500);
+  await page.evaluate(() => {
+    window.__paneShown = false;
+    const sv = document.querySelector('.split-view');
+    new MutationObserver(() => { if (!sv.classList.contains('split-view-focus')) window.__paneShown = true; })
+      .observe(sv, { attributes: true, attributeFilter: ['class'] });
+  });
+  let hiddenPdfBytes = 0;
+  try {
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByRole('button', { name: /save & download/i }).first().click(),
+    ]);
+    const { statSync } = await import('fs');
+    hiddenPdfBytes = statSync(await dl.path()).size;
+  } catch { /* leaves 0 → fails below */ }
+  const paneShown = await page.evaluate(() => window.__paneShown);
+  check('#161 hidden preview stays hidden on Save & Download, PDF still styled',
+    !paneShown && hiddenPdfBytes > 300_000, `${hiddenPdfBytes} bytes, preview shown: ${paneShown}`);
+  await page.getByRole('button', { name: /Show Preview/i }).first().click();
+  await sleep(400);
+
   check('no CSP violations during PDF generation', cspViolations.length === 0,
     cspViolations[0]?.slice(0, 400) || '');
 
@@ -873,6 +898,57 @@ try {
     toggled && /Reverse Charge:? Yes\b/i.test((await preview()).text));
   // Put the option back: it is remembered as a default for future invoices.
   if (toggled) { await clickReverseCharge(); await sleep(1500); }
+
+  // #152 / #138: "Tax % columns" hides only the per-line tax columns; GST is
+  // still charged. The switch that turns GST off says so.
+  const clickOption = (src) => page.evaluate((s) => {
+    const label = [...document.querySelectorAll('label.option-toggle')].find((l) => new RegExp(s).test(l.innerText));
+    const input = label?.querySelector('input');
+    if (input) input.click();
+    return !!input;
+  }, src);
+  const taxView = () => page.evaluate(() => ({
+    head: [...document.querySelectorAll('#invoice-preview .inv-table thead th')].map((t) => t.innerText.trim()),
+    totals: document.querySelector('#invoice-preview .inv-totals')?.innerText || '',
+  }));
+  const tvBefore = await taxView();
+  const tcToggled = await clickOption('^Tax % columns');
+  await sleep(1000);
+  const tvAfter = await taxView();
+  check('#152 "Tax % columns" hides the tax columns, GST is still charged',
+    tcToggled && tvBefore.head.includes('%') && !tvAfter.head.includes('%')
+      && tvAfter.totals === tvBefore.totals && /CGST/.test(tvAfter.totals),
+    `${tvBefore.head.join(',')} -> ${tvAfter.head.join(',')}`);
+  if (tcToggled) { await clickOption('^Tax % columns'); await sleep(1500); }
+  check('#152 the switch that turns GST off is called "Charge GST on this invoice"',
+    await page.evaluate(() => [...document.querySelectorAll('label.option-toggle')].some((l) => /Charge GST on this invoice/.test(l.innerText))));
+
+  // #156: the invoice form's WhatsApp button sends the same full message as
+  // the Invoices list (client, total, status...), not the old short one.
+  await page.evaluate(() => { window.__realOpen = window.open; window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+  await page.getByRole('button', { name: /WhatsApp/ }).first().click();
+  await sleep(500);
+  const waText = await page.evaluate(() => {
+    window.open = window.__realOpen;
+    return decodeURIComponent(((window.__opened[0] || '').split('text=')[1]) || '');
+  });
+  check('#156 the invoice form sends the full WhatsApp message',
+    /Client: Smoke Test Client/.test(waText) && /Total: /.test(waText) && /Status: /.test(waText), waText.replace(/\n/g, ' | ').slice(0, 240));
+
+  // #143: unit NA - no quantity box, "-" printed for the quantity, amount = rate.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/NA', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [{ ...draftItems[0], unit: 'NA', quantity: 1 }],
+    taxInclusive: false,
+  });
+  const na = await page.evaluate(() => ({
+    locked: !!document.querySelector('.line-item-row input[disabled][value="-"]'),
+    cells: [...document.querySelectorAll('#invoice-preview .inv-table tbody td')].map((t) => t.innerText.trim()),
+  }));
+  check('#143 unit NA: no quantity box, "-" printed, amount = rate',
+    na.locked && na.cells.includes('-') && na.cells.some((t) => /1,000\.00/.test(t)), na.cells.join(' , '));
 
   await openDraft({
     invoiceType: 'proforma',

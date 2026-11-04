@@ -6,11 +6,51 @@
 // url") it had to be fixed in every copy. Now: one function, one bug fix
 // spot.
 //
-// Kept intentionally narrow: only the URL open. Caller composes the
-// message because those legitimately differ (Dashboard has rich
-// payment-status caption, ClientsView has a minimal blurb, invoice-form
-// has totals). Attempting to unify the message text would collapse three
-// UX-tuned strings into one lowest-common-denominator string.
+// v1.10.84 (#156) - the message is now shared too: the three screens sent
+// three different texts (the Clients page a bare 4-line one), and users
+// asked for the full one everywhere, with the UPI ID.
+
+import { formatCurrency, amountDue, paymentStatusFor, getAccountById, parseLocalDate } from '../utils.js';
+
+const shortDate = (d) => (d
+  ? parseLocalDate(String(d).slice(0, 10)).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  : '');
+
+/**
+ * The WhatsApp / email text for an invoice: business, client, number and
+ * dates, total, paid and balance, status, and the UPI ID while money is due
+ * on a rupee invoice. `bill` is a saved bill (or the same shape built from
+ * the invoice form); *bold* is WhatsApp markup.
+ */
+export function invoiceShareMessage(bill, profile) {
+  const currency = bill.currency || bill.data?.invoiceOptions?.currency || 'INR';
+  const fmt = (n) => formatCurrency(Number(n) || 0, currency);
+  const total = Number(bill.totalAmount) || 0;
+  const paidFromList = (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const paid = paidFromList > 0 ? paidFromList : (Number(bill.paidAmount) || 0);
+  const balance = amountDue(bill) - paid;
+  const opts = bill.data?.invoiceOptions || {};
+  const account = opts.paymentAccountSnapshot || getAccountById(profile || {}, opts.selectedAccountId);
+  const upiId = currency === 'INR' && balance > 0.005 ? (account?.upiId || profile?.upiId || '') : '';
+  const dueDate = shortDate(bill.data?.details?.dueDate);
+
+  let paymentLine;
+  if (balance < -0.005) paymentLine = `Paid: ${fmt(paid)}  (Overpaid by ${fmt(-balance)})`;
+  else if (balance <= 0.005) paymentLine = `Paid: ${fmt(paid)}  ✅ FULLY PAID`;
+  else if (paid > 0.005) paymentLine = `Paid: ${fmt(paid)}  ·  *Balance due: ${fmt(balance)}*`;
+  else paymentLine = `*Amount due: ${fmt(balance)}*`;
+
+  return [
+    profile?.businessName && `*${profile.businessName}*`,
+    `Client: ${bill.clientName || ''}`,
+    `Invoice: *${bill.invoiceNumber || ''}*`,
+    `Date: ${shortDate(bill.invoiceDate)}${dueDate ? `   ·   Due: ${dueDate}` : ''}`,
+    `Total: ${fmt(total)}`,
+    paymentLine,
+    `Status: ${(bill.status || paymentStatusFor(bill, paid)).toUpperCase()}`,
+    upiId && `Pay by UPI: ${upiId}`,
+  ].filter(Boolean).join('\n');
+}
 
 /**
  * Sanitize a phone number for WhatsApp deep-link.

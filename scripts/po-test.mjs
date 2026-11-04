@@ -4,7 +4,7 @@
 // Run: `node scripts/po-test.mjs`
 
 import { purchaseTotals, poStatus, poRemainingItems, billFormFromPo, poCounterKey, formatPoNumber } from '../src/utils/purchaseOrders.js';
-import { nextCounterValue, splitPurchaseTax } from '../src/utils.js';
+import { nextCounterValue, splitPurchaseTax, seriesNumberOf, formatDocNumber } from '../src/utils.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -68,6 +68,24 @@ console.log('\n[#112] PO numbers');
   eq(poCounterKey('29ABCDE1234F1ZW'), 'counter_PO@29ABCDE1234F1ZW', 'Each business has its own counter');
   eq(poCounterKey(''), 'counter_PO', 'No business selected: one shared counter');
   eq([nextCounterValue(undefined), nextCounterValue(7)], [1, 8], 'The counter starts at 1 and only goes up, so a number is never reused');
+}
+
+console.log('\n[#145] A hand-typed number that fits the series moves the counter');
+{
+  const fmt = (settings) => (n) => formatDocNumber({ settings, typePrefix: 'INV', next: n, fyLabel: '2026-27' });
+  const branded = fmt({ brandPrefix: 'DC', showFinYear: true, padDigits: 4 });
+  eq(seriesNumberOf('DC/2026-27/0042', branded), 42, 'Written exactly like the series: its number');
+  eq(seriesNumberOf('DC/2026-27/42', branded), 42, 'Without the zero padding: still the series');
+  eq(seriesNumberOf(' DC/2026-27/0042 ', branded), 42, 'Spaces around it are ignored');
+  eq(seriesNumberOf('DC/2025-26/0042', branded), null, 'Another financial year: not this series');
+  eq(seriesNumberOf('XY/2026-27/0042', branded), null, 'Another prefix: not this series');
+  eq(seriesNumberOf('PAPER-17', branded), null, 'A paper bill book number in its own style: left alone');
+  eq(seriesNumberOf('DC/2026-27/ABC', branded), null, 'No number at the end: left alone');
+  eq(seriesNumberOf('DC/2026-27/0000', branded), null, 'Zero is not a number the series uses');
+  const plain = fmt({ brandPrefix: '', showFinYear: false, padDigits: 3 });
+  eq(seriesNumberOf('INV/007', plain), 7, 'A series without the year: INV/007 is 7');
+  eq(seriesNumberOf('INV/2026-27/007', plain), null, 'Year added where the series has none: left alone');
+  eq(seriesNumberOf('DC/0042', () => `DC/${Math.random().toString(36).slice(2, 8)}`), null, 'Random numbering: never followed');
 }
 
 console.log('\n────────────────────────────────────────');

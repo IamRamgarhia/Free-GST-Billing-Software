@@ -4,7 +4,7 @@ import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile, deleteReceipt, applyStockChanges, trashSavedPdf } from '../store';
 import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, appliedStock, stockDelta } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
-import { openWhatsAppShare } from '../utils/share';
+import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
 import { toast } from './Toast';
 import { clientVisits } from '../utils/phoneClients';
@@ -689,8 +689,10 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   };
 
   const shareWhatsApp = (bill) => {
-    const msg = `*Invoice ${bill.invoiceNumber}*\nAmount: ${formatCurrency(bill.totalAmount)}\nDate: ${new Date(bill.invoiceDate).toLocaleDateString('en-IN')}\nStatus: ${(bill.status || 'unpaid').toUpperCase()}`;
-    openWhatsAppShare(bill.clientPhone, msg);
+    // v1.10.84 (#156) - the same full message as the Invoices list, sent to
+    // the number on the invoice or, failing that, the client's saved number.
+    const phone = bill.clientPhone || bill.data?.client?.phone || clients.find(c => c.name === bill.clientName)?.phone;
+    openWhatsAppShare(phone, invoiceShareMessage(bill, profileForStatement));
   };
 
   const shareEmail = (bill) => {
