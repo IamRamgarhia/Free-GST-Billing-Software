@@ -93,7 +93,7 @@ check_old_untouched() {
 `;
 
 function packageTest(image, script) {
-  const r = docker(['run', '--rm', '-v', `${OUT}:/pkgs:ro`, image, 'sh', '-c', COMMON + script], { maxBuffer: 1 << 24 });
+  const r = docker(['run', '--rm', '-v', `${OUT}:/pkgs:ro`, image, 'sh', '-c', (COMMON + script).replace(/\r/g, '')], { maxBuffer: 1 << 24 }); // a CRLF checkout must not reach sh
   const out = `${r.stdout}${r.stderr}`;
   console.log(out.split('\n').filter((l) => /^(OK|HASH|FAIL|     \|)/.test(l)).map((l) => `      ${l}`).join('\n'));
   return { ok: r.status === 0 && out.includes('ALL DONE'), out };
