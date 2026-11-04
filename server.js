@@ -759,7 +759,8 @@ app.post('/api/meta/:key', (req, res) => {
 // v1.10.84 (#145) - a hand-typed invoice number ahead of the counter moves
 // the counter up to it (never down), in one synchronous read + write.
 app.post('/api/meta/:key/raise', (req, res) => {
-  if (req.params.key === LOCK_KEY) return errRes(res, 403, 'forbidden');
+  // Only number counters: any other meta value (settings) must not become a number.
+  if (!/^counter_/.test(req.params.key)) return errRes(res, 400, 'bad-request');
   const value = Math.floor(Number(req.body?.value));
   if (!Number.isFinite(value) || value < 1 || value > 999999999) return errRes(res, 400, 'bad-request');
   const meta = readJSON(META_PATH, {});

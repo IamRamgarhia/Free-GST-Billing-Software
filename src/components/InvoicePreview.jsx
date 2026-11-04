@@ -8,6 +8,7 @@ import { getPrintSettings, getLabel, formatCurrencyEx, formatDate } from '../uti
 import InvoiceGridLayout, { HsnSummaryTable } from './InvoiceGridLayout';
 import { exportDeclaration } from '../utils/lut';
 import { purposeCodeText } from '../utils/purposeCodes';
+import { sizeLabel, sizePieces, lineSqft, sizeHasDims } from '../utils/glass';
 
 // v1.10.36 — Optional `previewOnly` prop suppresses the internal
 // `id="invoice-preview"`. The parent's on-screen preview keeps the id
@@ -70,6 +71,12 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   // v1.10.84 (#152) - hides only the per-line tax columns; GST is still
   // charged and shown in the totals. showGST is what turns GST off.
   const showTaxCols = showGST && opt('showTaxColumns');
+  // v1.10.84 (#140) - size lines (glass, mirror) add Size and SQFT columns; the
+  // Qty column then shows their pieces. NA lines (#143) print "-".
+  const hasSize = (items || []).some((i) => i.size);
+  const printedQty = (item) => (item.size ? sizePieces(item)
+    : item.unit === 'NA' ? '-'
+      : `${item.quantity}${showItemUnit && item.unit ? ` ${item.unit}` : ''}`);
   const showState = opt('showState');
   const showGSTIN = opt('showGSTIN');
   const showPlaceOfSupply = opt('showPlaceOfSupply', showGST);
@@ -719,7 +726,11 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 // v1.10.83 - the receipt follows Customize → Unit too.
                 const unitBit = opt('showItemUnit') && item.unit ? ' ' + item.unit : '';
                 // #143 - unit NA has no quantity; the receipt shows the rate only.
-                const qtyBit = item.unit === 'NA' ? '' : `${qty}${unitBit}`;
+                // #140 - a size line: "25 x 30 x 2 = 12.5 sqft" (a manual one has no rate).
+                const qtyBit = item.size
+                  ? `${sizeHasDims(item.size) ? `${sizeLabel(item.size)} x ${sizePieces(item)} = ` : ''}${lineSqft(item)} sqft`
+                  : item.unit === 'NA' ? '' : `${qty}${unitBit}`;
+                const showLineRate = showRate && !item.size?.manual;
                 return (
                   <div key={idx} style={{ marginBottom: 5, fontSize: '0.95em' }}>
                     <div style={{ fontWeight: strongWeight, wordBreak: 'break-word' }}>
@@ -730,7 +741,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                       fontSize: '0.92em', paddingLeft: thermalCompact ? 0 : 8, fontWeight: baseWeight,
                     }}>
                       <span style={{ wordBreak: 'break-word' }}>
-                        {cap(showRate
+                        {cap(showLineRate
                           ? `${qtyBit ? `${qtyBit} × ` : ''}${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
                           : `${qtyBit}${hsnBit}`.trim())}
                       </span>
@@ -1180,7 +1191,9 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   <th className="inv-th" rowSpan="2">#</th>
                   <th className="inv-th" rowSpan="2">Description</th>
                   {showHSN && <th className="inv-th inv-th-center" rowSpan="2">{hsnHeader}</th>}
+                  {hasSize && <th className="inv-th inv-th-center" rowSpan="2">Size</th>}
                   {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
+                  {hasSize && <th className="inv-th inv-th-center" rowSpan="2">SQFT</th>}
                   {showRateColumn && <th className="inv-th inv-th-right" rowSpan="2">Rate</th>}
                   {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
                   <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>IGST</th>
@@ -1197,7 +1210,9 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   <th className="inv-th" rowSpan="2">#</th>
                   <th className="inv-th" rowSpan="2">Description</th>
                   {showHSN && <th className="inv-th inv-th-center" rowSpan="2">{hsnHeader}</th>}
+                  {hasSize && <th className="inv-th inv-th-center" rowSpan="2">Size</th>}
                   {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
+                  {hasSize && <th className="inv-th inv-th-center" rowSpan="2">SQFT</th>}
                   {showRateColumn && <th className="inv-th inv-th-right" rowSpan="2">Rate</th>}
                   {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
                   <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>CGST</th>
@@ -1218,7 +1233,9 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   <th className="inv-th" rowSpan="2">#</th>
                   <th className="inv-th" rowSpan="2">Description</th>
                   {showHSN && <th className="inv-th inv-th-center" rowSpan="2">{hsnHeader}</th>}
+                  {hasSize && <th className="inv-th inv-th-center" rowSpan="2">Size</th>}
                   {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
+                  {hasSize && <th className="inv-th inv-th-center" rowSpan="2">SQFT</th>}
                   {showRateColumn && <th className="inv-th inv-th-right" rowSpan="2">Rate</th>}
                   {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
                   <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>{taxLabel}</th>
@@ -1235,7 +1252,9 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
               <th className="inv-th">#</th>
               <th className="inv-th">Description</th>
               {showHSN && <th className="inv-th inv-th-center">{hsnHeader}</th>}
+              {hasSize && <th className="inv-th inv-th-center">Size</th>}
               {showItemQty && <th className="inv-th inv-th-center">Qty</th>}
+              {hasSize && <th className="inv-th inv-th-center">SQFT</th>}
               {showRateColumn && <th className="inv-th inv-th-right">Rate</th>}
               {hasAnyDiscount && <th className="inv-th inv-th-right">Disc.</th>}
               <th className="inv-th inv-th-right">Amount</th>
@@ -1264,8 +1283,10 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   )}
                 </td>
                 {showHSN && <td className="inv-td inv-td-center inv-td-muted">{item.hsn || '-'}</td>}
-                {showItemQty && <td className="inv-td inv-td-center">{item.unit === 'NA' ? '-' : `${item.quantity}${showItemUnit && item.unit ? ` ${item.unit}` : ''}`}</td>}
-                {showRateColumn && <td className="inv-td inv-td-right">{fmt(item.rate)}</td>}
+                {hasSize && <td className="inv-td inv-td-center">{sizeLabel(item.size)}</td>}
+                {showItemQty && <td className="inv-td inv-td-center">{printedQty(item)}</td>}
+                {hasSize && <td className="inv-td inv-td-center">{item.size ? lineSqft(item).toFixed(2) : ''}</td>}
+                {showRateColumn && <td className="inv-td inv-td-right">{item.size?.manual ? '-' : fmt(item.rate)}</td>}
                 {hasAnyDiscount && <td className="inv-td inv-td-right">{discount > 0 ? fmt(discount) : '-'}</td>}
                 {showTaxCols && (
                   isIndia && isInterstate ? (

@@ -1,6 +1,6 @@
 // v1.10.83 (#133) - GSTR-1 JSON parts the GST portal is strict about.
 // Run: `node scripts/gstr1-json-test.mjs`
-import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSummary, hsnIsB2B, isExportBill, hsnCsvRow, HSN_CSV_HEADERS } from '../src/utils/gstr1Json.js';
+import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSummary, hsnIsB2B, isExportBill, hsnCsvRow, HSN_CSV_HEADERS, mergeHsnRows } from '../src/utils/gstr1Json.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -142,6 +142,20 @@ console.log('\n[#166] One Table 12 builder for the screen, the CSV and the JSON'
   }
   eq(HSN_CSV_HEADERS.slice(0, 5), ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value'], 'the CSV keeps the portal column order');
   eq(hsnCsvRow(b2b[0]).slice(0, 5), ['4802', 'A4 Paper', 'PCS', 8, '896.00'], 'a CSV row: HSN, description, UQC, quantity, total value');
+}
+
+console.log('\n[#166 review] Before May 2025 Table 12 is one list: B2B and B2C rows of one HSN add up');
+{
+  const rows = [
+    { b2b: true, hsn_sc: '7009', desc: 'Mirror', uqc: 'SQF', qty: 10, rt: 18, txval: 1000, iamt: 0, camt: 90, samt: 90, csamt: 0 },
+    { b2b: false, hsn_sc: '7009', desc: 'Mirror', uqc: 'SQF', qty: 2.5, rt: 18, txval: 250, iamt: 0, camt: 22.5, samt: 22.5, csamt: 0 },
+    { b2b: false, hsn_sc: '7005', desc: 'Glass', uqc: 'SQF', qty: 4, rt: 18, txval: 400, iamt: 72, camt: 0, samt: 0, csamt: 0 },
+  ];
+  eq(mergeHsnRows(rows).map((r) => [r.hsn_sc, r.qty, r.txval, r.camt]), [['7009', 12.5, 1250, 112.5], ['7005', 4, 400, 0]], 'one row per HSN, rate and unit');
+  const old = hsnTable(rows, '042025');
+  eq([old.data.length, old.data[0].txval, old.data.map((r) => r.num)], [2, 1250, [1, 2]], 'the JSON of an April 2025 return has the merged rows, numbered');
+  const split = hsnTable(rows, '052025');
+  eq(split.hsn_b2b.length + split.hsn_b2c.length, 3, 'from May 2025 the two lists stay apart');
 }
 
 console.log('\n────────────────────────────────────────');

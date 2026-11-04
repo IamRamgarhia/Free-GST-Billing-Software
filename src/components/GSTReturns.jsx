@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules } from '../store';
-import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
+import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, mergeHsnRows, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -1058,7 +1058,7 @@ export default function GSTReturns() {
     // two lists, so the CSV comes as two files (a list with no rows is left
     // out). Earlier periods keep the one combined file.
     if (!hsnSplit) {
-      downloadCSV('GSTR1_HSN_Summary.csv', HSN_CSV_HEADERS, hsnRows.map(hsnCsvRow));
+      downloadCSV('GSTR1_HSN_Summary.csv', HSN_CSV_HEADERS, mergeHsnRows(hsnRows).map(hsnCsvRow));
     } else {
       [['B2B', hsnB2B], ['B2C', hsnB2C]].forEach(([part, rows]) => {
         if (rows.length) downloadCSV(`GSTR1_HSN_${part}.csv`, HSN_CSV_HEADERS, rows.map(hsnCsvRow));
@@ -1829,7 +1829,7 @@ export default function GSTReturns() {
             )}
             {hsnRows.length === 0 ? (
               <p style={{ padding: '1rem 1.25rem', margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>No items found.</p>
-            ) : (hsnSplit ? [['B2B (buyers with a GSTIN)', hsnB2B], ['B2C', hsnB2C]] : [['', hsnRows]]).map(([title, rows]) => (
+            ) : (hsnSplit ? [['B2B (buyers with a GSTIN)', hsnB2B], ['B2C', hsnB2C]] : [['', mergeHsnRows(hsnRows)]]).map(([title, rows]) => (
               <div key={title || 'all'}>
                 {title && <h4 style={{ margin: 0, padding: '0.75rem 1.25rem 0.4rem', fontSize: '0.9rem' }}>{title} <span className="text-muted" style={{ fontWeight: 'normal', fontSize: '0.8rem' }}>- {rows.length} row{rows.length !== 1 ? 's' : ''}</span></h4>}
                 {rows.length === 0 ? (

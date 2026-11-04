@@ -602,9 +602,18 @@ export const formatShortDate = (iso) => {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-');
 };
 // The filled-in order details, ready to print as label / value pairs.
-export const filledOrderDetails = (details = {}) => ORDER_DETAIL_FIELDS
-  .filter((f) => String(details[f.key] || '').trim())
-  .map((f) => ({ ...f, value: f.type === 'date' ? formatShortDate(details[f.key]) : String(details[f.key]).trim() }));
+// v1.10.84 (#126) - plus the fields the user named (details.customFields:
+// [{ label, value }]), e.g. an optician's R SPH / L SPH or a patient name.
+export const filledOrderDetails = (details = {}) => [
+  ...ORDER_DETAIL_FIELDS
+    .filter((f) => String(details[f.key] || '').trim())
+    .map((f) => ({ ...f, value: f.type === 'date' ? formatShortDate(details[f.key]) : String(details[f.key]).trim() })),
+  ...customFieldsOf(details)
+    .filter((f) => f.label && f.value)
+    .map((f, i) => ({ key: `custom${i}`, label: f.label, value: f.value, custom: true })),
+];
+export const customFieldsOf = (details = {}) => (Array.isArray(details?.customFields) ? details.customFields : [])
+  .map((f) => ({ label: String(f?.label || '').trim(), value: String(f?.value || '').trim() }));
 
 // v1.10.70 - where a PDF page is allowed to end.
 //
@@ -1974,6 +1983,8 @@ export const FEATURE_GROUPS = [
       // v1.10.84 (#129) - cafes and shops find or add the customer by phone.
       { id: 'phoneFirst', label: 'Customer phone box', help: 'A phone box at the top of the invoice: typing a number fills in that customer, or adds a new one with just a name. Clients shows their visits.', defaultOn: true },
       { id: 'upiQr', label: 'UPI QR code', help: 'Print a UPI QR code so customers can pay by scanning.', defaultOn: true, indiaOnly: true },
+      // v1.10.84 (#140) - glass, mirror, flex, tile shops; off until wanted.
+      { id: 'sizeBilling', label: 'Size billing (Sq.ft)', help: 'For glass, mirror, flex and tile shops: an item line can be "Sq.ft" - type Length x Width in inches and the pieces, pick 3 or 6 inch rounding, and the square feet and amount are worked out. The invoice prints Size and SQFT columns.', defaultOn: false },
     ],
   },
   {

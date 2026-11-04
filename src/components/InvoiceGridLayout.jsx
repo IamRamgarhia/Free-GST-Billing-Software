@@ -17,6 +17,10 @@ import React from 'react';
 import { filledOrderDetails, getStateCode, printedSubtotal, roundQty } from '../utils';
 import SignatureImages from './SignatureImages';
 import { purposeCodeText } from '../utils/purposeCodes';
+import { sizeLabel, sizePieces, lineSqft, sizeHasDims } from '../utils/glass';
+
+// #140 - the size of a glass / mirror line, under its name in the grid designs.
+const sizeLine = (item) => `Size ${sizeLabel(item.size)} in, ${sizePieces(item)} pcs = ${lineSqft(item).toFixed(2)} sq.ft`;
 
 const LINE = '#1f2937';
 const B = `1px solid ${LINE}`;
@@ -230,6 +234,7 @@ function TallyLayout({ ctx }) {
     t.dueDate && details?.dueDate && ['Due Date', ctx.shortDate(details.dueDate)],
     ctx.showReverseChargeLine && ['Reverse Charge', ctx.reverseChargeText],
     t.placeOfSupply && ctx.placeOfSupply && ['Place of Supply', stateWithCode(ctx.placeOfSupply)],
+    ...filledOrderDetails(details).filter((f) => f.custom).map((f) => [f.label, f.value]), // #126
   ].filter(Boolean);
   const refCell = (k, v) => (
     <td style={{ ...cell, width: '25%', height: 34 }}>
@@ -308,6 +313,7 @@ function TallyLayout({ ctx }) {
                 <td style={vc}>
                   <strong>{item.name || '-'}</strong>
                   {item.description && <div style={{ ...small, whiteSpace: 'pre-wrap' }}>{item.description}</div>}
+                  {item.size && sizeHasDims(item.size) && <div style={small}>{sizeLine(item)}</div>}
                 </td>
                 {t.hsn && <td style={{ ...vc, ...center }}>{item.hsn || ''}</td>}
                 {t.itemQty && <td style={{ ...vc, ...right }}><strong>{item.unit === 'NA' ? '-' : `${item.quantity}${t.itemUnit && item.unit ? ` ${item.unit}` : ''}`}</strong></td>}
@@ -480,6 +486,7 @@ function BoxedLayout({ ctx }) {
                   <td style={cell}>
                     {item.name || '-'}
                     {item.description && <div style={{ ...small, whiteSpace: 'pre-wrap' }}>{item.description}</div>}
+                  {item.size && sizeHasDims(item.size) && <div style={small}>{sizeLine(item)}</div>}
                   </td>
                   {t.hsn && <td style={{ ...cell, ...center }}>{item.hsn || ''}</td>}
                   {unitCol && <td style={{ ...cell, ...center }}>{item.unit || ''}</td>}

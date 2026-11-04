@@ -950,6 +950,55 @@ try {
   check('#143 unit NA: no quantity box, "-" printed, amount = rate',
     na.locked && na.cells.includes('-') && na.cells.some((t) => /1,000\.00/.test(t)), na.cells.join(' , '));
 
+  // #140: size billing (glass): 25 x 30 in, 2 pcs, 6 inch rounding, Rs 50 / sq.ft
+  // = 12.50 sq.ft, Rs 625; changing the length in the form re-works it out.
+  const modulesBefore = await page.evaluate(() => localStorage.getItem('gst_enabledModules'));
+  await page.evaluate(() => {
+    const m = JSON.parse(localStorage.getItem('gst_enabledModules') || '{}');
+    localStorage.setItem('gst_enabledModules', JSON.stringify({ ...m, sizeBilling: true }));
+  });
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/SQFT', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [{ id: 'smk-glass', name: '6mm Mirror', hsn: '7009', quantity: 12.5, unit: 'Sq.ft', rate: 50, taxPercent: 18, discount: 0, size: { l: 25, w: 30, pcs: 2, step: 6 } }],
+    taxInclusive: false,
+  });
+  const glassRow = () => page.evaluate(() => {
+    const head = [...document.querySelectorAll('#invoice-preview .inv-table thead th')].map((t) => t.innerText.trim().toUpperCase());
+    const cells = [...document.querySelectorAll('#invoice-preview .inv-table tbody tr:first-child td')].map((t) => t.innerText.trim());
+    const at = (name) => cells[head.filter((h) => !/^(%|AMT)$/.test(h)).indexOf(name)];
+    return { size: at('SIZE'), qty: at('QTY'), sqft: at('SQFT'), amount: cells[cells.length - 1] };
+  });
+  const glass1 = await glassRow();
+  check('#140 size line prints Size 25 x 30, Qty 2, SQFT 12.50, amount 625',
+    glass1.size === '25 x 30' && glass1.qty === '2' && glass1.sqft === '12.50' && /625\.00/.test(glass1.amount), JSON.stringify(glass1));
+  const lengthBox = page.locator('.line-item-row').first().locator('label:text("Length (in)") + input');
+  await lengthBox.fill('31');
+  await sleep(800);
+  const glass2 = await glassRow();
+  // 31 rounds up to 36: 36 x 30 / 144 x 2 = 15 sq.ft = Rs 750.
+  check('#140 changing the length re-works the sq.ft and amount (31 in -> 36 in)',
+    glass2.sqft === '15.00' && /750\.00/.test(glass2.amount), JSON.stringify(glass2));
+  await page.evaluate((m) => { if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m); }, modulesBefore);
+
+  // #126: fields the user names print with the order details; an empty one does not.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/OWN', invoiceDate: today, placeOfSupply: 'Delhi',
+      customFields: [{ label: 'R SPH', value: '-1.25' }, { label: 'L SPH', value: '' }] },
+    items: draftItems,
+    taxInclusive: false,
+  });
+  const own = await page.evaluate(() => ({
+    text: document.querySelector('#invoice-preview')?.innerText || '',
+    inForm: [...document.querySelectorAll('input[placeholder="Field name, e.g. R SPH"]')].map((i) => i.value),
+  }));
+  check('#126 your own fields: filled one printed, empty one not, both in the form',
+    /R SPH:?\s*-1\.25/.test(own.text) && !/L SPH/.test(own.text) && own.inForm.join() === 'R SPH,L SPH',
+    own.inForm.join());
+
   await openDraft({
     invoiceType: 'proforma',
     client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: '', email: '', phone: '', isSEZ: false },

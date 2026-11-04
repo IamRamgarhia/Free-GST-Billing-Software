@@ -25,7 +25,7 @@ export function hsnTable(rows, fp) {
     const { b2b, ...row } = r; // eslint-disable-line no-unused-vars
     return { num: i + 1, ...row, desc: String(row.desc || '').trim().slice(0, HSN_DESC_MAX).trim() };
   };
-  if (!hsnSplitFrom(fp)) return { data: rows.map(clean) };
+  if (!hsnSplitFrom(fp)) return { data: mergeHsnRows(rows).map(clean) };
   return {
     hsn_b2b: rows.filter((r) => r.b2b).map(clean),
     hsn_b2c: rows.filter((r) => !r.b2b).map(clean),
@@ -282,6 +282,19 @@ export function hsnSummary(bills) {
     .map((r) => ({ ...r, qty: roundQty(r.qty, 2), txval: r2(r.txval), iamt: r2(r.iamt), camt: r2(r.camt), samt: r2(r.samt), csamt: r2(r.csamt) }))
     .sort((a, b) => a.hsn_sc.localeCompare(b.hsn_sc) || a.rt - b.rt);
   return { rows, missingHsn, customUnit };
+}
+
+// Before the May 2025 return Table 12 is one list: the B2B and B2C rows of the
+// same HSN, rate and unit are added together (they would repeat otherwise).
+export function mergeHsnRows(rows) {
+  const map = new Map();
+  for (const r of rows || []) {
+    const k = `${r.hsn_sc}|${r.rt}|${r.uqc}`;
+    const m = map.get(k);
+    if (!m) { map.set(k, { ...r, b2b: false }); continue; }
+    m.qty += r.qty; m.txval += r.txval; m.iamt += r.iamt; m.camt += r.camt; m.samt += r.samt; m.csamt += r.csamt;
+  }
+  return [...map.values()].map((r) => ({ ...r, qty: roundQty(r.qty, 2), txval: r2(r.txval), iamt: r2(r.iamt), camt: r2(r.camt), samt: r2(r.samt), csamt: r2(r.csamt) }));
 }
 
 // Total value of a row: taxable value plus every tax.

@@ -7,6 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.84] - 2026-11-07
+
+### How to update
+
+**Current version:** 1.10.83  →  **New version:** 1.10.84
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.84** in the menu, or
+   **Settings → Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server**, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+### Added
+- **Import from Vyapar, Tally and Excel** (#130, #131). Clients and Products
+  import take a CSV, an Excel `.xlsx` (a *Sheet* list appears when the file has
+  several) or Tally's masters export (`.xml`, *Gateway of Tally → Export →
+  Masters*): Sundry Debtors and Creditors become clients, stock items become
+  products with HSN, GST, unit and prices. The invoice and purchase import take
+  `.xlsx` too, and a Vyapar Sale Report brings in what was received as payments.
+- **Importing products again fills in the blanks** (#134): a product already
+  saved gets the details it is missing (HSN, unit, prices, GST...) from the
+  file; nothing already filled in is changed.
+- **Size billing for glass, mirror and flex shops** (#140). Turn on *Settings →
+  Features → Size billing (Sq.ft)*, pick the unit Sq.ft on a row and type
+  Length and Width in inches, the pieces and 3 or 6 inch rounding: the square
+  feet and amount are worked out (25 x 30, 2 pcs, 6 inch, ₹50 = 12.50 sq.ft,
+  ₹625). *Type amount* bills a fixed amount. The invoice prints Size and SQFT
+  columns.
+- **Your own fields on invoices** (#126): under *Order, dispatch & reference
+  details*, *Add a field* adds a box you name (R SPH, patient name, job card).
+  Filled ones print; the names stay for your next invoice.
+- **Unit NA for services** (#143): no quantity, the amount is the rate;
+  GSTR-1 reports it with unit NA and quantity 0.
+- **Customer phone box** (#129): type a phone number at the top of the invoice
+  to fill in that customer, or add a new one with just a name. Clients shows
+  visits and the last visit.
+- **GSTR-1 file: exports, nil-rated / exempt and deemed exports** (Tables 6A,
+  8 and DE), bills of supply included, and GSTR-3B 3.1(c)/(e) from the same lines.
+- **Income tax for tax year 2026-27**, with a year picker (2025-26 kept).
+- **Profit & Loss counts the cost of the goods sold** (#146): quantity sold ×
+  the product's purchase price, as its own line, then Gross Profit. Items with
+  no purchase price are named so you can fill it in.
+- **Received From suggests your clients** on a new payment receipt (#143).
+- **A Print switch beside every printed part of the invoice form** (due date,
+  place of supply, bank details, UPI QR, LUT declaration, notes, terms), and
+  Customize can hide the export / LUT declaration.
+
+### Changed
+- **The GST switch says what it does** (#152, #138): Customize's *Tax % column*
+  always turned GST off for the whole invoice. It is now *Charge GST on this
+  invoice* (group *Tax*), and a new *Tax % columns* switch hides only the GST
+  columns on each line while GST is still charged. *Hide all* no longer turns
+  GST or the round-off line off.
+- **One WhatsApp message everywhere** (#156): the Invoices list, the Clients
+  page and the invoice form send the same message: your business, the client,
+  number and dates, total, paid and balance, status, and your UPI ID while
+  money is due.
+- **Numbering carries on after a number you type** (#145): type
+  `.../0049` and the next invoice is `.../0050`. A lower number (an old paper
+  bill) leaves the series alone.
+- **GSTR-1 Table 12 in two parts** (#166): the GST Returns screen and the HSN
+  CSV show B2B and B2C separately, as the portal does (the JSON already did).
+- The window title reads like a desktop program: the page and your business name.
+
+### Fixed
+- **The app opens on the newest version** (ERR-075): the page comes from the
+  app first, the cached copy only when the app is not running. Edge could show
+  a blank window after an update (#153).
+- **Opening the app stopped at "Opening the app in your browser now..."** on
+  some PCs (ERR-076).
+- **GST Returns cleans client GSTINs** (capitals, spaces, hidden characters)
+  and accepts a letter as the 13th character (#141, ERR-077).
+- **Enter after an item put the cursor in HSN**, not the next Item box (#151, ERR-078).
+- **With the preview hidden, Save / Download / Print opened it and closed it
+  again** (#161, ERR-079).
+
+---
+
 ## [1.10.83] - 2026-10-31
 
 ### How to update

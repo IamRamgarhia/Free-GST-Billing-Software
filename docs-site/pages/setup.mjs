@@ -196,6 +196,7 @@ export default [
 </table></div>
 <h3>Start numbering from</h3>
 <p>For tax invoices. If you used a paper bill book up to 1000, type <b>1001</b>: the next tax invoice is <code>.../1001</code>, then 1002 and so on. When you save, the app asks <b>Start tax invoices from 1001?</b> because numbers never go back down; skipped numbers cannot be used later. If you have already gone past the number, numbering simply continues; a number already used is never given again. Quotations, challans, credit notes and receipts keep their own count. Hidden for Random.</p>
+<p><b>A number you type yourself</b> on the invoice is kept. If it is written like your series (same prefix and year) and is higher than the last number, the next invoice carries on after it: type <code>.../0049</code> and the next one is <code>.../0050</code>. A lower one, such as an old paper bill entered late, leaves the series alone.</p>
 <ol class="steps">
   <li><strong>Pick a style</strong>Click ${ui('Branded Sequential')}, ${ui('Simple Sequential')} or ${ui('Random')}.</li>
   <li><strong>Set the first number</strong>Type it in <b>Start numbering from</b>, or leave 1.</li>

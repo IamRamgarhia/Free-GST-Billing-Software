@@ -21,10 +21,12 @@ export function decodeXmlBytes(bytes) {
 
 // Entities decoded; a value Tally marks with &#4; ("Not Applicable", "Any",
 // "Primary") means "none".
+// An out-of-range character code (&#99999999;) is dropped, not a crash.
+const codePoint = (n) => (Number.isInteger(n) && n >= 0 && n <= 0x10FFFF ? String.fromCodePoint(n) : '');
 const clean = (s) => {
   const v = String(s ?? '')
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => codePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => codePoint(Number(d)))
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&')
     .trim();
@@ -32,8 +34,9 @@ const clean = (s) => {
 };
 const esc = (t) => t.replace(/\./g, '\\.');
 // Every <TAG ...>body</TAG> as { attrs, body }. Tally never nests a tag in
-// one of the same name, so the first closing tag is the right one.
-const blocks = (xml, tag) => [...xml.matchAll(new RegExp(`<${esc(tag)}(?=[\\s/>])([^>]*?)(?:/>|>([\\s\\S]*?)</${esc(tag)}>)`, 'g'))]
+// one of the same name, so the first closing tag is the right one. A quoted
+// attribute may hold "/" or ">" (NAME="M/S A/") without ending the tag.
+const blocks = (xml, tag) => [...xml.matchAll(new RegExp(`<${esc(tag)}(?=[\\s/>])((?:[^>"]|"[^"]*")*?)(?:/>|>([\\s\\S]*?)</${esc(tag)}>)`, 'g'))]
   .map((m) => ({ attrs: m[1] || '', body: m[2] || '' }));
 // The body without its nested .LIST blocks, so a value found is the master's own.
 const own = (body) => body.replace(/<([\w]+(?:\.[\w]+)*\.LIST)(?=[\s/>])[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g, '');

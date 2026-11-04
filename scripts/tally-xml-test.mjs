@@ -125,5 +125,14 @@ err = '';
 try { await fileToSheets(new File([utf8], 'Master.xml'), 'clients').then((s) => s); } catch (e) { err = e.message; }
 eq(err, '', 'UTF-8 file reads too');
 
+// Review: a name ending in "/" is not an empty tag; a bad character code does not stop the import.
+{
+  const odd = `<ENVELOPE><BODY><TALLYMESSAGE><LEDGER NAME="M/S DiceCodes/" RESERVEDNAME=""><PARENT>Sundry Debtors</PARENT><LEDSTATENAME>Karnataka</LEDSTATENAME></LEDGER></TALLYMESSAGE>
+<TALLYMESSAGE><LEDGER NAME="DiceCodes &#99999999;Two" RESERVEDNAME=""><PARENT>Sundry Debtors</PARENT></LEDGER></TALLYMESSAGE></BODY></ENVELOPE>`;
+  let rows = null, oddErr = '';
+  try { rows = tallyMastersToRows(odd).clients.slice(1).map((r) => r[0]); } catch (e) { oddErr = e.message; }
+  eq([oddErr, rows], ['', ['M/S DiceCodes/', 'DiceCodes Two']], 'NAME="M/S DiceCodes/" read; &#99999999; dropped, not a crash');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

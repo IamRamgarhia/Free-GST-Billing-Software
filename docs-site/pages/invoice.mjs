@@ -232,6 +232,8 @@ export default [
   <tr><td>Terms of delivery</td><td>Ex-works, door delivery, FOR destination</td></tr>
 </table></div>
 <p>Only what you fill in prints. The <a href="invoice-options.html#style">Tally style</a> design shows them in its reference boxes, Boxed grid prints Work details on its own line, and the other designs list them under Bill To.</p>
+<h3 id="own-fields">Your own fields</h3>
+<p>Under the boxes, ${ui('Add a field')} adds a box you name yourself: an optician's <b>R SPH</b> and <b>L SPH</b>, a patient name, a job card number. Type the name on the left and the value on the right. A filled one prints with the details above; an empty one does not. The names stay for your next invoice, so you type them once, and the panel opens by itself while you have any. The bin removes a field.</p>
 </section>
 
 <section id="items">
@@ -241,8 +243,8 @@ export default [
   <tr><th>Field</th><th>What to know</th></tr>
   <tr><td>Item</td><td>The item name. Typing searches your <a href="products.html">products</a> by name or HSN and shows up to five, with their HSN and price. Pick one with the mouse, or with <kbd>↓</kbd> <kbd>↑</kbd> and <kbd>Enter</kbd>. Picking fills in the HSN, selling price, unit and GST rate, and links the row to the product so its stock is counted. You can also type any name that is not a product.</td></tr>
   <tr><td>HSN/SAC</td><td>The goods (HSN) or services (SAC) code. GST returns need it. For common codes the app knows the usual GST rate since 22 September 2025: from the fourth digit it shows the rate and the item type in green under the box, and if the row's GST is still 18% or 0% it is changed to match. Where the rate depends on the price, size or packing (clothes and shoes up to or above ₹2,500, cars and bikes by engine size, loose or packed food) it shows every possible rate and leaves your GST % alone. Always check it: see <a href="gst-basics.html#which-rate">GST basics: what rate do I charge?</a> Finding your code: see <a href="gst-basics.html#hsn-search">GST basics: HSN and SAC</a>.</td></tr>
-  <tr><td>Qty</td><td>1 to start. Clicking the box selects the number, so typing replaces it. Decimals are fine, such as 2.5 kg.</td></tr>
-  <tr><td>Unit</td><td>From the list for Goods, Services or Mixed. A new row starts with the unit of the row above. ${ui('＋ Add custom…')} adds your own unit (up to 20 characters), marked ★ and kept in this browser for later invoices; ${ui('− Remove "unit"')} takes one away again. Invoices already made keep the unit they used.</td></tr>
+  <tr><td>Qty</td><td>1 to start. Clicking the box selects the number, so typing replaces it. Decimals are fine, such as 2.5 kg. With the unit <b>NA</b> there is no quantity: the box shows "-" and the amount is the rate (for a service such as a setup fee). GSTR-1 reports such a line with unit NA and quantity 0, as the portal expects.</td></tr>
+  <tr><td>Unit</td><td>From the list for Goods, Services or Mixed. A new row starts with the unit of the row above. ${ui('＋ Add custom…')} adds your own unit (up to 20 characters), marked ★ and kept in this browser for later invoices; ${ui('− Remove "unit"')} takes one away again. Invoices already made keep the unit they used. <b>NA</b> is for a service with no quantity (see Qty). With <a href="#size-billing">Size billing</a> on, <b>Sq.ft</b> makes the row a size row.</td></tr>
   <tr><td>Rate</td><td>Price for one unit. Without GST, unless <a href="#tax-inclusive">Prices include tax</a> is ticked.</td></tr>
   <tr><td>Discount</td><td>A discount on this row, as an amount or a percentage. See <a href="#discounts">Discounts</a>. Hidden when <b>Discount column</b> is off under Customize.</td></tr>
   <tr><td>GST %</td><td>0, 0.1, 0.25, 3, 5, 12, 18, 28 or 40%, plus any rates you added in <a href="print-settings.html#tax-rates">Print Settings</a>. ${ui('Custom…')} takes any rate from 0 to 100, up to two decimals. New rows start at 18%. Since 22 September 2025 most goods are at 5%, 18% or 40%; 12% and 28% stay for older invoices and the items still taxed at them. Which rate applies to your item: see <a href="gst-basics.html#which-rate">GST basics: what rate do I charge?</a> Hidden when there is no GST on the invoice. Outside India the label is your country's tax, such as VAT %.</td></tr>
@@ -508,9 +510,24 @@ export default [
 <p><b>Nothing happens, or "Print failed — try Download PDF instead".</b> Allow pop-ups for the app, or download the PDF and print that. See <a href="troubleshooting.html#print-blocked">Print does nothing</a>.</p></div>
 </section>
 
+<section id="size-billing">
+<h2>Size billing (glass, mirror, flex)</h2>
+<p>For shops that sell by the square foot. Turn on <b>Size billing (Sq.ft)</b> in <a href="settings.html#features">Settings → Features</a>. Then pick the unit <b>Sq.ft</b> on a row (or pick a product saved with the unit Sq.ft) and the row asks for:</p>
+<div class="table-wrap"><table>
+  <tr><th>Box</th><th>What to know</th></tr>
+  <tr><td>Length (in), Width (in)</td><td>The measured size in inches.</td></tr>
+  <tr><td>Pcs</td><td>How many pieces of that size.</td></tr>
+  <tr><td>Round up</td><td>No, 3 inch or 6 inch. Each side is rounded up to it before the square feet are worked out: 25 inches becomes 30 with 6 inch rounding, 27 with 3 inch. The app remembers your last choice for new rows.</td></tr>
+  <tr><td>Sq.ft</td><td>Worked out for you: rounded length × rounded width ÷ 144 × pieces. 25 × 30, 2 pieces, 6 inch rounding = 12.50 sq.ft.</td></tr>
+  <tr><td>Rate / sq.ft</td><td>The amount is Sq.ft × rate: 12.50 × ₹50 = ₹625.</td></tr>
+  <tr><td>Type amount</td><td>Tick it to type the amount yourself; the box beside it becomes <b>Amount</b> and nothing is worked out. The size and square feet still print.</td></tr>
+</table></div>
+<p>The invoice then prints <b>Size</b> (25 x 30, as measured) and <b>SQFT</b> columns, and <b>Qty</b> shows the pieces. Tally style and Boxed grid print the size under the item name. Items sold by the piece (hole cutting, silicon) stay ordinary rows. GSTR-1 counts a size row in Sq.ft (unit SQF). Pick any other unit to turn a size row back into an ordinary one.</p>
+</section>
+
 <section id="whatsapp">
 <h2>Sending on WhatsApp</h2>
-<p>${ui('WhatsApp')} opens WhatsApp with this message typed in: the invoice number, date, client, subtotal and total, and your business name. If the client is saved with a phone number, the chat opens with them; otherwise you choose the contact. It does not save the invoice.</p>
+<p>${ui('WhatsApp')} opens WhatsApp with this message typed in: your business name, the client, the invoice number and date (and due date), the total, what is paid and still due, the status, and your UPI ID while money is due on a rupee invoice. The Invoices list and the Clients page send the same message. If the client is saved with a phone number, the chat opens with them; otherwise you choose the contact. It does not save the invoice.</p>
 <p>From the invoice screen the PDF is not attached. Download it with ${ui('Save &amp; Download')} and drag it into the chat. The WhatsApp button on the <a href="dashboard.html#row-actions">Dashboard</a> can attach the PDF on phones.</p>
 </section>
 

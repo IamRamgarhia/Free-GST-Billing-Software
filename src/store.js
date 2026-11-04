@@ -262,12 +262,16 @@ const seriesOf = async (prefix, { explicitPrefix = false, invoiceType = null, bu
 // than the counter (the user skipped ahead, or carried on from a paper bill
 // book) moves the counter up to it, so the next invoice follows it. A lower
 // one (an old paper bill entered late) leaves the series alone.
-export const followTypedInvoiceNumber = async (typed, prefix = 'INV', opts = {}) => {
-  const { key, format } = await seriesOf(prefix, opts);
-  const n = seriesNumberOf(typed, format);
-  if (n) await apiFetch(`${API}/meta/${encodeURIComponent(key)}/raise`, { method: 'POST', body: JSON.stringify({ value: n }) });
-  return n;
+// Two steps, so the counter moves only once the invoice is really saved:
+// typedNumberInSeries looks (n = the typed number's place in the series, or
+// null; next = what the series would give now), raiseInvoiceCounter moves it.
+export const typedNumberInSeries = async (typed, prefix = 'INV', opts = {}) => {
+  const { key, start, format } = await seriesOf(prefix, opts);
+  const { value } = await apiFetch(`${API}/meta/${encodeURIComponent(key)}`);
+  return { key, n: seriesNumberOf(typed, format), next: nextCounterValue(value, start) };
 };
+export const raiseInvoiceCounter = (key, n) =>
+  apiFetch(`${API}/meta/${encodeURIComponent(key)}/raise`, { method: 'POST', body: JSON.stringify({ value: n }) });
 
 export const getNextInvoiceNumber = async (prefix = 'INV', { peek = false, explicitPrefix = false, invoiceType = null, businessKey = '', invoiceDate = '' } = {}) => {
   const { key, start, format } = await seriesOf(prefix, { explicitPrefix, invoiceType, businessKey, invoiceDate });

@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff, QrCode } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, followTypedInvoiceNumber, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
+import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -26,6 +26,7 @@ import ClientModal from './ClientModal';
 import { EInvoiceEditorModal } from './EInvoiceModal';
 import { toast } from './Toast';
 import { phoneDigits, findClientByPhone, newPhoneClient } from '../utils/phoneClients';
+import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS } from '../utils/glass';
 
 // Rich text editor component that works with contentEditable properly
 function RichEditor({ value, onChange, placeholder, toolbar = false }) {
@@ -332,13 +333,99 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
   );
 }
 
+// #126 - fields the user names (an optician's R SPH / L SPH, a patient name),
+// printed with the order details when filled. The names are kept for the next
+// invoice, so they are typed once.
+const CUSTOM_LABELS_KEY = 'fgsb_customFieldLabels';
+const savedCustomLabels = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(CUSTOM_LABELS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : [];
+  } catch { return []; }
+};
+function CustomFields({ details, setDetails }) {
+  const rows = Array.isArray(details.customFields)
+    ? details.customFields
+    : savedCustomLabels().map((label) => ({ label, value: '' }));
+  const save = (next) => {
+    setDetails({ ...details, customFields: next });
+    try { localStorage.setItem(CUSTOM_LABELS_KEY, JSON.stringify(next.map((f) => String(f.label || '').trim()).filter(Boolean))); } catch { /* sandboxed */ }
+  };
+  const edit = (i, key, value) => save(rows.map((f, j) => (j === i ? { ...f, [key]: value } : f)));
+  return (
+    <div style={{ marginTop: '0.6rem' }}>
+      <div className="form-label" style={{ fontSize: '0.78rem' }}>
+        Your own fields <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(printed with these details when filled; the names stay for your next invoice)</span>
+      </div>
+      {rows.map((f, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+          <input className="form-input" style={{ flex: 1 }} placeholder="Field name, e.g. R SPH" value={f.label}
+            onChange={(e) => edit(i, 'label', e.target.value)} />
+          <input className="form-input" style={{ flex: 1.4 }} placeholder="Value" value={f.value}
+            onChange={(e) => edit(i, 'value', e.target.value)} />
+          <button type="button" className="icon-btn" title="Remove this field" onClick={() => save(rows.filter((_, j) => j !== i))}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
+        onClick={() => save([...rows, { label: '', value: '' }])}>
+        <Plus size={14} /> Add a field
+      </button>
+    </div>
+  );
+}
+
+// #140 - a Sq.ft line: Length x Width in inches, pieces, round-up step; the
+// square feet are the line's quantity. "Type amount" bills a fixed amount.
+function SizeFields({ item, onSizeChange, clampNonNeg }) {
+  const s = item.size;
+  const box = (key, label) => (
+    <div className="line-item-field" style={{ flex: 0.6, minWidth: 64 }}>
+      <label className="form-label">{label}</label>
+      <input type="number" min="0" step="any" className="form-input" value={s[key]}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => onSizeChange(item.id, { [key]: clampNonNeg(e.target.value) })} />
+    </div>
+  );
+  return (
+    <>
+      {box('l', 'Length (in)')}
+      {box('w', 'Width (in)')}
+      {box('pcs', 'Pcs')}
+      <div className="line-item-field" style={{ flex: 0.7, minWidth: 80 }}>
+        <label className="form-label">Round up</label>
+        <select className="form-input" value={Number(s.step) || 0}
+          onChange={(e) => onSizeChange(item.id, { step: Number(e.target.value) })}>
+          {SIZE_STEPS.map((n) => <option key={n} value={n}>{n ? `${n} inch` : 'No'}</option>)}
+        </select>
+      </div>
+      <div className="line-item-field" style={{ flex: 0.7, minWidth: 84 }}>
+        <label className="form-label">Sq.ft</label>
+        {sizeHasDims(s) ? (
+          <input type="text" className="form-input" value={sizeSqft(s)} disabled title="Rounded length x width / 144 x pieces" />
+        ) : (
+          <input type="number" min="0" step="any" className="form-input" value={s.sqft ?? ''}
+            title="No size typed: type the square feet, or fill Length and Width"
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onSizeChange(item.id, { sqft: clampNonNeg(e.target.value) })} />
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.7rem', marginTop: 2, cursor: 'pointer' }}>
+          <input type="checkbox" checked={!!s.manual} onChange={(e) => onSizeChange(item.id, { manual: e.target.checked })} />
+          Type amount
+        </label>
+      </div>
+    </>
+  );
+}
+
 const LineItem = memo(function LineItem({
   item, invoiceOptions, showGST, taxLabel,
   units, countryTaxRates, filterUnitsByMode, invoiceMode,
   currency, profileCountry, suggestions,
   onFieldChange, onSelectProduct, onSetProductSearch,
   onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
-  isLastRow, onAddRow, isOnlyRow,
+  isLastRow, onAddRow, isOnlyRow, onSizeChange,
 }) {
   // v1.10.37 — Keyboard shortcut: Enter on any input inside the LAST
   // row adds a new row. Muscle-memory for POS users — reported: "if
@@ -406,6 +493,9 @@ const LineItem = memo(function LineItem({
           })()}
         </div>
       )}
+      {item.size ? (
+        <SizeFields item={item} onSizeChange={onSizeChange} clampNonNeg={clampNonNeg} />
+      ) : (
       <div className="line-item-field" style={{ flex: 0.7 }}>
         <label className="form-label">Qty</label>
         {item.unit === 'NA' ? (
@@ -417,6 +507,7 @@ const LineItem = memo(function LineItem({
             onChange={(e) => onFieldChange(item.id, 'quantity', clampNonNeg(e.target.value))} />
         )}
       </div>
+      )}
       {/* v1.10.83 - a services invoice that does not print the unit has no unit column. */}
       {(invoiceMode !== 'services' || invoiceOptionOn(invoiceOptions, 'showItemUnit')) && <div className="line-item-field" style={{ flex: 0.9 }}>
         <label className="form-label">Unit</label>
@@ -449,10 +540,18 @@ const LineItem = memo(function LineItem({
         </select>
       </div>}
       <div className="line-item-field" style={{ flex: 1.2 }}>
-        <label className="form-label">Rate{currency && currency !== 'INR' ? ` (${currencySymbolFor(currency)})` : ''}</label>
-        <input type="number" min="0" step="any" className="form-input" value={item.rate}
-          onFocus={(e) => e.target.select()}
-          onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
+        <label className="form-label">{item.size?.manual ? 'Amount' : item.size ? 'Rate / sq.ft' : 'Rate'}{currency && currency !== 'INR' ? ` (${currencySymbolFor(currency)})` : ''}</label>
+        {item.size?.manual ? (
+          // #140 - Type amount: the amount is kept on the size; the rate per
+          // sq.ft follows from it (so GSTR-1 and stock still see the area).
+          <input type="number" min="0" step="any" className="form-input" value={item.size.amount ?? ''}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onSizeChange(item.id, { amount: clampNonNeg(e.target.value) })} />
+        ) : (
+          <input type="number" min="0" step="any" className="form-input" value={item.rate}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onFieldChange(item.id, 'rate', clampNonNeg(e.target.value))} />
+        )}
       </div>
       {invoiceOptions.showDiscount && (
         <div className="line-item-field" style={invoiceMode === 'services' ? { flex: 1.2, minWidth: 130 } : { flex: 1.8, minWidth: 200 }}>
@@ -569,6 +668,17 @@ const LineItem = memo(function LineItem({
 // terms, bank details and signature stay on page 1. Returns a function that
 // puts everything back. Elements: [data-pdf-spacer="stretch"] rows have their
 // cells shortened; [data-pdf-spacer="row"] rows are hidden whole.
+// #140 - size billing (Settings -> Features) and the rounding step last used,
+// so a glass shop picks 3 or 6 inches once.
+const sizeBillingOn = () => isModuleEnabled('sizeBilling', getEnabledModules());
+const SIZE_STEP_KEY = 'fgsb_sizeStep';
+const lastSizeStep = () => {
+  try { return Number(localStorage.getItem(SIZE_STEP_KEY)) || 0; } catch { return 0; }
+};
+const rememberSizeStep = (step) => {
+  try { localStorage.setItem(SIZE_STEP_KEY, String(Number(step) || 0)); } catch { /* sandboxed */ }
+};
+
 // #161 - a hidden preview sits off-screen and transparent; in html2canvas's
 // copy of the page it is put back on-screen so the capture is not blank.
 function showHiddenPaneInClone(clonedDoc) {
@@ -1517,12 +1627,23 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // that actually changed. Prior code created new function identities
   // every render → every keystroke re-rendered EVERY line item.
   const handleItemChange = useCallback((id, field, value) => {
-    // #143 - unit NA has no quantity: the amount is the rate.
-    const naQty = field === 'unit' && value === 'NA' ? { quantity: 1 } : {};
-    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value, ...naQty } : item));
+    // #143 / #140 - a unit change can make the line NA (no quantity) or a
+    // Sq.ft size line, or turn a size line back (see itemWithUnit).
+    const change = (item) => (field === 'unit'
+      ? itemWithUnit(item, value, { sizeOn: sizeBillingOn(), step: lastSizeStep() })
+      : { ...item, [field]: value });
+    setItems(prev => prev.map(item => item.id === id ? change(item) : item));
     if (field === 'name') {
       setProductSearch({ itemId: id, query: value });
     }
+  }, []);
+
+  // #140 - Length / Width / pieces / rounding / manual amount of a size line.
+  const handleSizeChange = useCallback((id, patch) => {
+    if ('step' in patch) rememberSizeStep(patch.step);
+    setItems(prev => prev.map(item => (item.id === id && item.size
+      ? changeSize(item, patch)
+      : item)));
   }, []);
 
   const selectProduct = useCallback((itemId, product) => {
@@ -1530,12 +1651,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // legacy `rate` for pre-v1.10.29 products).
     const salePrice = product.sellingPrice ?? product.rate ?? 0;
     setItems(prev => prev.map(item => item.id === itemId ? {
-      ...item,
+      ...itemWithUnit(item, product.unit || item.unit || 'Nos', { sizeOn: sizeBillingOn(), step: lastSizeStep() }),
       name: product.name,
       hsn: product.hsn || '',
       rate: salePrice,
-      unit: product.unit || item.unit || 'Nos',
-      ...(product.unit === 'NA' ? { quantity: 1 } : {}),
       taxPercent: product.taxPercent ?? defaultTaxRate,
       // v1.10.84 - nil-rated / exempt / non-GST, for GSTR-1 Table 8.
       gstTreatment: product.gstTreatment || '',
@@ -1811,6 +1930,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // (printedCount + lastPrintedAt) at save time without needing to
     // pipe them through the entire bill state.
     let finalInvoiceNumber = details.invoiceNumber;
+    let followTyped = null; // #145: a typed number the series follows after the save
     // v1.10.79 - a duplicate or a conversion is a new document too: it reserves
     // its number like a new invoice. It used to save under the number it only
     // peeked, without moving the counter, so the next conversion got the same
@@ -1836,8 +1956,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           setDetails(prev => ({ ...prev, invoiceNumber: finalInvoiceNumber }));
         } else {
           // #145 - the next document carries on after a typed number that fits
-          // the series and is higher (a lower one leaves the series alone).
-          await followTypedInvoiceNumber(typed, prefix, numOpts);
+          // the series and is ahead of it (a lower one leaves the series
+          // alone). Only noted here: the counter moves once the save worked.
+          const s = await typedNumberInSeries(typed, prefix, numOpts);
+          if (s.n && s.n >= s.next) followTyped = s;
         }
         numberReserved.current = true;
       } catch { /* fall back to the peeked value; server will 409 if it collides */ }
@@ -2003,6 +2125,19 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     let savedNumber = bill.id;
     try {
       await saveBill(bill, { overwrite: shouldOverwrite });
+      // #145 - saved under the typed number: the series carries on after it.
+      // A big jump (a typo such as 1200 for 0120) is asked first, because the
+      // counter never goes back down.
+      if (followTyped) {
+        const { key, n, next } = followTyped;
+        const ok = n <= next + 50 || await confirmAction({
+          title: `Carry on numbering after ${bill.id}?`,
+          message: `That number is ${n - next + 1} ahead of your series. Yes: the next invoice gets number ${n + 1}, and the numbers in between are never used. No: this invoice keeps its number and the series carries on from ${next}.`,
+          confirmLabel: 'Yes, carry on after it',
+          cancelLabel: 'No, keep the series',
+        });
+        if (ok) await raiseInvoiceCounter(key, n).catch(() => {});
+      }
       // v1.10.24 — Follow-up: write the `credit-transferred-out` entries
       // to each source overpaid bill. Sequential so a failure on any one
       // stops the chain (rare — same origin, same server, right after we
@@ -4670,13 +4805,15 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               {/* v1.10.73 - order, dispatch and reference details: the boxes on a
                   Tally-style invoice. Optional; closed unless one is filled. */}
               {(() => {
-                const filled = ORDER_DETAIL_FIELDS.filter(f => String(details[f.key] || '').trim()).length;
+                const filled = ORDER_DETAIL_FIELDS.filter(f => String(details[f.key] || '').trim()).length
+                  + customFieldsOf(details).filter(f => f.label && f.value).length;
+                const ownFieldNames = savedCustomLabels().length > 0; // #126: open when the user has their own fields
                 // v1.10.83 - a services invoice has no vehicle or dispatch; those
                 // boxes show only if one is already filled.
                 const fields = ORDER_DETAIL_FIELDS.filter(f => !servicesMode || !GOODS_ONLY_DETAILS.includes(f.key) || String(details[f.key] || '').trim());
                 const periodBackwards = details.periodFrom && details.periodTo && details.periodTo < details.periodFrom;
                 return (
-                  <details className="form-group full-width" open={filled > 0 || undefined}
+                  <details className="form-group full-width" open={filled > 0 || ownFieldNames || undefined}
                     style={{ padding: '0.6rem 0.85rem', background: 'var(--bg-secondary)', borderRadius: 6 }}>
                     <summary style={{ cursor: 'pointer', fontSize: '0.88rem', userSelect: 'none' }}>
                       <strong>Order, dispatch &amp; reference details</strong>
@@ -4693,6 +4830,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                         </div>
                       ))}
                     </div>
+                    <CustomFields details={details} setDetails={setDetails} />
                     {periodBackwards && (
                       <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--warn-text, #b45309)' }}>
                         ⚠ The service period ends before it starts. Check the two dates.
@@ -4742,6 +4880,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 isLastRow={idx === items.length - 1}
                 isOnlyRow={items.length === 1}
                 onAddRow={addItem}
+                onSizeChange={handleSizeChange}
               />
             ))}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
