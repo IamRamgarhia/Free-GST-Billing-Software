@@ -25,6 +25,14 @@
 //   F  "choose" refuses a folder without books; delete-my-books refuses the
 //      Documents folder itself.
 //   G  a test folder named with spaces, ' ‘ ’ and Hindi letters.
+//   H  the app's own window (Free GST Billing.exe, WebView2), from an earlier
+//      copy's books (copy): the Desktop icon opens it (title follows the page,
+//      its profile in the test folder's LocalAppData); one window only;
+//      "Update now" with the window open (driven in the real window over the
+//      DevTools protocol: no reboot, same window, the page reloads as
+//      1.10.99); the next start tidies up; no WebView2 -> the Edge fallback;
+//      a server that cannot start -> the launcher's text in the window;
+//      uninstall with the window open closes it and removes its profile.
 //   Also: a second Setup while one runs does not run (A); old program files
 //   go after the new ones are in (B).
 // The earlier copy is hashed (SHA-256 of every file) before and after each
@@ -45,6 +53,7 @@ const SETUP = path.resolve(arg('setup', path.join(ROOT, 'release-build', 'Free-G
 const UPGRADE = path.resolve(arg('upgrade', path.join(ROOT, 'release-build', 'upgrade-test', 'Free-GST-Billing-Windows-Setup.exe')));
 const NEW_PORT = 47461;
 const OLD_PORT = 47462;
+const CDP_PORT = 47463; // H: the window's DevTools port (test only)
 const FORBIDDEN = [47371, 47372, 47373, 47398];
 const TEST_APP_ID = 'FreeGSTBilling-TEST_is1';
 const UNINSTALL_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall';
@@ -55,7 +64,7 @@ const proofs = [];
 const ok = (cond, label, extra = '') => { if (cond) { passed++; console.log(`  ok ${label}`); } else { failed++; console.log(`  FAIL ${label} ${extra}`); } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ps = (cmd) => execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], { encoding: 'utf8' }).trim();
-if (FORBIDDEN.includes(NEW_PORT) || FORBIDDEN.includes(OLD_PORT)) throw new Error('test ports');
+if ([NEW_PORT, OLD_PORT, CDP_PORT].some((p) => FORBIDDEN.includes(p))) throw new Error('test ports');
 if (!BASE.toLowerCase().startsWith(os.tmpdir().toLowerCase())) throw new Error('The test folder must be in TEMP');
 for (const f of [SETUP, UPGRADE]) if (!fs.existsSync(f)) { console.error(`Missing ${f} - see the build commands at the top of this file.`); process.exit(1); }
 
@@ -101,6 +110,15 @@ const realIcons = () => ps("foreach ($d in @([Environment]::GetFolderPath('Deskt
 const psq = (s) => s.replace(/['\u2018\u2019\u201A\u201B]/g, (c) => c + c);
 const lnk = (file) => ps(`$l = (New-Object -ComObject Shell.Application).NameSpace('${psq(path.dirname(file))}').ParseName('${psq(path.basename(file))}').GetLink; $l.Path + ' ' + $l.Arguments`);
 const nodePathOf = (pid) => ps(`(Get-Process -Id ${Number(pid)}).Path`);
+// The app window (Free GST Billing.exe) processes of one program folder.
+const hostPids = (app) => ps(`@(Get-Process -Name 'Free GST Billing' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.ToLower().StartsWith('${psq(app.toLowerCase())}\\') } | ForEach-Object { $_.Id }) -join ','`);
+const aumidOf = (file) => ps(`(New-Object -ComObject Shell.Application).NameSpace('${psq(path.dirname(file))}').ParseName('${psq(path.basename(file))}').ExtendedProperty('System.AppUserModel.ID')`);
+// Opens a shortcut as Explorer does (ShellExecute); the window gets this env.
+const openIcon = (file, env = {}) => spawnSync('powershell.exe', ['-NoProfile', '-Command', `Start-Process -FilePath '${psq(file)}'`],
+  { env: { ...process.env, FREEGSTBILL_TEST: '1', ...env } });
+const readSmoke = (file) => {
+  try { return Object.fromEntries(fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])); } catch { return null; }
+};
 
 function runSetup(exe, root, extra = []) {
   const log = path.join(root, 'logs', `setup-${Date.now()}.log`);
@@ -130,6 +148,7 @@ function startNode(serverJs, env = {}) {
 // Every node.exe a test started inside the test folder: stopped at the end.
 function stopTestServers() {
   for (const c of started) { try { c.kill('SIGKILL'); } catch { /* gone */ } }
+  ps(`Get-Process -Name 'Free GST Billing' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.ToLower().StartsWith('${psq(BASE.toLowerCase())}') } | Stop-Process -Force; exit 0`);
   ps(`Get-CimInstance Win32_Process -Filter "Name='node.exe'" -OperationTimeoutSec 10 | Where-Object { $_.ExecutablePath -and $_.CommandLine -and $_.CommandLine.ToLower().Contains('${BASE.toLowerCase().replace(/['\u2018\u2019\u201A\u201B]/g, (c) => c + c)}') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`);
 }
 
@@ -219,7 +238,8 @@ try {
   ok(/<div id="root"/.test(await (await answers(NEW_PORT, '/')).text()), 'A: serves the app page');
   ok(fs.existsSync(path.join(A, 'Desktop', 'Free GST Billing.lnk')) && fs.existsSync(path.join(A, 'Programs', 'Free GST Billing.lnk')) && !fs.existsSync(path.join(A, 'Startup', 'Free GST Billing.lnk')),
     'A: Desktop and Start-menu icons (in the test folder), no Startup icon');
-  ok(/start-windows\.ps1" -AppWindow -Hidden/.test(lnk(path.join(A, 'Desktop', 'Free GST Billing.lnk'))), 'A: the icon opens the app in its own window');
+  ok(lnk(path.join(A, 'Desktop', 'Free GST Billing.lnk')).trim() === path.join(appOf(A), 'Free GST Billing.exe'), 'A: the icon opens the app in its own window (Free GST Billing.exe)');
+  ok(aumidOf(path.join(A, 'Programs', 'Free GST Billing.lnk')) === 'DiceCodes.FreeGSTBilling.Test', 'A: the Start-menu icon carries the window\'s taskbar id (test: DiceCodes.FreeGSTBilling.Test)');
   const status = await (await answers(NEW_PORT, '/api/control-panel/status')).json();
   ok(status.installed === true && status.actions.update === true && status.actions.move === false, 'A: the app knows it is a Setup copy (update by Setup, no Move)');
   fs.copyFileSync(UPGRADE, path.join(A, 'Free-GST-Billing-Windows-Setup.exe'));
@@ -253,7 +273,7 @@ try {
   checkInstallFiles(B, oldB.sys, docsB, 'B');
   const backB = listFiles(path.join(docsB, 'Old shortcuts (backup)'));
   ok(backB.includes('Desktop - Free GST Billing.lnk') && backB.includes('Startup - Free GST Billing.lnk'), `B: both old icons MOVED to the backup folder (${backB.join(', ')})`);
-  ok(/start-windows\.ps1/.test(lnk(path.join(B, 'Desktop', 'Free GST Billing.lnk'))) && lnk(path.join(B, 'Desktop', 'Free GST Billing.lnk')).includes(path.join(B, 'Programs')), 'B: the new Desktop icon opens the new app');
+  ok(lnk(path.join(B, 'Desktop', 'Free GST Billing.lnk')).trim() === path.join(appOf(B), 'Free GST Billing.exe'), 'B: the new Desktop icon opens the new app');
   ok(fs.existsSync(path.join(B, 'Startup', 'Free GST Billing.lnk')), 'B: the old copy opened at start-up, so the new one does too');
   ok(listFiles(path.join(docsB, 'Setup backups')).some((f) => /^books-before-setup-.*\.zip$/.test(f)), 'B: a backup ZIP of the old data is in the NEW folder');
   startInstalled(B);
@@ -269,6 +289,7 @@ try {
   r = runSetup(UPGRADE, B, ['/NOSTART=1']);
   ok(r.code === 0 && !await answers(OLD_PORT), 'B: update (1.10.99) installed; it stopped the app');
   ok(!fs.existsSync(stale) && fs.existsSync(path.join(appOf(B), 'dist', 'index.html')), 'B: the old version\'s leftover file was removed after the new files were in (review M5)');
+  ok(fs.existsSync(path.join(appOf(B), 'Free GST Billing.exe')) && !fs.readdirSync(appOf(B)).some((f) => f.endsWith('.old')), 'B: no window was open: the set-aside window files were deleted right after the update');
   proof('B update', h1, fingerprint(oldB.old));
   startInstalled(B);
   ok(await version(OLD_PORT) === '1.10.99' && await bills(OLD_PORT) === 3, 'B: updated app 1.10.99 still has the 3 invoices');
@@ -416,13 +437,110 @@ try {
   ok(backG.includes('Desktop - Free GST Billing.lnk') && backG.includes('Startup - Free GST Billing.lnk'), `G: the old icons there were recognised and moved (${backG.join(', ')})`);
   ok(await runUninstall(G), 'G: uninstall finished');
   proof('G uninstall', g0, fingerprint(oldG.old));
+
+  // ======== H: the app's own window ======================================
+  console.log('\nH. The app\'s own window (Free GST Billing.exe, WebView2)');
+  const H = path.join(BASE, 'H');
+  const oldH = await makeOldZipCopy(H);
+  const appH = appOf(H);
+  const docsH = path.join(H, 'Free GST Billing');
+  const hostData = path.join(H, 'LocalAppData', 'Free GST Billing');
+  const iconH = path.join(H, 'Desktop', 'Free GST Billing.lnk');
+  const hh0 = fingerprint(oldH.old);
+  r = runSetup(SETUP, H, ['/DATAMODE=move', '/NOSTART=1']);
+  ok(r.code === 0, 'H: silent install (copy), exit 0', r.log);
+  proof('H install (copy)', hh0, fingerprint(oldH.old));
+  ok(['Free GST Billing.exe', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll'].every((f) => fs.existsSync(path.join(appH, f))), 'H: the window and its WebView2 files are installed');
+  // 1. The icon opens the window; it starts the server for these books.
+  const smoke1 = path.join(H, 'smoke1.txt');
+  openIcon(iconH, { FGSB_HOST_SMOKE: smoke1 });
+  const s1 = await until(() => readSmoke(smoke1), 180000) || {};
+  ok(s1.mode === 'webview2' && s1.url === `http://localhost:${NEW_PORT}/`, `H: the Desktop icon opens the app in its window (WebView2 ${s1.runtime}, ${s1.url})`, JSON.stringify(s1));
+  ok(/^Dashboard - /.test(s1.title1 || '') && /^Settings - /.test(s1.title2 || ''), `H: the window title follows the page ("${s1.title1}" -> "${s1.title2}")`);
+  ok(s1.aumid === 'DiceCodes.FreeGSTBilling.Test' && aumidOf(iconH) === s1.aumid, 'H: the window and its icon have the same taskbar id');
+  ok(s1.userdata === path.join(hostData, 'WebView2') && fs.existsSync(s1.userdata) && !fs.existsSync(path.join(appH, 'WebView2')) && !fs.existsSync(path.join(H, 'Documents')),
+    'H: its WebView2 profile is in (test) LocalAppData\\Free GST Billing - not in the program folder or Documents');
+  ok(await until(() => !hostPids(appH) && fs.existsSync(path.join(hostData, 'window.txt')), 30000), 'H: the window closed and kept its size and place (window.txt)');
+  ok(await bills(NEW_PORT) === 3, 'H: the server the window started serves the 3 copied invoices');
+  // 2. The window open (with the DevTools protocol, to drive it); a second start.
+  const { chromium } = await import('playwright');
+  openIcon(iconH, { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}` });
+  const browser = await until(async () => { try { return await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`); } catch { return null; } }, 90000);
+  const page = browser && await until(() => browser.contexts()[0]?.pages().find((p) => p.url().startsWith(`http://localhost:${NEW_PORT}/`)), 90000);
+  ok(page, 'H: the window shows the app');
+  const pid1 = hostPids(appH);
+  const smoke2 = path.join(H, 'smoke2.txt');
+  openIcon(iconH, { FGSB_HOST_SMOKE: smoke2 });
+  const s2 = await until(() => readSmoke(smoke2), 30000) || {};
+  ok(pid1 && !pid1.includes(',') && s2.instance === 'second' && s2.forwarded === '1' && hostPids(appH) === pid1, `H: a second start brings the open window forward; still one window (${pid1})`, JSON.stringify(s2));
+  // 3. "Update now" with the window open - what runUpdateNow (src/store.js) does.
+  fs.copyFileSync(UPGRADE, path.join(H, 'Free-GST-Billing-Windows-Setup.exe'));
+  await sleep(7000);
+  const hh1 = fingerprint(oldH.old);
+  const upd = await page.evaluate(async () => {
+    const res = await (await fetch('/api/control-panel/launch-script', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"action":"update"}' })).json();
+    (async () => {
+      for (let i = 0; i < 120; i++) {
+        await new Promise((ok_) => setTimeout(ok_, 3000));
+        try { const v = await (await fetch('/api/version', { cache: 'no-store' })).json(); if (v.current && v.current !== res.version) { window.location.reload(); return; } } catch { /* installing */ }
+      }
+    })();
+    return res;
+  });
+  ok(upd.ok && upd.installer, 'H: "Update now" in the open window starts the new Setup', JSON.stringify(upd));
+  const shown = await until(async () => {
+    try { return await page.evaluate(async () => performance.getEntriesByType('navigation')[0]?.type === 'reload' && (await (await fetch('/api/version')).json()).current); } catch { return null; }
+  }, 300000);
+  ok(shown === '1.10.99', `H: the update installed with the window open, and the page reloaded by itself as ${shown}`);
+  ok(hostPids(appH) === pid1, 'H: ...in the same window (it stayed open)');
+  const setupLogH = fs.existsSync(upd.log || '') ? fs.readFileSync(upd.log, 'utf8') : '';
+  ok(/Need to restart Windows\? No/.test(setupLogH) && /Set aside the app window's files/.test(fs.readFileSync(path.join(docsH, 'Free GST Billing - install log.txt'), 'utf8')),
+    'H: the window\'s files in use were set aside (*.old) - no reboot asked');
+  ok(fs.existsSync(path.join(appH, 'Free GST Billing.exe')) && fs.existsSync(path.join(appH, 'Free GST Billing.exe.old')) && fs.readFileSync(path.join(appH, 'package.json'), 'utf8').includes('1.10.99'),
+    'H: the new program files are in; the open window\'s old exe waits beside them as *.old');
+  await sleep(7000);
+  proof('H update with the window open', hh1, fingerprint(oldH.old));
+  await browser.close();
+  // 4. Closed and opened again: the set-aside files are gone.
+  ps(`[void](Get-Process -Id ${Number(pid1)}).CloseMainWindow()`);
+  ok(await until(() => !hostPids(appH), 20000), 'H: the window closes');
+  const smoke3 = path.join(H, 'smoke3.txt');
+  openIcon(iconH, { FGSB_HOST_SMOKE: smoke3 });
+  const s3 = await until(() => readSmoke(smoke3), 120000) || {};
+  ok(s3.mode === 'webview2' && !fs.readdirSync(appH).some((f) => f.endsWith('.old')), 'H: the next start of the updated window removed the *.old files');
+  await until(() => !hostPids(appH), 30000);
+  // 5. No WebView2 Runtime (simulated: the loader is pointed at an empty folder).
+  const smoke4 = path.join(H, 'smoke4.txt');
+  openIcon(iconH, { FGSB_HOST_SMOKE: smoke4, WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: path.join(H, 'no-webview2-here') });
+  const s4 = await until(() => readSmoke(smoke4), 60000) || {};
+  ok(s4.mode === 'fallback' && await until(() => !hostPids(appH), 20000), `H: without WebView2 the window hands over to the launcher's Edge app window (${s4.why})`, JSON.stringify(s4));
+  // 6. The server cannot start (its books folder is gone): the launcher's words, not a blank page.
+  stopTestServers();
+  await sleep(1500);
+  fs.renameSync(docsH, `${docsH}-away`);
+  const smoke5 = path.join(H, 'smoke5.txt');
+  openIcon(iconH, { FGSB_HOST_SMOKE: smoke5 });
+  const s5 = await until(() => readSmoke(smoke5), 120000) || {};
+  fs.renameSync(`${docsH}-away`, docsH);
+  ok(s5.mode === 'error' && /folder with your books is not there/.test(s5.text || ''), `H: when the server cannot start, the window shows the launcher's text ("${(s5.text || '').slice(0, 70)}...")`, JSON.stringify(s5));
+  await until(() => !hostPids(appH), 20000);
+  // 7. Uninstall with the window open.
+  openIcon(iconH);
+  ok(await until(() => hostPids(appH), 30000), 'H: the window is open again');
+  await sleep(8000);
+  const hh2 = fingerprint(oldH.old);
+  ok(await runUninstall(H), 'H: uninstall finished with the window open');
+  ok(!hostPids(appH), 'H: ...it closed the window');
+  ok(!fs.existsSync(path.join(hostData, 'WebView2')) && !fs.existsSync(path.join(hostData, 'window.txt')), 'H: ...and removed the window\'s WebView2 profile and place');
+  ok(listFiles(path.join(docsH, 'data', 'bills')).length === 3, 'H: the books are kept');
+  proof('H uninstall with the window open', hh2, fingerprint(oldH.old));
 } catch (e) {
   failed++;
   console.log(`  FAIL ${e.stack || e.message}`);
 } finally {
   stopTestServers();
   await sleep(1000);
-  for (const root of ['A', 'A-second', 'B', 'C', 'D', 'D2', 'E', 'F', path.join('G', 'Rām\'s ‘Shop’ दुकान')]) {
+  for (const root of ['A', 'A-second', 'B', 'C', 'D', 'D2', 'E', 'F', path.join('G', 'Rām\'s ‘Shop’ दुकान'), 'H']) {
     for (const name of ['Free GST Billing', 'Free GST Billing App']) {
       const app = appOf(path.join(BASE, root), name);
       if (fs.existsSync(path.join(app, 'unins000.exe'))) await runUninstall(path.join(BASE, root), [], app);

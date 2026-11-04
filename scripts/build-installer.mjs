@@ -96,6 +96,34 @@ if (arg('version')) {
   const p = join(APP, 'package.json');
   writeFileSync(p, JSON.stringify({ ...JSON.parse(readFileSync(p, 'utf8')), version }, null, 2));
 }
+
+// 3. The app's own window, Free GST Billing.exe (installer/host): compiled with
+// the C# compiler that is part of Windows (.NET Framework 4.x, no SDK), with
+// Microsoft's WebView2 SDK (NuGet Microsoft.Web.WebView2 1.0.4258.31, its
+// files checked against these SHA-256s; a new SDK version: new hashes here).
+// WEBVIEW2_SDK=<the unpacked package> or release-build/tools/webview2-sdk/pkg.
+{
+  const sdk = resolve(process.env.WEBVIEW2_SDK || join(ROOT, 'release-build', 'tools', 'webview2-sdk', 'pkg'));
+  const pinned = {
+    'lib/net462/Microsoft.Web.WebView2.Core.dll': 'd60e6e94245078cb56e44ebd5f360dc04bf18e460136be93bfc4cfca43b98505',
+    'lib/net462/Microsoft.Web.WebView2.WinForms.dll': '6a9e6856f23c463783c3afb0ca5d78f56324c86657162ccb16d5227b3233b32a',
+    'runtimes/win-x64/native/WebView2Loader.dll': '3426dcc55fdfb8b5e7ac623cf33b4ccf283fbf68a0c5a65bddfdb4d749a8abee',
+  };
+  for (const [rel, sha] of Object.entries(pinned)) {
+    const src = join(sdk, rel);
+    if (!existsSync(src)) fail(`${src} is missing. Unpack the NuGet package Microsoft.Web.WebView2 1.0.4258.31 there, or set WEBVIEW2_SDK=<folder>.`);
+    const buf = readFileSync(src);
+    if (createHash('sha256').update(buf).digest('hex') !== sha) fail(`${src} is not the checked WebView2 SDK file (SHA-256 differs). Not used.`);
+    writeFileSync(join(APP, rel.split('/').pop()), buf);
+  }
+  const csc = join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+  if (!existsSync(csc)) fail(`${csc} not found (the .NET Framework 4 C# compiler that comes with Windows).`);
+  run(csc, ['/nologo', '/target:winexe', '/platform:x64', '/optimize+', `/win32icon:${join(APP, 'app-icon.ico')}`,
+    `/out:${join(APP, 'Free GST Billing.exe')}`, `/r:${join(APP, 'Microsoft.Web.WebView2.Core.dll')}`,
+    `/r:${join(APP, 'Microsoft.Web.WebView2.WinForms.dll')}`, '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+    join(ROOT, 'installer', 'host', 'FreeGSTBilling.cs')]);
+}
+
 // Every program file of this version: an update removes the old version's
 // leftovers in dist / node_modules / src only AFTER all of these are in place
 // (setup-helper.mjs prune), so a failed update never leaves a broken app.
@@ -105,7 +133,7 @@ if (arg('version')) {
   writeFileSync(join(APP, 'installed-files.txt'), [...files, 'installed-files.txt'].sort().join('\n'));
 }
 
-// 3. Node.js, and compile.
+// 4. Node.js, and compile.
 const { exe: nodeExe, nodeVersion } = await portableNode();
 mkdirSync(OUT_DIR, { recursive: true });
 run(iscc, ['/Q', `/DAppVersion=${version}`, `/DStageDir=${APP}`, `/DNodeExe=${nodeExe}`, `/DOutputDir=${OUT_DIR}`,

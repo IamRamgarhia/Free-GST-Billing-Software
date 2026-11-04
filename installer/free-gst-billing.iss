@@ -99,23 +99,33 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs c
 ; (No [InstallDelete]: old program files go only after the new ones are in -
 ; see "prune" in CurStepChanged. A failed update leaves a working app.)
 
+; The icons open the app's own window, Free GST Billing.exe (installer\host):
+; it starts the server through start-windows.ps1 and shows the app with
+; WebView2 (without WebView2: Edge's app window, as before). The same
+; AppUserModelID as the window, so a pinned taskbar icon is this program.
 [Icons]
-Name: "{code:IconDir|programs}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized
-Name: "{code:IconDir|desktop}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized; Tasks: desktopicon; Check: DesktopOK
-Name: "{code:IconDir|startup}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized; Tasks: startup
+Name: "{code:IconDir|programs}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"
+Name: "{code:IconDir|desktop}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"; Tasks: desktopicon; Check: DesktopOK
+Name: "{code:IconDir|startup}\Free GST Billing"; Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; AppUserModelID: "{code:GetAumid}"; Tasks: startup
 
 [Run]
-Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; Description: "Open Free GST Billing now"; Flags: postinstall nowait runhidden skipifsilent; Check: MayStart
+Filename: "{app}\Free GST Billing.exe"; WorkingDir: "{app}"; Description: "Open Free GST Billing now"; Flags: postinstall nowait skipifsilent; Check: MayStart
 ; A silent run (an update started from the app): start the server, open no
 ; second window - the app's window reloads by itself.
 Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -NoWindow -Hidden"; WorkingDir: "{app}"; Flags: nowait runhidden; Check: MayStartSilent
 
 [UninstallRun]
-Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\stop-app.ps1"" -Sys ""{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "StopServer"
+Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\stop-app.ps1"" -Sys ""{app}"" -CloseWindow"; Flags: runhidden waituntilterminated; RunOnceId: "StopServer"
 
 [UninstallDelete]
 Type: files; Name: "{app}\home.txt"
 Type: files; Name: "{app}\installed.txt"
+; The app window's files an update set aside while the window was open, and
+; its WebView2 profile and window place (never the books).
+Type: files; Name: "{app}\*.old"
+Type: filesandordirs; Name: "{code:HostDataDir}\WebView2"
+Type: files; Name: "{code:HostDataDir}\window.txt"
+Type: dirifempty; Name: "{code:HostDataDir}"
 
 [Code]
 const
@@ -155,6 +165,19 @@ end;
 function GetAppDir(Param: String): String;
 begin
   Result := AppDirValue;
+end;
+
+{ The app window's taskbar identity (installer\host\FreeGSTBilling.cs uses
+  the same two) and its own folder: WebView2 profile, window place. }
+function GetAumid(Param: String): String;
+begin
+  if IsTest then Result := 'DiceCodes.FreeGSTBilling.Test' else Result := 'DiceCodes.FreeGSTBilling';
+end;
+
+function HostDataDir(Param: String): String;
+begin
+  if IsTest then Result := TestRoot + '\LocalAppData\Free GST Billing'
+  else Result := ExpandConstant('{localappdata}\Free GST Billing');
 end;
 
 function IconDir(Param: String): String;
@@ -375,6 +398,59 @@ begin
   Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ' + Q(GetAppDir('') + '\start-windows.ps1') + ' ' + Args,
     GetAppDir(''), SW_HIDE, ewNoWait, Code);
+end;
+
+{ ---------------------------------------------------- the app window }
+
+{ An update is usually started from the app's own window, whose exe and DLLs
+  Windows keeps locked while it is open. A running program's files can be
+  RENAMED, though: they are set aside as "<name>.old" and the new ones go in
+  beside them, with no reboot and no closed window (the page reloads when the
+  new version answers). The window deletes *.old files when it next starts;
+  so does this Setup after the install when the window is closed. }
+var
+  SetAside: TArrayOfString;
+
+function SetAsideHost: String;
+var
+  Names: TArrayOfString;
+  I: Integer;
+  F, Dest: String;
+begin
+  Result := '';
+  AddStr(Names, 'Free GST Billing.exe');
+  AddStr(Names, 'Microsoft.Web.WebView2.Core.dll');
+  AddStr(Names, 'Microsoft.Web.WebView2.WinForms.dll');
+  AddStr(Names, 'WebView2Loader.dll');
+  for I := 0 to GetArrayLength(Names) - 1 do begin
+    F := GetAppDir('') + '\' + Names[I];
+    if not FileExists(F) then continue;
+    Dest := F + '.old';
+    if FileExists(Dest) and not DeleteFile(Dest) then
+      Dest := F + '.' + GetDateTimeString('yyyymmddhhnnss', #0, #0) + '.old';
+    if not RenameFile(F, Dest) then begin
+      Result := 'The file ' + F + ' could not be set aside for the update. Close Free GST Billing and run the update again.';
+      exit;
+    end;
+    AddStr(SetAside, F);
+    AddStr(SetAside, Dest);
+  end;
+  if GetArrayLength(SetAside) > 0 then AddLog('Set aside the app window''s files for the update (' + IntToStr(GetArrayLength(SetAside) div 2) + ' files, renamed to *.old).');
+end;
+
+{ PutBack: the update did not finish - the window's files go back to their
+  names. Otherwise the set-aside files are deleted, if no window holds them. }
+procedure EndSetAside(PutBack: Boolean);
+var
+  I: Integer;
+begin
+  for I := 0 to GetArrayLength(SetAside) div 2 - 1 do begin
+    if PutBack then begin
+      if not FileExists(SetAside[2 * I]) then RenameFile(SetAside[2 * I + 1], SetAside[2 * I]);
+    end else
+      DeleteFile(SetAside[2 * I + 1]);
+  end;
+  SetArrayLength(SetAside, 0);
 end;
 
 { ---------------------------------------------------- shortcuts }
@@ -896,7 +972,15 @@ var
 begin
   Result := '';
   if IsUpgrade then begin
-    { An update: stop this copy's own server so its files can be replaced. }
+    { An update: the open window's files are set aside (nothing is stopped
+      if that fails), then this copy's own server is stopped so its files
+      can be replaced. }
+    Result := SetAsideHost;
+    if Result <> '' then begin
+      EndSetAside(True);
+      Result := Stop_(Result);
+      exit;
+    end;
     RunStop(GetAppDir(''), Home);
     StoppedOwnApp := True;
     exit;
@@ -986,6 +1070,7 @@ begin
   { Review M5: the old version's leftovers go only now, with every new file in place. }
   if IsUpgrade and FileExists(ExpandConstant('{app}\installed-files.txt')) then
     RunHelper('prune ' + Q(ExpandConstant('{app}')) + ' ' + Q(ExpandConstant('{app}\installed-files.txt')), Res);
+  EndSetAside(False);
   { Review M2: the earlier copy's shortcuts move only after a successful install. }
   if not IsUpgrade then begin
     MoveOldShortcutsIn(IconDir('desktop'), 'Desktop', False);
@@ -1018,6 +1103,7 @@ procedure DeinitializeSetup;
 begin
   { Review M5: an update that stopped the app but did not finish starts the
     version that is there again, so nobody is left without the app. }
+  if IsUpgrade and not InstallDone then EndSetAside(True);
   if IsUpgrade and StoppedOwnApp and not InstallDone then begin
     AddLog('The update did not finish. The app that was installed is started again; your books were not changed.');
     StartApp('-NoWindow -Hidden');

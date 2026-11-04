@@ -14,8 +14,12 @@
 # v1.10.84 - -NoWindow starts the server and opens nothing (the Windows Setup
 # uses it after a silent update: the app's window is already open and
 # reloads by itself).
+# v1.10.84 - -PrintUrl starts (or finds) the server like the icon does, opens
+# nothing and prints "URL=http://localhost:<port>/"; a problem is printed and
+# the exit code is 1. The Setup's own window (Free GST Billing.exe) uses it.
 
-param([switch]$AppWindow, [switch]$Hidden, [switch]$NoWindow)
+param([switch]$AppWindow, [switch]$Hidden, [switch]$NoWindow, [switch]$PrintUrl)
+if ($PrintUrl) { try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch { } }
 
 $ErrorActionPreference = 'Continue'
 $Host.UI.RawUI.WindowTitle = 'Free GST Billing - Server'
@@ -210,6 +214,7 @@ function TestServerUp {
 # FREEGSTBILL_TEST (the installer's test mode) opens nothing.
 function Open-App([int]$p) {
   $url = "http://localhost:$p/"
+  if ($PrintUrl) { Write-Output "URL=$url"; return }
   if ($env:FREEGSTBILL_TEST -or $NoWindow) { Write-Host "  (not opening a window: $url)"; return }
   if ($AppWindow) {
     foreach ($d in @(${env:ProgramFiles(x86)}, $env:ProgramFiles, $env:LOCALAPPDATA)) {
@@ -224,7 +229,7 @@ function Open-App([int]$p) {
 # Stops with the problem on screen. Run hidden (from the icon), nobody would
 # see it, so the same script is opened again in a normal window instead.
 function Exit-WithProblem {
-  if ($env:FREEGSTBILL_TEST) { exit 1 }   # test mode: no window, nobody to press Enter
+  if ($env:FREEGSTBILL_TEST -or $PrintUrl) { exit 1 }   # test mode / the app's window shows it: nobody to press Enter
   if ($Hidden) {
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -AppWindow"
     exit 1

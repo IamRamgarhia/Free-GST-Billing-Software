@@ -13,7 +13,12 @@
 // data folder (data/local-prefs.json, server.js /api/local-prefs) is restored
 // before the app first renders, for keys the browser no longer has.
 
-const MIRRORED = /^(gst_printSettings|gst_regionMode|gst_enabledModules|gst_businessType|gst_offlineMode|gst_menuOrder|gst_customUnits|gst_dashboardColumns|gst_filing_status(_.*)?|gst_itr[A-Za-z]*|freegstbill_onboarded|freegstbill_theme|freegstbill_startedDismissed|freegstbill_supportNudge|freegstbill_welcomeCard|freegstbill_starBanner|freegstbill_sidebarAutoHide)$/;
+//
+// v1.10.84 - the Windows Setup's own window (WebView2) has a storage of its
+// own, empty after moving from Edge or a browser: custom field names, text
+// size, preview open/closed, the last bank account used, dismissed notices
+// and update reminders are mirrored too, so they come along.
+const MIRRORED = /^(gst_printSettings|gst_regionMode|gst_enabledModules|gst_businessType|gst_offlineMode|gst_menuOrder|gst_customUnits|gst_dashboardColumns|gst_filing_status(_.*)?|gst_itr[A-Za-z]*|freegstbill_onboarded|freegstbill_theme|freegstbill_startedDismissed|freegstbill_supportNudge|freegstbill_welcomeCard|freegstbill_starBanner|freegstbill_sidebarAutoHide|fgsb_customFieldLabels|fgsb_sizeStep|fgsb_previewCollapsed|fgsb_dismissedNotifs|gst_lastUsedAccountId_.*|gst_settingsTab|freegstbill_dismissedUpdate|freegstbill_notifiedUpdate|freegstbill_notifyAsked)$/;
 const ENDPOINT = '/api/local-prefs';
 
 export const isMirrored = (key) => MIRRORED.test(String(key));

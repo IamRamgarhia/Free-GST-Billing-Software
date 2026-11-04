@@ -58,10 +58,19 @@ npm run release:exe            # = node scripts/build-installer.mjs
    the ZIP's `_system/` holds, production packages included.
 3. Takes out what only the ZIP uses: `install-` / `update-` / `move-` /
    `uninstall-windows.ps1`, the `.sh` / `.command` files, the empty `data/`.
-4. Adds the official portable `node.exe` (the version is `$PortableNodeVersion`
+4. Builds the app's own window, `Free GST Billing.exe` (below), with the C#
+   compiler that is part of Windows
+   (`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`, C# 5, .NET
+   Framework 4.x - nothing to install) and Microsoft's WebView2 SDK: the NuGet
+   package `Microsoft.Web.WebView2` **1.0.4258.31**, unpacked in
+   `release-build/tools/webview2-sdk/pkg` (or `WEBVIEW2_SDK=<folder>`). The
+   three files used are checked against SHA-256s in `build-installer.mjs`;
+   another SDK version needs new hashes there (check `Get-AuthenticodeSignature`:
+   *Valid*, *Microsoft Corporation*).
+5. Adds the official portable `node.exe` (the version is `$PortableNodeVersion`
    in `ensure-node.ps1`): downloaded once into `.installer-cache/`, refused
    unless its SHA-256 matches nodejs.org's `SHASUMS256.txt`.
-5. Compiles with `ISCC.exe` (found in `%LOCALAPPDATA%\Programs\Inno Setup 6`,
+6. Compiles with `ISCC.exe` (found in `%LOCALAPPDATA%\Programs\Inno Setup 6`,
    Program Files, or `ISCC=<path>`) into
    `release-build/Free-GST-Billing-Windows-Setup.exe` (about 30 MB).
 
@@ -108,9 +117,11 @@ Updates from inside the app are not affected (a file Node.js downloads has no
   used by the Linux packages), else `home.txt`, else `server.js`'s own folder -
   so the ZIP is unchanged. `start-`, `stop-`, `backup-` and
   `restore-windows.ps1` use the same order.
-- **Opening the app**: the icons run `start-windows.ps1 -AppWindow -Hidden`
-  (the ZIP's mechanics: TEMP start file, `port.txt`, hidden start). In a Setup
-  copy it uses `node\node.exe` and skips the ZIP-only tidy-ups.
+- **Opening the app**: the icons open `Free GST Billing.exe`, the app's own
+  window (next section). It runs `start-windows.ps1 -PrintUrl` (the ZIP's
+  mechanics: TEMP start file, `port.txt`, hidden start, and the H2 rule: only
+  a server that serves this install's books), which prints the address. In a
+  Setup copy the launcher uses `node\node.exe` and skips the ZIP-only tidy-ups.
 - **Finding an earlier copy** (`installer/setup-helper.mjs detect`): the
   shortcuts on the Desktop, in the Start menu and Startup, plus the usual
   folders (`%LOCALAPPDATA%\Programs\Free GST Billing`, `Documents`, `Desktop`,
@@ -121,15 +132,57 @@ Updates from inside the app are not affected (a file Node.js downloads has no
   replaces `dist/`, `node_modules/`, `src/` and the rest, keeps `home.txt` and
   starts the app again. Silent from the app:
   `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`; the page polls `/api/version`
-  and reloads.
+  and reloads. The open window's exe and DLLs are locked, so Setup first
+  renames them to `*.old` (Windows allows that for a running program; if it
+  fails, Setup stops before anything is changed) and installs the new ones
+  beside them: no reboot, the window stays open and the page reloads. The
+  `*.old` files are deleted by Setup when no window holds them, else by the
+  window's next start; an update that fails puts them back.
 - **Two servers on one books folder** can never run: a second server finds the
   live lock and exits ("already running"); its launcher then opens the running
   one through `port.txt`. A lock whose process is gone is taken over. Old ZIP
   versions (before 1.10.84) do not check the lock - that is why Setup moves
   their icons away.
-- **Uninstall** stops the app, removes the program and icons, and asks *Also
-  delete your books?* (default **No**; silent: `/DELETEBOOKS=yes`). Books in an
-  earlier copy's own folder (Keep) are never deleted by it.
+- **Uninstall** closes the app's window (`stop-app.ps1 -CloseWindow`: only
+  the window of that program folder), stops the server, removes the program,
+  the icons and the window's `WebView2` profile and `window.txt`, and asks
+  *Also delete your books?* (default **No**; silent: `/DELETEBOOKS=yes`).
+  Books in an earlier copy's own folder (Keep) are never deleted by it.
+
+## The app's own window (`Free GST Billing.exe`)
+
+Only the Setup has it; the ZIP (Mac, Linux, Windows without installing) is
+unchanged and opens Edge's app window or the browser. Source:
+`installer/host/FreeGSTBilling.cs` (one file, WinForms + WebView2, the Edge
+engine every Windows 10/11 has).
+
+| What | How |
+| --- | --- |
+| Start | Shows "Starting Free GST Billing..." at once; runs `start-windows.ps1 -PrintUrl` and opens the address it prints. If the launcher fails, its text is shown in the window (never a blank page). |
+| No WebView2 Runtime (or it fails to start) | Hands over to `start-windows.ps1 -AppWindow -Hidden`: Edge's app window as before, else the default browser. |
+| Title | The page's `document.title` ("Invoices - DiceCodes"). |
+| Taskbar | AppUserModelID `DiceCodes.FreeGSTBilling` on the window and on the Setup's icons ([Icons] `AppUserModelID`), so a pin is this program with its icon (test mode: `DiceCodes.FreeGSTBilling.Test`). |
+| One window | A mutex per program folder; a second start brings the open window forward. |
+| Size and place | `%LOCALAPPDATA%\Free GST Billing\window.txt` (place, size, maximized). |
+| WebView2 profile | `%LOCALAPPDATA%\Free GST Billing\WebView2` (never Documents - ERR-082 - or the program folder). Test mode: `<test folder>\LocalAppData\Free GST Billing`. |
+| Links | The app's own pages stay; other sites, `target=_blank` to other sites and `mailto:` open in the default browser / mail program. The app's own pop-ups (print a table or receipt, a PDF) open in a WebView2 window. |
+| Downloads, print, file pickers, clipboard, service worker | WebView2's own: downloads go to Downloads with its download list, `window.print()` shows the print preview. Notifications and clipboard reading are allowed for the app only. |
+| Context menu | WebView2's, without Inspect (DevTools off), no status bar. |
+
+**localStorage moves with the window.** WebView2 has its own storage, so
+settings kept only in the browser would start empty. Everything that matters
+is in the books folder already (PIN: server side; invoice defaults: server
+side) or mirrored to `data/local-prefs.json` (`src/utils/prefsMirror.js`) and
+restored on the first start: print & PDF settings, region, features, business
+type, menu order, units, dashboard columns, GST filed marks, income-tax
+inputs, theme, welcome/onboarding, and from v1.10.84 custom field names, text
+size, preview open/closed, the last bank account used, dismissed notices and
+update reminders. Not carried: an unsaved invoice draft (sessionStorage: it
+never survived closing a window, in Edge either), the problem log (only for
+Report a problem) and caches. Keys that only v1.10.84 mirrors reach the books
+folder once a 1.10.84 page has run in the old browser (an in-app update from
+Edge reloads it there); a copy going straight from an older ZIP to the Setup
+starts those few with their defaults.
 
 ## Command line
 
@@ -148,8 +201,10 @@ Updates from inside the app are not affected (a file Node.js downloads has no
 books to `<folder>\Free GST Billing`, icons to `<folder>\Desktop`,
 `\Programs`, `\Startup`; earlier copies are looked for **only** inside the
 folder; its own AppId (`FreeGSTBilling-TEST`), so its uninstall entry cannot
-touch a real one; port 47461; no window opens (`FREEGSTBILL_TEST`); and the
-books folder must be inside the test folder.
+touch a real one; port 47461; no browser window opens (`FREEGSTBILL_TEST`);
+the app's own window opens only from its icons or the last page, with its
+profile in `<folder>\LocalAppData`; and the books folder must be inside the
+test folder.
 
 ```bash
 node scripts/build-installer.mjs
@@ -157,7 +212,18 @@ node scripts/build-installer.mjs --skip-build --version=1.10.99 --outDir=release
 node scripts/test-windows-setup.mjs        # A: new, in-app update, uninstall, reinstall, delete
                                            # B: earlier ZIP copy, keep, lock, update, uninstall
                                            # C: earlier ZIP copy, move, update, uninstall
+                                           # D-G: see the top of the file
+                                           # H: the app's own window: icon, title, one
+                                           #    window, update with it open, no-WebView2
+                                           #    fallback, uninstall with it open
 ```
+
+The window can be checked by hand in test mode: `FGSB_HOST_SMOKE=<file>`
+makes it load the app and Settings, write what it saw to `<file>` and close;
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<n>` lets
+Playwright drive it (`chromium.connectOverCDP`); and
+`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER=<empty folder>` simulates a PC without
+WebView2.
 
 By hand, a test install and its removal:
 

@@ -47,8 +47,11 @@ a backup is made first.
 ### Added
 - **A Windows Setup program** (`Free-GST-Billing-Windows-Setup.exe`): installs
   like other software (Start menu, Desktop icon, optional start with Windows,
-  Settings → Apps to remove; no administrator password), opens in its own
-  window, and updates itself from **Update Now** - no reinstalling. It asks
+  Settings → Apps to remove; no administrator password), opens in a window of
+  its own - a real program window with its own taskbar icon (pin it), which
+  remembers its size and place; without the WebView2 engine it uses Edge's app
+  window as before - and updates itself from **Update Now** with that window
+  open, no reinstalling and no restart. It asks
   where your books go and finds an earlier copy: keep using it where it is, or
   copy it to `C:\Users\<your name>\Free GST Billing` (every file checked; the old folder
   is never changed, its icons are moved to a backup folder). Not signed yet:

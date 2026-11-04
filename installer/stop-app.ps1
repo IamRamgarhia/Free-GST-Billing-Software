@@ -18,13 +18,28 @@
 #   -Out   write "stopped=..." to this file (Setup runs this with -File and
 #          separate arguments, never a -Command string: a folder name with
 #          curly quotes cannot break or change the command)
+#   -CloseWindow  also close the app's own window (Free GST Billing.exe) of
+#          THIS program folder, first politely, then by its id (uninstall
+#          only: an update leaves the window open and it reloads)
 #
 # Keep this file pure ASCII (ERR-001).
 
-param([Parameter(Mandatory = $true)][string]$Sys, [string]$Books = '', [switch]$Test, [string]$Out = '')
+param([Parameter(Mandatory = $true)][string]$Sys, [string]$Books = '', [switch]$Test, [string]$Out = '', [switch]$CloseWindow)
 
 $ErrorActionPreference = 'SilentlyContinue'
 $Sys = $Sys.TrimEnd('\')
+
+$closed = ''
+if ($CloseWindow) {
+  # Only windows whose exe is in this folder (an update may have renamed it to *.old).
+  $wins = @(Get-Process -Name 'Free GST Billing' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ((Split-Path -Parent $_.Path).TrimEnd('\') -eq $Sys) })
+  foreach ($w in $wins) { [void]$w.CloseMainWindow() }
+  $deadline = (Get-Date).AddSeconds(5)
+  while ((Get-Date) -lt $deadline -and @($wins | Where-Object { -not $_.HasExited }).Count) { Start-Sleep -Milliseconds 250 }
+  foreach ($w in $wins) { if (-not $w.HasExited) { Stop-Process -Id $w.Id -Force -ErrorAction SilentlyContinue } }
+  # Its web engine (msedgewebview2.exe) lets go of the profile folder a moment later.
+  if ($wins.Count) { Start-Sleep -Seconds 2; $closed = " window=" + (($wins | ForEach-Object { $_.Id }) -join ',') }
+}
 if (-not $Books) {
   $Books = $Sys
   $homeTxt = Join-Path $Sys 'home.txt'
@@ -103,7 +118,7 @@ foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinu
 # Wait (up to 10 s) until they are gone, so their files can be replaced.
 $deadline = (Get-Date).AddSeconds(10)
 while ((Get-Date) -lt $deadline -and @($ids | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count) { Start-Sleep -Milliseconds 250 }
-$result = if ($ids.Count) { "stopped=" + ($ids -join ',') + " (" + ($why -join '; ') + ")" } else { 'stopped=none' }
+$result = $(if ($ids.Count) { "stopped=" + ($ids -join ',') + " (" + ($why -join '; ') + ")" } else { 'stopped=none' }) + $closed
 if ($Out) { Set-Content -LiteralPath $Out -Value $result -Encoding UTF8 }
 Write-Output $result
 exit 0
