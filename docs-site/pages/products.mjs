@@ -157,13 +157,16 @@ export default [
 <h2>Importing products from a spreadsheet</h2>
 <p>Have your price list in Excel, or moving from another program? ${ui('Import CSV')} adds all the products and services at once.</p>
 <ol class="steps">
-  <li><strong>Open the window</strong>Click ${ui('Import CSV')} on the Products screen. The window <b>Import products from CSV</b> opens.</li>
+  <li><strong>Open the window</strong>Click ${ui('Import CSV')} on the Products screen. The window <b>Import products</b> opens.</li>
   <li><strong>Get the sample file</strong>Click ${ui('Download sample file')}. <code>Products-sample.csv</code> lands in your Downloads folder, with the right column headings and two demo rows: a product (Goods) and a service.</li>
   <li><strong>Fill it in</strong>Open it in Excel or Google Sheets. Replace the two demo rows with your own, one product or service per row. Keep the first row (the headings) as it is.</li>
   <li><strong>Save as CSV</strong>In Excel, <b>File → Save As → CSV UTF-8 (Comma delimited)</b> or <b>CSV (Comma delimited)</b>. In Google Sheets, <b>File → Download → Comma-separated values</b>.</li>
-  <li><strong>Choose the file</strong>Click ${ui('Choose CSV file')}. Nothing is saved yet: the window shows how many are ready, how many are already in your list (skipped), and every row with a problem.</li>
+  <li><strong>Choose the file</strong>Click ${ui('Choose file')}. Nothing is saved yet: the window shows how many are new, how many saved products will get their empty details filled in, how many are already in your list (skipped), and every row with a problem.</li>
   <li><strong>Import</strong>Click ${ui('Import')} (it shows the number, such as <b>Import 40</b>). You see "Imported 40 products", and they appear in the list.</li>
 </ol>
+<p><b>From Excel or Vyapar:</b> you can choose an Excel file (<code>.xlsx</code>) instead of a CSV, such as the item list Vyapar exports. If the file has several sheets, pick the one with your items under <b>Sheet</b>.</p>
+<p><b>From Tally:</b> in Tally, go to <b>Gateway of Tally → Export → Masters</b>, choose format <b>XML</b> and export. Choose that <code>.xml</code> file here. Your stock items come in with their HSN, GST rate, unit and price. Stock is not brought in: enter today's stock after the import.</p>
+<p><b>Importing again fills in blanks.</b> A product already in your list is never added twice. If it has empty details (no HSN, no price, 0% GST with no HSN, no unit or stock), they are filled in from the file. A detail that already has a value is never changed.</p>
 <p>The columns (headings in small or capital letters, in any order; spaces and % do not matter):</p>
 <div class="table-wrap"><table>
   <tr><th>Column heading</th><th>Holds</th></tr>
