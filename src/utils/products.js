@@ -1,5 +1,5 @@
 // v1.10.77 (#85) - product helpers for bulk edit and the stock report.
-import { appliedStock, isCancelledBill, isServiceProduct } from '../utils.js';
+import { appliedStock, isCancelledBill, isServiceProduct, salesSign } from '../utils.js';
 
 const num = (v) => (v === '' || v === null || v === undefined ? 0 : Number(v));
 
@@ -75,4 +75,33 @@ export const stockValueOf = (product, quantity) => {
   const cost = Number(product?.purchasePrice) || 0;
   const price = cost > 0 ? cost : (Number(product?.sellingPrice) || Number(product?.rate) || 0);
   return { price, value: Math.round(price * (Number(quantity) || 0) * 100) / 100, atCost: cost > 0 };
+};
+
+// v1.10.84 (#146) - cost of goods sold, for Profit & Loss: quantity sold x
+// the product's Purchase price. Profit used to be sales minus Expenses only, so
+// with no expenses entered all the sales showed as profit. Credit notes
+// (salesSign -1) take their goods back out; quotes and challans (0) count
+// nothing. A line finds its product by productId, else by name. Services,
+// charge lines (delivery) and SAC lines (99...) cost nothing. A goods line
+// whose product has no purchase price, or that is not a product at all, counts
+// 0 and its name is listed in `missing` so the report can ask for the price.
+export const costOfGoodsSold = (bills, products) => {
+  const byId = new Map((products || []).map((p) => [p.id, p]));
+  const byName = new Map((products || []).map((p) => [String(p.name || '').trim().toLowerCase(), p]));
+  const missing = new Set();
+  let cost = 0;
+  for (const bill of bills || []) {
+    const sign = salesSign(bill);
+    if (!sign) continue;
+    for (const it of bill.data?.items || []) {
+      const qty = Number(it.quantity) || 0;
+      if (!qty || it.isCharge || /^99/.test(String(it.hsn || '').trim())) continue;
+      const p = (it.productId && byId.get(it.productId)) || byName.get(String(it.name || '').trim().toLowerCase());
+      if (isServiceProduct(p)) continue;
+      const price = Number(p?.purchasePrice) || 0;
+      if (price > 0) cost += sign * qty * price;
+      else if (String(it.name || '').trim()) missing.add(String(p?.name || it.name).trim());
+    }
+  }
+  return { cost: Math.round(cost * 100) / 100, missing: [...missing] };
 };
