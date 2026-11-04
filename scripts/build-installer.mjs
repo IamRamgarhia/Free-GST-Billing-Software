@@ -120,7 +120,7 @@ if (arg('version')) {
   if (!existsSync(csc)) fail(`${csc} not found (the .NET Framework 4 C# compiler that comes with Windows).`);
   run(csc, ['/nologo', '/target:winexe', '/platform:x64', '/optimize+', `/win32icon:${join(APP, 'app-icon.ico')}`,
     `/out:${join(APP, 'Free GST Billing.exe')}`, `/r:${join(APP, 'Microsoft.Web.WebView2.Core.dll')}`,
-    `/r:${join(APP, 'Microsoft.Web.WebView2.WinForms.dll')}`, '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+    `/r:${join(APP, 'Microsoft.Web.WebView2.WinForms.dll')}`, '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Web.Extensions.dll',
     join(ROOT, 'installer', 'host', 'FreeGSTBilling.cs')]);
 }
 

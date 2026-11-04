@@ -25,12 +25,18 @@
 //     the window AND stops this install's server (stop-app.ps1, by its own id).
 //     Windows shutting down or Task Manager close it for real. "/tray" (the
 //     Startup icon) starts the server and waits in the tray, no window.
+//   - The tray menu also has the version, Check for updates (the app's own
+//     Updates tab), Open books folder (home.txt) and Make a backup now (the
+//     app's own backup, POST /api/control-panel/backup). The app's
+//     notifications (NotificationReceived) show near the clock.
+//   - Self-repair: the server stopped? Started again the launcher's way.
 //   - Named events per program folder, "Local\FreeGSTBillingHost-<hash>-show",
 //     "-close" (uninstall: stop-app.ps1 -CloseWindow) and "-quit".
 //   - FGSB_HOST_SMOKE=<file> (tests): load the app, open Settings, write what was
 //     seen to <file> and close. FGSB_HOST_TRACE=<file>: tray events, one a line.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -38,8 +44,10 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -298,6 +306,8 @@ class MainForm : Form
     readonly System.Windows.Forms.Timer health = new System.Windows.Forms.Timer();
     int healthMisses;
     bool repairing, checking, pageFailed;
+    CoreWebView2Notification lastNote;
+    string pendingJs; // for the page once it is there (a tray action before the window was ever open)
 
     public MainForm(string runtime, string eventName)
     {
@@ -309,11 +319,27 @@ class MainForm : Form
         tray.Icon = Icon;
         tray.Text = "Free GST Billing";
         ContextMenuStrip menu = new ContextMenuStrip();
+        ToolStripItem version = menu.Items.Add(VersionText());
+        version.Enabled = false;
         ToolStripItem open = menu.Items.Add("Open Free GST Billing", null, delegate { ShowFromTray(); });
         open.Font = new Font(open.Font, FontStyle.Bold);
+        menu.Items.Add("Check for updates", null, delegate { CheckForUpdates(); });
+        menu.Items.Add("Open books folder", null, delegate { OpenBooksFolder(); });
+        menu.Items.Add("Make a backup now", null, delegate { BackupNow(); });
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit (stop the app)", null, delegate { Quit(); });
+        menu.Opening += delegate { version.Text = VersionText(); }; // an update changes it under a running window
         tray.ContextMenuStrip = menu;
         tray.MouseClick += delegate (object o, MouseEventArgs a) { if (a.Button == MouseButtons.Left) ShowFromTray(); };
+        // A notice shown near the clock (the app's notifications, the first-close tip): click = the window.
+        tray.BalloonTipClicked += delegate
+        {
+            ShowFromTray();
+            if (lastNote != null) { try { lastNote.ReportClicked(); } catch (Exception) { } lastNote = null; }
+        };
+        string items = "";
+        foreach (ToolStripItem i in menu.Items) if (i.Text.Length > 0) items += (items.Length > 0 ? "|" : "") + i.Text;
+        Program.Trace("menu=" + items);
         tray.Visible = true;
         Program.Trace("tray=1");
         showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName + "-show");
@@ -419,6 +445,86 @@ class MainForm : Form
         await Task.Run(() => Program.StopServer());
         Program.Trace("server stopped");
         ExitNow();
+    }
+
+    // ---- the tray menu's extras
+
+    static string VersionText()
+    {
+        try
+        {
+            Match m = Regex.Match(File.ReadAllText(Path.Combine(Program.AppDir, "package.json")), "\"version\"\\s*:\\s*\"([^\"]+)\"");
+            if (m.Success) return "Free GST Billing " + m.Groups[1].Value;
+        }
+        catch (Exception) { }
+        return "Free GST Billing";
+    }
+
+    // Script for the app's page; kept until the page is there.
+    void RunInPage(string js)
+    {
+        if (web.CoreWebView2 != null && origin.Length > 0 && web.Visible && !repairing) web.CoreWebView2.ExecuteScriptAsync(js);
+        else pendingJs = js;
+    }
+
+    // The app's own update check: Settings, on its Updates tab (sessionStorage gst_settingsTab).
+    void CheckForUpdates()
+    {
+        ShowFromTray();
+        RunInPage("try { sessionStorage.setItem('gst_settingsTab', 'section-updates'); } catch (e) { } location.href = '/?view=settings';");
+        Program.Trace("check-updates");
+    }
+
+    // The books folder (home.txt), in Explorer.
+    void OpenBooksFolder()
+    {
+        string home = Program.AppDir;
+        try
+        {
+            string h = File.ReadAllLines(Path.Combine(Program.AppDir, "home.txt"))[0].Trim().TrimStart('﻿');
+            if (h.Length > 0 && Directory.Exists(h)) home = h;
+        }
+        catch (Exception) { }
+        Program.Trace("open-folder " + home);
+        try { Process.Start("explorer.exe", "\"" + home + "\""); } catch (Exception) { }
+    }
+
+    // The app's own backup (Control Panel > Backup Data: backup-windows.ps1 through the server).
+    async void BackupNow()
+    {
+        if (origin.Length == 0) { tray.ShowBalloonTip(6000, "Free GST Billing", "The app is still starting. Try again in a moment.", ToolTipIcon.Info); return; }
+        tray.ShowBalloonTip(4000, "Free GST Billing", "Making a backup of your books...", ToolTipIcon.Info);
+        string o = origin;
+        string said = await Task.Run(() =>
+        {
+            try
+            {
+                HttpWebRequest q = (HttpWebRequest)WebRequest.Create(o + "/api/control-panel/backup");
+                q.Proxy = null;
+                q.Method = "POST";
+                q.ContentType = "application/json";
+                q.Timeout = 300000;
+                byte[] body = Encoding.UTF8.GetBytes("{}");
+                using (Stream s = q.GetRequestStream()) s.Write(body, 0, body.Length);
+                using (HttpWebResponse r = (HttpWebResponse)q.GetResponse())
+                using (StreamReader rd = new StreamReader(r.GetResponseStream(), Encoding.UTF8))
+                {
+                    Dictionary<string, object> j = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(rd.ReadToEnd());
+                    object ok, text;
+                    if (j.TryGetValue("ok", out ok) && ok is bool && (bool)ok)
+                    {
+                        string last = "";
+                        if (j.TryGetValue("stdout", out text) && text != null)
+                            foreach (string l in text.ToString().Split('\n')) if (l.Trim().Length > 0) last = l.Trim();
+                        return "Backup made. " + last;
+                    }
+                    return "The backup did not work: " + (j.TryGetValue("error", out text) && text != null ? text.ToString() : "no reason given") + " (Control Panel > Backup Data shows more.)";
+                }
+            }
+            catch (Exception ex) { return "The backup did not work: " + ex.Message; }
+        });
+        Program.Trace("backup " + said);
+        tray.ShowBalloonTip(10000, "Free GST Billing", said, ToolTipIcon.Info);
     }
 
     async void OnHealthTick(object sender, EventArgs e)
@@ -546,6 +652,18 @@ class MainForm : Form
                 a.PermissionKind == CoreWebView2PermissionKind.MultipleAutomaticDownloads))
                 a.State = CoreWebView2PermissionState.Allow;
         };
+        // The app's notifications (an update is out) appear near the clock, also
+        // while the window is hidden there; a click opens the window.
+        core.NotificationReceived += delegate (object o, CoreWebView2NotificationReceivedEventArgs a)
+        {
+            if (!Ours(a.SenderOrigin)) return;
+            a.Handled = true;
+            CoreWebView2Notification n = a.Notification;
+            lastNote = n;
+            tray.ShowBalloonTip(10000, n.Title.Length > 0 ? n.Title : "Free GST Billing", n.Body.Length > 0 ? n.Body : " ", ToolTipIcon.Info);
+            try { n.ReportShown(); } catch (Exception) { }
+            Program.Trace("notify " + n.Title);
+        };
         core.ProcessFailed += delegate (object o, CoreWebView2ProcessFailedEventArgs a)
         {
             if (a.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited) Problem("The window's web engine stopped. Close this window and open Free GST Billing again.");
@@ -591,6 +709,12 @@ class MainForm : Form
             web.Visible = true;
             status.Visible = false;
             web.Focus();
+        }
+        if (a.IsSuccess && pendingJs != null)
+        {
+            string js = pendingJs;
+            pendingJs = null;
+            await web.CoreWebView2.ExecuteScriptAsync(js);
         }
         if (Program.SmokeFile == null || !a.IsSuccess) return;
         // Test: the app, then its Settings page; the title must follow the page.
