@@ -156,6 +156,34 @@ console.log('\n[#134] The Products export imports back, every column');
     `the screen's own export headings (${headers.join(', ')}) all import`);
 }
 
+console.log('\n[#134] Importing products again fills in what is empty, never overwrites');
+{
+  // As left by v1.10.82: only Name, Unit and Stock were read.
+  const existing = [
+    { id: 'p1', name: 'DiceCodes PVC Pipe', hsn: '', purchasePrice: 0, sellingPrice: 0, rate: 0, taxPercent: 0, unit: 'Ft', stock: 5, description: '' },
+    { id: 'p2', name: 'DiceCodes Pen ', hsn: '9608', purchasePrice: 0, sellingPrice: 10, rate: 10, taxPercent: 12, unit: 'Nos', description: 'blue' },
+    { id: 'p3', name: 'DiceCodes Exempt Book', hsn: '4901', purchasePrice: 40, sellingPrice: 50, rate: 50, taxPercent: 0, unit: 'Nos', stock: 2, description: 'x' },
+  ];
+  const file = [
+    'Name,HSN/SAC,Purchase price,Selling price,GST %,Unit,Stock,Description',
+    'DiceCodes PVC Pipe,39172390,822,850,18,Mtr,90,new',
+    'dicecodes pen,9999,6,99,18,Box,40,red',
+    'DiceCodes Exempt Book,4902,41,51,5,Box,9,y',
+    'DiceCodes Pen,1111,7,1,1,Kg,1,z',
+    'DiceCodes Brand New,4820,1,2,12,Nos,3,',
+  ].join('\n');
+  const r = productsCsvToList(file, existing);
+  eq(r.products.map((p) => p.name).join('|'), 'DiceCodes Brand New', 'a new name is added as before');
+  eq(r.updates.map((p) => p.id).join('|'), 'p1|p2', 'saved products with empty details are updated (same id, no duplicate)');
+  const [pipe, pen] = r.updates;
+  eq(JSON.stringify([pipe.hsn, pipe.purchasePrice, pipe.sellingPrice, pipe.rate, pipe.taxPercent, pipe.unit, pipe.stock, pipe.description]), JSON.stringify(['39172390', 822, 850, 850, 18, 'Ft', 5, 'new']),
+    'the empty HSN, prices, GST % and description are filled; unit and stock already set are kept');
+  eq(JSON.stringify([pen.name, pen.hsn, pen.purchasePrice, pen.sellingPrice, pen.taxPercent, pen.unit, pen.description, pen.stock]), JSON.stringify(['DiceCodes Pen ', '9608', 6, 10, 12, 'Nos', 'blue', 40]),
+    'only the empty purchase price and the untracked stock are filled; every value already there stays');
+  eq(r.skipped, 2, 'nothing to fill (the 0% book has its HSN, so 0% is its rate) and a repeat in the file: skipped');
+  eq(existing[0].hsn, '', 'the saved list itself is not changed');
+}
+
 console.log('\n[#130] Files exported from Vyapar (layouts seen in real exports)');
 {
   const profile = { country: 'India', state: 'Punjab', gstin: '03ABCDE1234F1Z5' };
