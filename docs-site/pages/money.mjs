@@ -186,18 +186,24 @@ export default [
 
 <section id="hsn-summary">
 <h3>HSN Summary — Table 12</h3>
-<p>One row for each HSN/SAC code, tax rate and unit, covering B2B, B2C, exports and credit notes together. The portal requires this table.</p>
+<p>One row for each HSN/SAC code, tax rate and unit. The portal requires this table, and from the May 2025 return it comes in two parts, so the screen shows two tables, each with its own total:</p>
+<ul>
+  <li><b>B2B (buyers with a GSTIN)</b>: sales to registered buyers, SEZ units too.</li>
+  <li><b>B2C</b>: sales to buyers without a GSTIN, and exports.</li>
+</ul>
+<p>The two tables, the two HSN CSV files and the JSON are worked out from the same rows, so they always agree. Credit notes reduce the rows of the part their buyer belongs to.</p>
 <div class="table-wrap"><table>
   <tr><th>Column</th><th>Meaning</th></tr>
-  <tr><td>HSN</td><td>The code on the item. <b>N/A</b> means the item had none.</td></tr>
+  <tr><td>HSN</td><td>The code on the item</td></tr>
   <tr><td>Description</td><td>The name of the first item with that code</td></tr>
-  <tr><td>Qty</td><td>Total quantity. Credit notes subtract.</td></tr>
-  <tr><td>Taxable, CGST, SGST, IGST, Total Tax</td><td>Added up, net of credit notes</td></tr>
+  <tr><td>UQC, Rate</td><td>The portal's unit code and the tax rate of the row</td></tr>
+  <tr><td>Qty</td><td>Total quantity. Credit notes subtract. A service (SAC starting 99) shows unit NA and quantity 0.</td></tr>
+  <tr><td>Taxable, CGST, SGST, IGST, Total Value</td><td>Added up, net of credit notes. Total Value is the taxable value plus all the tax.</td></tr>
 </table></div>
 <p>How many digits you need depends on your turnover: 4 digits up to ₹5 crore, 6 digits above. Tick <b>Aggregate turnover (AATO) is above ₹5 crore</b> in <a href="settings.html#gstr-details">Settings, GSTR filing details</a> if that is you, and the app checks for 6.</p>
 <p>In the JSON and in the HSN CSV each unit is turned into the portal's unit code (UQC), such as NOS, KGS or MTR. A unit the portal does not know goes in as OTH (others).</p>
 <div class="note tip"><strong>Something wrong?</strong>
-<p>An <b>N/A</b> row: some items have no HSN code, and they are left out of the JSON. Add the code on those invoices and on the <a href="products.html#add-product">product</a>. The same code on two rows means two rates or two units were used with it, which is correct.</p></div>
+<p>A yellow line saying some invoice lines have <b>no HSN code</b>: those lines are left out of Table 12 on screen, in the CSV and in the JSON, because the portal needs an HSN for every line. Add the code on those invoices and on the <a href="products.html#add-product">product</a>. The same code on two rows means two rates or two units were used with it, which is correct.</p></div>
 </section>
 
 <section id="doc-summary">
@@ -243,7 +249,7 @@ export default [
   <tr><td>${ui('JSON Export')}</td><td>The file you upload to the portal: <code>GSTR1_<i>GSTIN</i>_<i>MMYYYY</i>.json</code>. It is checked first: see <a href="#json-checks">Checks before the file is made</a>.</td></tr>
   <tr><td>${ui('B2B')}</td><td><code>GSTR1_B2B_Invoices.csv</code>: one row per B2B invoice, in the portal's Table 4A layout</td></tr>
   <tr><td>${ui('B2C')}</td><td><code>GSTR1_B2C_Small.csv</code> (totals by type, place of supply and rate), and <code>GSTR1_B2C_Large.csv</code> if there are any large invoices</td></tr>
-  <tr><td>${ui('HSN')}</td><td><code>GSTR1_HSN_Summary.csv</code>, in the column order of the portal's Table 12 template, with the unit code (UQC)</td></tr>
+  <tr><td>${ui('HSN')}</td><td>Two files, <code>GSTR1_HSN_B2B.csv</code> and <code>GSTR1_HSN_B2C.csv</code>, one for each part of Table 12 (a part with no rows is not downloaded), in the column order of the portal's Table 12 template, with the unit code (UQC). For a period before May 2025, one file, <code>GSTR1_HSN_Summary.csv</code>.</td></tr>
   <tr><td>${ui('CDNR')}</td><td><code>GSTR1_CDNR.csv</code> for credit notes to registered clients, <code>GSTR1_CDNUR.csv</code> for unregistered</td></tr>
   <tr><td>${ui('Docs')}</td><td><code>GSTR1_Doc_Summary.csv</code>: the Table 13 rows</td></tr>
   <tr><td>${ui('Mark Filed')}</td><td>Marks GSTR-1 filed for this period. The button goes away once it is marked; use the <a href="#filed-status">R1 pill</a> to undo.</td></tr>

@@ -51,7 +51,7 @@ export default [
   <tr><th>Field</th><th>What to enter</th></tr>
   <tr><td><b>Receipt No</b></td><td>Filled in with the next number. Leave it, and the number is confirmed when you save. Type your own if you need to (for example to match a paper receipt book), and yours is kept. See <a href="#numbers">Receipt numbers</a>.</td></tr>
   <tr><td><b>Date</b></td><td>Today to start. Change it if the money came on another day.</td></tr>
-  <tr><td><b>Received From (Client Name) *</b></td><td>Required. Who paid you. Filled in when you pick an invoice.</td></tr>
+  <tr><td><b>Received From (Client Name) *</b></td><td>Required. Who paid you. Filled in when you pick an invoice. As you type, your saved clients are suggested; pick one, or type any other name.</td></tr>
   <tr><td><b>Amount *</b></td><td>Required, more than 0. The money received, in rupees.</td></tr>
   <tr><td><b>Payment Mode</b></td><td>Bank Transfer (the default), UPI, Cash, Cheque, Card or Other. Receipts in <b>Cash</b> also show in the <a href="cash-book.html#from-elsewhere">Cash book</a>.</td></tr>
   <tr><td><b>Reference / Transaction No</b></td><td>Optional. UPI reference, cheque number, NEFT/IMPS UTR and so on. It prints on the receipt.</td></tr>
