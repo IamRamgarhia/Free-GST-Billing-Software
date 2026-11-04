@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Receipt, Plus, Trash2, Search, Printer, Pencil } from 'lucide-react';
-import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getProfile, getNextInvoiceNumber, saveBill } from '../store';
+import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getAllClients, getProfile, getNextInvoiceNumber, saveBill } from '../store';
 import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness, countsAsSales, businessKeyOf, localToday, amountDue, paymentStatusFor, isCancelledBill } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
@@ -26,6 +26,7 @@ const emptyForm = {
 export default function ReceiptVoucher() {
   const [receipts, setReceipts] = useState([]);
   const [bills, setBills] = useState([]);
+  const [clientNames, setClientNames] = useState([]);
   const [profile, setProfile] = useState({});
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -39,7 +40,10 @@ export default function ReceiptVoucher() {
 
   const loadData = async () => {
     try {
-      const [recs, bls, prof] = await Promise.all([getAllReceipts(), getAllBills(), getProfile()]);
+      const [recs, bls, prof, clients] = await Promise.all([getAllReceipts(), getAllBills(), getProfile(), getAllClients().catch(() => [])]);
+      // v1.10.84 (#143) - "Received From" suggests the saved clients (shared
+      // by every business, as in the Cash Book); any other name still works.
+      setClientNames([...new Set((clients || []).map((c) => String(c.name || '').trim()).filter(Boolean))].sort());
       // v1.10.66 (#64 item 2) — receipts belong to one business, like its
       // invoices. Both lists are narrowed: the receipts shown, and the
       // invoices offered in Quick Select and matched by "Against Invoice".
@@ -372,8 +376,10 @@ export default function ReceiptVoucher() {
                 <input type="date" className="form-input" value={form.date} onChange={e => updateField('date', e.target.value)} />
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                <label className="form-label">Received From (Client Name) *</label>
-                <input type="text" className="form-input" value={form.clientName} onChange={e => updateField('clientName', e.target.value)} />
+                <label className="form-label" htmlFor="receipt-client">Received From (Client Name) *</label>
+                <input id="receipt-client" type="text" className="form-input" list="receipt-clients" autoComplete="off" placeholder="Start typing a client name"
+                  value={form.clientName} onChange={e => updateField('clientName', e.target.value)} />
+                <datalist id="receipt-clients">{clientNames.map((n) => <option key={n} value={n} />)}</datalist>
               </div>
               <div className="form-group">
                 <label className="form-label">Amount *</label>
