@@ -201,7 +201,7 @@ export default function InventoryView() {
         </div>
         {/* Wraps on a phone: with Make there are four buttons (v1.10.83, #115). */}
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
+          <button className="btn btn-secondary" onClick={() => setShowImport(true)} title="Add products from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)">
             <Upload size={16} /> Import CSV
           </button>
           <button className="btn btn-secondary" onClick={() => setBulkEdit(true)} disabled={!products.length || bulkEdit}
@@ -221,8 +221,8 @@ export default function InventoryView() {
       </div>
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
-          intro="One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST % and Stock (leave Stock blank for a service)."
-          parse={(text) => { const r = productsCsvToList(text, products); return { list: r.products, skipped: r.skipped, errors: r.errors }; }}
+          intro="One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST % and Stock (leave Stock blank for a service). For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed."
+          parse={(rows) => { const r = productsCsvToList(rows, products); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
           save={saveProduct} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); loadProducts(); }} />
       )}
       {showMake && <MakeModal products={products} currency={profileCurrency} onClose={() => setShowMake(false)} onSaved={afterProduction} />}

@@ -2,6 +2,9 @@
 // and purchase bills (Purchases). The parsing and the arithmetic live in
 // src/utils/bulkCsv.js; this is the window around them: template, export,
 // pick a file, see what will happen, import.
+// v1.10.84 (#130) - an Excel .xlsx too (Vyapar's sale report): it opens on the
+// sheet with the most invoices, others can be picked, and what a "Sale Report"
+// sheet says was received becomes the payments.
 import { useState } from 'react';
 import { FileSpreadsheet, Upload, Download, X } from 'lucide-react';
 import {
@@ -10,8 +13,9 @@ import {
 } from '../store';
 import { belongsToProfile, isCancelledBill, isInterstateSupply, roundQty, localToday } from '../utils';
 import {
-  salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE,
+  salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice,
 } from '../utils/bulkCsv';
+import { fileToSheets, bestSheet } from '../utils/importFile';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -25,26 +29,31 @@ const download = (text, name) => {
 export default function BulkCsvImport({ kind = 'sales', onDone }) {
   const sales = kind === 'sales';
   const [open, setOpen] = useState(false);
-  const [plan, setPlan] = useState(null); // { fileName, result, ctx }
+  const [plan, setPlan] = useState(null); // { fileName, result, sheets, at }
   const [adjustStock, setAdjustStock] = useState(false);
   const [addClients, setAddClients] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [fileText, setFileText] = useState('');
-
-  const close = () => { if (!busy) { setOpen(false); setPlan(null); setFileText(''); } };
+  const close = () => { if (!busy) { setOpen(false); setPlan(null); } };
 
   // Reads everything the conversion needs and works out what the file holds.
-  const preview = async (text, fileName, stock = adjustStock) => {
+  // at: the sheet to read (undefined: the one with the most ready).
+  const preview = async (fileName, sheets, at, stock = adjustStock) => {
     const profile = await getProfile().catch(() => ({}));
+    let convert;
     if (sales) {
       const [bills, products, clients] = await Promise.all([getAllBills(), getAllProducts().catch(() => []), getAllClients().catch(() => [])]);
-      const result = salesCsvToBills(text, { profile, products, clients, adjustStock: stock, existingIds: new Set(bills.map((b) => b.id)) });
-      setPlan({ fileName, result });
+      const existingIds = new Set(bills.map((b) => b.id));
+      convert = (i) => salesCsvToBills(sheets[i].rows, {
+        profile, products, clients, adjustStock: stock, existingIds,
+        received: sheets.filter((_, j) => j !== i).map((s) => receivedByInvoice(s.rows)).find((m) => m.size) || null,
+      });
     } else {
       const existing = (await getAllPurchases()).filter((p) => belongsToProfile(p, profile));
-      const result = purchaseCsvToRecords(text, { profile, existing, inferInterstate: (g) => isInterstateSupply(g, profile) });
-      setPlan({ fileName, result });
+      convert = (i) => purchaseCsvToRecords(sheets[i].rows, { profile, existing, inferInterstate: (g) => isInterstateSupply(g, profile) });
     }
+    const ready = (res) => (sales ? res.bills : res.purchases).length;
+    const pick = at ?? bestSheet(sheets, (_, i) => ready(convert(i)));
+    setPlan({ fileName, sheets, at: pick, result: convert(pick) });
   };
 
   const pickFile = async (e) => {
@@ -52,11 +61,9 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
     e.target.value = '';
     if (!file) return;
     try {
-      const text = await file.text();
-      setFileText(text);
-      await preview(text, file.name);
+      await preview(file.name, await fileToSheets(file, kind));
     } catch (err) {
-      toast(`Could not read ${file.name}: ${err.message}`, 'error');
+      toast(`Could not read ${file.name}: ${err.message}`, 'error', 9000);
     }
   };
 
@@ -132,7 +139,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
       if (plan.result.skipped.length + taken) parts.push(`${plan.result.skipped.length + taken} already there, skipped`);
       if (plan.result.errors.length) parts.push(`${plan.result.errors.length} with errors not imported`);
       toast(parts.join(' · '), saved ? 'success' : 'warning', 8000);
-      setOpen(false); setPlan(null); setFileText('');
+      setOpen(false); setPlan(null);
       onDone?.();
     } catch (err) {
       toast(`Import stopped after ${saved}: ${err.message}`, 'error', 9000);
@@ -169,18 +176,25 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
               </button>
               <button type="button" className="btn btn-secondary" onClick={exportAll}><Download size={15} /> Export all as CSV</button>
               <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-                <Upload size={15} /> Choose CSV file
-                <input type="file" accept=".csv,text/csv" onChange={pickFile} style={{ display: 'none' }} />
+                <Upload size={15} /> Choose CSV or Excel file
+                <input type="file" accept=".csv,text/csv,.xlsx" onChange={pickFile} style={{ display: 'none' }} />
               </label>
             </div>
             {sales && (
               <div style={{ display: 'grid', gap: '0.35rem', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-                <label><input type="checkbox" checked={adjustStock} onChange={(e) => { setAdjustStock(e.target.checked); if (fileText) preview(fileText, plan?.fileName, e.target.checked); }} /> Take sold quantities out of product stock (leave off for old invoices)</label>
+                <label><input type="checkbox" checked={adjustStock} onChange={(e) => { setAdjustStock(e.target.checked); if (plan) preview(plan.fileName, plan.sheets, plan.at, e.target.checked); }} /> Take sold quantities out of product stock (leave off for old invoices)</label>
                 <label><input type="checkbox" checked={addClients} onChange={(e) => setAddClients(e.target.checked)} /> Add new clients to Clients</label>
               </div>
             )}
             {r && (
               <div style={{ padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '0.85rem' }}>
+                {plan.sheets.length > 1 && (
+                  <label style={{ display: 'block', marginBottom: '0.5rem' }}>Sheet:{' '}
+                    <select value={plan.at} onChange={(e) => preview(plan.fileName, plan.sheets, Number(e.target.value))}>
+                      {plan.sheets.map((s, i) => <option key={`${i}-${s.name}`} value={i}>{s.name || `Sheet ${i + 1}`}</option>)}
+                    </select>
+                  </label>
+                )}
                 <strong>{plan.fileName}</strong>: {ready} {sales ? 'invoice' : 'bill'}{ready === 1 ? '' : 's'} ready
                 {r.skipped.length > 0 && <> · {r.skipped.length} already there (skipped)</>}
                 {sales && r.newClients.length > 0 && <> · {r.newClients.length} new client{r.newClients.length === 1 ? '' : 's'}</>}

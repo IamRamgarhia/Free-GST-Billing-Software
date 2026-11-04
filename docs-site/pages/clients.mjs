@@ -223,13 +223,15 @@ export default [
 <h2>Importing clients from a spreadsheet</h2>
 <p>Moving from another program or an Excel list? ${ui('Import CSV')} adds many clients at once, one per row.</p>
 <ol class="steps">
-  <li><strong>Open the window</strong>Click ${ui('Import CSV')} on the Clients screen. The window <b>Import clients from CSV</b> opens.</li>
+  <li><strong>Open the window</strong>Click ${ui('Import CSV')} on the Clients screen. The window <b>Import clients</b> opens.</li>
   <li><strong>Get the sample file</strong>Click ${ui('Download sample file')}. <code>Clients-sample.csv</code> lands in your Downloads folder, with the right column headings and two demo clients.</li>
   <li><strong>Fill it in</strong>Open it in Excel or Google Sheets. Replace the demo rows with your clients, one per row. Keep the first row (the headings) as it is.</li>
   <li><strong>Save as CSV</strong>In Excel, <b>File → Save As → CSV UTF-8 (Comma delimited)</b> or <b>CSV (Comma delimited)</b>. In Google Sheets, <b>File → Download → Comma-separated values</b>.</li>
-  <li><strong>Choose the file</strong>Click ${ui('Choose CSV file')}. Nothing is saved yet: the window shows how many clients are ready and how many are already in your list (skipped).</li>
+  <li><strong>Choose the file</strong>Click ${ui('Choose file')}. Nothing is saved yet: the window shows how many clients are new and how many are already in your list (skipped).</li>
   <li><strong>Import</strong>Click ${ui('Import')} (such as <b>Import 12</b>). You see "Imported 12 clients", and the new cards appear.</li>
 </ol>
+<p><b>From Excel or Vyapar:</b> you can choose an Excel file (<code>.xlsx</code>) instead of a CSV, such as the party list Vyapar exports. If the file has several sheets, pick the one with your parties under <b>Sheet</b>.</p>
+<p><b>From Tally:</b> in Tally, go to <b>Gateway of Tally → Export → Masters</b>, choose format <b>XML</b> and export. Choose that <code>.xml</code> file here. Your ledgers under <b>Sundry Debtors</b> and <b>Sundry Creditors</b> come in as clients, with GSTIN, state, address, phone and email. Other ledgers (cash, bank, sales, expenses) are left out. Old vouchers stay in Tally.</p>
 <p>The columns (headings in small or capital letters, in any order):</p>
 <div class="table-wrap"><table>
   <tr><th>Column heading</th><th>Holds</th></tr>

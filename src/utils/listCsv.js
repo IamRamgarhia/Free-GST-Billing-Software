@@ -40,12 +40,36 @@ const dedupe = (existing) => {
   };
 };
 
-// Text -> { products, skipped, errors }. A row with a problem is left out and
-// named in errors; a name already saved is skipped (importing twice is safe).
+// v1.10.84 (#134) - a saved product with empty details gets them from the
+// file; a value already there is never changed. 0 counts as empty for the
+// prices, and for GST % only when the product has no HSN either (left so by an
+// import that read only the name; an exempt item with its HSN keeps its 0%).
+const blank = (v) => v === undefined || v === null || String(v).trim() === '';
+const FILL = {
+  hsn: blank, unit: blank, description: blank, stock: blank,
+  purchasePrice: (v) => blank(v) || Number(v) === 0,
+  sellingPrice: (v) => blank(v) || Number(v) === 0,
+  taxPercent: (v, p) => blank(v) || (Number(v) === 0 && blank(p.hsn)),
+};
+export function fillBlanks(saved, fresh) {
+  const add = {};
+  for (const [k, isEmpty] of Object.entries(FILL)) {
+    if (isEmpty(saved[k], saved) && !FILL[k](fresh[k], fresh)) add[k] = fresh[k];
+  }
+  if ('sellingPrice' in add) add.rate = add.sellingPrice; // mirror for older readers
+  return Object.keys(add).length ? { ...saved, ...add } : null;
+}
+
+// Rows (CSV text or a sheet) -> { products, updates, skipped, errors }. A row
+// with a problem is left out and named in errors. A name already saved is not
+// added again (importing twice is safe): its empty details are filled in
+// (updates), or it is skipped when there is nothing to fill.
 export function productsCsvToList(text, existing = []) {
   const { records } = rowsToRecords(text, PRODUCT_FIELDS);
-  const seen = dedupe(existing);
-  const out = { products: [], skipped: 0, errors: [] };
+  const key = (n) => String(n || '').trim().toLowerCase();
+  const saved = new Map((existing || []).map((p) => [key(p.name), p]));
+  const seen = new Set();
+  const out = { products: [], updates: [], skipped: 0, errors: [] };
   for (const r of records) {
     const name = r.name || '';
     if (!name) continue;
@@ -56,12 +80,13 @@ export function productsCsvToList(text, existing = []) {
     const bad = Object.entries(nums).find(([k, v]) => (k === 'stock' ? v !== null && !Number.isFinite(v) : !Number.isFinite(v)));
     if (bad) { out.errors.push(`Row ${r._line} (${name}): ${bad[0] === 'stock' ? 'stock' : bad[0] === 'taxPercent' ? 'GST %' : 'price'} must be a number`); continue; }
     if (nums.taxPercent < 0 || nums.taxPercent > 100) { out.errors.push(`Row ${r._line} (${name}): GST % must be 0 to 100`); continue; }
-    if (seen(name)) { out.skipped++; continue; }
+    if (seen.has(key(name))) { out.skipped++; continue; }
+    seen.add(key(name));
     // Our product prices are before tax: take the tax out of an inclusive one.
     if (/^(y|yes|true|1)$/i.test(String(r.taxInclusive || '').trim()) && nums.taxPercent > 0) {
       nums.sellingPrice = Math.round(nums.sellingPrice / (1 + nums.taxPercent / 100) * 100) / 100;
     }
-    out.products.push({
+    const product = {
       name,
       ...(service ? { kind: 'service' } : {}),
       hsn: r.hsn || '',
@@ -73,7 +98,11 @@ export function productsCsvToList(text, existing = []) {
       // A service has no stock; goods with a blank stock are "not tracked yet".
       ...(!service && nums.stock !== null ? { stock: nums.stock } : {}),
       description: r.description || '',
-    });
+    };
+    const old = saved.get(key(name));
+    if (!old) { out.products.push(product); continue; }
+    const filled = fillBlanks(old, product);
+    if (filled) out.updates.push(filled); else out.skipped++;
   }
   return out;
 }

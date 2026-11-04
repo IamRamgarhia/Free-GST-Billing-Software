@@ -332,13 +332,13 @@ export default [
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Template')}</td><td>Downloads <code>Purchase-import-template.csv</code>: the right columns and one example bill.</td></tr>
   <tr><td>${ui('Export all as CSV')}</td><td>Downloads every purchase bill of this business as <code>Purchase-bills-</code><i>date</i><code>.csv</code>, one row per item, in the same columns. Good for a backup, or to move bills to another business.</td></tr>
-  <tr><td>${ui('Choose CSV file')}</td><td>Reads your file and shows what will happen. Nothing is saved yet.</td></tr>
+  <tr><td>${ui('Choose CSV or Excel file')}</td><td>Reads your file and shows what will happen. Nothing is saved yet.</td></tr>
   <tr><td>${ui('Import')}</td><td>Saves the bills that are ready. The button shows how many.</td></tr>
   <tr><td>${ui('Close')}</td><td>Closes without importing.</td></tr>
 </table></div>
 <ol class="steps">
   <li><strong>Start from the template</strong>Click ${ui('Template')}. Open it in Excel or Google Sheets, delete the example row, and fill in your bills. Save it as <b>CSV</b> (in Excel: <b>File → Save As → CSV (Comma delimited)</b>).</li>
-  <li><strong>Choose the file</strong>Click ${ui('Choose CSV file')}. A box shows the file name, how many bills are <b>ready</b>, how many are <b>already there (skipped)</b>, and every problem, row by row (a bad date, a missing rate, no item name).</li>
+  <li><strong>Choose the file</strong>Click ${ui('Choose CSV or Excel file')}. A box shows the file name, how many bills are <b>ready</b>, how many are <b>already there (skipped)</b>, and every problem, row by row (a bad date, a missing rate, no item name).</li>
   <li><strong>Fix problems</strong>Bills with problems are not imported. Fix them in the file, save it, and choose it again.</li>
   <li><strong>Import</strong>Click ${ui('Import')}. A message says how many were imported, how many skipped, and how many had errors.</li>
 </ol>
