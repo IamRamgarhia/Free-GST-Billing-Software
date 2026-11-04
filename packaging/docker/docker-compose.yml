@@ -1,0 +1,39 @@
+# Free GST Billing on a NAS or home server, with Docker.
+#   Start:  docker compose up -d
+#   Open:   http://localhost:47371  (on the NAS itself, or through the tunnel below)
+#   Stop:   docker compose down     (your books stay in the volume)
+#
+# Your books are in the "fgsb-data" volume (/data in the container).
+#
+# SAFETY - READ THIS: the app has no login yet. The port is published to THIS
+# machine only (127.0.0.1). Do NOT change it to "47371:47371": every phone and
+# PC on your network could then open and change your books without a password.
+# Opening it from other PCs, with pairing + PIN + HTTPS, comes with the
+# 14 November update. Until then, from another PC use an SSH tunnel:
+#   ssh -L 47371:127.0.0.1:47371 you@your-nas
+# and open http://localhost:47371 on that PC.
+services:
+  free-gst-billing:
+    image: free-gst-billing:__VERSION__
+    container_name: free-gst-billing
+    restart: unless-stopped
+    init: true
+    environment:
+      # Listen inside the container so the port below can reach it. The
+      # "127.0.0.1:" in front of the port keeps it on this machine only.
+      FGSB_ALLOW_UNSAFE_LAN: "1"
+      TZ: Asia/Kolkata
+    ports:
+      - "127.0.0.1:47371:47371"
+    volumes:
+      - fgsb-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  fgsb-data:
