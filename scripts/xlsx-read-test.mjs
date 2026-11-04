@@ -6,6 +6,7 @@
 import { zipSync, strToU8 } from 'fflate';
 import { readXlsx, excelSerialToIso } from '../src/utils/xlsxRead.js';
 import { buildXlsx } from '../src/utils/xlsx.js';
+import { bestSheet, fileToSheets } from '../src/utils/importFile.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -63,6 +64,22 @@ eq(/not an \.xlsx/i.test(err), true, 'a CSV given as .xlsx says so');
 err = '';
 try { readXlsx(zipSync({ 'a.txt': strToU8('x') })); } catch (e) { err = e.message; }
 eq(/no sheets/i.test(err), true, 'a zip without a workbook says so');
+
+console.log('Which sheet the import screens open on (#130)');
+const cover = { name: 'Cover', rows: [['DiceCodes'], []] };
+const report = { name: 'Sale Report', rows: [['Invoice No', 'Party Name'], ['V-1', 'DiceCodes']] };
+const items = { name: 'Item Details', rows: [['Invoice No', 'Item Name'], ['V-1', 'Pen'], ['V-1', 'Ink']] };
+const ready = (rows) => (rows[0]?.includes('Item Name') ? rows.length - 1 : 0);
+eq(bestSheet([cover, report, items], ready), 2, 'the sheet the screen can import the most from');
+eq(bestSheet([cover, report, items], () => 0), 1, 'none importable: the first sheet that has rows under a header');
+eq(bestSheet([cover], () => 0), 0, 'no rows anywhere: the first sheet');
+
+console.log('The file chooser (.xlsx and .csv)');
+eq((await fileToSheets(new File([vyapar], 'Vyapar.xlsx'), 'sales')).map((s) => s.name), ['Sale Report', 'Item Details'], 'an .xlsx gives its sheets');
+eq(await fileToSheets(new File([String.fromCharCode(0xFEFF) + 'Name,Rate\r\nPen,12\r\n'], 'p.csv'), 'products'), [{ name: 'p.csv', rows: [['Name', 'Rate'], ['Pen', '12']] }], 'a CSV is one sheet');
+err = '';
+try { await fileToSheets(new File(['x'], 'old.xls'), 'products'); } catch (e) { err = e.message; }
+eq(/\.xlsx/.test(err), true, 'an old .xls asks for .xlsx or CSV');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
