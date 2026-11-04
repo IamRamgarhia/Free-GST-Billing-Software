@@ -317,9 +317,9 @@ function TallyLayout({ ctx }) {
                 </td>
                 {t.hsn && <td style={{ ...vc, ...center }}>{item.hsn || ''}</td>}
                 {t.itemQty && <td style={{ ...vc, ...right }}><strong>{item.unit === 'NA' ? '-' : `${item.quantity}${t.itemUnit && item.unit ? ` ${item.unit}` : ''}`}</strong></td>}
-                {t.rate && <td style={{ ...vc, ...right }}>{num(item.rate)}</td>}
+                {t.rate && <td style={{ ...vc, ...right }}>{num(l.shownRate)}</td>}
                 {perCol && <td style={{ ...vc, ...center }}>{item.unit || ''}</td>}
-                {ctx.hasAnyDiscount && <td style={{ ...vc, ...right }}>{l.discount > 0 ? num(l.discount) : ''}</td>}
+                {ctx.hasAnyDiscount && <td style={{ ...vc, ...right }}>{l.discount > 0 ? num(l.shownDiscount) : ''}</td>}
                 <td style={{ ...vc, ...right }}><strong>{num(l.taxable)}</strong></td>
               </tr>
             );
@@ -491,8 +491,8 @@ function BoxedLayout({ ctx }) {
                   {t.hsn && <td style={{ ...cell, ...center }}>{item.hsn || ''}</td>}
                   {unitCol && <td style={{ ...cell, ...center }}>{item.unit || ''}</td>}
                   {t.itemQty && <td style={{ ...cell, ...center }}>{item.unit === 'NA' ? '-' : item.quantity}</td>}
-                  {t.rate && <td style={{ ...cell, ...right }}>{num(item.rate)}</td>}
-                  {ctx.hasAnyDiscount && <td style={{ ...cell, ...right }}>{l.discount > 0 ? num(l.discount) : ''}</td>}
+                  {t.rate && <td style={{ ...cell, ...right }}>{num(l.shownRate)}</td>}
+                  {ctx.hasAnyDiscount && <td style={{ ...cell, ...right }}>{l.discount > 0 ? num(l.shownDiscount) : ''}</td>}
                   <td style={{ ...cell, ...right, borderRight: 'none' }}>{num(l.taxable)}</td>
                 </tr>
               );

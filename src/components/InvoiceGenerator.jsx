@@ -4875,6 +4875,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           <div className="glass-panel p-6 mb-6">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <h3 className="section-title" style={{ margin: 0 }}>Line Items <HelpButton title="Line Items" doc="invoices#items" size={16} /></h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               {showGST && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer', userSelect: 'none' }}>
                   <input type="checkbox" checked={taxInclusive} onChange={e => setTaxInclusive(e.target.checked)}
@@ -4883,6 +4884,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   <HelpButton title="Prices that already include GST" doc="invoices#tax-inclusive" size={16} />
                 </label>
               )}
+              {/* v1.10.84 (#164) - printing only: the totals stay the same. */}
+              {showGST && taxInclusive && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer', userSelect: 'none' }}
+                  title="The Rate column prints each price without GST (rate / (1 + GST%)), so Qty x Rate matches the Amount. The totals do not change.">
+                  <input type="checkbox" checked={!!invoiceOptions.rateBeforeTax}
+                    onChange={e => setInvoiceOptions(prev => ({ ...prev, rateBeforeTax: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                  <span>Print rates before GST</span>
+                </label>
+              )}
+              </div>
             </div>
             {items.map((item, idx) => (
               <LineItem

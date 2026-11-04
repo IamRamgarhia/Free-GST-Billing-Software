@@ -75,6 +75,9 @@ a backup is made first.
   the product's purchase price, as its own line, then Gross Profit. Items with
   no purchase price are named so you can fill it in.
 - **Received From suggests your clients** on a new payment receipt (#143).
+- **Print rates before GST** (#164): with *Prices include tax* ticked, a second
+  tick box prints each rate without GST (₹13.25 at 18% prints ₹11.23), so
+  Qty × Rate matches the Amount. The GST and the total do not change.
 - **A Print switch beside every printed part of the invoice form** (due date,
   place of supply, bank details, UPI QR, LUT declaration, notes, terms), and
   Customize can hide the export / LUT declaration.

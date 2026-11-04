@@ -71,6 +71,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   // v1.10.84 (#152) - hides only the per-line tax columns; GST is still
   // charged and shown in the totals. showGST is what turns GST off.
   const showTaxCols = showGST && opt('showTaxColumns');
+  const rateBeforeTax = opt('rateBeforeTax', false); // #164, see lineCalc
   // v1.10.84 (#140) - size lines (glass, mirror) add Size and SQFT columns; the
   // Qty column then shows their pieces. NA lines (#143) print "-".
   const hasSize = (items || []).some((i) => i.size);
@@ -275,10 +276,15 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
     const grossAfterDiscount = Math.max(0, (Number(item.quantity) || 0) * (Number(item.rate) || 0) - discount);
     const rate = Number(item.taxPercent) || 0;
     const taxable = inclusive ? grossAfterDiscount / (1 + rate / 100) : grossAfterDiscount;
+    const typedRate = Number(item.rate) || 0;
     // Zero-rated under a LUT: no tax, so the line prints 0% and no tax.
-    if (totals.lutZeroRated) return { discount, taxable: grossAfterDiscount, tax: 0, rate: 0 };
+    if (totals.lutZeroRated) return { discount, taxable: grossAfterDiscount, tax: 0, rate: 0, shownRate: typedRate, shownDiscount: discount };
     const tax = !showGST ? 0 : (inclusive ? grossAfterDiscount - taxable : taxable * rate / 100);
-    return { discount, taxable, tax, rate };
+    // v1.10.84 (#164) - "Print rates before GST": with prices that include
+    // tax, the Rate (and Disc.) columns print the amount before GST, so
+    // Qty x Rate - Disc. = Amount. Printing only: the totals are unchanged.
+    const exTax = inclusive && rateBeforeTax ? 1 + rate / 100 : 1;
+    return { discount, taxable, tax, rate, shownRate: typedRate / exTax, shownDiscount: discount / exTax };
   };
   // HSN/SAC-wise tax summary (Tally's table under the items). A line counts
   // if it has an HSN/SAC or carries tax; untaxed reimbursements without a
@@ -1273,7 +1279,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
         <tbody>
           {items.map((item, index) => {
             // Shared with the grid designs and the HSN summary (lineCalc).
-            const { discount, taxable: afterDiscount, tax: taxAmount, rate: taxRate } = lineCalc(item);
+            const { discount, taxable: afterDiscount, tax: taxAmount, rate: taxRate, shownRate, shownDiscount } = lineCalc(item);
             const halfRate = taxRate / 2;
             const halfTax = taxAmount / 2;
             return (
@@ -1295,8 +1301,8 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 {hasSize && <td className="inv-td inv-td-center">{sizeLabel(item.size)}</td>}
                 {showItemQty && <td className="inv-td inv-td-center">{printedQty(item)}</td>}
                 {hasSize && <td className="inv-td inv-td-center">{item.size ? lineSqft(item).toFixed(2) : ''}</td>}
-                {showRateColumn && <td className="inv-td inv-td-right">{item.size?.manual ? '-' : fmt(item.rate)}</td>}
-                {hasAnyDiscount && <td className="inv-td inv-td-right">{discount > 0 ? fmt(discount) : '-'}</td>}
+                {showRateColumn && <td className="inv-td inv-td-right">{item.size?.manual ? '-' : fmt(shownRate)}</td>}
+                {hasAnyDiscount && <td className="inv-td inv-td-right">{discount > 0 ? fmt(shownDiscount) : '-'}</td>}
                 {showTaxCols && (
                   isIndia && isInterstate ? (
                     <>

@@ -1003,6 +1003,28 @@ try {
     glass2.sqft === '15.00' && /750\.00/.test(glass2.amount), JSON.stringify(glass2));
   await page.evaluate((m) => { if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m); }, modulesBefore);
 
+  // #164: "Print rates before GST" with prices that include tax: 13.25 at 18%
+  // prints 11.23, the total stays 2500 x 13.25 = 33,125.00.
+  const rbtDraft = (on) => openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/RBT', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [{ id: 'smk-rbt', name: 'Packing box', hsn: '4819', quantity: 2500, rate: 13.25, taxPercent: 18, discount: 0, unit: 'Pcs' }],
+    taxInclusive: true,
+    invoiceOptions: { rateBeforeTax: on },
+  });
+  const rbtView = () => page.evaluate(() => ({
+    cells: [...document.querySelectorAll('#invoice-preview .inv-table tbody tr:first-child td')].map((t) => t.innerText.trim()),
+    total: (document.querySelector('#invoice-preview')?.innerText.match(/33,125\.00/) || [''])[0],
+  }));
+  await rbtDraft(false);
+  const rbtOff = await rbtView();
+  await rbtDraft(true);
+  const rbtOn = await rbtView();
+  check('#164 "Print rates before GST": rate 13.25 prints 11.23, the total is unchanged',
+    rbtOff.cells.some((c) => /13\.25/.test(c)) && rbtOn.cells.some((c) => /11\.23/.test(c)) && !rbtOn.cells.some((c) => /13\.25/.test(c))
+      && rbtOff.total && rbtOn.total, `${rbtOff.cells.join(' | ')}  ->  ${rbtOn.cells.join(' | ')}`);
+
   // #126: fields the user names print with the order details; an empty one does not.
   await openDraft({
     invoiceType: 'tax-invoice',

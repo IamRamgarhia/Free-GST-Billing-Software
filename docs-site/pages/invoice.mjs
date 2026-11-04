@@ -285,6 +285,7 @@ export default [
 <h3>Prices that already include GST</h3>
 <p>If your rates already include GST, such as an MRP or a counter price, tick <b>Prices include tax</b> at the top right of the Line Items card. The box only shows when the invoice charges GST.</p>
 <p>The GST is then worked out backwards from each rate: a ₹1,180 item at 18% is ₹1,000 taxable value plus ₹180 GST. The printed Subtotal is the value before tax, so Subtotal + tax = Total, and the client pays exactly the price you typed.</p>
+<p><b>Print rates before GST</b> appears beside it once it is ticked. Tick it and the Rate column prints each price without GST (₹13.25 at 18% prints as ₹11.23), so Qty × Rate matches the Amount on the invoice. Only the printing changes: the GST and the total stay exactly the same.</p>
 </section>
 
 <section id="discounts">
