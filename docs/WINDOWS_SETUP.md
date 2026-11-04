@@ -28,6 +28,25 @@ earlier copy's folder (its `data/`, `Saved Invoices/`, `Trash/`, scripts,
 `scripts/test-windows-setup.mjs` hashes the whole earlier copy before and after
 every install, update and uninstall and fails on any difference.
 
+### Review fixes (5 Nov 2026)
+
+| | What | How |
+| --- | --- | --- |
+| H1 | The one-line installer's copy lives in `%LOCALAPPDATA%\Programs\Free GST Billing\_system` | Setup installs only into a folder of its own: when that folder exists and is not a Setup copy, it uses `...\Free GST Billing App`. Keep and Copy work from there. |
+| H2 | After Copy, an old icon could start the OLD server on the old port and the new icon opened it | The copy gets a free port of its own; the launcher opens a running server only if `/api/version` says it serves this install's books (a Setup copy refuses one too old to say); old taskbar pins and Start-menu subfolder shortcuts are moved to the backup too. |
+| H3 | "Choose" took any folder with `data\`; Yes to delete could empty it | Choose needs books (`data\profile.json`, or `*.json` in `data\bills`, `clients` or `profiles`). Delete-my-books refuses Documents, the user folder, the Desktop, a drive root, AppData, the program folder, an earlier copy's own folder, and any folder without `data\profile.json` or `data\bills`; it only ever deletes that folder's `data`, `Saved Invoices` and `Trash`. |
+| H4 | With two earlier copies only one was offered | All are listed, last changed first (folder, invoices, date), and the user picks. A silent Setup with more than one and no `/DATAMODE` + `/OLDDIR` stops without changing anything. |
+| M1 | Two Setups at once | `SetupMutex`; a failed copy removes only the files and folders that run made. |
+| M2 | Shortcuts moved before the install | Old shortcuts move after a successful install; a same-named one the new icon replaces is copied first. The old server is stopped just before the backup and copy, after every check. |
+| M3 | Missing books folder | An update never creates the books folder; a Setup copy whose `home.txt` is missing or empty refuses to start (server and launcher) instead of using the program folder. |
+| M4 | Lock | The lock holds the PC name and a random id; it is read back after taking it, written at listen only while it is ours, "running" means `/api/version` answers with that process or id, and another PC's lock is never taken over. |
+| M5 | Updater | Every download hop must be https on `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com`; the size must equal the GitHub API's; the SHA-256 must equal the release asset's `digest` when GitHub gives one (else the gap is noted). No `[InstallDelete]`: old program files go only after the new ones are in (`installed-files.txt` + `prune`); an update that fails starts the version that is there again, and the page shows the Setup's log path. |
+| M6 | `-Command` strings | `stop-app.ps1` runs with `-File` and separate arguments; arguments ending in `\` are quoted so `E:\` survives; the old server must no longer answer before anything is copied. Tested with spaces, `'`, `‘ ’` and Hindi in the folder names. |
+
+**Signing (later):** sign `Free-GST-Billing-Windows-Setup.exe` with an
+Authenticode certificate (`SignTool=` in the .iss); the updater should then
+also check the signature (`Get-AuthenticodeSignature`) before running it.
+
 ## Build
 
 ```bash
@@ -61,8 +80,11 @@ curl -sIL -o /dev/null -w "%{http_code}\n" \
   https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe
 ```
 
-An installed copy's **Update now** downloads that URL (server.js
-`updateWithSetup`). A release without the exe tells installed users "the new
+An installed copy's **Update now** reads the latest release from the GitHub API,
+takes that asset's download URL, size and SHA-256 (`digest`), and downloads it
+(server.js `updateWithSetup`, checks in `src/utils/setupDownload.js`). The build
+also writes `Free-GST-Billing-Windows-Setup.exe.sha256` for people who check by
+hand (upload it too if you like). A release without the exe tells installed users "the new
 version's Setup is not on GitHub yet". The ZIP updaters take the first
 `*.zip` of the release, so the exe does not disturb them.
 
@@ -75,7 +97,7 @@ Updates from inside the app are not affected (a file Node.js downloads has no
 
 | What | Where |
 | --- | --- |
-| Program | `%LOCALAPPDATA%\Programs\Free GST Billing` (per user, no admin), with `node\node.exe` |
+| Program | `%LOCALAPPDATA%\Programs\Free GST Billing` (per user, no admin), with `node\node.exe`; `...\Free GST Billing App` when the one-line installer's copy is in the first folder |
 | Books folder | `home.txt` next to `server.js` (one line, the full path); default `Documents\Free GST Billing` |
 | "Installed by Setup" marker | `installed.txt` next to `server.js` (test mode: `testroot=...`) |
 | Uninstall entry | `HKCU\...\Uninstall\FreeGSTBilling_is1` (test mode: `FreeGSTBilling-TEST_is1`) |

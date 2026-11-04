@@ -1,10 +1,13 @@
 // v1.10.84 - one server per books folder. Two servers on one data folder (an
 // old ZIP launcher and the installed app pointed at the same books, or two
 // copies of the ZIP) would both write the same JSON files, and the last write
-// wins. data/server.lock holds the running server's process id and port:
+// wins. data/server.lock holds the running server's process id, port, the
+// PC's name and a random id:
 //   - a second server that finds a live lock does not start. Its launcher
 //     then opens the running one (its port is in port.txt);
-//   - a lock whose process is gone (killed, PC switched off) is taken over.
+//   - a lock whose process is gone (killed, PC switched off) is taken over;
+//   - a lock written by ANOTHER PC (books on a shared drive) is never taken
+//     over: its process id means nothing here.
 //
 // Standalone on purpose (Node built-ins only): server.js imports it and the
 // release ZIP ships it (build-release-zip.mjs).
@@ -28,52 +31,69 @@ export function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
 
-// Is the lock held by ANOTHER server that is running? The process must be
-// there, and either answer on its port or have taken the lock moments ago. A
-// live process that does not answer long after taking the lock is a reused
-// process id (after a restart of the PC) or a hung server: stale.
-export async function lockIsLive(lock, { selfPid, isAlive = pidAlive, answers, now = Date.now() }) {
-  if (!lock || lock.pid === selfPid || !isAlive(lock.pid)) return false;
-  if (lock.port && await answers(lock.port)) return true;
-  return now - (Number(lock.at) || 0) < STARTING_GRACE_MS;
+const sameHost = (a, b) => !a || !b || String(a).toLowerCase() === String(b).toLowerCase();
+
+// Is the lock held by ANOTHER server? 'other-host' (another PC's lock),
+// 'running' (its port answers AS that server: same process id or lock id),
+// 'starting' (took the lock moments ago) - or false: free to take over (its
+// process is gone, or a reused process id / hung server never answers).
+export async function lockIsLive(lock, { selfPid, selfHost, isAlive = pidAlive, identify, now = Date.now() }) {
+  if (!lock) return false;
+  if (!sameHost(lock.host, selfHost)) return 'other-host';
+  if (lock.pid === selfPid || !isAlive(lock.pid)) return false;
+  if (lock.port) {
+    const who = await identify(lock.port);
+    if (who && (who.pid === lock.pid || (lock.id && who.lockId === lock.id))) return 'running';
+  }
+  return now - (Number(lock.at) || 0) < STARTING_GRACE_MS ? 'starting' : false;
 }
 
-// { ok: true } = this server holds the lock now; { ok: false, held } = another
-// running server holds it. A lock that cannot be written at all (read-only
-// folder) never stops the app: the data folder check after this says why.
-export async function acquireLock(file, { pid, answers, isAlive = pidAlive, now }) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+// { ok: true } = this server holds the lock now; { ok: false, held, reason }
+// = another server holds it. Taking it is checked by reading it back (two
+// servers taking over one stale lock at the same moment: only one id stays).
+// A lock that cannot be written at all (read-only folder) never stops the
+// app: the data folder check after this says why.
+export async function acquireLock(file, { pid, host, id, identify, isAlive = pidAlive, now }) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      fs.writeFileSync(file, JSON.stringify({ pid, port: 0, at: Date.now() }), { flag: 'wx' });
-      return { ok: true };
+      fs.writeFileSync(file, JSON.stringify({ pid, port: 0, at: Date.now(), host, id }), { flag: 'wx' });
+      if (readLock(file)?.id === id) return { ok: true };
+      continue;
     } catch (e) {
       if (e.code !== 'EEXIST') return { ok: true, warning: e.message };
     }
+    let raw = '';
+    try { raw = fs.readFileSync(file, 'utf8'); } catch { continue; }
     const held = readLock(file);
-    if (held && await lockIsLive(held, { selfPid: pid, isAlive, answers, now })) return { ok: false, held };
-    try { fs.unlinkSync(file); } catch { /* another server took it over first: look again */ }
+    const reason = held ? await lockIsLive(held, { selfPid: pid, selfHost: host, isAlive, identify, now }) : false;
+    if (reason) return { ok: false, held, reason };
+    // Stale: remove it only if it is still the very lock judged stale.
+    try { if (fs.readFileSync(file, 'utf8') === raw) fs.unlinkSync(file); } catch { /* gone already */ }
   }
-  return { ok: true };
+  return { ok: false, held: readLock(file), reason: 'starting' };
 }
 
+// Only while the lock is still ours (true when written).
 export function writeLock(file, lock) {
-  try { fs.writeFileSync(file, JSON.stringify(lock)); } catch { /* read-only: see acquireLock */ }
+  if (readLock(file)?.id !== lock.id) return false;
+  try { fs.writeFileSync(file, JSON.stringify(lock)); return true; } catch { return false; }
 }
 
 // Only our own lock: a server that refused to start must not remove the
 // running server's.
-export function releaseLock(file, pid) {
-  if (readLock(file)?.pid !== pid) return;
+export function releaseLock(file, id) {
+  if (!id || readLock(file)?.id !== id) return;
   try { fs.unlinkSync(file); } catch { /* gone already */ }
 }
 
-// Does anything answer HTTP on this port of this PC? Any answer counts (a PIN
-// lock answers 401/423, and that is still the running app).
-export async function portAnswers(port, timeoutMs = 1500) {
+// Who answers on this port of this PC: { pid, lockId } from /api/version, or
+// null (nothing, or something that is not this app).
+export async function portIdentity(port, timeoutMs = 1500) {
   try {
-    await fetch(`http://127.0.0.1:${port}/api/version`, { signal: AbortSignal.timeout(timeoutMs) });
-    return true;
+    const res = await fetch(`http://127.0.0.1:${port}/api/version`, { signal: AbortSignal.timeout(timeoutMs) });
+    const j = await res.json();
+    return j && typeof j === 'object' && j.current ? { pid: j.pid, lockId: j.lockId } : null;
   } catch {
-    return false;
+    return null;
   }
 }

@@ -18,7 +18,8 @@ import { validateCashEntry, cleanCashEntry } from './src/utils/cashBook.js';
 import { validatePurchasePayments } from './src/utils/purchasePayments.js';
 import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES } from './src/utils.js';
 import { resolveAppHome } from './src/utils/appHome.js';
-import { LOCK_NAME, acquireLock, writeLock, releaseLock, portAnswers } from './src/utils/serverLock.js';
+import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './src/utils/serverLock.js';
+import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // v1.10.84 - data/, Saved Invoices/ and Trash/ live in APP_HOME: the folder
@@ -53,15 +54,24 @@ if (process.argv.includes('--after-pid') && afterPid) {
 // v1.10.84 - one server per books folder (see src/utils/serverLock.js). Taken
 // before anything else runs, so a second server never writes a single file.
 const LOCK_FILE = path.join(DATA_DIR, LOCK_NAME);
+// Random per run: /api/version answers with it, so a lock is "running" only
+// when THIS server answers on its port, not anything else that happens to.
+const LOCK_ID = crypto.randomUUID();
+const LOCK_HOST = os.hostname();
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* reported below */ }
 {
-  const lock = await acquireLock(LOCK_FILE, { pid: process.pid, answers: portAnswers });
+  const lock = await acquireLock(LOCK_FILE, { pid: process.pid, host: LOCK_HOST, id: LOCK_ID, identify: portIdentity });
   if (!lock.ok) {
-    console.log(`\n  Free GST Billing is already running for these books${lock.held.port ? ` at http://localhost:${lock.held.port}` : ''} (process ${lock.held.pid}).`);
+    if (lock.reason === 'other-host') {
+      console.log(`\n  These books are open in Free GST Billing on another computer (${lock.held.host}).`);
+      console.log(`  Close the app there first. If it is not running there, delete ${LOCK_FILE} and open the app again.\n`);
+      process.exit(1);
+    }
+    console.log(`\n  Free GST Billing is already running for these books${lock.held?.port ? ` at http://localhost:${lock.held.port}` : ''} (process ${lock.held?.pid}).`);
     console.log('  Not starting a second copy: two copies would overwrite each other\'s changes.\n');
     process.exit(0);
   }
-  process.on('exit', () => releaseLock(LOCK_FILE, process.pid));
+  process.on('exit', () => releaseLock(LOCK_FILE, LOCK_ID));
 }
 
 // Port choice — we deliberately default to a high, unusual number rather than
@@ -1335,8 +1345,12 @@ const updateHint = (latest) => ({
   docker: 'This copy runs in Docker. To update, put the new version in the image: line of docker-compose.yml and run: docker compose up -d. Your invoices stay in the /data volume.',
 }[INSTALL_KIND] || null);
 
+// v1.10.84 - also who is answering: the process and lock id (a second server
+// checks "is the lock's server really the one on that port?") and the books
+// folder (the Windows launcher opens a running server only if it serves ITS
+// books, not an old copy's on the same port).
 app.get('/api/version', (req, res) => {
-  res.json({ current: pkg.version });
+  res.json({ current: pkg.version, pid: process.pid, lockId: LOCK_ID, books: APP_HOME });
 });
 
 // v1.10.83 - the browser's Problem log copies each entry here, so errors.log
@@ -1616,39 +1630,65 @@ app.post('/api/control-panel/open-backups-folder', (req, res) => {
 // programs: the new Setup is downloaded from the GitHub release and run
 // silently. It stops this server, replaces the program files (home.txt and
 // the books are not among them) and starts the app again; the page waits for
-// the new version and reloads (runUpdateNow in src/store.js). The ZIP's
+// the new version and reloads (runUpdateNow in src/store.js). If the Setup
+// fails, it starts the version that was there again and the page says so,
+// with the Setup's log. The ZIP's
 // update-windows.ps1 is never used for an installed copy (it is not even
 // installed), and this is never used for a ZIP copy (no installed.txt).
-const SETUP_URL = 'https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe';
+// Follows redirects by hand so that every hop is https and on GitHub's
+// release hosts (src/utils/setupDownload.js), never anywhere else.
+async function fetchFromGitHub(url, timeoutMs) {
+  const signal = AbortSignal.timeout(timeoutMs);
+  for (let hop = 0; hop < 6; hop += 1) {
+    if (!allowedDownloadUrl(url)) throw new Error('The download was sent to a site that is not GitHub. Nothing was run.');
+    const res = await fetch(url, { redirect: 'manual', signal, headers: { 'User-Agent': 'FreeGSTBill-updater' } });
+    if (res.status < 300 || res.status >= 400) return res;
+    url = new URL(res.headers.get('location') || '', url).href;
+  }
+  throw new Error('Too many redirects.');
+}
+
 async function updateWithSetup() {
   // The Setup of the last update cannot delete itself: tidy those up first.
   for (const old of fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('fgsb-update-'))) {
     try { fs.rmSync(path.join(os.tmpdir(), old), { recursive: true, force: true }); } catch { /* in use */ }
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fgsb-update-'));
-  const exe = path.join(dir, 'Free-GST-Billing-Windows-Setup.exe');
+  const exe = path.join(dir, SETUP_NAME);
+  let checked = 'test mode (a local file)';
   if (INSTALL_TEST_ROOT) {
     // The Setup's test mode: the new Setup is a file in the test folder, so the
     // whole update can be tried without publishing a release.
-    fs.copyFileSync(path.join(INSTALL_TEST_ROOT, 'Free-GST-Billing-Windows-Setup.exe'), exe);
+    fs.copyFileSync(path.join(INSTALL_TEST_ROOT, SETUP_NAME), exe);
   } else {
-    let res;
+    let asset;
     try {
-      res = await fetch(SETUP_URL, { redirect: 'follow', signal: AbortSignal.timeout(15 * 60 * 1000), headers: { 'User-Agent': 'FreeGSTBill-updater' } });
+      const rel = await fetch('https://api.github.com/repos/IamRamgarhia/Free-GST-Billing-Software/releases/latest', {
+        signal: AbortSignal.timeout(20000), headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'FreeGSTBill-updater' },
+      });
+      asset = rel.ok ? setupAssetFrom(await rel.json()) : null;
     } catch {
-      throw new Error('The new version could not be downloaded. Check the internet connection and try again.');
+      throw new Error('GitHub could not be reached. Check the internet connection and try again.');
     }
-    if (res.status === 404) throw new Error('The new version\'s Setup is not on GitHub yet. Try again later, or download Free-GST-Billing-Windows-Setup.exe from the Releases page.');
-    if (!res.ok || !res.url.startsWith('https://')) throw new Error(`The download failed (${res.status}). Try again later.`);
+    if (!asset) throw new Error(`The new version's Setup is not on GitHub yet. Try again later, or download ${SETUP_NAME} from the Releases page.`);
+    let res;
+    try { res = await fetchFromGitHub(asset.url, 15 * 60 * 1000); } catch (e) {
+      throw new Error(e.message.startsWith('The download') ? e.message : 'The new version could not be downloaded. Check the internet connection and try again.');
+    }
+    if (!res.ok) throw new Error(`The download failed (${res.status}). Try again later.`);
     const buf = Buffer.from(await res.arrayBuffer());
-    // A Windows program starts with "MZ"; anything else (an error page) is not run.
-    if (buf.length < 5e6 || buf.toString('latin1', 0, 2) !== 'MZ') throw new Error('The downloaded Setup is incomplete. Try again.');
+    const check = checkSetupBytes(buf, asset);
+    if (!check.ok) throw new Error(`${check.problem} Nothing was run; try again later.`);
+    checked = check.checked;
     fs.writeFileSync(exe, buf);
   }
-  const args = ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/LOG=${path.join(dir, 'setup.log')}`];
+  const log = path.join(dir, 'setup.log');
+  fs.writeFileSync(path.join(dir, 'checked.txt'), `Checked before running: ${checked}\r\n`);
+  const args = ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/LOG=${log}`];
   if (INSTALL_TEST_ROOT) args.push(`/TESTROOT=${INSTALL_TEST_ROOT}`);
   // Detached: the Setup stops this server and must carry on without it.
   spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  return { log, checked };
 }
 
 app.post('/api/control-panel/launch-script', async (req, res) => {
@@ -1664,8 +1704,8 @@ app.post('/api/control-panel/launch-script', async (req, res) => {
   }
   if (action === 'update' && INSTALLED) {
     try {
-      await updateWithSetup();
-      res.json({ ok: true, installer: true, version: pkg.version, stdout: 'The new version is installing. The app restarts by itself in about a minute.' });
+      const { log, checked } = await updateWithSetup();
+      res.json({ ok: true, installer: true, version: pkg.version, log, checked, stdout: 'The new version is installing. The app restarts by itself in about a minute.' });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }
@@ -2319,7 +2359,11 @@ process.on('unhandledRejection', (err) => { console.error(`  Unexpected error (t
 const LISTEN_HOST = process.env.FGSB_ALLOW_UNSAFE_LAN === '1' ? '0.0.0.0' : '127.0.0.1';
 let activeServer = null;
 function startServer(port) {
-  const server = app.listen(port, LISTEN_HOST, () => {
+  // v1.10.84 - Express 5 calls this callback with the error too (a busy
+  // port): then it is not listening, and the 'error' handler below moves on
+  // to the next port. Before, the busy port was written to port.txt first.
+  const server = app.listen(port, LISTEN_HOST, (listenErr) => {
+    if (listenErr) return;
     activeServer = server;
     // Persist the chosen port — the .bat launcher reads this for the browser URL.
     // Writing on EVERY successful boot means: if our preferred 47371 was busy and
@@ -2327,7 +2371,7 @@ function startServer(port) {
     // scans in half on repeated reboots of whatever was holding 47371).
     try { fs.writeFileSync(PORT_FILE, String(port), 'utf-8'); } catch { /* ignore */ }
     // v1.10.84 - the lock now says where this server answers.
-    writeLock(LOCK_FILE, { pid: process.pid, port: server.address().port, at: Date.now() });
+    writeLock(LOCK_FILE, { pid: process.pid, port: server.address().port, at: Date.now(), host: LOCK_HOST, id: LOCK_ID });
     console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
   });

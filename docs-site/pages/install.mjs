@@ -79,7 +79,7 @@ ${which}
   <li><strong>Answer "Your books"</strong>Your books are your invoices, clients, products and settings. Setup asks where they should be kept:
     <ul>
       <li><b>First time on this computer:</b> leave <i>Start new books in Documents\\Free GST Billing</i> ticked.</li>
-      <li><b>You already use Free GST Billing (the ZIP or the one-line install):</b> Setup finds it and shows how many invoices it has. <i>Keep using my books where they are</i> uses them in their folder (do not delete that folder afterwards). <i>Copy my books to Documents\\Free GST Billing</i> makes a copy, checks every file, and leaves your old folder exactly as it was, as a backup. Either way nothing in your old folder is changed or deleted.</li>
+      <li><b>You already use Free GST Billing (the ZIP or the one-line install):</b> Setup finds it and shows how many invoices it has. If it finds more than one copy, it lists them all (the one you changed last first, with its invoices and date) and you pick the one you use. <i>Keep using my books where they are</i> uses them in their folder (do not delete that folder afterwards). <i>Copy my books to Documents\\Free GST Billing</i> makes a copy, checks every file, and leaves your old folder exactly as it was, as a backup. Either way nothing in your old folder is changed or deleted.</li>
       <li><b>Your books are somewhere else</b> (another drive, a copied folder): choose <i>browse</i> and pick the folder that has the <code>data</code> folder in it.</li>
     </ul></li>
   <li><strong>Choose the icons</strong>A Desktop icon is ticked. Tick <i>Open Free GST Billing when Windows starts</i> if you want it to open by itself.</li>

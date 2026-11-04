@@ -36,6 +36,11 @@ elseif (Test-Path -LiteralPath $homeTxt) {
   if ($h.Trim()) { $HomeDir = $h.Trim() }
 }
 $Installed = Test-Path -LiteralPath (Join-Path $SystemDir 'installed.txt')
+function Get-NormPath([string]$p) {
+  try { return ([IO.Path]::GetFullPath($p)).TrimEnd('\').ToLower() } catch { return $p.TrimEnd('\').ToLower() }
+}
+# A Setup copy never keeps books in its program folder (src/utils/appHome.js).
+$HomeMissing = $Installed -and (-not $env:FGSB_HOME) -and ((Get-NormPath $HomeDir) -eq (Get-NormPath $SystemDir))
 
 # v1.10.69 - the Windows launcher was renamed from "Free GST Billing.hta" to
 # "Free GST Billing - WINDOWS.hta". An update to this version is carried out
@@ -184,11 +189,19 @@ if (Test-Path $portFile) {
 [System.Net.WebRequest]::DefaultWebProxy = $null
 
 # Is our server already up on that port?
+# v1.10.84 - and is it OURS? A server answers /api/version with the books
+# folder it serves. A Setup copy opens only the server of its own books: after
+# "Copy my books", an old icon may have started the OLD copy's server, and
+# opening that would show the old books. A server too old to say (no "books")
+# is accepted only by the ZIP, where it is this copy's previous version.
 function TestServerUp {
   param([int]$p)
   try {
-    Invoke-WebRequest -Uri "http://127.0.0.1:$p/api/profile" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop | Out-Null
-    return $true
+    $r = Invoke-WebRequest -Uri "http://127.0.0.1:$p/api/version" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+    $v = $r.Content | ConvertFrom-Json
+    if (-not $v.current) { return $false }
+    if (-not $v.books) { return (-not $Installed) }
+    return ((Get-NormPath ([string]$v.books)) -eq (Get-NormPath $HomeDir))
   } catch { return $false }
 }
 
@@ -234,6 +247,11 @@ if (TestServerUp -p $port) {
 # v1.10.81 (#109) - only a Node.js new enough (see ensure-node.ps1): Node 6
 # on PATH was started here and never answered.
 # v1.10.84 - the books folder may be on a drive that is not connected.
+if ($HomeMissing) {
+  Write-Host "  home.txt in $SystemDir is missing or empty, so the app does not know where your books are." -ForegroundColor Yellow
+  Write-Host '  Run Free-GST-Billing-Windows-Setup.exe again to repair it. Your books are not changed.'
+  Exit-WithProblem
+}
 if (-not (Test-Path -LiteralPath $HomeDir)) {
   Write-Host "  The folder with your books is not there: $HomeDir" -ForegroundColor Yellow
   Write-Host '  If it is on a USB or network drive, connect it, then open the app again.'

@@ -25,7 +25,14 @@ export function resolveAppHome(appDir, env = process.env) {
       home = fs.readFileSync(path.join(appDir, HOME_FILE), 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/)[0].trim();
     } catch { home = ''; }
   }
-  if (!home) return appDir;
+  if (!home) {
+    // A copy installed by the Windows Setup never keeps books in its program
+    // folder: starting there would show an empty app as if the books were gone.
+    if (fs.existsSync(path.join(appDir, 'installed.txt'))) {
+      throw new Error(`${HOME_FILE} is missing or empty in ${appDir}, so the app does not know where your books are. Run Free-GST-Billing-Windows-Setup.exe again to repair it (your books are not changed).`);
+    }
+    return appDir;
+  }
   // The environment variable may be relative to the folder the app is started
   // in (the Linux launcher and the tests use that); home.txt, written by the
   // Windows Setup, must be a full path.

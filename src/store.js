@@ -606,14 +606,22 @@ export const runUpdateNow = async () => {
     // running. It stops this server, installs and starts the new version;
     // reload when the new version answers, so nobody has to.
     if (data.installer) {
+      // If the Setup fails it starts the old version again: the server goes
+      // away and comes back with the same version (a new process).
+      const first = await fetch('/api/version', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({}));
+      let wentAway = false;
       for (let i = 0; i < 120; i++) {
         await new Promise((r) => setTimeout(r, 3000));
         try {
           const v = await (await fetch('/api/version', { cache: 'no-store' })).json();
           if (v.current && v.current !== data.version) { window.location.reload(); return { ok: true }; }
-        } catch { /* stopped for the update: still installing */ }
+          if (v.pid && first.pid && v.pid !== first.pid) wentAway = true;
+          if (wentAway && i > 10) {
+            return { ok: false, error: `The update did not install; you still have version ${v.current} and your books are as they were. What happened is written in ${data.log}.` };
+          }
+        } catch { wentAway = true; /* stopped for the update: still installing */ }
       }
-      return { ok: false, error: 'The new version did not start within 6 minutes. Open Free GST Billing again from its icon.' };
+      return { ok: false, error: `The new version did not start within 6 minutes. Open Free GST Billing again from its icon. What happened is written in ${data.log}.` };
     }
     return { ok: true };
   } catch (e) {

@@ -156,7 +156,7 @@ copyFileSync(join(REPO_ROOT, 'src', 'utils', 'cashBook.js'), join(SYSTEM, 'src',
 // Supplier payments are checked on save (#123): purchasePayments.js imports
 // purchaseOrders.js, which imports ../utils.js only.
 // v1.10.84 - the books folder (home.txt) and the one-server-per-books lock.
-for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js']) {
+for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js']) {
   copyFileSync(join(REPO_ROOT, 'src', 'utils', f), join(SYSTEM, 'src', 'utils', f));
 }
 

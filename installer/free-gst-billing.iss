@@ -8,20 +8,27 @@
 ;
 ; What it does (docs/WINDOWS_SETUP.md has the long version):
 ;   - installs per user (no administrator) to
-;     %LOCALAPPDATA%\Programs\Free GST Billing, with its own node.exe;
-;   - asks where the books are: an earlier copy found on this PC is kept where
-;     it is or COPIED to Documents\Free GST Billing; or new books there;
+;     %LOCALAPPDATA%\Programs\Free GST Billing, with its own node.exe - or to
+;     "...\Free GST Billing App" when the one-line installer's copy already
+;     lives in the first folder (never into another program's folder);
+;   - asks where the books are: every earlier copy found on this PC is listed
+;     (last changed first) and the user picks one: keep it where it is, or
+;     COPY it to Documents\Free GST Billing; or new books there;
 ;   - the top rule: NOTHING inside an earlier installation is ever written,
-;     moved, renamed or deleted. "Move" copies and checks every file
-;     (SHA-256) first; old shortcuts are moved into a backup folder, never
-;     deleted; the old data is zipped into the NEW folder before anything;
-;   - an update (same AppId) stops the app, replaces the program files and
-;     keeps home.txt (the books folder) and the books;
+;     moved, renamed or deleted. Copy checks every file (SHA-256) first; old
+;     shortcuts are moved into a backup folder after a successful install,
+;     never deleted; the old data is zipped into the NEW folder first;
+;   - an update (same AppId) stops the app, puts the new program files in,
+;     only THEN removes old ones the new version does not have, and keeps
+;     home.txt (the books folder) and the books;
 ;   - the uninstaller removes the program and icons, and deletes books only
-;     after an explicit Yes.
+;     after an explicit Yes, and never in a folder that is not plainly a
+;     books folder.
 ;
 ; Command line (all optional):
 ;   /DATAMODE=keep|move|new|choose  the books question, for silent installs
+;   /OLDDIR=<folder>                keep/move: which earlier copy (needed when
+;                                   more than one is found)
 ;   /DATADIR=<folder>               choose: the books folder; move/new: where to
 ;   /NOSTART=1                      do not start the app at the end
 ;   /DELETEBOOKS=yes                uninstaller: also delete the books
@@ -58,6 +65,8 @@ UsePreviousLanguage=no
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+; Review M1: two Setups at once never run (one could undo the other's copy).
+SetupMutex=FreeGSTBillingSetup
 OutputDir={#OutputDir}
 OutputBaseFilename=Free-GST-Billing-Windows-Setup
 SetupIconFile={#StageDir}\app-icon.ico
@@ -85,13 +94,8 @@ Source: "{#NodeExe}"; DestDir: "{app}\node"; Flags: ignoreversion
 Source: "setup-helper.mjs"; Flags: dontcopy
 Source: "stop-app.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[InstallDelete]
-; Program files only: an update must not leave old ones behind. The books are
-; never in {app} (home.txt points elsewhere).
-Type: filesandordirs; Name: "{app}\dist"
-Type: filesandordirs; Name: "{app}\node_modules"
-Type: filesandordirs; Name: "{app}\src"
+; (No [InstallDelete]: old program files go only after the new ones are in -
+; see "prune" in CurStepChanged. A failed update leaves a working app.)
 
 [Icons]
 Name: "{code:IconDir|programs}\Free GST Billing"; Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\start-windows.ps1"" -AppWindow -Hidden"; WorkingDir: "{app}"; IconFilename: "{app}\app-icon.ico"; Comment: "Free GST Billing Software"; Flags: runminimized
@@ -115,18 +119,21 @@ Type: files; Name: "{app}\installed.txt"
 const
   TestPortDefault = '47461';
   LogName = 'Free GST Billing - install log.txt';
+  IconName = 'Free GST Billing.lnk';
 
 var
-  TestRoot, TestPort: String;
-  OldSys, OldHome: String;
-  OldInvoices, OldCount: Integer;
+  TestRoot, TestPort, AppDirValue: String;
+  CopySys, CopyHome, CopyInv, CopyChanged: TArrayOfString;
+  OldCount, OldIndex: Integer;
+  OldSys, OldHome, OldInvoices: String;
   OldHadStartup, IsUpgrade, StartupPreset, ToolsReady: Boolean;
+  StoppedOwnApp, InstallDone: Boolean;
   Mode, Home, SrcHome, SrcSys, LogDir: String;
   LogLines: TStringList;
-  DataPage: TInputOptionWizardPage;
+  WhichPage, DataPage: TInputOptionWizardPage;
   BrowsePage: TInputDirWizardPage;
   DeleteBooks: Boolean;
-  UHome: String;
+  UHome, UTestRoot: String;
 
 function SetEnvironmentVariable(lpName, lpValue: String): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -145,8 +152,7 @@ end;
 
 function GetAppDir(Param: String): String;
 begin
-  if IsTest then Result := TestRoot + '\Programs\Free GST Billing'
-  else Result := ExpandConstant('{localappdata}\Programs\Free GST Billing');
+  Result := AppDirValue;
 end;
 
 function IconDir(Param: String): String;
@@ -154,10 +160,12 @@ begin
   if IsTest then begin
     if Param = 'desktop' then Result := TestRoot + '\Desktop'
     else if Param = 'startup' then Result := TestRoot + '\Startup'
+    else if Param = 'taskbar' then Result := TestRoot + '\TaskBar'
     else Result := TestRoot + '\Programs';
   end else begin
     if Param = 'desktop' then Result := ExpandConstant('{userdesktop}')
     else if Param = 'startup' then Result := ExpandConstant('{userstartup}')
+    else if Param = 'taskbar' then Result := ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar')
     else Result := ExpandConstant('{userprograms}');
   end;
 end;
@@ -180,17 +188,14 @@ begin
     (Pos(Lowercase(AddBackslash(NoSlash(Parent))), Lowercase(AddBackslash(NoSlash(Child)))) = 1);
 end;
 
-{ A command-line argument in double quotes (an empty one stays an argument). }
+{ A command-line argument in double quotes, read back exactly by Windows
+  programs: a trailing backslash is doubled, or "E:\" would end in \" (an
+  escaped quote). Paths never contain a double quote. An empty one stays an
+  argument. (scripts/installer-test.mjs checks this rule.) }
 function Q(S: String): String;
 begin
+  if (Length(S) > 0) and (S[Length(S)] = '\') then S := S + '\';
   Result := '"' + S + '"';
-end;
-
-{ A PowerShell single-quoted string. }
-function PSQ(S: String): String;
-begin
-  StringChangeEx(S, '''', '''''', True);
-  Result := '''' + S + '''';
 end;
 
 procedure AddStr(var A: TArrayOfString; S: String);
@@ -223,14 +228,19 @@ begin
   LogLines.Clear;
 end;
 
+function StripBom(S: String): String;
+begin
+  Result := S;
+  if (Length(Result) > 0) and (Ord(Result[1]) = $FEFF) then Result := Copy(Result, 2, MaxInt);
+end;
+
 { First line of a UTF-8 text file (home.txt), or ''. }
 function ReadFirstLine(FileName: String): String;
 var
   A: TArrayOfString;
 begin
   Result := '';
-  if LoadStringsFromFile(FileName, A) and (GetArrayLength(A) > 0) then Result := Trim(A[0]);
-  if (Length(Result) > 0) and (Ord(Result[1]) = $FEFF) then Result := Trim(Copy(Result, 2, MaxInt));
+  if LoadStringsFromFile(FileName, A) and (GetArrayLength(A) > 0) then Result := Trim(StripBom(A[0]));
 end;
 
 function ValueOf(const A: TArrayOfString; Key: String): String;
@@ -240,13 +250,43 @@ var
 begin
   Result := '';
   for I := 0 to GetArrayLength(A) - 1 do begin
-    L := A[I];
-    if (Length(L) > 0) and (Ord(L[1]) = $FEFF) then L := Copy(L, 2, MaxInt);
+    L := StripBom(A[I]);
     if Pos(Key + '=', L) = 1 then begin
       Result := Copy(L, Length(Key) + 2, MaxInt);
       exit;
     end;
   end;
+end;
+
+{ Books worth the name: a business profile or invoices, clients or profiles
+  saved (the same rule as setup-helper.mjs hasBooks). }
+function HasJson(Dir: String): Boolean;
+var
+  F: TFindRec;
+begin
+  Result := FindFirst(AddBackslash(Dir) + '*.json', F);
+  if Result then FindClose(F);
+end;
+
+function HasBooks(Home_: String): Boolean;
+begin
+  Result := FileExists(AddBackslash(Home_) + 'data\profile.json') or HasJson(AddBackslash(Home_) + 'data\bills') or
+            HasJson(AddBackslash(Home_) + 'data\clients') or HasJson(AddBackslash(Home_) + 'data\profiles');
+end;
+
+{ Review H1: never install into a folder that is not ours. The one-line
+  installer (v1.10.83) put its ZIP copy in ...\Programs\Free GST Billing\_system,
+  so a Setup copy then goes to "...\Free GST Billing App". }
+procedure SettleAppDir;
+var
+  Base: String;
+begin
+  if IsTest then Base := TestRoot + '\Programs\Free GST Billing'
+  else Base := ExpandConstant('{localappdata}\Programs\Free GST Billing');
+  if FileExists(Base + '\installed.txt') then AppDirValue := Base
+  else if FileExists(Base + ' App\installed.txt') then AppDirValue := Base + ' App'
+  else if DirExists(Base) then AppDirValue := Base + ' App'
+  else AppDirValue := Base;
 end;
 
 { ---------------------------------------------------- helper programs }
@@ -281,7 +321,9 @@ begin
     if Pos('log=', Res[I]) > 0 then AddLog(Copy(Res[I], Pos('log=', Res[I]) + 4, MaxInt));
 end;
 
-{ Stops the server of one copy - by its own process id only (stop-app.ps1). }
+{ Stops the server of one copy - by its own process id only (stop-app.ps1).
+  -File with separate arguments (review M6): a folder name is never parsed as
+  PowerShell code, whatever quotes it has. }
 procedure RunStop(Sys, Books: String);
 var
   Code: Integer;
@@ -291,10 +333,9 @@ begin
   EnsureTools;
   OutFile := ExpandConstant('{tmp}\stop-out.txt');
   DeleteFile(OutFile);
-  Args := '-NoProfile -ExecutionPolicy Bypass -Command "& ' + PSQ(ExpandConstant('{tmp}\stop-app.ps1')) + ' -Sys ' + PSQ(Sys);
-  if Books <> '' then Args := Args + ' -Books ' + PSQ(Books);
+  Args := '-NoProfile -ExecutionPolicy Bypass -File ' + Q(ExpandConstant('{tmp}\stop-app.ps1')) + ' -Sys ' + Q(Sys) + ' -Out ' + Q(OutFile);
+  if Books <> '' then Args := Args + ' -Books ' + Q(Books);
   if IsTest then Args := Args + ' -Test';
-  Args := Args + ' | Out-File -Encoding UTF8 -LiteralPath ' + PSQ(OutFile) + '"';
   Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Args, '', SW_HIDE, ewWaitUntilTerminated, Code);
   if LoadStringsFromFile(OutFile, A) and (GetArrayLength(A) > 0) then
     AddLog('Stopping the app of ' + Sys + ': ' + ValueOf(A, 'stopped'))
@@ -302,11 +343,23 @@ begin
     AddLog('Stopping the app of ' + Sys + ': no answer (code ' + IntToStr(Code) + ')');
 end;
 
+procedure StartApp(Args: String);
+var
+  Code: Integer;
+begin
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ' + Q(GetAppDir('') + '\start-windows.ps1') + ' ' + Args,
+    GetAppDir(''), SW_HIDE, ewNoWait, Code);
+end;
+
 { ---------------------------------------------------- shortcuts }
 
+{ What a shortcut opens. Read through Shell.Application, which is Unicode:
+  WScript.Shell converts paths to the ANSI code page, so a shortcut under a
+  user name or folder with Hindi letters could not be read at all. }
 function LnkText(Lnk: String; var FirstPath, Target, WorkDir: String): String;
 var
-  Shell, S: Variant;
+  Shell, Folder, Item, S: Variant;
   Args, Rest: String;
   P: Integer;
 begin
@@ -315,9 +368,11 @@ begin
   Target := '';
   WorkDir := '';
   try
-    Shell := CreateOleObject('WScript.Shell');
-    S := Shell.CreateShortcut(Lnk);
-    Target := S.TargetPath;
+    Shell := CreateOleObject('Shell.Application');
+    Folder := Shell.NameSpace(ExtractFileDir(Lnk));
+    Item := Folder.ParseName(ExtractFileName(Lnk));
+    S := Item.GetLink;
+    Target := S.Path;
     Args := S.Arguments;
     WorkDir := S.WorkingDirectory;
   except
@@ -332,27 +387,40 @@ begin
   Result := Lowercase(Target + '|' + Args + '|' + WorkDir);
 end;
 
-{ Does this shortcut open the earlier copy? }
-function OpensOld(Text: String): Boolean;
+{ Does this shortcut open the copy whose server.js is in Sys? }
+function OpensCopy(Text, Sys: String): Boolean;
 var
   Root: String;
 begin
   Result := False;
-  if OldSys = '' then exit;
-  Root := OldSys;
-  if Lowercase(ExtractFileName(OldSys)) = '_system' then Root := ExtractFileDir(OldSys);
-  Result := (Pos(Lowercase(AddBackslash(OldSys)), Text) > 0) or
+  if Sys = '' then exit;
+  Root := Sys;
+  if Lowercase(ExtractFileName(Sys)) = '_system' then Root := ExtractFileDir(Sys);
+  Result := (Pos(Lowercase(AddBackslash(Sys)), Text) > 0) or
             (Pos(Lowercase(AddBackslash(Root)) + 'free gst billing', Text) > 0);
 end;
 
-procedure AddCandidatesFrom(Dir: String; var C: TArrayOfString);
+function IsOurs(Text: String): Boolean;
+begin
+  Result := Pos(Lowercase(AddBackslash(GetAppDir(''))), Text) > 0;
+end;
+
+{ Candidates for "an earlier copy": what shortcuts open (Start-menu
+  subfolders and taskbar pins too). }
+procedure AddCandidatesFrom(Dir: String; var C: TArrayOfString; Recurse: Boolean);
 var
   F: TFindRec;
   Text, FirstPath, Target, WorkDir: String;
 begin
-  if FindFirst(AddBackslash(Dir) + '*.lnk', F) then
+  if FindFirst(AddBackslash(Dir) + '*', F) then
   try
     repeat
+      if (F.Name = '.') or (F.Name = '..') then continue;
+      if (F.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then begin
+        if Recurse then AddCandidatesFrom(AddBackslash(Dir) + F.Name, C, True);
+        continue;
+      end;
+      if Lowercase(ExtractFileExt(F.Name)) <> '.lnk' then continue;
       Text := LnkText(AddBackslash(Dir) + F.Name, FirstPath, Target, WorkDir);
       if (Pos('gst', Lowercase(F.Name)) > 0) or (Pos('gst', Text) > 0) or (Pos('start-windows', Text) > 0) or (Pos('server.js', Text) > 0) then begin
         if FirstPath <> '' then AddStr(C, FirstPath);
@@ -379,7 +447,7 @@ begin
   end;
 end;
 
-function StartupOpensOld: Boolean;
+function StartupOpens(Sys: String): Boolean;
 var
   F: TFindRec;
   Dir, FirstPath, Target, WorkDir: String;
@@ -389,58 +457,93 @@ begin
   if FindFirst(AddBackslash(Dir) + '*.lnk', F) then
   try
     repeat
-      if OpensOld(LnkText(AddBackslash(Dir) + F.Name, FirstPath, Target, WorkDir)) then Result := True;
+      if OpensCopy(LnkText(AddBackslash(Dir) + F.Name, FirstPath, Target, WorkDir), Sys) then Result := True;
     until Result or not FindNext(F);
   finally
     FindClose(F);
   end;
 end;
 
-{ Old shortcuts are never deleted: each one that opens the earlier copy, or
-  that our new icon would overwrite, is MOVED into
-  "<log folder>\Old shortcuts (backup)" - put it back to undo. }
-procedure BackUpShortcutsIn(Dir, Label_: String);
+{ Into "<log folder>\Old shortcuts (backup)": copied (CopyOnly) or moved.
+  Never deleted - put one back to undo. }
+procedure BackUpLnk(Lnk, Label_: String; CopyOnly: Boolean);
 var
-  F: TFindRec;
-  Lnk, Text, FirstPath, Target, WorkDir, BackupDir, Dest: String;
+  BackupDir, Dest: String;
   N: Integer;
 begin
-  if FindFirst(AddBackslash(Dir) + '*.lnk', F) then
+  BackupDir := AddBackslash(LogDir) + 'Old shortcuts (backup)';
+  ForceDirectories(BackupDir);
+  Dest := AddBackslash(BackupDir) + Label_ + ' - ' + ExtractFileName(Lnk);
+  N := 2;
+  while FileExists(Dest) do begin
+    Dest := AddBackslash(BackupDir) + Label_ + ' - ' + IntToStr(N) + ' - ' + ExtractFileName(Lnk);
+    N := N + 1;
+  end;
+  if not FileCopy(Lnk, Dest, True) then AddLog('Could not back up the shortcut ' + Lnk)
+  else if CopyOnly then AddLog('Copied the shortcut ' + Lnk + ' to ' + Dest + ' (Setup''s new icon has the same name)')
+  else if DeleteFile(Lnk) then AddLog('Moved the old shortcut ' + Lnk + ' to ' + Dest)
+  else AddLog('Copied the old shortcut ' + Lnk + ' to ' + Dest + ', but could not take it away');
+end;
+
+{ After a successful install (review M2): every shortcut that opens the
+  earlier copy, here and in subfolders, is moved to the backup folder. }
+procedure MoveOldShortcutsIn(Dir, Label_: String; Recurse: Boolean);
+var
+  F: TFindRec;
+  Lnk, Text, FirstPath, Target, WorkDir: String;
+begin
+  if SrcSys = '' then exit;
+  if FindFirst(AddBackslash(Dir) + '*', F) then
   try
     repeat
+      if (F.Name = '.') or (F.Name = '..') then continue;
+      if (F.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then begin
+        if Recurse then MoveOldShortcutsIn(AddBackslash(Dir) + F.Name, Label_ + ' - ' + F.Name, True);
+        continue;
+      end;
+      if Lowercase(ExtractFileExt(F.Name)) <> '.lnk' then continue;
       Lnk := AddBackslash(Dir) + F.Name;
       Text := LnkText(Lnk, FirstPath, Target, WorkDir);
-      if (Pos(Lowercase(AddBackslash(GetAppDir(''))), Text) = 0) and
-         (OpensOld(Text) or (Lowercase(F.Name) = 'free gst billing.lnk')) then begin
-        BackupDir := AddBackslash(LogDir) + 'Old shortcuts (backup)';
-        ForceDirectories(BackupDir);
-        Dest := AddBackslash(BackupDir) + Label_ + ' - ' + F.Name;
-        N := 2;
-        while FileExists(Dest) do begin
-          Dest := AddBackslash(BackupDir) + Label_ + ' - ' + IntToStr(N) + ' - ' + F.Name;
-          N := N + 1;
-        end;
-        if FileCopy(Lnk, Dest, True) and DeleteFile(Lnk) then
-          AddLog('Moved the old shortcut ' + Lnk + ' to ' + Dest)
-        else
-          AddLog('Could not move the old shortcut ' + Lnk);
-      end;
+      if not IsOurs(Text) and OpensCopy(Text, SrcSys) then BackUpLnk(Lnk, Label_, False);
     until not FindNext(F);
   finally
     FindClose(F);
   end;
 end;
 
+{ Just before the icons are made: a shortcut with the new icon's name that is
+  not ours would be overwritten - a COPY of it goes to the backup folder. }
+procedure CopyIconToBeReplaced(Dir, Label_: String);
+var
+  Lnk, Text, FirstPath, Target, WorkDir: String;
+begin
+  Lnk := AddBackslash(Dir) + IconName;
+  if not FileExists(Lnk) then exit;
+  Text := LnkText(Lnk, FirstPath, Target, WorkDir);
+  if not IsOurs(Text) then BackUpLnk(Lnk, Label_, True);
+end;
+
 { ---------------------------------------------------- finding earlier copies }
 
-procedure FindOldInstall;
+procedure SelectOld(I: Integer);
+begin
+  OldIndex := I;
+  OldSys := CopySys[I];
+  OldHome := CopyHome[I];
+  OldInvoices := CopyInv[I];
+  OldHadStartup := StartupOpens(OldSys);
+end;
+
+procedure FindOldInstalls;
 var
   C, Res: TArrayOfString;
   ListFile: String;
+  I: Integer;
 begin
-  AddCandidatesFrom(IconDir('desktop'), C);
-  AddCandidatesFrom(IconDir('programs'), C);
-  AddCandidatesFrom(IconDir('startup'), C);
+  AddCandidatesFrom(IconDir('desktop'), C, False);
+  AddCandidatesFrom(IconDir('programs'), C, True);
+  AddCandidatesFrom(IconDir('startup'), C, False);
+  AddCandidatesFrom(IconDir('taskbar'), C, False);
   AddStr(C, DocsHome);
   if IsTest then begin
     AddStr(C, TestRoot + '\Programs\Free GST Billing');
@@ -449,34 +552,53 @@ begin
     AddGstFolders(TestRoot + '\Documents', C);
   end else begin
     AddStr(C, ExpandConstant('{localappdata}\Programs\Free GST Billing'));
-    AddGstFolders(ExpandConstant('{userprofile}\Downloads'), C);
+    AddGstFolders(ExpandConstant('{%USERPROFILE}\Downloads'), C);
     AddGstFolders(ExpandConstant('{userdesktop}'), C);
     AddGstFolders(ExpandConstant('{userdocs}'), C);
   end;
   ListFile := ExpandConstant('{tmp}\candidates.txt');
   SaveStringsToUTF8File(ListFile, C, False);
+  OldCount := 0;
+  OldIndex := -1;
   if RunHelper('detect ' + Q(ListFile) + ' ' + Q(GetAppDir('')) + ' ' + Q(TestRoot), Res) then begin
     OldCount := StrToIntDef(ValueOf(Res, 'count'), 0);
-    if OldCount > 0 then begin
-      OldSys := ValueOf(Res, 'sys');
-      OldHome := ValueOf(Res, 'home');
-      OldInvoices := StrToIntDef(ValueOf(Res, 'invoices'), 0);
-      OldHadStartup := StartupOpensOld;
+    for I := 1 to OldCount do begin
+      AddStr(CopySys, ValueOf(Res, IntToStr(I) + '.sys'));
+      AddStr(CopyHome, ValueOf(Res, IntToStr(I) + '.home'));
+      AddStr(CopyInv, ValueOf(Res, IntToStr(I) + '.invoices'));
+      AddStr(CopyChanged, ValueOf(Res, IntToStr(I) + '.changed'));
     end;
+    if OldCount > 0 then SelectOld(0);
   end else
     AddLog('Looking for an earlier copy failed: ' + ValueOf(Res, 'error'));
-  if OldHome = '' then AddLog('No earlier copy with books was found.');
+  if OldCount = 0 then AddLog('No earlier copy with books was found.');
 end;
 
-{ A folder the user named as "my books": the folder itself when it has a data
-  folder, or its _system folder (the ZIP layout). '' when neither. }
+{ /OLDDIR=<folder>: which listed copy (its books folder, its _system folder or
+  the folder above that). -1 when none. }
+function MatchOld(Dir: String): Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+  Dir := NoSlash(Dir);
+  for I := 0 to OldCount - 1 do
+    if SameText(Dir, CopyHome[I]) or SameText(Dir, CopySys[I]) or
+       ((CopySys[I] <> '') and (Lowercase(ExtractFileName(CopySys[I])) = '_system') and SameText(Dir, ExtractFileDir(CopySys[I]))) then begin
+      Result := I;
+      exit;
+    end;
+end;
+
+{ A folder the user named as "my books": the folder itself, or its _system
+  folder (the ZIP layout) - only if it really holds books (review H3). }
 function BooksFolder(Dir: String): String;
 begin
   Result := '';
   Dir := NoSlash(Dir);
   if Dir = '' then exit;
-  if DirExists(Dir + '\data') then Result := Dir
-  else if DirExists(Dir + '\_system\data') then Result := Dir + '\_system';
+  if HasBooks(Dir) then Result := Dir
+  else if HasBooks(Dir + '\_system') then Result := Dir + '\_system';
 end;
 
 { ---------------------------------------------------- the books choice }
@@ -512,7 +634,7 @@ begin
     if WizardSilent then SrcHome := BooksFolder(ExpandConstant('{param:DATADIR|}'))
     else SrcHome := BooksFolder(BrowsePage.Values[0]);
     if SrcHome = '' then begin
-      Result := 'That folder has no "data" folder with books in it. Choose the folder that holds "data" (for the ZIP version: the "_system" folder inside the app folder).';
+      Result := 'No books were found in that folder (no business profile, invoices or clients in its "data" folder). Choose the folder that holds "data" (for the ZIP version: the "_system" folder inside the app folder).';
       exit;
     end;
     if FileExists(SrcHome + '\server.js') then SrcSys := SrcHome;
@@ -542,6 +664,35 @@ begin
   end;
 end;
 
+{ Silent installs never guess (review H4). }
+function SilentChoice: String;
+var
+  I: Integer;
+  OldDir, List: String;
+begin
+  Result := '';
+  Mode := Lowercase(ExpandConstant('{param:DATAMODE|}'));
+  OldDir := ExpandConstant('{param:OLDDIR|}');
+  if OldDir <> '' then begin
+    I := MatchOld(OldDir);
+    if I < 0 then begin
+      Result := '/OLDDIR=' + OldDir + ' is not one of the earlier copies found.';
+      exit;
+    end;
+    SelectOld(I);
+  end;
+  if (OldCount > 1) and ((Mode = '') or (((Mode = 'keep') or (Mode = 'move')) and (OldDir = ''))) then begin
+    List := '';
+    for I := 0 to OldCount - 1 do List := List + #13#10 + '  ' + CopyHome[I] + ' (' + CopyInv[I] + ' invoices, last changed ' + CopyChanged[I] + ')';
+    Result := 'Free GST Billing was found more than once:' + List + #13#10 +
+      'Run Setup without /SILENT to choose, or give /DATAMODE=keep or move with /OLDDIR=<one of these folders>. Nothing was changed.';
+    exit;
+  end;
+  if Mode = '' then begin
+    if OldCount > 0 then Mode := 'keep' else Mode := 'new';
+  end;
+end;
+
 { ---------------------------------------------------- Setup events }
 
 function InitializeSetup: Boolean;
@@ -567,37 +718,54 @@ begin
     { start-windows.ps1 then opens no window and waits for nobody. }
     SetEnvironmentVariable('FREEGSTBILL_TEST', '1');
   end;
-  IsUpgrade := FileExists(GetAppDir('') + '\installed.txt') and FileExists(GetAppDir('') + '\home.txt');
+  SettleAppDir;
+  IsUpgrade := FileExists(GetAppDir('') + '\installed.txt') and (ReadFirstLine(GetAppDir('') + '\home.txt') <> '');
   if IsTest then AddLog('Free GST Billing Setup {#AppVersion} - TEST MODE in ' + TestRoot)
   else AddLog('Free GST Billing Setup {#AppVersion}');
+  AddLog('Program folder: ' + GetAppDir(''));
   if IsUpgrade then begin
     Home := ReadFirstLine(GetAppDir('') + '\home.txt');
-    { Never write into an earlier copy's own folder ("Keep" points at one). }
-    LogDir := Home;
-    if FileExists(AddBackslash(Home) + 'server.js') then LogDir := DocsHome + ' Setup';
+    { Review M3: never create a missing books folder, never write into an
+      earlier copy's own folder ("Keep" points at one). }
+    if not DirExists(Home) then LogDir := GetAppDir('')
+    else if FileExists(AddBackslash(Home) + 'server.js') then LogDir := DocsHome + ' Setup'
+    else LogDir := Home;
     AddLog('Updating the copy in ' + GetAppDir('') + '; books stay in ' + Home);
   end else
-    FindOldInstall;
+    FindOldInstalls;
+end;
+
+function DataIntro: String;
+begin
+  Result := 'Free GST Billing is already on this computer. Its books (' + OldInvoices + ' invoices) are in:' + #13#10 + OldHome + #13#10#13#10 +
+    'Setup never changes or deletes anything in that folder. What should the new app use?';
 end;
 
 procedure InitializeWizard;
 var
-  Intro: String;
+  I: Integer;
+  After: Integer;
 begin
   if IsUpgrade then exit;
-  if OldHome <> '' then begin
-    Intro := 'Free GST Billing is already on this computer. Its books (' + IntToStr(OldInvoices) + ' invoices) are in:' + #13#10 + OldHome + #13#10#13#10 +
-      'Setup never changes or deletes anything in that folder. What should the new app use?';
-    DataPage := CreateInputOptionPage(wpWelcome, 'Your books', 'Where your invoices, clients and settings are kept', Intro, True, False);
+  After := wpWelcome;
+  if OldCount > 1 then begin
+    WhichPage := CreateInputOptionPage(wpWelcome, 'Your books', 'Free GST Billing was found more than once',
+      'Which books do you use now? The one changed last is first. Nothing in any of these folders is changed.', True, False);
+    for I := 0 to OldCount - 1 do
+      WhichPage.Add(CopyHome[I] + '  -  ' + CopyInv[I] + ' invoices, last changed ' + CopyChanged[I]);
+    WhichPage.SelectedValueIndex := 0;
+    After := WhichPage.ID;
+  end;
+  if OldCount > 0 then begin
+    DataPage := CreateInputOptionPage(After, 'Your books', 'Where your invoices, clients and settings are kept', DataIntro, True, False);
     DataPage.Add('Keep using my books where they are (do not delete or move that folder afterwards)');
     DataPage.Add('Copy my books to ' + DocsHome + ' (the old folder stays as it is, as a backup)');
     DataPage.Add('Use books in another folder (browse)');
     DataPage.SelectedValueIndex := 0;
-    if IsInside(DocsHome, OldHome) or IsInside(OldHome, DocsHome) then DataPage.CheckListBox.ItemEnabled[1] := False;
   end else begin
-    Intro := 'Your invoices, clients and settings will be kept in:' + #13#10 + DocsHome + #13#10#13#10 +
-      'If you already use Free GST Billing on this computer, choose the folder that holds its books instead.';
-    DataPage := CreateInputOptionPage(wpWelcome, 'Your books', 'Where your invoices, clients and settings are kept', Intro, True, False);
+    DataPage := CreateInputOptionPage(After, 'Your books', 'Where your invoices, clients and settings are kept',
+      'Your invoices, clients and settings will be kept in:' + #13#10 + DocsHome + #13#10#13#10 +
+      'If you already use Free GST Billing on this computer, choose the folder that holds its books instead.', True, False);
     DataPage.Add('Start new books in ' + DocsHome);
     DataPage.Add('I already have my books in another folder (browse)');
     DataPage.SelectedValueIndex := 0;
@@ -610,7 +778,7 @@ end;
 
 function InteractiveMode: String;
 begin
-  if OldHome <> '' then begin
+  if OldCount > 0 then begin
     case DataPage.SelectedValueIndex of
       0: Result := 'keep';
       1: Result := 'move';
@@ -634,6 +802,10 @@ var
 begin
   Result := True;
   if IsUpgrade or WizardSilent then exit;
+  if (WhichPage <> nil) and (CurPageID = WhichPage.ID) then begin
+    SelectOld(WhichPage.SelectedValueIndex);
+    DataPage.SubCaptionLabel.Caption := DataIntro;
+  end;
   if ((CurPageID = DataPage.ID) and (InteractiveMode <> 'choose')) or (CurPageID = BrowsePage.ID) then begin
     Mode := InteractiveMode;
     Problem := SettleChoice;
@@ -646,6 +818,8 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  if (DataPage <> nil) and (CurPageID = DataPage.ID) and (OldCount > 0) then
+    DataPage.CheckListBox.ItemEnabled[1] := not (IsInside(DocsHome, OldHome) or IsInside(OldHome, DocsHome));
   { An earlier copy that opened by itself at start-up: tick the same here, once. }
   if (CurPageID = wpSelectTasks) and not IsUpgrade and OldHadStartup and not StartupPreset and (InteractiveMode <> 'new') then begin
     WizardSelectTasks('startup');
@@ -668,60 +842,73 @@ begin
   Result := 'Your books:' + NewLine + Space + What + NewLine + NewLine + MemoDirInfo + NewLine + NewLine + MemoTasksInfo;
 end;
 
+function Stop_(Why: String): String;
+begin
+  Result := Why;
+  AddLog('STOPPED: ' + Why);
+  SaveLog;
+end;
+
 { Everything that touches an earlier copy happens here, before any file is
-  installed. Any failure stops Setup with nothing switched over. }
+  installed, in this order: every check first; then stop the old server (by
+  its own id) and make sure it no longer answers; then the backup ZIP (into the
+  NEW folder); then the copy, checked file by file. Any failure stops Setup
+  with nothing switched over. Shortcuts wait until the install succeeded. }
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Res: TArrayOfString;
+  CopyPort: String;
 begin
   Result := '';
-  { An update or repair: stop this copy's own server so its files can be replaced. }
-  if FileExists(GetAppDir('') + '\server.js') then RunStop(GetAppDir(''), Home);
-  if IsUpgrade then exit;
+  if IsUpgrade then begin
+    { An update: stop this copy's own server so its files can be replaced. }
+    RunStop(GetAppDir(''), Home);
+    StoppedOwnApp := True;
+    exit;
+  end;
 
   if WizardSilent then begin
-    Mode := Lowercase(ExpandConstant('{param:DATAMODE|}'));
-    if Mode = '' then begin
-      if OldHome <> '' then Mode := 'keep' else Mode := 'new';
-    end;
-    Result := SettleChoice;
+    Result := SilentChoice;
+    if Result = '' then Result := SettleChoice;
   end else if Mode = '' then begin
     Mode := InteractiveMode;
     Result := SettleChoice;
   end;
   SettleLogDir;
+  if LogDir = '' then LogDir := DocsHome + ' Setup';
   AddLog('Choice: ' + Mode + '; books folder: ' + Home);
   if Result <> '' then begin
-    AddLog('STOPPED: ' + Result);
-    SaveLog;
+    Result := Stop_(Result);
+    exit;
+  end;
+  if (Mode = 'move') and not RunHelper('check-copy ' + Q(SrcHome) + ' ' + Q(Home), Res) then begin
+    Result := Stop_('The books cannot be copied there: ' + ValueOf(Res, 'error'));
     exit;
   end;
 
   if SrcHome <> '' then begin
-    { 1. The earlier copy's server, by its own process id only. }
+    { 1. The earlier copy's server, by its own process id only - and checked. }
     if SrcSys <> '' then RunStop(SrcSys, SrcHome) else RunStop(SrcHome, SrcHome);
-    { 2. A fresh backup ZIP of its data, into the NEW folder. }
-    if not RunHelper('backup ' + Q(SrcHome) + ' ' + Q(AddBackslash(LogDir) + 'Setup backups'), Res) then begin
-      Result := 'The backup before installing could not be made: ' + ValueOf(Res, 'error') + #13#10 + 'Nothing was changed.';
-      AddLog('STOPPED: ' + Result);
-      SaveLog;
+    if not RunHelper('stopped ' + Q(SrcHome), Res) then begin
+      Result := Stop_(ValueOf(Res, 'error'));
       exit;
     end;
-    { 3. Move = copy, then check every file, before switching. }
+    { 2. A fresh backup ZIP of its data, into the NEW folder. }
+    if not RunHelper('backup ' + Q(SrcHome) + ' ' + Q(AddBackslash(LogDir) + 'Setup backups'), Res) then begin
+      Result := Stop_('The backup before installing could not be made: ' + ValueOf(Res, 'error') + #13#10 + 'Nothing was changed.');
+      exit;
+    end;
+    { 3. Move = copy, then check every file, before switching. The copy gets
+      a port of its own (review H2). }
     if Mode = 'move' then begin
-      if not RunHelper('copy ' + Q(SrcHome) + ' ' + Q(Home), Res) then begin
-        Result := 'Your books could not be copied: ' + ValueOf(Res, 'error') + #13#10 +
-          'Nothing was switched over; your books are still in ' + SrcHome + ' and work as before.';
-        AddLog('STOPPED: ' + Result);
-        SaveLog;
+      if IsTest then CopyPort := TestPort else CopyPort := '47371';
+      if not RunHelper('copy ' + Q(SrcHome) + ' ' + Q(Home) + ' ' + CopyPort, Res) then begin
+        Result := Stop_('Your books could not be copied: ' + ValueOf(Res, 'error') + #13#10 +
+          'Nothing was switched over; your books are still in ' + SrcHome + ' and work as before.');
         exit;
       end;
     end;
   end;
-  { 4. Old shortcuts into the backup folder (never deleted). }
-  BackUpShortcutsIn(IconDir('desktop'), 'Desktop');
-  BackUpShortcutsIn(IconDir('programs'), 'Start menu');
-  BackUpShortcutsIn(IconDir('startup'), 'Startup');
   if WizardSilent and OldHadStartup and (Mode <> 'new') then WizardSelectTasks('startup');
   if Mode = 'new' then begin
     ForceDirectories(Home);
@@ -734,8 +921,14 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  A: TArrayOfString;
+  A, Res: TArrayOfString;
 begin
+  if (CurStep = ssInstall) and not IsUpgrade then begin
+    { Just before the icons are made: copies of same-named old ones. }
+    CopyIconToBeReplaced(IconDir('programs'), 'Start menu');
+    if WizardIsTaskSelected('desktopicon') then CopyIconToBeReplaced(IconDir('desktop'), 'Desktop');
+    if WizardIsTaskSelected('startup') then CopyIconToBeReplaced(IconDir('startup'), 'Startup');
+  end;
   if CurStep <> ssPostInstall then exit;
   if not IsUpgrade then begin
     AddStr(A, Home);
@@ -745,6 +938,17 @@ begin
   AddStr(A, 'Installed by Free GST Billing Setup {#AppVersion}. Updates come as a new Setup (Update now in the app).');
   if IsTest then AddStr(A, 'testroot=' + TestRoot);
   SaveStringsToUTF8File(ExpandConstant('{app}\installed.txt'), A, False);
+  { Review M5: the old version's leftovers go only now, with every new file in place. }
+  if IsUpgrade and FileExists(ExpandConstant('{app}\installed-files.txt')) then
+    RunHelper('prune ' + Q(ExpandConstant('{app}')) + ' ' + Q(ExpandConstant('{app}\installed-files.txt')), Res);
+  { Review M2: the earlier copy's shortcuts move only after a successful install. }
+  if not IsUpgrade then begin
+    MoveOldShortcutsIn(IconDir('desktop'), 'Desktop', False);
+    MoveOldShortcutsIn(IconDir('programs'), 'Start menu', True);
+    MoveOldShortcutsIn(IconDir('startup'), 'Startup', False);
+    MoveOldShortcutsIn(IconDir('taskbar'), 'Taskbar', False);
+  end;
+  InstallDone := True;
   AddLog('Installed version {#AppVersion} in ' + ExpandConstant('{app}') + '; books folder: ' + Home);
   SaveLog;
 end;
@@ -759,28 +963,64 @@ begin
   Result := WizardSilent and MayStart;
 end;
 
+procedure DeinitializeSetup;
+begin
+  { Review M5: an update that stopped the app but did not finish starts the
+    version that is there again, so nobody is left without the app. }
+  if IsUpgrade and StoppedOwnApp and not InstallDone then begin
+    AddLog('The update did not finish. The app that was installed is started again; your books were not changed.');
+    StartApp('-NoWindow -Hidden');
+  end;
+  SaveLog;
+end;
+
 { ---------------------------------------------------- uninstall }
+
+{ Review H3: a folder that must never be emptied, whatever home.txt says. }
+function IsProtected(Dir: String): Boolean;
+var
+  D: String;
+begin
+  D := NoSlash(Dir);
+  Result := (Length(D) <= 3) or
+    SameText(D, NoSlash(ExpandConstant('{userdocs}'))) or SameText(D, NoSlash(ExpandConstant('{%USERPROFILE}'))) or
+    SameText(D, NoSlash(ExpandConstant('{userdesktop}'))) or SameText(D, NoSlash(ExpandConstant('{localappdata}'))) or
+    SameText(D, NoSlash(ExpandConstant('{userappdata}'))) or SameText(D, NoSlash(ExpandConstant('{app}'))) or
+    ((UTestRoot <> '') and (SameText(D, UTestRoot) or SameText(D, UTestRoot + '\Documents') or SameText(D, UTestRoot + '\Desktop')));
+end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  Answer: Boolean;
+  A: TArrayOfString;
+  I: Integer;
+  Why: String;
 begin
   if CurUninstallStep = usUninstall then begin
     UHome := ReadFirstLine(ExpandConstant('{app}\home.txt'));
+    UTestRoot := '';
+    if LoadStringsFromFile(ExpandConstant('{app}\installed.txt'), A) then
+      for I := 0 to GetArrayLength(A) - 1 do
+        if Pos('testroot=', StripBom(A[I])) = 1 then UTestRoot := NoSlash(Copy(StripBom(A[I]), 10, MaxInt));
     DeleteBooks := False;
     if (UHome = '') or not DirExists(UHome) then exit;
-    if FileExists(AddBackslash(UHome) + 'server.js') then begin
-      { The books are in an earlier copy's own folder ("Keep"): never touched. }
-      if not UninstallSilent then
-        MsgBox('Your books stay where they are, in the folder of your earlier copy:' + #13#10 + UHome, mbInformation, MB_OK);
-      exit;
-    end;
     if UninstallSilent then
-      Answer := Lowercase(ExpandConstant('{param:DELETEBOOKS|no}')) = 'yes'
-    else
-      Answer := MsgBox('Also delete your books (invoices, clients, settings and saved PDFs)?' + #13#10#13#10 + UHome + #13#10#13#10 +
+      DeleteBooks := Lowercase(ExpandConstant('{param:DELETEBOOKS|no}')) = 'yes'
+    else if not FileExists(AddBackslash(UHome) + 'server.js') then
+      DeleteBooks := MsgBox('Also delete your books (invoices, clients, settings and saved PDFs)?' + #13#10#13#10 + UHome + #13#10#13#10 +
         'Choose No to keep them (recommended): installing Free GST Billing again finds them.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
-    DeleteBooks := Answer;
+    { Even after a Yes, only a folder that plainly holds books, and only its
+      data, Saved Invoices and Trash. }
+    Why := '';
+    if FileExists(AddBackslash(UHome) + 'server.js') then Why := 'it is the folder of your earlier copy of the app'
+    else if IsProtected(UHome) then Why := 'it is not a folder of its own (Documents, Desktop, a drive or a system folder)'
+    else if not (FileExists(AddBackslash(UHome) + 'data\profile.json') or DirExists(AddBackslash(UHome) + 'data\bills')) then Why := 'it does not look like a books folder';
+    if Why <> '' then begin
+      if DeleteBooks or (not UninstallSilent and FileExists(AddBackslash(UHome) + 'server.js')) then begin
+        Log('Books not deleted: ' + UHome + ' - ' + Why);
+        if not UninstallSilent then MsgBox('Your books stay where they are, in:' + #13#10 + UHome + #13#10#13#10 + 'They are not deleted because ' + Why + '.', mbInformation, MB_OK);
+      end;
+      DeleteBooks := False;
+    end;
   end;
   if (CurUninstallStep = usPostUninstall) and DeleteBooks then begin
     DelTree(AddBackslash(UHome) + 'data', True, True, True);
@@ -788,9 +1028,4 @@ begin
     DelTree(AddBackslash(UHome) + 'Trash', True, True, True);
     RemoveDir(UHome);
   end;
-end;
-
-procedure DeinitializeSetup;
-begin
-  SaveLog;
 end;

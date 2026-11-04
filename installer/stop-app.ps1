@@ -15,10 +15,13 @@
 #   -Sys   the folder holding server.js
 #   -Books the books folder (default: home.txt in -Sys, else -Sys)
 #   -Test  the Setup's test mode (also when installed.txt says so)
+#   -Out   write "stopped=..." to this file (Setup runs this with -File and
+#          separate arguments, never a -Command string: a folder name with
+#          curly quotes cannot break or change the command)
 #
 # Keep this file pure ASCII (ERR-001).
 
-param([Parameter(Mandatory = $true)][string]$Sys, [string]$Books = '', [switch]$Test)
+param([Parameter(Mandatory = $true)][string]$Sys, [string]$Books = '', [switch]$Test, [string]$Out = '')
 
 $ErrorActionPreference = 'SilentlyContinue'
 $Sys = $Sys.TrimEnd('\')
@@ -60,7 +63,9 @@ if (Test-Path -LiteralPath $lockFile) {
   try {
     $lock = Get-Content -LiteralPath $lockFile -Raw | ConvertFrom-Json
     $lp = [int]$lock.pid
-    if ($lp -and $lock.port -and (Test-IsNode $lp) -and (@(Get-Listeners ([string]$lock.port)) -contains $lp)) { $ids += $lp; $why += "lock file: $lp" }
+    # Another PC's lock (books on a shared drive): its process id means nothing here.
+    $here = (-not $lock.host) -or ([string]$lock.host -eq [System.Net.Dns]::GetHostName())
+    if ($here -and $lp -and $lock.port -and (Test-IsNode $lp) -and (@(Get-Listeners ([string]$lock.port)) -contains $lp)) { $ids += $lp; $why += "lock file: $lp" }
   } catch { }
 }
 
@@ -98,5 +103,7 @@ foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinu
 # Wait (up to 10 s) until they are gone, so their files can be replaced.
 $deadline = (Get-Date).AddSeconds(10)
 while ((Get-Date) -lt $deadline -and @($ids | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count) { Start-Sleep -Milliseconds 250 }
-if ($ids.Count) { Write-Output ("stopped=" + ($ids -join ',') + " (" + ($why -join '; ') + ")") } else { Write-Output 'stopped=none' }
+$result = if ($ids.Count) { "stopped=" + ($ids -join ',') + " (" + ($why -join '; ') + ")" } else { 'stopped=none' }
+if ($Out) { Set-Content -LiteralPath $Out -Value $result -Encoding UTF8 }
+Write-Output $result
 exit 0

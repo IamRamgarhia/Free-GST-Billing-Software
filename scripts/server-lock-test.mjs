@@ -4,7 +4,9 @@
 //   1. server A starts and takes data/server.lock;
 //   2. server B on the same books refuses to start, and A keeps answering;
 //   3. A is killed (no clean exit: the lock stays behind, stale);
-//   4. server C takes the stale lock over and starts.
+//   4. server C takes the stale lock over and starts;
+//   5. a lock written by another PC is never taken over;
+//   6. a lock whose port answers as a DIFFERENT server is stale (port 47464).
 //
 // Run: `node scripts/server-lock-test.mjs`
 
@@ -33,8 +35,8 @@ fs.writeFileSync(path.join(BOOKS, 'data', 'port.txt'), String(PORT));
 const lockFile = path.join(BOOKS, 'data', 'server.lock');
 
 const children = [];
-function start() {
-  const child = spawn(process.execPath, [path.join(APP, 'server.js')], { cwd: APP, env: { ...process.env, FGSB_HOME: BOOKS }, stdio: ['ignore', 'pipe', 'pipe'] });
+function start(books = BOOKS) {
+  const child = spawn(process.execPath, [path.join(APP, 'server.js')], { cwd: APP, env: { ...process.env, FGSB_HOME: books }, stdio: ['ignore', 'pipe', 'pipe'] });
   child.out = '';
   child.stdout.on('data', (d) => { child.out += d; });
   child.stderr.on('data', (d) => { child.out += d; });
@@ -67,7 +69,45 @@ try {
 
   const c = start();
   ok(await until(answers, 20000), 'Server C takes the stale lock over and starts', c.out);
-  ok(JSON.parse(fs.readFileSync(lockFile, 'utf8')).pid === c.pid, 'The lock is now C\'s');
+  const lockC = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+  ok(lockC.pid === c.pid && lockC.host === os.hostname() && /^[0-9a-f-]{36}$/.test(lockC.id), 'The lock is now C\'s, with this PC\'s name and a random id');
+  const v = await (await fetch(`http://127.0.0.1:${PORT}/api/version`)).json();
+  ok(v.pid === c.pid && v.lockId === lockC.id && v.books === BOOKS, '/api/version says which server it is and which books it serves');
+  c.kill('SIGKILL');
+  await c.exited;
+
+  // A lock from ANOTHER PC (books on a shared drive): never taken over.
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 4, port: PORT, at: 0, host: 'OFFICE-PC-ELSEWHERE', id: 'x' }));
+  const d = start();
+  const dCode = await Promise.race([d.exited, sleep(20000).then(() => 'timeout')]);
+  ok(dCode === 1 && /another computer \(OFFICE-PC-ELSEWHERE\)/.test(d.out) && JSON.parse(fs.readFileSync(lockFile, 'utf8')).host === 'OFFICE-PC-ELSEWHERE',
+    'A lock from another PC: refused with a clear message, the lock left as it is', `(exit ${dCode}) ${d.out}`);
+
+  // A lock whose process is alive (this test) but whose port is answered by a
+  // different server: that is not "running", so after the start-up grace it is stale.
+  const other = path.join(T, 'other-books');
+  fs.mkdirSync(path.join(other, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(other, 'data', 'port.txt'), String(PORT + 1));
+  const e = start(other);
+  ok(await until(() => answers(PORT + 1), 20000), 'Another server on other books runs on the next port');
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, port: PORT + 1, at: Date.now() - 120000, host: os.hostname(), id: 'not-that-server' }));
+  const f = start();
+  ok(await until(answers, 20000), 'A lock whose port answers as a DIFFERENT server is stale: taken over', f.out);
+  ok(await answers(PORT + 1), '...and the other server was not disturbed');
+
+  // 7. Its port is taken (the other server sits on it): it moves to the next
+  //    free port and says so in port.txt and the lock (Express 5 calls the
+  //    listen callback with the error first - that must not stop the retry).
+  f.kill('SIGKILL');
+  await f.exited;
+  fs.writeFileSync(path.join(BOOKS, 'data', 'port.txt'), String(PORT + 1));
+  const g = start();
+  const moved = await until(async () => fs.readFileSync(path.join(BOOKS, 'data', 'port.txt'), 'utf8').trim() !== String(PORT + 1), 20000);
+  const newPort = Number(fs.readFileSync(path.join(BOOKS, 'data', 'port.txt'), 'utf8').trim());
+  const who = moved ? await (await fetch(`http://127.0.0.1:${newPort}/api/version`)).json().catch(() => null) : null;
+  ok(moved && who?.books === BOOKS && JSON.parse(fs.readFileSync(lockFile, 'utf8')).port === newPort,
+    `Its port taken by another server: it starts on the next free one (${newPort}) and writes that to port.txt and the lock`, g.out);
+  e.kill('SIGKILL');
 } catch (e) {
   failed++;
   console.log(`  FAIL ${e.message}`);
