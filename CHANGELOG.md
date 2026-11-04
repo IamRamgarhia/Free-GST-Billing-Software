@@ -108,6 +108,13 @@ a backup is made first.
 - **With the preview hidden, Save / Download / Print opened it and closed it
   again** (#161, ERR-079).
 
+### Security
+- The app answers only requests addressed to `localhost` / `127.0.0.1`, so a
+  web page cannot use "DNS rebinding" to reach your books through your
+  browser.
+- A receipt number is escaped in the receipt print window, so text typed into
+  it can never run as a script.
+
 ---
 
 ## [1.10.83] - 2026-10-31

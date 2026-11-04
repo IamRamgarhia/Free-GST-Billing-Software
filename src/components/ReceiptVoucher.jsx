@@ -260,8 +260,11 @@ export default function ReceiptVoucher() {
         setPreviewReceipt(null);
         return;
       }
+      // The receipt number is typed by a user: escaped, so it can never add a
+      // script to this window (which runs as the app). The body is React's own
+      // escaped markup.
       printWindow.document.write(`
-        <html><head><title>Receipt ${receipt.receiptNo}</title>
+        <html><head><title>Receipt ${String(receipt.receiptNo ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
         <style>
           body { font-family: 'Inter', Arial, sans-serif; margin: 0; padding: 2rem; color: #1a1a2e; }
           .receipt-box { max-width: 600px; margin: 0 auto; border: 2px solid #e2e8f0; border-radius: 8px; padding: 2rem; }

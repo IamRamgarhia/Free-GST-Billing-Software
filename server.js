@@ -56,6 +56,17 @@ const app = express();
 // Origin pointing at http://localhost:<port>. Everything else is
 // rejected. The Vite dev server proxies /api → us so its origin is
 // also localhost.
+// v1.10.84 (security review) - DNS rebinding guard. A web page can re-point
+// its own domain to 127.0.0.1; the browser then sends its requests here as
+// "same origin" with no Origin header, so the check below lets them through.
+// They still carry Host: evil.example, so only the app's own names are
+// answered. (Phone access, when it comes, checks its own listener's Host.)
+const LOCAL_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+app.use((req, res, next) => {
+  if (LOCAL_HOST_RE.test(String(req.headers.host || ''))) return next();
+  return res.status(403).json({ error: 'This app only answers http://localhost' });
+});
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allow =

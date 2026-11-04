@@ -23,6 +23,7 @@
 import { firefox } from 'playwright';
 import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
+import { request as httpRequest } from 'http';
 import { PDFDocument } from 'pdf-lib';
 import { setTimeout as sleep } from 'timers/promises';
 
@@ -171,6 +172,17 @@ try {
   // with no CSS. Both were Firefox-only and silent.
   check('app loads with no CSP violations', cspViolations.length === 0,
     cspViolations[0]?.slice(0, 400) || '');
+
+  // Security review (v1.10.84): DNS rebinding - a page that re-points its own
+  // domain to 127.0.0.1 sends Host: its-domain; the app must refuse it.
+  const foreignHost = await new Promise((resolve) => {
+    const u = new URL(APP);
+    const rq = httpRequest({ host: u.hostname, port: u.port, path: '/api/bills', headers: { Host: 'evil.example' } },
+      (r) => { r.resume(); resolve(r.statusCode); });
+    rq.on('error', () => resolve(0));
+    rq.end();
+  });
+  check('DNS rebinding: a request with a foreign Host is refused', foreignHost === 403, String(foreignHost));
 
   const styled = await page.evaluate(() => document.styleSheets.length > 0
     && getComputedStyle(document.body).fontFamily.includes('Inter'));
