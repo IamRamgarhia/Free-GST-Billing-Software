@@ -30,6 +30,9 @@
 //     app's own backup, POST /api/control-panel/backup). The app's
 //     notifications (NotificationReceived) show near the clock.
 //   - Self-repair: the server stopped? Started again the launcher's way.
+//   - Jump list (right-click the taskbar / Start icon): New Invoice, Dashboard,
+//     Clients, Reports = "/view=<screen>", the app's own ?view=; a running
+//     window is sent there (open-view.txt + the "-show" event).
 //   - Named events per program folder, "Local\FreeGSTBillingHost-<hash>-show",
 //     "-close" (uninstall: stop-app.ps1 -CloseWindow) and "-quit".
 //   - FGSB_HOST_SMOKE=<file> (tests): load the app, open Settings, write what was
@@ -80,7 +83,12 @@ static class Program
         TraceFile = Environment.GetEnvironmentVariable("FGSB_HOST_TRACE");
         if (TraceFile == "") TraceFile = null;
         bool tray = false;
-        foreach (string a in Environment.GetCommandLineArgs()) if (string.Equals(a, "/tray", StringComparison.OrdinalIgnoreCase)) tray = true;
+        string view = null; // "/view=clients": that screen (the jump list), the app's own ?view=
+        foreach (string a in Environment.GetCommandLineArgs())
+        {
+            if (string.Equals(a, "/tray", StringComparison.OrdinalIgnoreCase)) tray = true;
+            if (a.StartsWith("/view=", StringComparison.OrdinalIgnoreCase) && Array.IndexOf(Views, a.Substring(6).ToLowerInvariant()) >= 0) view = a.Substring(6).ToLowerInvariant();
+        }
 
         // Sharp text on high-DPI screens (per-monitor v2, Windows 10 1703+).
         try { if (!SetProcessDpiAwarenessContext(new IntPtr(-4))) SetProcessDPIAware(); } catch (Exception) { try { SetProcessDPIAware(); } catch (Exception) { } }
@@ -92,7 +100,8 @@ static class Program
         {
             if (!first)
             {
-                // The first copy shows its window, also from the tray.
+                // The first copy shows its window, also from the tray - on that screen.
+                if (view != null) { try { Directory.CreateDirectory(DataDir); File.WriteAllText(ViewFile, view); } catch (Exception) { } }
                 Smoke("instance=second\r\nforwarded=" + (Signal(name + "-show") || BringForward() ? "1" : "0") + "\r\n");
                 return 0;
             }
@@ -106,7 +115,9 @@ static class Program
             }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            ApplyJumpList();
             MainForm form = new MainForm(runtime, name);
+            form.PendingView = view;
             if (tray) form.StartInTray(); else form.Show();
             Application.Run(); // until the window really closes (ExitThread)
             GC.KeepAlive(one);
@@ -135,6 +146,37 @@ static class Program
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 8; i++) sb.Append(h[i].ToString("x2"));
         return sb.ToString();
+    }
+
+    // The app's screens (src/App.jsx, its ?view= list).
+    public static readonly string[] Views = { "dashboard", "new", "clients", "inventory", "expenses", "purchases", "recurring", "receipts",
+        "cashbook", "reports", "filing", "incometax", "settings", "controlpanel", "support" };
+    public static string ViewFile { get { return Path.Combine(DataDir, "open-view.txt"); } }
+
+    // Right-click on the taskbar / Start icon: these screens. WPF's JumpList
+    // uses this process's AppUserModelID, the one on the Setup's icons.
+    static void ApplyJumpList()
+    {
+        try
+        {
+            System.Windows.Shell.JumpList list = new System.Windows.Shell.JumpList();
+            list.ShowFrequentCategory = false;
+            list.ShowRecentCategory = false;
+            string[,] items = { { "New Invoice", "new" }, { "Dashboard", "dashboard" }, { "Clients", "clients" }, { "Reports", "reports" } };
+            for (int i = 0; i < items.GetLength(0); i++)
+            {
+                System.Windows.Shell.JumpTask t = new System.Windows.Shell.JumpTask();
+                t.Title = items[i, 0];
+                t.Arguments = "/view=" + items[i, 1];
+                t.ApplicationPath = Application.ExecutablePath;
+                t.IconResourcePath = Application.ExecutablePath;
+                t.WorkingDirectory = AppDir;
+                list.JumpItems.Add(t);
+            }
+            list.Apply();
+            Trace("jumplist=" + items.GetLength(0));
+        }
+        catch (Exception e) { Trace("jumplist failed: " + e.Message); }
     }
 
     static bool Signal(string eventName)
@@ -307,6 +349,7 @@ class MainForm : Form
     int healthMisses;
     bool repairing, checking, pageFailed;
     CoreWebView2Notification lastNote;
+    public string PendingView; // the screen to open first ("/view=", the jump list)
     string pendingJs; // for the page once it is there (a tray action before the window was ever open)
 
     public MainForm(string runtime, string eventName)
@@ -431,6 +474,22 @@ class MainForm : Form
         if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
         Activate();
         Program.Trace("shown");
+        // A second start from the jump list: that screen.
+        try
+        {
+            if (File.Exists(Program.ViewFile))
+            {
+                string v = File.ReadAllText(Program.ViewFile).Trim();
+                File.Delete(Program.ViewFile);
+                if (Array.IndexOf(Program.Views, v) >= 0)
+                {
+                    Program.Trace("view=" + v);
+                    if (web.CoreWebView2 != null && origin.Length > 0 && !repairing) web.CoreWebView2.Navigate(origin + "/?view=" + v);
+                    else PendingView = v;
+                }
+            }
+        }
+        catch (Exception) { }
     }
 
     // Quit: the window, the tray icon and this install's server.
@@ -621,7 +680,8 @@ class MainForm : Form
             return;
         }
         origin = new Uri(r[0]).GetLeftPart(UriPartial.Authority);
-        web.CoreWebView2.Navigate(r[0]);
+        web.CoreWebView2.Navigate(origin + "/" + (PendingView != null ? "?view=" + PendingView : ""));
+        PendingView = null;
     }
 
     void Configure(CoreWebView2 core)
@@ -629,7 +689,7 @@ class MainForm : Form
         core.Settings.AreDevToolsEnabled = false;   // no "Inspect", no F12
         core.Settings.IsStatusBarEnabled = false;   // no link addresses at the bottom
         core.Settings.IsPasswordAutosaveEnabled = false;
-        core.DocumentTitleChanged += delegate { Text = TitleOf(core.DocumentTitle); };
+        core.DocumentTitleChanged += delegate { Text = TitleOf(core.DocumentTitle); Program.Trace("title=" + Text); };
         core.NavigationStarting += delegate (object o, CoreWebView2NavigationStartingEventArgs a)
         {
             if (Ours(a.Uri)) return;

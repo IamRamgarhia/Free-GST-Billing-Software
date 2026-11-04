@@ -116,10 +116,13 @@ if (arg('version')) {
     if (createHash('sha256').update(buf).digest('hex') !== sha) fail(`${src} is not the checked WebView2 SDK file (SHA-256 differs). Not used.`);
     writeFileSync(join(APP, rel.split('/').pop()), buf);
   }
-  const csc = join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+  const fw = join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319');
+  const csc = join(fw, 'csc.exe');
   if (!existsSync(csc)) fail(`${csc} not found (the .NET Framework 4 C# compiler that comes with Windows).`);
+  // WPF's assemblies (part of .NET Framework 4) for the taskbar jump list only.
+  const wpf = ['WPF\\PresentationFramework.dll', 'WPF\\PresentationCore.dll', 'WPF\\WindowsBase.dll', 'System.Xaml.dll'].map((f) => `/r:${join(fw, f)}`);
   run(csc, ['/nologo', '/target:winexe', '/platform:x64', '/optimize+', `/win32icon:${join(APP, 'app-icon.ico')}`,
-    `/out:${join(APP, 'Free GST Billing.exe')}`, `/r:${join(APP, 'Microsoft.Web.WebView2.Core.dll')}`,
+    `/out:${join(APP, 'Free GST Billing.exe')}`, `/r:${join(APP, 'Microsoft.Web.WebView2.Core.dll')}`, ...wpf,
     `/r:${join(APP, 'Microsoft.Web.WebView2.WinForms.dll')}`, '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Web.Extensions.dll',
     join(ROOT, 'installer', 'host', 'FreeGSTBilling.cs')]);
 }
