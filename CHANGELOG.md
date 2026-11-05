@@ -63,6 +63,15 @@ a backup is made first.
   copy it to `C:\Users\<your name>\Free GST Billing` (every file checked; the old folder
   is never changed, its icons are moved to a backup folder). Not signed yet:
   Windows SmartScreen asks once (More info → Run anyway).
+- **Linux packages** (Ubuntu, Linux Mint, Debian and others): install
+  `free-gst-billing_1.10.84_amd64.deb` like any other program (double-click,
+  or `sudo apt install ./free-gst-billing_1.10.84_amd64.deb`), or use
+  `Free-GST-Billing-Linux-x86_64.AppImage` on any 64-bit Linux (right-click ->
+  Properties -> Permissions -> *Allow executing file as program*, then
+  double-click). The app opens in your browser; your books are kept in
+  `~/.local/share/free-gst-billing-data`, and removing the program keeps them.
+  An earlier ZIP copy is left exactly as it was. The ZIP still works on Linux
+  as before.
 - **One copy of the server per set of books.** Two copies started on the same
   data folder (two launchers, two icons) used to both write the same files;
   the second now does not start and the running one opens instead.
