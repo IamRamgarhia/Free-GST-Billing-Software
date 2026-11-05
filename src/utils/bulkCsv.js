@@ -505,3 +505,22 @@ export const PURCHASE_TEMPLATE = [
   toCsvLine(PURCHASE_COLUMNS),
   toCsvLine(['SUP/552', '2026-10-03', 'Gupta Steel', '27AAACG1234K1Z2', 'Bhosari, Pune', 'Steel rod 8mm', '7214', 100, 60, 18, 0, 'No', 'Unpaid', '']),
 ].join('\n');
+
+// #170 - items of imported invoices that are not yet in Products become
+// products (name, HSN, unit, rate, GST, cess; stock 0), one per name, as the
+// purchase import already does. Products already saved are never changed.
+export function newProductsFromBills(bills, products = []) {
+  const known = new Set(products.map((p) => String(p.name || '').trim().toLowerCase()));
+  const out = [];
+  for (const bill of bills) {
+    for (const it of bill?.data?.items || []) {
+      const name = String(it.name || '').trim();
+      const key = name.toLowerCase();
+      if (!name || known.has(key)) continue;
+      known.add(key);
+      out.push({ name, hsn: it.hsn || '', unit: it.unit || 'Nos', sellingPrice: it.rate, rate: it.rate,
+        taxPercent: it.taxPercent, cessPercent: it.cessPercent || 0, stock: 0, description: '' });
+    }
+  }
+  return out;
+}

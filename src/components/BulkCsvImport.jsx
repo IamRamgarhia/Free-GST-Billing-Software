@@ -14,6 +14,7 @@ import {
 import { belongsToProfile, isCancelledBill, isInterstateSupply, roundQty, localToday } from '../utils';
 import {
   salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice,
+  newProductsFromBills,
 } from '../utils/bulkCsv';
 import { fileToSheets, bestSheet } from '../utils/importFile';
 import { toast } from './Toast';
@@ -32,6 +33,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
   const [plan, setPlan] = useState(null); // { fileName, result, sheets, at }
   const [adjustStock, setAdjustStock] = useState(false);
   const [addClients, setAddClients] = useState(true);
+  const [addProducts, setAddProducts] = useState(true);
   const [busy, setBusy] = useState(false);
   const close = () => { if (!busy) { setOpen(false); setPlan(null); } };
 
@@ -95,6 +97,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
     try {
       if (sales) {
         const stock = {};
+        const savedBills = [];
         // Stock for the bills already saved is applied even if a later one
         // stops the import (it used to be skipped, leaving those bills with
         // a stock record that never happened).
@@ -103,6 +106,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
             try {
               await saveBill(bill, { overwrite: false }); // never replaces an invoice
               saved += 1;
+              savedBills.push(bill);
               for (const [id, d] of Object.entries(bill.data.stockApplied || {})) stock[id] = (stock[id] || 0) + d;
             } catch (err) {
               if (err.status === 409) taken += 1; else throw err;
@@ -110,6 +114,10 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
           }
         } finally {
           if (Object.keys(stock).length) await applyStockChanges(stock);
+          // #170: new items of the saved invoices go into Products too.
+          if (addProducts && savedBills.length) {
+            for (const p of newProductsFromBills(savedBills, await getAllProducts().catch(() => []))) await saveProduct(p);
+          }
         }
         if (addClients) for (const c of plan.result.newClients) await saveClient({ ...c }).catch(() => {});
       } else {
@@ -184,6 +192,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
               <div style={{ display: 'grid', gap: '0.35rem', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
                 <label><input type="checkbox" checked={adjustStock} onChange={(e) => { setAdjustStock(e.target.checked); if (plan) preview(plan.fileName, plan.sheets, plan.at, e.target.checked); }} /> Take sold quantities out of product stock (leave off for old invoices)</label>
                 <label><input type="checkbox" checked={addClients} onChange={(e) => setAddClients(e.target.checked)} /> Add new clients to Clients</label>
+                <label><input type="checkbox" checked={addProducts} onChange={(e) => setAddProducts(e.target.checked)} /> Add new items to Products</label>
               </div>
             )}
             {r && (

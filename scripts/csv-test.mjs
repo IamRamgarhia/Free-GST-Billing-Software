@@ -11,7 +11,7 @@
 // the fix breaks every sum a user runs over an exported column.
 
 import { toCsvCell, toCsvLine } from '../src/utils.js';
-import { dateOrderNote, parseCsv, toIsoDate, toNum, salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice } from '../src/utils/bulkCsv.js';
+import { dateOrderNote, parseCsv, toIsoDate, toNum, salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice, newProductsFromBills } from '../src/utils/bulkCsv.js';
 import { productsCsvToList, clientsCsvToList } from '../src/utils/listCsv.js';
 import { readFileSync } from 'fs';
 
@@ -237,6 +237,16 @@ console.log('\n[#130] Files exported from Vyapar (layouts seen in real exports)'
   eq(parties.clients.map((c) => `${c.name}|${c.phone}|${c.address}`).join(), 'Riya Sharma|9876543210|4 Mall Road, Ludhiana', 'Vyapar party columns map onto clients');
   eq(toIsoDate('45383'), '2024-04-01', 'a date number in a CSV too');
   eq(toIsoDate('2026'), '', 'a plain year is not a date');
+}
+
+// #170: an invoice import adds new items to Products, never changes saved ones.
+{
+  const bills = [{ data: { items: [{ name: 'Mouse ', hsn: '8471', unit: 'Pcs', rate: 250, taxPercent: 18 }, { name: 'Pen drive', rate: 399, taxPercent: 12 }] } },
+    { data: { items: [{ name: 'mouse', rate: 1 }, { name: 'Cable', rate: 99, taxPercent: 18, cessPercent: 1 }] } }];
+  const out = newProductsFromBills(bills, [{ name: 'Pen Drive' }]);
+  eq(out.map((p) => p.name).join(','), 'Mouse,Cable', '#170 only new item names, once each');
+  eq(`${out[0].hsn}|${out[0].unit}|${out[0].sellingPrice}|${out[0].taxPercent}|${out[0].stock}`, '8471|Pcs|250|18|0', '#170 the new product keeps HSN, unit, rate, GST; stock 0');
+  eq(out[1].cessPercent, 1, '#170 cess carried over');
 }
 
 console.log('\n────────────────────────────────────────');

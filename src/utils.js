@@ -612,6 +612,17 @@ export const filledOrderDetails = (details = {}) => [
     .filter((f) => f.label && f.value)
     .map((f, i) => ({ key: `custom${i}`, label: f.label, value: f.value, custom: true })),
 ];
+// v1.10.84 (#172) - the Invoices search also finds a bill by its order /
+// dispatch / reference details (marketplace order ID, AWB in Dispatch Doc No,
+// your own fields) and the client's phone or GSTIN.
+export const billMatchesSearch = (bill, query) => {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  const c = bill?.data?.client || {};
+  return [bill?.clientName, bill?.invoiceNumber, c.phone, c.gstin,
+    ...filledOrderDetails(bill?.data?.details).map((f) => f.value)]
+    .some((v) => String(v || '').toLowerCase().includes(q));
+};
 export const customFieldsOf = (details = {}) => (Array.isArray(details?.customFields) ? details.customFields : [])
   .map((f) => ({ label: String(f?.label || '').trim(), value: String(f?.value || '').trim() }));
 

@@ -67,6 +67,13 @@ async function cleanup(page) {
       await del('receipts');
       await del('recurring');
       await del('templates');
+      // v1.10.84 - "marked read" is kept in the books folder now
+      // (fgsb_dismissedNotifs); one that names this suite's invoices would
+      // silence #53 in the next run.
+      const prefs = (await (await fetch('/api/local-prefs')).json())?.value || {};
+      if (/SMOKE-|smoketest-/.test(prefs.fgsb_dismissedNotifs || '')) {
+        await fetch('/api/local-prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set: {}, remove: ['fgsb_dismissedNotifs'] }) });
+      }
       // v1.10.77 - a PIN this suite set must never stay on the user's app.
       await fetch('/api/lock/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: null, currentPin: '13572468' }) });
       // The expense added through the form gets a generated id.
@@ -1677,7 +1684,7 @@ try {
   // it always said "Could not generate any PDFs".
   if (gen.invoiceNumber) {
     await openView('Dashboard');
-    await page.fill('input[placeholder="Search client or invoice..."]', gen.invoiceNumber);
+    await page.fill('input[placeholder^="Search client, invoice"]', gen.invoiceNumber);
     await sleep(800);
     const row = page.locator('tr', { hasText: gen.invoiceNumber }).first();
     await row.locator('input[type="checkbox"]').check();
@@ -1695,7 +1702,7 @@ try {
     const pdfName = `${String(gen.invoiceNumber).replace(/[\\/:*?"<>|]+/g, '-')}.pdf`;
     check('v83 Separate PDFs downloads a ZIP with the invoice\'s own PDF',
       !!zipBytes && /\.zip$/i.test(zipDl.suggestedFilename()) && zipBytes.includes(Buffer.from(pdfName)), zipDl ? `${zipDl.suggestedFilename()} (looked for ${pdfName})` : 'no download');
-    await page.fill('input[placeholder="Search client or invoice..."]', '');
+    await page.fill('input[placeholder^="Search client, invoice"]', '');
   }
 
   // ---- v1.10.76: stock follows edits (#80), quotations (#83), refresh while editing

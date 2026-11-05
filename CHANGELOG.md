@@ -95,6 +95,9 @@ a backup is made first.
 - **Profit & Loss counts the cost of the goods sold** (#146): quantity sold ×
   the product's purchase price, as its own line, then Gross Profit. Items with
   no purchase price are named so you can fill it in.
+- **Search invoices by order ID, AWB, phone or GSTIN** (#172): the Invoices
+  search also looks in the order, dispatch and reference details (Buyer's Order
+  No, Dispatch Doc No, courier, your own fields) and the client's phone and GSTIN.
 - **Received From suggests your clients** on a new payment receipt (#143).
 - **Print rates before GST** (#164): with *Prices include tax* ticked, a second
   tick box prints each rate without GST (₹13.25 at 18% prints ₹11.23), so
@@ -121,6 +124,9 @@ a backup is made first.
 - The window title reads like a desktop program: the page and your business name.
 
 ### Fixed
+- **Imported invoices add their items to Products** (#170): new items get
+  their name, HSN, unit, rate and GST (tick box *Add new items to Products*,
+  on by default); products you already have are not changed.
 - **The app opens on the newest version** (ERR-075): the page comes from the
   app first, the cached copy only when the app is not running. Edge could show
   a blank window after an update (#153).

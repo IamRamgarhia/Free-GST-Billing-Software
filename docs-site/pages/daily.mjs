@@ -151,7 +151,7 @@ export default [
 <p>The <b>Invoices</b> card lists every document of the business, newest first. Above the list are the filters. They work together: for example "Overdue" and "FY 2026-27" shows only this year's overdue invoices.</p>
 <table>
   <tr><th>Filter</th><th>What it does</th></tr>
-  <tr><td>Search client or invoice...</td><td>Type part of a client's name or of an invoice number, such as <code>sharma</code> or <code>0012</code>. Capital letters do not matter.</td></tr>
+  <tr><td>Search client, invoice, order no, AWB, phone...</td><td>Type part of a client's name, an invoice number, the client's phone or GSTIN, or anything in the invoice's order and dispatch details (Buyer's Order No, Dispatch Doc No / AWB, courier, your own fields), such as <code>sharma</code>, <code>0012</code> or an order ID. Capital letters do not matter.</td></tr>
   <tr><td>All Years</td><td>Pick one financial year (1 April to 31 March).</td></tr>
   <tr><td>All Types</td><td>Pick one document type: Tax Invoice, Quotation, Proforma / Estimate, Bill of Supply (No GST), Composition (Bill of Supply), Credit Note or Delivery Challan.</td></tr>
   <tr><td>All Status</td><td>Unpaid, Partial, Paid, Overdue or Cancelled. See <a href="#status">Status</a>.</td></tr>

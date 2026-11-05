@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock } from '../utils';
+import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock, billMatchesSearch } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
@@ -487,13 +487,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
   useEffect(() => {
     let result = bills;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(b =>
-        (b.clientName || '').toLowerCase().includes(q) ||
-        (b.invoiceNumber || '').toLowerCase().includes(q)
-      );
-    }
+    if (search.trim()) result = result.filter((b) => billMatchesSearch(b, search));
     if (typeFilter !== 'all') result = result.filter(b => (b.invoiceType || 'tax-invoice') === typeFilter);
     if (statusFilter !== 'all') result = result.filter(b => (b.status || 'unpaid') === statusFilter);
     if (fyFilter !== 'all') {
@@ -1572,7 +1566,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         <div className="filters-bar">
           <div className="search-box">
             <Search size={16} className="search-icon" />
-            <input type="text" placeholder="Search client or invoice..." value={search}
+            <input type="text" placeholder="Search client, invoice, order no, AWB, phone..." value={search}
               onChange={e => setSearch(e.target.value)} className="search-input" />
           </div>
           <select className="filter-select" value={fyFilter} onChange={e => setFyFilter(e.target.value)}>
