@@ -340,7 +340,7 @@ static class Program
 class MainForm : Form
 {
     readonly WebView2 web = new WebView2();
-    readonly Label status = new Label();
+    readonly Splash status = new Splash(); // the start screen - also over the page while the app starts again
     readonly string runtime;
     readonly string placeFile = Path.Combine(Program.DataDir, "window.txt");
     readonly string tipFile = Path.Combine(Program.DataDir, "tray-tip-shown.txt");
@@ -362,7 +362,7 @@ class MainForm : Form
     {
         this.runtime = runtime;
         Text = "Free GST Billing";
-        BackColor = Color.White;
+        BackColor = Splash.Back;
         try { Icon = new Icon(Path.Combine(Program.AppDir, "app-icon.ico")); } catch (Exception) { }
         // The icon near the clock: click = the window; right-click = Open / Quit.
         tray.Icon = Icon;
@@ -395,12 +395,9 @@ class MainForm : Form
         closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName + "-close");
         quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName + "-quit");
         status.Dock = DockStyle.Fill;
-        status.TextAlign = ContentAlignment.MiddleCenter;
-        status.Font = new Font("Segoe UI", 12f);
-        status.ForeColor = Color.FromArgb(70, 70, 70);
-        status.Text = "Starting Free GST Billing...";
         web.Dock = DockStyle.Fill;
         web.Visible = false;
+        web.DefaultBackgroundColor = Splash.Back; // no white flash in dark mode
         Controls.Add(web);
         Controls.Add(status);
         RestorePlace();
@@ -620,10 +617,7 @@ class MainForm : Form
         if (Program.SetupRunning()) { Program.Trace("repair skipped: Setup is running"); return; }
         repairing = true;
         Program.Trace("repair: " + why);
-        status.Text = "Starting again...";
-        status.Visible = true;
-        status.BringToFront();
-        web.Visible = false;
+        Cover();
         string[] r = new string[] { null, "" };
         for (int t = 1; t <= 3 && !reallyClose; t++)
         {
@@ -652,8 +646,7 @@ class MainForm : Form
             // The same server, only slow (a busy PC): the page is kept as it
             // was - nothing typed in it is lost.
             Program.Trace("repair: the server was only slow, the page is kept");
-            status.Visible = false;
-            if (web.CoreWebView2 != null) web.Visible = true;
+            if (web.CoreWebView2 != null) Uncover();
             return;
         }
         serverPid = pidNow;
@@ -661,6 +654,22 @@ class MainForm : Form
         pageFailed = false;
         if (web.CoreWebView2 != null) web.CoreWebView2.Navigate(r[0]);
         else status.Visible = false; // never shown yet ("/tray"): it navigates when opened
+    }
+
+    // The start screen over the page; while it is up the server is checked every 2 s.
+    void Cover()
+    {
+        web.Visible = false;
+        status.Visible = true;
+        status.BringToFront();
+        health.Interval = 2000;
+    }
+
+    void Uncover()
+    {
+        web.Visible = true;
+        status.Visible = false;
+        health.Interval = 12000;
     }
 
     // Really closed - also a window that was never shown ("/tray").
@@ -776,19 +785,34 @@ class MainForm : Form
             a.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionReset || a.WebErrorStatus == CoreWebView2WebErrorStatus.Disconnected ||
             a.WebErrorStatus == CoreWebView2WebErrorStatus.ServerUnreachable || a.WebErrorStatus == CoreWebView2WebErrorStatus.Timeout))
         {
-            // Not Chromium's error page: our own state, and the server again.
+            // Not Chromium's error page: our own start screen, and the server again.
             pageFailed = true;
-            web.Visible = false;
-            status.Text = "Starting again...";
-            status.Visible = true;
-            status.BringToFront();
+            Cover();
             Repair("the page could not load (" + a.WebErrorStatus + ")");
             return;
         }
+        if (a.IsSuccess && !repairing && origin.Length > 0)
+        {
+            // With the server down, the app's offline copy (service worker)
+            // answers with its "Needs a Quick Start" page - written for a
+            // browser. The window never shows it: the start screen stays and
+            // the server is started; the check every 2 s opens the app.
+            string o = origin;
+            int pid = await Task.Run(() => Program.ServerPid(o));
+            if (IsDisposed) return;
+            if (pid == 0)
+            {
+                Program.Trace("offline page hidden");
+                pageFailed = true;
+                Cover();
+                if (!Program.SetupRunning()) Repair("the page came from the offline copy");
+                return;
+            }
+            serverPid = pid;
+        }
         if (a.IsSuccess && !web.Visible && !repairing)
         {
-            web.Visible = true;
-            status.Visible = false;
+            Uncover();
             web.Focus();
         }
         if (a.IsSuccess && pendingJs != null)
@@ -863,5 +887,98 @@ class MainForm : Form
             File.WriteAllText(placeFile, r.X + " " + r.Y + " " + r.Width + " " + r.Height + " " + (WindowState == FormWindowState.Maximized ? "1" : "0"));
         }
         catch (Exception) { }
+    }
+}
+
+// The start screen, also shown over the page while the app starts again: the
+// app's icon, its name, a thin moving bar and "by DiceCodes". Light or dark
+// like the app's own theme (Settings; kept in the books folder's
+// data\local-prefs.json, light when not set) and the app's own background,
+// so there is no flash. The logo is read into memory (never left open), so an
+// update can replace dist\ while the window is open.
+class Splash : Control
+{
+    static readonly bool dark = IsDark();
+    public static Color Back { get { return dark ? Color.FromArgb(15, 23, 42) : Color.FromArgb(240, 242, 245); } }
+    readonly Image logo;
+    readonly System.Windows.Forms.Timer tick = new System.Windows.Forms.Timer();
+    int phase;
+
+    static bool IsDark()
+    {
+        try
+        {
+            string books = Program.AppDir;
+            try
+            {
+                string h = File.ReadAllLines(Path.Combine(Program.AppDir, "home.txt"))[0].Trim().TrimStart('﻿');
+                if (h.Length > 0) books = h;
+            }
+            catch (Exception) { }
+            string prefs = File.ReadAllText(Path.Combine(books, "data", "local-prefs.json"));
+            return Regex.IsMatch(prefs, "\"freegstbill_theme\"\\s*:\\s*\"dark\"");
+        }
+        catch (Exception) { return false; }
+    }
+
+    public Splash()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        BackColor = Back;
+        try
+        {
+            using (MemoryStream ms = new MemoryStream(File.ReadAllBytes(Path.Combine(Program.AppDir, "dist", "icons", "icon-512.png"))))
+            using (Image img = Image.FromStream(ms)) logo = new Bitmap(img);
+        }
+        catch (Exception)
+        {
+            try { using (Icon ic = new Icon(Path.Combine(Program.AppDir, "app-icon.ico"), 256, 256)) logo = ic.ToBitmap(); } catch (Exception) { }
+        }
+        tick.Interval = 30;
+        tick.Tick += delegate { phase = (phase + 3) % 260; Invalidate(); };
+        VisibleChanged += delegate { tick.Enabled = Visible; };
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Graphics g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        float s = g.DpiX / 96f;
+        Color ink = dark ? Color.FromArgb(226, 232, 240) : Color.FromArgb(15, 23, 42);
+        Color muted = dark ? Color.FromArgb(148, 163, 184) : Color.FromArgb(100, 116, 139);
+        Color track = dark ? Color.FromArgb(30, 41, 59) : Color.FromArgb(203, 213, 225);
+        Color blue = Color.FromArgb(37, 99, 235);
+        int logoSize = (int)(72 * s), gap1 = (int)(18 * s), gap2 = (int)(20 * s);
+        int barW = (int)(180 * s), barH = Math.Max(2, (int)(3 * s));
+        using (Font name = new Font("Segoe UI Semibold", 18f))
+        using (Font by = new Font("Segoe UI", 9f))
+        {
+            const string title = "Free GST Billing";
+            SizeF ts = g.MeasureString(title, name);
+            int block = logoSize + gap1 + (int)ts.Height + gap2 + barH;
+            int top = Math.Max((int)(12 * s), (Height - block) / 2 - (int)(24 * s));
+            int cx = Width / 2;
+            if (logo != null) g.DrawImage(logo, cx - logoSize / 2, top, logoSize, logoSize);
+            int y = top + logoSize + gap1;
+            using (Brush b = new SolidBrush(ink)) g.DrawString(title, name, b, cx - ts.Width / 2, y);
+            y += (int)ts.Height + gap2;
+            Rectangle bar = new Rectangle(cx - barW / 2, y, barW, barH);
+            using (Brush b = new SolidBrush(track)) g.FillRectangle(b, bar);
+            int seg = barW * 35 / 100;
+            int x = bar.X - seg + (barW + seg) * phase / 260;
+            g.SetClip(bar);
+            using (Brush b = new SolidBrush(blue)) g.FillRectangle(b, x, bar.Y, seg, barH);
+            g.ResetClip();
+            SizeF bs = g.MeasureString("by DiceCodes", by);
+            using (Brush b = new SolidBrush(muted)) g.DrawString("by DiceCodes", by, b, cx - bs.Width / 2, Height - bs.Height - (int)(28 * s));
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { tick.Dispose(); if (logo != null) logo.Dispose(); }
+        base.Dispose(disposing);
     }
 }
