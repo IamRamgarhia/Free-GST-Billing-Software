@@ -155,8 +155,9 @@ copyFileSync(join(REPO_ROOT, 'src', 'utils', 'errorReport.js'), join(SYSTEM, 'sr
 copyFileSync(join(REPO_ROOT, 'src', 'utils', 'cashBook.js'), join(SYSTEM, 'src', 'utils', 'cashBook.js'));
 // Supplier payments are checked on save (#123): purchasePayments.js imports
 // purchaseOrders.js, which imports ../utils.js only.
-// v1.10.84 - the books folder (home.txt) and the one-server-per-books lock.
-for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js']) {
+// v1.10.84 - the books folder (home.txt), the one-server-per-books lock, and
+// makeDir (folders one level at a time, ERR-083).
+for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js', 'makeDir.js']) {
   copyFileSync(join(REPO_ROOT, 'src', 'utils', f), join(SYSTEM, 'src', 'utils', f));
 }
 

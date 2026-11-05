@@ -748,7 +748,9 @@ request waits), the async one never settles (`extraCopyRunning` stays true).
 
 **Rule** - server code makes folders with `makeDir` / `makeDirAsync`
 (src/utils/makeDir.js: one level at a time, a refusal is a fast error). Never a
-recursive mkdir.
+recursive mkdir. A new file the server imports goes into the copy list in
+`scripts/build-release-zip.mjs` (its import check stopped the first build
+without makeDir.js, before anything shipped).
 
 **Guard** - `scripts/makedir-test.mjs` (in `npm run test:unit`): fails if
 server.js contains a recursive mkdir; checks nested, repeated and impossible
