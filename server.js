@@ -18,6 +18,7 @@ import { validateCashEntry, cleanCashEntry } from './src/utils/cashBook.js';
 import { validatePurchasePayments } from './src/utils/purchasePayments.js';
 import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES } from './src/utils.js';
 import { resolveAppHome } from './src/utils/appHome.js';
+import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
 import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './src/utils/serverLock.js';
 import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
 
@@ -58,7 +59,7 @@ const LOCK_FILE = path.join(DATA_DIR, LOCK_NAME);
 // when THIS server answers on its port, not anything else that happens to.
 const LOCK_ID = crypto.randomUUID();
 const LOCK_HOST = os.hostname();
-try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* reported below */ }
+try { makeDir(DATA_DIR); } catch { /* reported below */ }
 {
   const lock = await acquireLock(LOCK_FILE, { pid: process.pid, host: LOCK_HOST, id: LOCK_ID, identify: portIdentity });
   if (!lock.ok) {
@@ -166,7 +167,7 @@ const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurrin
 try {
   for (const dir of DIRS) {
     const dirPath = path.join(DATA_DIR, dir);
-    if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+    if (!fs.existsSync(dirPath)) makeDir(dirPath);
   }
 } catch (err) {
   const why = err.code === 'ENOSPC' ? 'The disk is full. Free some space and open the app again.'
@@ -419,7 +420,7 @@ app.delete('/api/bills/:id', (req, res) => {
   }
   try {
     const trashDir = path.join(DATA_DIR, 'trash');
-    if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+    if (!fs.existsSync(trashDir)) makeDir(trashDir);
     fs.renameSync(filePath, path.join(trashDir, fname));
     // The list must not serve the moved bill from cache for 5 more seconds.
     invalidateCache('bills');
@@ -1114,7 +1115,7 @@ app.post('/api/import', (req, res) => {
 // Save PDF to local folder
 // ========================
 const INVOICES_DIR = path.join(APP_HOME, 'Saved Invoices');
-if (!fs.existsSync(INVOICES_DIR)) fs.mkdirSync(INVOICES_DIR, { recursive: true });
+if (!fs.existsSync(INVOICES_DIR)) makeDir(INVOICES_DIR);
 
 app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }), (req, res) => {
   try {
@@ -1134,7 +1135,7 @@ app.post('/api/save-pdf', express.raw({ type: 'application/pdf', limit: '20mb' }
     const filePath = path.join(folderPath, safeName);
     if (!isPathInside(filePath, INVOICES_DIR)) return errRes(res, 400, 'invalid-path');
 
-    if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+    if (!fs.existsSync(folderPath)) makeDir(folderPath);
     fs.writeFileSync(filePath, req.body);
     // v1.10.79 (#94) - a PDF saved now replaces any original kept for Undo of
     // a CANCELLED stamp, so an old copy can never come back over a new one.
@@ -1262,7 +1263,7 @@ app.post('/api/saved-pdf/cancel-mark', express.json(), async (req, res) => {
 // ========================
 const TRASH_DIR = path.join(APP_HOME, 'Trash');
 
-if (!fs.existsSync(TRASH_DIR)) fs.mkdirSync(TRASH_DIR, { recursive: true });
+if (!fs.existsSync(TRASH_DIR)) makeDir(TRASH_DIR);
 
 app.post('/api/trash-pdf', express.json(), (req, res) => {
   try {
@@ -1291,7 +1292,7 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
           const trashPath = path.join(TRASH_DIR, safeClient, month);
           const trashFile = path.join(trashPath, safeName);
           if (!isPathInside(trashFile, TRASH_DIR)) return errRes(res, 400, 'invalid-path');
-          if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
+          if (!fs.existsSync(trashPath)) makeDir(trashPath);
           try {
             fs.renameSync(filePath, trashFile);
           } catch {
@@ -1310,7 +1311,7 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
         const trashPath = path.join(TRASH_DIR, safeClient);
         const trashFile = path.join(trashPath, safeName);
         if (isPathInside(trashFile, TRASH_DIR)) {
-          if (!fs.existsSync(trashPath)) fs.mkdirSync(trashPath, { recursive: true });
+          if (!fs.existsSync(trashPath)) makeDir(trashPath);
           try {
             fs.renameSync(flatPath, trashFile);
           } catch {
@@ -1618,7 +1619,7 @@ app.post('/api/control-panel/open-data-folder', (req, res) => {
 app.post('/api/control-panel/open-backups-folder', (req, res) => {
   const backupsHome = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'FreeGSTBill Backups');
   try {
-    if (!fs.existsSync(backupsHome)) fs.mkdirSync(backupsHome, { recursive: true });
+    if (!fs.existsSync(backupsHome)) makeDir(backupsHome);
     if (isWindows) spawn('explorer.exe', [backupsHome], { detached: true }).unref();
     else if (isMac) spawn('open', [backupsHome], { detached: true }).unref();
     else spawn('xdg-open', [backupsHome], { detached: true }).unref();
@@ -1804,10 +1805,10 @@ app.use(express.static(distPath, { fallthrough: true })); // fallthrough = ok if
 // ============================================================
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 const BILL_TRASH_DIR = path.join(DATA_DIR, 'trash');
-function ensureDir(p) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
+function ensureDir(p) { if (!fs.existsSync(p)) makeDir(p); }
 
 function copyDirRecursive(src, dst) {
-  if (!fs.existsSync(dst)) fs.mkdirSync(dst, { recursive: true });
+  if (!fs.existsSync(dst)) makeDir(dst);
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const s = path.join(src, entry.name);
     const d = path.join(dst, entry.name);
@@ -1853,7 +1854,7 @@ const installId = () => {
 };
 const exists = (p) => fs.promises.access(p).then(() => true, () => false);
 async function copyDirAsync(src, dst) {
-  await fs.promises.mkdir(dst, { recursive: true });
+  await makeDirAsync(dst);
   for (const entry of await fs.promises.readdir(src, { withFileTypes: true })) {
     const s = path.join(src, entry.name);
     const d = path.join(dst, entry.name);
@@ -1881,7 +1882,7 @@ async function copyBackupToExtraFolder(date) {
         : 'This folder also gets backups from another computer. Give each computer its own backup folder, or their backups mix.';
       return;
     }
-    await fs.promises.mkdir(dir, { recursive: true });
+    await makeDirAsync(dir);
     // Copied under a temporary name and renamed, so a half-copied folder (disk
     // removed mid-copy) never looks like a complete backup.
     const tmp = `${dst}.partial`;

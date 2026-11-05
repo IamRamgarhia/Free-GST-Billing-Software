@@ -730,6 +730,32 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-083 - The app's own server could freeze on a protected folder (Controlled folder access)
+
+**Version:** every version up to 1.10.83 · fixed in 1.10.84
+**Found by:** review of the tray menu's "Make a backup now" (2026-11-05), after ERR-082
+
+**Symptom** (expected, not yet reported) - with Windows Security's "Controlled
+folder access" on, Control Panel -> Open backups folder (it makes
+`Documents\FreeGSTBill Backups`), or an extra backup folder chosen inside
+Documents / Desktop, could make the whole app stop answering; extra backups
+could stop for good without an error.
+
+**Cause** - the same as ERR-082, in server.js: 11 `fs.mkdirSync(dir, { recursive:
+true })` and 2 `fs.promises.mkdir(dir, { recursive: true })`. A refused
+recursive mkdir never returns; the sync one blocks Node's only thread (every
+request waits), the async one never settles (`extraCopyRunning` stays true).
+
+**Rule** - server code makes folders with `makeDir` / `makeDirAsync`
+(src/utils/makeDir.js: one level at a time, a refusal is a fast error). Never a
+recursive mkdir.
+
+**Guard** - `scripts/makedir-test.mjs` (in `npm run test:unit`): fails if
+server.js contains a recursive mkdir; checks nested, repeated and impossible
+folders (fast error).
+
+---
+
 ## ERR-082 - Windows Setup stuck on "Preparing to Install" (Controlled folder access)
 
 **Version:** the v1.10.84 test Setup (never released) · fixed before release
