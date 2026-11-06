@@ -423,7 +423,7 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 
 | Feature | Details |
 |---------|---------|
-| **Profit & Loss Statement** | Revenue vs. expenses breakdown (excluding GST) with net profit/loss and margin % |
+| **Profit & Loss Statement** | Revenue minus cost of goods sold (each product's purchase price) and expenses, excluding GST, with gross profit, net profit/loss and margin % |
 | **Monthly P&L Breakdown** | Month-by-month financial performance |
 | **Outstanding & Aging** | Track unpaid invoices with auto-overdue detection and days overdue counter |
 | **Low Stock Alerts** | Monitor inventory levels across your product catalog |

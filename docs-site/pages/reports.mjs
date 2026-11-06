@@ -14,7 +14,7 @@ export default [
 <p>Open ${ui('Reports')} from the sidebar. A row of buttons at the top picks the report; the one you are on is filled in blue. The small ${ui('?')} at the end of that row opens the part of this guide for the report you are looking at.</p>
 <div class="table-wrap"><table>
   <tr><th>Tab</th><th>What it answers</th><th>Period</th></tr>
-  <tr><td>${ui('Profit & Loss')}</td><td>Did I make money? Sales minus expenses, without GST, and month by month.</td><td>The period you choose</td></tr>
+  <tr><td>${ui('Profit & Loss')}</td><td>Did I make money? Sales minus what the goods cost and your expenses, without GST, and month by month.</td><td>The period you choose</td></tr>
   <tr><td>${ui('Outstanding & Aging')}</td><td>Who owes me money today, on which invoice, and how late is it?</td><td>Every unpaid invoice, any date</td></tr>
   <tr><td>${ui('Party Outstanding')}</td><td>The same money owed, one row per party and one column per month, the way Tally shows it.</td><td>A financial or calendar year</td></tr>
   <tr><td>${ui('Client Analytics')}</td><td>Who are my best customers, and who pays slowest?</td><td>The period you choose</td></tr>
@@ -34,7 +34,7 @@ export default [
   <li><b>Subtracted:</b> credit notes (goods returned or a discount given after the sale) reduce the sales of the period they are dated in.</li>
   <li><b>Left out:</b> proforma invoices and estimates (a quote is not a sale), delivery challans (goods moved, not sold) and cancelled invoices.</li>
 </ul>
-<p>Purchase bills are not part of these reports, except <a href="#cost-centres">By cost centre</a>; they are in <a href="income-tax.html#itr-summary">Income Tax, ITR Summary</a> and the <a href="purchases.html#export">purchase register</a>. Expenses are counted in Profit &amp; Loss and By cost centre.</p>
+<p>Profit &amp; Loss also subtracts the <b>cost of goods sold</b>: the quantity sold times each product's <b>Purchase price</b> on the <a href="products.html">Products</a> page. Purchase bills themselves are not part of these reports, except <a href="#cost-centres">By cost centre</a>; they are in <a href="income-tax.html#itr-summary">Income Tax, ITR Summary</a> and the <a href="purchases.html#export">purchase register</a>. Expenses are counted in Profit &amp; Loss and By cost centre.</p>
 <p>Two exceptions to "this business only":</p>
 <ul>
   <li><b>Stock</b> covers every business, because products and stock are shared by all your businesses.</li>
@@ -80,10 +80,10 @@ export default [
   <tr><th>Card</th><th>What it is</th></tr>
   <tr><td><b>Revenue (ex. tax)</b></td><td>Your sales without GST (and without any TCS collected on the invoices). Credit notes are subtracted.</td></tr>
   <tr><td><b>Expenses (ex. GST)</b></td><td>Your <a href="expenses.html">expenses</a> without the GST on them.</td></tr>
-  <tr><td><b>Net Profit</b> or <b>Net Loss</b></td><td>Revenue minus expenses. Green for a profit; red with a minus sign for a loss.</td></tr>
+  <tr><td><b>Net Profit</b> or <b>Net Loss</b></td><td>Revenue minus the cost of goods sold and expenses. Green for a profit; red with a minus sign for a loss.</td></tr>
   <tr><td><b>Margin</b></td><td>Profit as a percentage of revenue. ₹20,000 profit on ₹1,00,000 revenue is a 20% margin.</td></tr>
 </table></div>
-<p>Purchase bills (stock you bought to sell) are <b>not</b> subtracted here; this is sales less expenses. For profit after purchases, use <a href="#cost-centres">By cost centre</a> (its Total row is the whole business) or <a href="income-tax.html#itr-summary">Income Tax, ITR Summary</a>.</p>
+<p>The cost of goods sold is the <b>Purchase price</b> on each <a href="products.html">product</a> times the quantity sold. Fill it in once for each product and every report uses it. A product with no purchase price adds nothing to the cost, so its whole sale price is profit. Purchase bills are not used for this figure; they feed <a href="income-tax.html#itr-summary">Income Tax, ITR Summary</a> and <a href="#cost-centres">By cost centre</a>.</p>
 <figure><img src="${img('app-reports.png')}" alt="The Profit and Loss tab." loading="lazy"><figcaption>The Profit &amp; Loss tab.</figcaption></figure>
 <p>The same period choice appears on the Client Analytics and Product Performance tabs.</p>
 </section>
@@ -96,18 +96,20 @@ export default [
   <tr><td><b>Total Revenue</b></td><td>Everything billed in the period, GST included, less credit notes.</td></tr>
   <tr><td><b>Less: GST Collected</b></td><td>The GST (and TCS) on those invoices. It belongs to the government.</td></tr>
   <tr><td><b>Net Revenue</b></td><td>What you actually earned from sales.</td></tr>
+  <tr><td><b>Less: Cost of Goods Sold</b></td><td>The Purchase price of the items sold, without GST.</td></tr>
+  <tr><td><b>Gross Profit</b></td><td>Net Revenue minus the cost of goods sold.</td></tr>
   <tr><td><b>Total Expenses</b></td><td>Expenses with their GST.</td></tr>
   <tr><td><b>Less: GST on Expenses (ITC)</b></td><td>The GST on those expenses, which comes back to you as input tax credit.</td></tr>
   <tr><td><b>Net Expenses</b></td><td>What the expenses really cost you.</td></tr>
-  <tr><td><b>Net Profit</b> / <b>Net Loss</b></td><td>Net Revenue minus Net Expenses.</td></tr>
+  <tr><td><b>Net Profit</b> / <b>Net Loss</b></td><td>Gross Profit minus Net Expenses.</td></tr>
 </table></div>
-<p>With more than one currency, the card says <b>Showing USD invoices only</b> (or whichever currency you picked).</p>
-<div class="note tip"><strong>Something wrong?</strong><p>Profit looks too high: purchases are not subtracted on this tab (see above), and an expense entered without its GST split counts in full. Revenue looks too low: check that the invoices are not saved as proforma or challans, and are not cancelled.</p></div>
+<p>With more than one currency, the card says <b>Showing USD invoices only</b> (or whichever currency you picked), and the cost is converted at the exchange rate saved on each invoice.</p>
+<div class="note tip"><strong>Something wrong?</strong><p>Profit looks too high: a product has no <b>Purchase price</b>, so its cost is counted as zero (see above), or an expense entered without its GST split counts in full. Revenue looks too low: check that the invoices are not saved as proforma or challans, and are not cancelled.</p></div>
 </section>
 
 <section id="monthly-breakdown">
 <h3>Monthly Breakdown</h3>
-<p>One row for each month that had sales or expenses in the period, oldest first, with <b>Revenue</b>, <b>Expenses</b> and <b>Profit/Loss</b> for that month, all without GST. A profit shows in green, a loss in red. Months with nothing in them are left out.</p>
+<p>One row for each month that had sales or expenses in the period, oldest first, with <b>Revenue</b>, <b>Cost of goods</b>, <b>Expenses</b> and <b>Profit/Loss</b> for that month, all without GST. A profit shows in green, a loss in red. Months with nothing in them are left out.</p>
 <p>The card appears only when the period has some activity. ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} export it with a <b>Total</b> row at the bottom.</p>
 <ol class="steps">
   <li><strong>Pick the year</strong>Filter By <b>Fiscal Year</b>, and the year.</li>

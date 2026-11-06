@@ -168,7 +168,7 @@ export default [
   <li><strong>Credit you cannot claim</strong> (food and drinks, personal use, motor cars in most cases, a supplier who has not filed): leave it out when you file on the portal, or ask your CA. The app does not know which credit is blocked.</li>
   <li><strong>Reverse charge</strong> (you pay the GST instead of the supplier, for example on goods transport or legal services): the app does not work this out on purchases. Ask your CA how to show it.</li>
 </ul>
-<p>Purchase bills also feed the <a href="income-tax.html#itr-summary">Income Tax</a> screen (your purchases, without GST, are subtracted from sales). The <a href="reports.html#profit-loss">Profit &amp; Loss</a> report on Reports uses sales and expenses only, not purchase bills.</p>
+<p>Purchase bills also feed the <a href="income-tax.html#itr-summary">Income Tax</a> screen (your purchases, without GST, are subtracted from sales). The <a href="reports.html#profit-loss">Profit &amp; Loss</a> report on Reports takes the cost of goods sold from each product's <b>Purchase price</b>, not from purchase bills.</p>
 </section>
 
 <section id="payment-status">

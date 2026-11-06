@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package, Boxes, Building2, Percent } from 'lucide-react';
-import { getAllBills, getAllExpenses, getProfile } from '../store';
+import { getAllBills, getAllExpenses, getAllProducts, getProfile } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, calculateLineItemTax, roundQty, parseLocalDate, amountDue } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -8,7 +8,8 @@ import PartyOutstandingReport from './PartyOutstandingReport';
 import StockReport from './StockReport';
 import TableExport from './TableExport';
 import { billCurrency } from '../utils/partyOutstanding';
-import { billsInInr } from '../utils/fx';
+import { billsInInr, baseCurrencyOf } from '../utils/fx';
+import { billCogs, cogsOfBills, productIndex } from '../utils/cogs';
 import CostCentreReport from './CostCentreReport';
 import { costCentresOn } from './useCostCentres';
 import TdsTcsReport from './TdsTcsReport';
@@ -41,6 +42,7 @@ const TAB_HELP = {
 export default function ReportsView() {
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState('pl');
   const [filterMode, setFilterMode] = useState('fy');
   const [fyFilter, setFyFilter] = useState('');
@@ -60,8 +62,8 @@ export default function ReportsView() {
 
   const loadData = async () => {
     try {
-      const [billData, expData, prof] = await Promise.all([
-        getAllBills(), getAllExpenses(), getProfile().catch(() => null),
+      const [billData, expData, prodData, prof] = await Promise.all([
+        getAllBills(), getAllExpenses(), getAllProducts().catch(() => []), getProfile().catch(() => null),
       ]);
       // v1.10.64 (#55) — reports are per business. Mixing two companies'
       // turnover into one profit figure is simply a wrong number.
@@ -70,6 +72,8 @@ export default function ReportsView() {
       // v1.10.66 (#64) — expenses too. Filtering only the invoices left every
       // company's expenses in each company's profit and loss.
       setExpenses((expData || []).filter(e => belongsToProfile(e, prof)));
+      // #146 - the P&L costs each sold item at its Purchase price (Products).
+      setProducts(prodData || []);
       setBusinessName(prof?.businessName || '');
       setOwnerProfile(prof);
     } catch {
@@ -118,6 +122,9 @@ export default function ReportsView() {
   const allInInr = currencyFilter === ALL_INR;
   // The currency amounts are shown in.
   const shownCurrency = allInInr ? 'INR' : currencyFilter;
+  // Product purchase prices are in the business's own currency.
+  const baseCurrency = baseCurrencyOf(ownerProfile || { country: 'India' });
+  const productById = productIndex(products);
   const converted = allInInr ? billsInInr(allFilteredBills) : null;
   const filteredExpenses = expenses.filter(exp =>
     filterByPeriod(exp.date) && ((exp.currency || 'INR') === shownCurrency));
@@ -155,21 +162,25 @@ export default function ReportsView() {
   const totalExpenseAmount = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0);
   const totalExpenseGST = filteredExpenses.reduce((s, e) => s + (e.gstAmount || 0), 0);
   const expenseExGST = totalExpenseAmount - totalExpenseGST;
-  const netProfit = revenueExTax - expenseExGST;
+  // #146 - subtract what the goods sold cost us, not just expenses.
+  const cogsTotal = cogsOfBills(plBills, productById, { base: baseCurrency });
+  const grossProfit = revenueExTax - cogsTotal;
+  const netProfit = grossProfit - expenseExGST;
 
   // Monthly breakdown — per selected currency
   const monthlyPL = {};
   plBills.forEach(b => {
     if (!b.invoiceDate) return;
     const key = b.invoiceDate.substring(0, 7);
-    if (!monthlyPL[key]) monthlyPL[key] = { revenue: 0, tax: 0, expense: 0, expGst: 0 };
+    if (!monthlyPL[key]) monthlyPL[key] = { revenue: 0, tax: 0, cogs: 0, expense: 0, expGst: 0 };
     monthlyPL[key].revenue += salesSign(b) * (b.totalAmount || 0);
     monthlyPL[key].tax += salesSign(b) * ((b.totalTaxAmount || 0) + tcsOf(b));
+    monthlyPL[key].cogs += billCogs(b, productById, { base: baseCurrency });
   });
   filteredExpenses.forEach(e => {
     if (!e.date) return;
     const key = e.date.substring(0, 7);
-    if (!monthlyPL[key]) monthlyPL[key] = { revenue: 0, tax: 0, expense: 0, expGst: 0 };
+    if (!monthlyPL[key]) monthlyPL[key] = { revenue: 0, tax: 0, cogs: 0, expense: 0, expGst: 0 };
     monthlyPL[key].expense += e.amount || 0;
     monthlyPL[key].expGst += e.gstAmount || 0;
   });
@@ -379,6 +390,14 @@ export default function ReportsView() {
                     <td style={{ padding: '0.6rem 0', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(revenueExTax, shownCurrency)}</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '0.6rem 0', fontWeight: 500, color: 'var(--text-secondary)' }}>Less: Cost of Goods Sold</td>
+                    <td style={{ padding: '0.6rem 0', textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(cogsTotal, shownCurrency)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                    <td style={{ padding: '0.6rem 0', fontWeight: 700 }}>Gross Profit</td>
+                    <td style={{ padding: '0.6rem 0', textAlign: 'right', fontWeight: 700, color: grossProfit >= 0 ? '#059669' : '#dc2626' }}>{formatCurrency(grossProfit, shownCurrency)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '0.6rem 0', fontWeight: 500, color: 'var(--text-secondary)' }}>Total Expenses</td>
                     <td style={{ padding: '0.6rem 0', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(totalExpenseAmount, shownCurrency)}</td>
                   </tr>
@@ -400,6 +419,9 @@ export default function ReportsView() {
                   </tr>
                 </tbody>
               </table>
+              <p style={{ maxWidth: '500px', margin: '0.75rem auto 0', fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                Cost of goods sold is the Purchase price (Products page) of the items sold. A product with no purchase price adds nothing.
+              </p>
             </div>
           </div>
 
@@ -409,21 +431,22 @@ export default function ReportsView() {
               <div className="table-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                 <h3>Monthly Breakdown<HelpButton title="Monthly Breakdown" doc="reports#monthly-breakdown" size={16} /></h3>
                 <TableExport title="Profit and loss by month" filename={`Profit-and-loss-${periodLabel}`} subtitle={exportSubtitle('before tax, GST left out')}
-                  headers={['Month', 'Revenue', 'Expenses', 'Profit/Loss']}
+                  headers={['Month', 'Revenue', 'Cost of goods', 'Expenses', 'Profit/Loss']}
                   rows={[
                     ...monthlyKeys.map(key => {
                       const m = monthlyPL[key];
                       const [y, mo] = key.split('-');
-                      return [`${MONTHS[parseInt(mo) - 1]} ${y}`, r2(m.revenue - m.tax), r2(m.expense - m.expGst), r2((m.revenue - m.tax) - (m.expense - m.expGst))];
+                      return [`${MONTHS[parseInt(mo) - 1]} ${y}`, r2(m.revenue - m.tax), r2(m.cogs), r2(m.expense - m.expGst), r2((m.revenue - m.tax) - m.cogs - (m.expense - m.expGst))];
                     }),
-                    ['Total', r2(revenueExTax), r2(expenseExGST), r2(netProfit)],
+                    ['Total', r2(revenueExTax), r2(cogsTotal), r2(expenseExGST), r2(netProfit)],
                   ]} />
               </div>
               <div className="table-scroll">
-                <table className="data-table" style={{ minWidth: '600px' }}>
+                <table className="data-table" style={{ minWidth: '700px' }}>
                   <thead><tr>
                     <th>Month</th>
                     <th style={{ textAlign: 'right' }}>Revenue</th>
+                    <th style={{ textAlign: 'right' }}>Cost of goods</th>
                     <th style={{ textAlign: 'right' }}>Expenses</th>
                     <th style={{ textAlign: 'right' }}>Profit/Loss</th>
                   </tr></thead>
@@ -432,12 +455,13 @@ export default function ReportsView() {
                       const m = monthlyPL[key];
                       const rev = m.revenue - m.tax;
                       const exp = m.expense - m.expGst;
-                      const pl = rev - exp;
+                      const pl = rev - m.cogs - exp;
                       const [y, mo] = key.split('-');
                       return (
                         <tr key={key}>
                           <td className="font-medium">{MONTHS[parseInt(mo) - 1]} {y}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(rev, shownCurrency)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(m.cogs, shownCurrency)}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(exp, shownCurrency)}</td>
                           <td style={{ textAlign: 'right', fontWeight: 700, color: pl >= 0 ? '#059669' : '#dc2626' }}>
                             {formatCurrency(pl, shownCurrency)}
