@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.84] - 2026-11-06
+
+### How to update
+
+**Current version:** 1.10.83  →  **New version:** 1.10.84
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.84** in the menu, or
+   **Settings → Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/Aayush7g/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server**, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+### Fixed
+- **Profit & Loss showed the whole revenue as profit** (#146, thanks
+  @Sanjeev-1695). The report never subtracted what the goods cost you, so with
+  no expenses entered a shop selling at a 20% margin saw 100% profit. It now
+  has a **Cost of goods sold** line and a **Gross profit** line under net
+  revenue: quantity sold × each product's **Purchase price** from the Products
+  page, without GST. A credit note takes the returned goods' cost back off;
+  cancelled invoices, quotes, challans, delivery charges and lines that no
+  longer match a product add nothing. Invoices in a foreign currency use the
+  exchange rate saved on that invoice. The monthly breakdown and its CSV/PDF
+  exports include the same cost.
+
+---
+
 ## [1.10.83] - 2026-10-31
 
 ### How to update
