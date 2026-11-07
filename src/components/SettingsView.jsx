@@ -700,6 +700,7 @@ export default function SettingsView({ onSaved }) {
     const loaded = { ...bp };
     delete loaded.id;
     delete loaded.hidden;
+    delete loaded.isActive;
     setProfile(loaded);
     await saveProfile(loaded);
     // v1.10.56 (#44) — switching profiles persists immediately, so this IS
@@ -726,8 +727,8 @@ export default function SettingsView({ onSaved }) {
     const again = (await promptAction({ title: 'Type the same PIN again', inputType: 'password', placeholder: '6 or 8 digits', confirmLabel: 'Hide company' }))?.trim();
     if (again !== pin) { if (again !== undefined) toast('The two PINs were not the same. Nothing changed.', 'error'); return; }
     try {
-      await setCompanyHidePin(bp.id, pin);
-      keepOpened(bp.id); // stays in the list in this window until a switch or restart
+      const r = await setCompanyHidePin(bp.id, pin);
+      keepOpened(r.profile, r.key); // stays in the list in this window until a switch or restart
       toast(`${bp.businessName} is hidden. Open it with its PIN from the company list.`, 'success');
       profilesChanged();
     } catch { toast('Could not hide the company.', 'error'); }

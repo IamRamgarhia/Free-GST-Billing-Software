@@ -559,8 +559,9 @@ export const getAllProfilesWithHidden = () => apiFetch(`${API}/profiles`);
 export const getAllProfiles = async () => visibleProfiles(await getAllProfilesWithHidden());
 
 export const saveBusinessProfile = async (profile) => {
-  const res = await apiFetch(`${API}/profiles`, { method: 'POST', body: JSON.stringify(profile) });
+  const res = await apiFetch(`${API}/profiles`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...hiddenKeyHeader(profile.id) }, body: JSON.stringify(profile) });
   if (res.id) profile.id = res.id;
+  if (openedHidden.has(profile.id)) openedHidden.set(profile.id, { ...openedHidden.get(profile.id), profile: { ...profile, hidden: true } });
   return profile;
 };
 
@@ -568,24 +569,30 @@ export const saveBusinessProfile = async (profile) => {
 // server marks them `hidden`; they are left out of every company list until
 // their PIN is typed in this window, and hidden again on a switch to another
 // company or a restart (opened ids live only in memory).
-const openedHidden = new Set();
-export const visibleProfiles = (list) => (list || []).filter((p) => !p.hidden || openedHidden.has(p.id));
+// Opened in this window: id -> { profile, key }. The server lists a hidden
+// company as a bare entry; opening it with its PIN gives its details and a
+// key that saving or deleting it needs (X-Hidden-Key).
+const openedHidden = new Map();
+export const visibleProfiles = (list) => (list || [])
+  .map((p) => (p.hidden && openedHidden.has(p.id) ? { ...openedHidden.get(p.id).profile, isActive: p.isActive } : p))
+  .filter((p) => !p.hidden || openedHidden.has(p.id));
 export const hasHiddenProfiles = (list) => (list || []).some((p) => p.hidden && !openedHidden.has(p.id));
 export const isOpenedHidden = (id) => openedHidden.has(id);
 export const openHiddenCompanies = async (pin) => {
   const res = await apiFetch(`${API}/profiles/unlock`, { method: 'POST', body: JSON.stringify({ pin }) });
-  (res.ids || []).forEach((id) => openedHidden.add(id));
+  (res.profiles || []).forEach(({ key, ...profile }) => openedHidden.set(profile.id, { profile, key }));
   return res.ids || [];
 };
-export const keepOpened = (id) => { if (id) openedHidden.add(id); };
+export const keepOpened = (profile, key) => { if (profile?.id && key) openedHidden.set(profile.id, { profile, key }); };
 export const hideCompaniesAgain = (keepId) => {
-  for (const id of [...openedHidden]) if (id !== keepId) openedHidden.delete(id);
+  for (const id of [...openedHidden.keys()]) if (id !== keepId) openedHidden.delete(id);
 };
+const hiddenKeyHeader = (id) => (openedHidden.has(id) ? { 'X-Hidden-Key': openedHidden.get(id).key } : {});
 export const setCompanyHidePin = (id, pin, currentPin) => apiFetch(`${API}/profiles/${encodeURIComponent(id)}/hide-pin`,
   { method: 'POST', body: JSON.stringify({ pin, currentPin }) });
 
 export const deleteBusinessProfile = async (id) => {
-  return apiFetch(`${API}/profiles/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return apiFetch(`${API}/profiles/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...hiddenKeyHeader(id) } });
 };
 
 // ---- Export / Import ----

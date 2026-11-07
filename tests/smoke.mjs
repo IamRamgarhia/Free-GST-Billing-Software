@@ -62,6 +62,10 @@ async function cleanup(page) {
       };
       await del('purchases');
       await del('products');
+      // v1.10.85 #125 - the hidden test company goes only with its key.
+      const opened = await (await fetch('/api/profiles/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '246813' }) })).json().catch(() => ({}));
+      await Promise.all((opened.profiles || []).filter((p) => String(p.id).startsWith('smoketest-'))
+        .map((p) => fetch(`/api/profiles/${encodeURIComponent(p.id)}`, { method: 'DELETE', headers: { 'X-Hidden-Key': p.key } })));
       await del('profiles');
       await del('expenses');
       await del('receipts');

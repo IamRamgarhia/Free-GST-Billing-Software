@@ -444,7 +444,7 @@ function App() {
       const ids = await openHiddenCompanies(pin.trim());
       const list = await getAllProfilesWithHidden();
       setAllProfiles(list);
-      const first = list.find((p) => p.id === ids[0]);
+      const first = visibleProfiles(list).find((p) => p.id === ids[0]);
       if (first) await handleSwitchProfile(first);
     } catch (e) {
       toast(e?.body?.code === 'wait' ? `Too many wrong tries. Wait ${e.body.wait} seconds.` : 'That PIN does not open a company.', 'error');
@@ -457,6 +457,7 @@ function App() {
     const loaded = { ...bp };
     delete loaded.id;
     delete loaded.hidden;
+    delete loaded.isActive;
     await saveProfile(loaded);
     setProfile(loaded);
   };
@@ -465,7 +466,7 @@ function App() {
   // first company that is not hidden (the same match as the switcher's).
   useEffect(() => {
     const same = (p) => p.businessName?.trim().toLowerCase() === profile?.businessName?.trim().toLowerCase();
-    if (!allProfiles.some((p) => p.hidden && !isOpenedHidden(p.id) && same(p))) return;
+    if (!allProfiles.some((p) => p.hidden && p.isActive && !isOpenedHidden(p.id))) return;
     const fallback = shownProfiles.find((p) => !same(p));
     if (fallback) handleSwitchProfile(fallback);
     // eslint-disable-next-line react-hooks/exhaustive-deps
