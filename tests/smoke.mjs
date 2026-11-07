@@ -260,6 +260,15 @@ try {
     return [...(wrap?.querySelectorAll('input.form-input') || [])].map((i) => i.value);
   });
 
+  // On fresh test books the page reloads itself once, a few seconds after the
+  // first load (the new service worker taking over), which closes the form
+  // (it stopped the whole suite here several times, with the 1.10.84 build
+  // too). Wait for that moment to pass, and open the form again if it went.
+  await sleep(5000);
+  if (!(await item.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: /add purchase/i }).first().click();
+    await item.waitFor({ timeout: 15000 });
+  }
   await item.fill('Pen drive'); await sleep(600);
   await item.fill('Mouse'); await sleep(600);
   const swapped = await rowVals();
