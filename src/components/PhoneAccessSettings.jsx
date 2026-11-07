@@ -119,9 +119,10 @@ export default function PhoneAccessSettings() {
       {on && status.error && <p className="notice notice-danger" style={{ fontSize: '0.85rem' }}>{status.error}</p>}
       {on && status.listening && (
         <>
-          <p className="notice notice-note" style={{ fontSize: '0.85rem' }}>
+          {/* .notice is a flex row: one span keeps the sentence as text. */}
+          <p className="notice notice-note" style={{ fontSize: '0.85rem' }}><span>
             <b>Windows may ask</b> whether to allow <i>Node.js JavaScript Runtime</i> on networks. Tick <b>Private networks</b> (your home or shop Wi-Fi), leave <b>Public networks</b> unticked, and click <b>Allow</b>. If you clicked Cancel, phones cannot connect: see the ? for how to fix it.
-          </p>
+          </span></p>
           {pair ? <PairPanel key={pair.code} pair={pair} onNew={showCode} /> : (
             <button type="button" className="btn btn-primary" onClick={showCode} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><QrCode size={16} /> Pair a phone or tablet</button>
           )}

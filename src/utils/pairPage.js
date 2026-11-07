@@ -15,6 +15,7 @@ export function pairPageHtml({ fingerprint, nonce }) {
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="referrer" content="no-referrer" />
+<link rel="icon" href="data:," />
 <title>Pair this device - Free GST Billing</title>
 <style>
   :root { color-scheme: light dark; --bg: #eef2f7; --card: #fff; --text: #0f172a; --muted: #475569; --blue: #1e40af; --border: #cbd5e1; --err: #b91c1c; }
