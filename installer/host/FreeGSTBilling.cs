@@ -912,6 +912,9 @@ class MainForm : Form
         Size size = new Size(Math.Min(1280, area.Width * 9 / 10), Math.Min(820, area.Height * 9 / 10));
         StartPosition = FormStartPosition.Manual;
         Bounds = new Rectangle(area.X + (area.Width - size.Width) / 2, area.Y + (area.Height - size.Height) / 2, size.Width, size.Height);
+        // 7 Nov (maintainer): the first time it opens full screen (maximized);
+        // after that, the size and place the user left it in.
+        WindowState = FormWindowState.Maximized;
         try
         {
             string[] v = File.ReadAllText(placeFile).Trim().Split(' ');
@@ -919,7 +922,7 @@ class MainForm : Form
             bool seen = false;
             foreach (Screen s in Screen.AllScreens) if (s.WorkingArea.IntersectsWith(r)) seen = true;
             if (seen && r.Width >= 400 && r.Height >= 300) Bounds = r;
-            if (v.Length > 4 && v[4] == "1") WindowState = FormWindowState.Maximized;
+            WindowState = v.Length > 4 && v[4] == "1" ? FormWindowState.Maximized : FormWindowState.Normal;
         }
         catch (Exception) { }
     }

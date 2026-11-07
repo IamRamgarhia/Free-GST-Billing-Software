@@ -165,7 +165,7 @@ export default function WelcomeGuide({ onComplete }) {
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.6rem 0 0' }}>You can change this any time in Settings → Region Preference.</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.6rem 0 0' }}>You can change this any time in Settings → Print &amp; PDF → Region.</p>
               </div>
             </div>
           )}

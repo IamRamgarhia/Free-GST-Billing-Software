@@ -1,7 +1,7 @@
 // File-based storage via local Express API server
 // All data persists as JSON files in the ./data/ folder
 
-import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates } from './utils';
+import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta } from './utils';
 import { poCounterKey, formatPoNumber } from './utils/purchaseOrders';
 
 import { logProblem } from './utils/problemLog';
@@ -486,6 +486,22 @@ export const markSavedPdfCancelled = (bill, cancelled) => apiFetch(`${API}/saved
 export const trashSavedPdf = (bill) => apiFetch(`${API}/trash-pdf`, {
   method: 'POST', body: JSON.stringify(savedPdfNameFor(bill)),
 });
+
+// v1.10.84 - an invoice to Trash (kept 30 days; Settings -> Data & Backups ->
+// Trash bin restores it). Its stock goes back first, as when an invoice is
+// cancelled; the trashed copy records what was put back, so restoring it takes
+// exactly that out again. Used by the Invoices list and the Clients page.
+// Returns { stockWarning } when the stock could not be put back.
+export const trashBill = async (bill) => {
+  const returned = bill?.data ? appliedStock(bill) : {};
+  const moves = Object.keys(returned).length > 0;
+  if (moves) await saveBill({ ...bill, data: { ...bill.data, stockApplied: {}, stockReturnedOnDelete: returned } }, { overwrite: true });
+  try { await deleteBill(bill.id); } catch (err) { if (moves) await saveBill(bill, { overwrite: true }).catch(() => {}); throw err; }
+  let stockWarning = false;
+  if (moves) await applyStockChanges(stockDelta(returned, {})).catch(() => { stockWarning = true; });
+  trashSavedPdf(bill).catch(() => {});
+  return { stockWarning };
+};
 
 export const deleteReceipt = async (id) => {
   return apiFetch(`${API}/receipts/${encodeURIComponent(id)}`, { method: 'DELETE' });

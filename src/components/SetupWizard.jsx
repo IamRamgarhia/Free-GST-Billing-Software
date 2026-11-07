@@ -88,7 +88,7 @@ export default function SetupWizard({ onClose }) {
           <>
             <h3 style={{ marginTop: 0 }}>What kind of business do you run? <HelpButton title="What kind of business do you run?" doc="first-run#wizard-business-type" size={16} /></h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Pick one and the app shows the features that business needs, and sets an invoice style to match. You can change it later in Settings → Business type.
+              Pick one and the app shows the features that business needs, and sets an invoice style to match. You can change it later in Settings → Company → Business type.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.6rem' }}>
               {BUSINESS_TYPES.map(({ id: key, ...preset }) => (

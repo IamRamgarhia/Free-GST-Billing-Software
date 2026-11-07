@@ -659,15 +659,13 @@ function App() {
     // names its section id; after Settings mounts (it's lazy-loaded, so retry
     // briefly) we click that section's "Jump to" chip, which already scrolls
     // below the sticky bars.
+    // v1.10.84 - Settings has 6 tabs of several sections: it opens the
+    // section's tab and scrolls to it (first open: sessionStorage; already
+    // open: the event SettingsView listens for).
     const openSettingsAt = (sectionId) => {
+      try { sessionStorage.setItem('gst_settingsTab', sectionId); } catch { /* storage blocked */ }
       setCurrentView('settings');
-      let tries = 0;
-      const jump = () => {
-        const chip = document.querySelector(`.settings-jumpnav a[href="#${sectionId}"]`);
-        if (chip && document.getElementById(sectionId)) chip.click();
-        else if (++tries < 30) setTimeout(jump, 100);
-      };
-      setTimeout(jump, 50);
+      setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: sectionId })), 80);
     };
     const settingsJumps = [
       ['Company profile', 'section-company'], ['Payment accounts', 'section-company'],

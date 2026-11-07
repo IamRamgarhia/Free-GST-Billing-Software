@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllClients, getAllBills, deleteClient, saveClient, deleteBill, saveBill, getProfile, deleteReceipt, applyStockChanges, trashSavedPdf } from '../store';
-import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, appliedStock, stockDelta } from '../utils';
+import { getAllClients, getAllBills, deleteClient, saveClient, saveBill, getProfile, deleteReceipt, trashBill } from '../store';
+import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
@@ -623,22 +623,16 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const handleDeleteBill = async (id) => {
     if (await confirmAction({
       title: 'Delete this invoice?',
-      message: 'The invoice will be moved to Trash for 30 days. Restore it from Settings → Backup Management → Trash bin.',
+      message: 'The invoice will be moved to Trash for 30 days. Restore it from Settings → Data & Backups → Trash bin.',
       confirmLabel: 'Delete',
       tone: 'danger',
     })) {
-      // Its stock goes back, as when an invoice is cancelled. The trashed copy
-      // records what was put back, so restoring it takes exactly that out again.
       const bill = bills.find((b) => b.id === id);
-      const returned = bill?.data ? appliedStock(bill) : {};
-      const moves = Object.keys(returned).length > 0;
       try {
-        if (moves) await saveBill({ ...bill, data: { ...bill.data, stockApplied: {}, stockReturnedOnDelete: returned } }, { overwrite: true });
-        try { await deleteBill(id); }
-        catch (err) { if (moves) await saveBill(bill, { overwrite: true }).catch(() => {}); throw err; }
-        if (moves) await applyStockChanges(stockDelta(returned, {})).catch(() => toast('Invoice deleted, but its stock could not be put back. Check Products.', 'warning'));
-        if (bill) trashSavedPdf(bill).catch(() => {});
-        toast('Invoice deleted', 'success'); loadData();
+        const { stockWarning } = await trashBill(bill || { id });
+        if (stockWarning) toast('Invoice deleted, but its stock could not be put back. Check Products.', 'warning');
+        else toast('Invoice deleted', 'success');
+        loadData();
       }
       catch { toast('Failed to delete', 'error'); }
     }

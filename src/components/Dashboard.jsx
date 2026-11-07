@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules } from '../store';
+import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock, billMatchesSearch } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
@@ -557,6 +557,23 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         loadBills();
       } catch { toast('Failed to cancel', 'error'); }
     }
+  };
+
+  // v1.10.84 (maintainer, 7 Nov) - Delete on the Invoices list too: to Trash
+  // for 30 days, with its stock put back (trashBill, as on the Clients page).
+  const handleDeleteInvoice = async (bill) => {
+    if (!(await confirmAction({
+      title: 'Delete this invoice?',
+      message: `Invoice ${bill.invoiceNumber} for ${bill.clientName} is moved to Trash for 30 days. Restore it from Settings → Data & Backups → Trash bin. Its stock goes back. To keep its number in your records instead, use Cancel invoice.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    }))) return;
+    try {
+      const { stockWarning } = await trashBill(bill);
+      if (stockWarning) toast('Invoice moved to Trash, but its stock could not be put back. Check Products.', 'warning');
+      else toast('Invoice moved to Trash (30 days)', 'success');
+      loadBills();
+    } catch { toast('Failed to delete', 'error'); }
   };
 
   const handleView = (bill) => {
@@ -1846,6 +1863,9 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                             { label: 'Email', icon: Mail, onClick: () => shareEmail(bill), hidden: readOnly },
                             { label: 'Cancel invoice', icon: Ban, tone: 'danger', onClick: () => handleCancelInvoice(bill), hidden: readOnly,
                               title: 'Cancel invoice — keeps the number; undo it with the Undo cancel arrow on the row' },
+                            // Also on a cancelled invoice: cancel it, then delete it if it should go.
+                            { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDeleteInvoice(bill),
+                              title: 'Move to Trash for 30 days (Settings → Data & Backups → Trash bin restores it)' },
                           ]} />
                         </div>
                       </td>}

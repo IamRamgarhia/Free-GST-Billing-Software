@@ -22,7 +22,7 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 
 <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip"><img src="https://img.shields.io/github/v/release/IamRamgarhia/Free-GST-Billing-Software?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20Download&color=16a34a&labelColor=15803d" alt="Download the latest version" height="48"></a>&nbsp;&nbsp;<a href="https://dicecodes.com/free-gst-software-documentation/"><img src="https://img.shields.io/badge/%F0%9F%93%96%20Documentation-Read%20the%20guide-2563eb?style=for-the-badge&labelColor=1d4ed8" alt="Read the documentation" height="48"></a>
 
-<sub>Always the newest version · about 25 MB · Windows, macOS and Linux in one ZIP · <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release notes</a></sub>
+<sub>Always the newest version · about 25 MB · Windows, macOS and Linux in one ZIP · <a href="#which-file-do-i-download">Windows Setup and Linux packages</a> · <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release notes</a></sub>
 
 <a href="#quick-start--installation"><img src="https://img.shields.io/badge/%E2%9A%A1%20Install-3%20steps-0f766e?style=for-the-badge&labelColor=334155" alt="Install in 3 steps" height="30"></a> <a href="#your-first-invoice-in-5-minutes"><img src="https://img.shields.io/badge/%F0%9F%A7%BE%20First%20invoice-5%20minutes-7c3aed?style=for-the-badge&labelColor=334155" alt="Your first invoice in 5 minutes" height="30"></a> <a href="#screenshots"><img src="https://img.shields.io/badge/%F0%9F%93%B8%20See-screenshots-0369a1?style=for-the-badge&labelColor=334155" alt="Screenshots" height="30"></a> <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases"><img src="https://img.shields.io/badge/%F0%9F%93%A6%20All-releases-475569?style=for-the-badge&labelColor=334155" alt="All releases" height="30"></a> <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/new/choose"><img src="https://img.shields.io/badge/%F0%9F%90%9B%20Report-a%20problem-b91c1c?style=for-the-badge&labelColor=334155" alt="Report a problem" height="30"></a> <a href="https://dicecodes.com/free-gst-software-documentation/support.html"><img src="https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20Support-the%20project-be123c?style=for-the-badge&labelColor=334155" alt="Support the project" height="30"></a>
 
@@ -42,7 +42,7 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 ### Don't trust us. Check it in 2 minutes.
 
 1. **Switch your internet off** (Wi-Fi off, or unplug the cable) and open the app. Make an invoice, download the PDF, print it, open Reports. **Everything works.** Nothing the app does with your books needs the internet.
-2. **Turn on Offline mode** in **Settings → Privacy & internet**. From then on the app **never goes online by itself**: no update check, no supporters list, no automatic copy to Google Drive. You can still update whenever you choose.
+2. **Turn on Offline mode** in **Settings → Privacy & Security → Privacy & internet**. From then on the app **never goes online by itself**: no update check, no supporters list, no automatic copy to Google Drive. You can still update whenever you choose.
 3. **Watch it, or block it.** Windows Resource Monitor (`resmon` → Network) shows the app's `node.exe` making no outside connections with Offline mode on. You can even block it in the firewall: the app keeps working, only the update check stops.
 
 ### When does it use the internet?
@@ -58,6 +58,19 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 **That is the complete list.** No analytics, no ads, no error-tracking service, and no server of ours that receives your data.
 
 **[Read the full answer: every address the app connects to, and more ways to check →](https://dicecodes.com/free-gst-software-documentation/security.html)**
+
+---
+
+## Which file do I download?
+
+All files are on the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) page, under **Assets**. Your invoices stay on your computer whichever you pick.
+
+| Your computer | Download | What you get |
+| --- | --- | --- |
+| **Windows 10 / 11** (new) | [`Free-GST-Billing-Windows-Setup.exe`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe) | A normal Windows program: Start menu and Desktop icon, its own window, stays near the clock when closed, updates itself. No administrator password. Windows may say "Windows protected your PC" the first time: **More info → Run anyway**. Already using the ZIP? Setup finds it and asks whether to keep your books where they are or copy them; your old folder is never changed. |
+| **Windows, Mac, Linux** | [`Free-GST-Billing.zip`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip) | The same app with a launcher for each system (steps below). Every existing copy updates from inside the app. |
+| **Ubuntu, Linux Mint, Debian** | `free-gst-billing_<version>_amd64.deb` on the [release page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) | Installs like any other program: `sudo apt install ./free-gst-billing_*_amd64.deb` |
+| **Any 64-bit Linux** | [`Free-GST-Billing-Linux-x86_64.AppImage`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Linux-x86_64.AppImage) | One file: right-click → Properties → Permissions → *Allow executing file as program*, then double-click. |
 
 ---
 

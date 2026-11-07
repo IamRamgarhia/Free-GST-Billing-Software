@@ -9,7 +9,17 @@ export default [
   body: `
 <section id="save-bar">
 <h2>Settings tabs and the Save all changes bar</h2>
-<p>Open ${ui('Settings')} from the sidebar. Settings is split into <b>tabs</b>, a row of buttons at the top of the page: ${ui('Business type')}, ${ui('Company')}, ${ui('Profiles')}, ${ui('Terms')}, ${ui('Print &amp; PDF')}, ${ui('Features')}, ${ui('Stock')}, ${ui('Region')}, ${ui('App lock')}, ${ui('Privacy &amp; internet')}, ${ui('Backups')}, ${ui('Google Drive')}, ${ui('Import/Export')} and ${ui('Updates')}. Click one to show that tab. The tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two or three lines; nothing is hidden.</p>
+<p>Open ${ui('Settings')} from the sidebar. Settings is split into six <b>tabs</b>, a row of buttons at the top of the page. Each tab shows its cards one under the other:</p>
+<div class="table-wrap"><table>
+  <tr><th>Tab</th><th>Cards in it</th></tr>
+  <tr><td>${ui('Company')}</td><td>Business type, Company details (with payment accounts), Business profiles, Terms</td></tr>
+  <tr><td>${ui('Print &amp; PDF')}</td><td>Print and PDF settings, Region</td></tr>
+  <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
+  <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), Privacy &amp; internet</td></tr>
+  <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, Google Drive, Import/Export</td></tr>
+  <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
+</table></div>
+<p>Click a tab to show it; the tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two lines; nothing is hidden. Searching with ${ui('Ctrl + K')} for a setting (for example "Google Drive") opens its tab at that card.</p>
 <p>The app remembers the tab you had open until you close the browser tab, so coming back to Settings opens the same tab.</p>
 <p><b>The ? buttons.</b> The ${ui('?')} at the top right of Settings opens the help for the tab you are on. Every card inside a tab also has its own small ${ui('?')} next to its title, which opens the help for just that card, here or on the <a href="print-settings.html">Print and PDF</a> and <a href="backup.html">Backups</a> pages. They open in your web browser and need internet.</p>
 <h3>The Save all changes bar</h3>

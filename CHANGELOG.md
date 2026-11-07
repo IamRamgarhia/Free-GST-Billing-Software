@@ -61,7 +61,7 @@ a backup is made first.
   like other software (Start menu, Desktop icon, optional start with Windows,
   Settings → Apps to remove; no administrator password), opens in a window of
   its own - a real program window with its own taskbar icon (pin it), which
-  remembers its size and place. Closing it with X keeps the app running near
+  opens full screen the first time and then remembers its size and place. Closing it with X keeps the app running near
   the clock (click the icon to open it again; right-click for Check for
   updates, Open books folder, Make a backup now and Quit), and with "Open when
   Windows starts" it waits there quietly. Update notices show there too. If
@@ -117,6 +117,10 @@ a backup is made first.
 - **Profit & Loss counts the cost of the goods sold** (#146): quantity sold ×
   the product's purchase price, as its own line, then Gross Profit. Items with
   no purchase price are named so you can fill it in.
+- **Delete an invoice from the Invoices list**: its actions menu has *Delete*
+  next to *Cancel invoice*. The invoice goes to the Trash for 30 days (restore it
+  from *Settings → Data & Backups → Trash bin*) and its stock goes back.
+  *Cancel invoice* still keeps the number in your records.
 - **Delete many products at once** (#177): tick products in the list (or the
   box in the header for all shown) and click *Delete selected*.
 - **Search invoices by order ID, AWB, phone or GSTIN** (#172): the Invoices
@@ -131,6 +135,10 @@ a backup is made first.
   Customize can hide the export / LUT declaration.
 
 ### Changed
+- **Settings has 6 tabs instead of 14**: *Company*, *Print & PDF*, *Features*,
+  *Privacy & Security*, *Data & Backups* and *Updates*, each showing its cards
+  one under the other. Nothing was removed; *Ctrl + K* finds any setting and
+  opens its tab at that card.
 - **The GST switch says what it does** (#152, #138): Customize's *Tax % column*
   always turned GST off for the whole invoice. It is now *Charge GST on this
   invoice* (group *Tax*), and a new *Tax % columns* switch hides only the GST

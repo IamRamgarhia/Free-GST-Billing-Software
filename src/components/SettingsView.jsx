@@ -30,22 +30,24 @@ import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedB
 // module scope so the scroll-spy effect below can reference it without
 // re-computing on every render.
 // v1.10.83 - "Business type comes first": it decides which features show.
-const JUMP_NAV_SECTIONS = [
-  ['section-biztype',  'Business type'],
-  ['section-company',  'Company'],
-  ['section-profiles', 'Profiles'],
-  ['section-terms',    'Terms'],
-  ['section-print',    'Print & PDF'],
-  ['section-modules',  'Features'],
-  ['section-stock',    'Stock'],
-  ['section-region',   'Region'],
-  ['section-lock',     'App lock'],
-  ['section-privacy',  'Privacy & internet'],
-  ['section-backups',  'Backups'],
-  ['section-cloud',    'Google Drive'],
-  ['section-data',     'Import/Export'],
-  ['section-updates',  'Updates'],
+// v1.10.84 (maintainer, 7 Nov: "so many options which can be merged in
+// tabs") - 14 tabs became 6; each shows its sections one under the other.
+// The names keep the words the guide and the app already use ("Settings ->
+// Features", "Settings -> Data & Backups"). Old section ids (Ctrl+K search,
+// the app window's "Check for updates", saved tabs) open their tab and scroll
+// to the section.
+const SETTINGS_TABS = [
+  ['tab-company',  'Company',            ['section-biztype', 'section-company', 'section-profiles', 'section-terms']],
+  ['tab-print',    'Print & PDF',        ['section-print', 'section-region']],
+  ['tab-features', 'Features',           ['section-modules', 'section-costcentres', 'section-stock']],
+  ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-privacy']],
+  ['tab-data',     'Data & Backups',     ['section-backups', 'section-cloud', 'section-data']],
+  ['tab-updates',  'Updates',            ['section-updates']],
 ];
+const ALL_SECTIONS = SETTINGS_TABS.flatMap(([, , sections]) => sections);
+// A tab id or a section id -> its tab (the first tab for anything unknown).
+const tabOf = (id) => (SETTINGS_TABS.find(([tab, , sections]) => tab === id || sections.includes(id)) || SETTINGS_TABS[0])[0];
+const sectionsOf = (tab) => (SETTINGS_TABS.find(([t]) => t === tab) || SETTINGS_TABS[0])[2];
 // v1.10.83 - the ? button opens the guide for the tab that is open.
 // Each card inside a tab has its own ? next to its title too. The docs build
 // (docs-site/build.mjs) checks that every one of these exists.
@@ -70,17 +72,30 @@ export default function SettingsView({ onSaved }) {
   // switching and the one Save bar still covers every tab. The open tab is
   // remembered for this browser session.
   const TAB_KEY = 'gst_settingsTab';
+  // `activeSection` holds the open TAB's id; setActiveSection takes a tab or
+  // a section id (a section: its tab opens and the page scrolls to it).
   const [activeSection, setActiveSectionState] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem(TAB_KEY);
-      if (JUMP_NAV_SECTIONS.some(([id]) => id === saved)) return saved;
-    } catch { /* storage blocked */ }
-    return JUMP_NAV_SECTIONS[0][0];
+    try { return tabOf(sessionStorage.getItem(TAB_KEY)); } catch { return SETTINGS_TABS[0][0]; }
   });
-  const setActiveSection = (id) => {
-    setActiveSectionState(id);
-    try { sessionStorage.setItem(TAB_KEY, id); } catch { /* storage blocked */ }
+  const scrollToSection = (id) => {
+    if (!ALL_SECTIONS.includes(id) || id === sectionsOf(tabOf(id))[0]) return;
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   };
+  const setActiveSection = (id) => {
+    const tab = tabOf(id);
+    setActiveSectionState(tab);
+    try { sessionStorage.setItem(TAB_KEY, tab); } catch { /* storage blocked */ }
+    scrollToSection(id);
+  };
+  // Opened at a section from elsewhere (App's openSettingsAt): first open
+  // through sessionStorage, already open through this event.
+  useEffect(() => {
+    try { scrollToSection(sessionStorage.getItem(TAB_KEY)); } catch { /* storage blocked */ }
+    const onOpen = (e) => setActiveSection(e.detail);
+    window.addEventListener('fgsb:settings-open', onOpen);
+    return () => window.removeEventListener('fgsb:settings-open', onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // v1.10.55 — reported (#43, @sangwanmail-eng): "Some time details not save
   // after update in setting tab", and the title said there was no save button
@@ -801,11 +816,11 @@ export default function SettingsView({ onSaved }) {
             boxShadow: '0 6px 18px rgba(var(--primary-rgb), 0.35)',
           }}>⚙</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 className="page-title" style={{ margin: 0 }}>Settings <HelpButton title="Settings" doc={SETTINGS_TAB_DOCS[activeSection] || 'settings'} size={16} /></h1>
+            <h1 className="page-title" style={{ margin: 0 }}>Settings <HelpButton title="Settings" doc={SETTINGS_TAB_DOCS[sectionsOf(activeSection)[0]] || 'settings'} size={16} /></h1>
             <p className="page-subtitle" style={{ margin: '0.15rem 0 0' }}>
               Business profile, branding, integrations & data
               <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.5rem', borderRadius: 999, background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginLeft: '0.55rem', fontWeight: 600 }}>
-                {JUMP_NAV_SECTIONS.length} sections
+                {SETTINGS_TABS.length} tabs
               </span>
             </p>
           </div>
@@ -830,14 +845,13 @@ export default function SettingsView({ onSaved }) {
           background: 'var(--bg-secondary)', // solid: content must not show through
           boxShadow: '0 4px 20px rgba(15, 23, 42, 0.08)',
         }}>
-        <style>{JUMP_NAV_SECTIONS.map(([id]) => id)
-          .concat('section-costcentres')
-          .filter((id) => id !== activeSection && !(id === 'section-costcentres' && activeSection === 'section-modules'))
+        <style>{ALL_SECTIONS
+          .filter((id) => !sectionsOf(activeSection).includes(id))
           .map((id) => `#${id}`).join(', ') + ' { display: none !important; }'}</style>
         <nav className="settings-jumpnav" aria-label="Settings sections" style={{
           display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center',
         }}>
-          {JUMP_NAV_SECTIONS.map(([id, label]) => {
+          {SETTINGS_TABS.map(([id, label]) => {
             const active = activeSection === id;
             return (
               <a key={id} href={`#${id}`}

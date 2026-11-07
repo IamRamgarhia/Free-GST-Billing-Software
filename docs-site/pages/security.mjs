@@ -23,7 +23,7 @@ export default [
   <li><strong>Saved as files on your PC.</strong> Every invoice, client, product, payment and setting is a file in the <code>_system\\data</code> folder inside the app's folder. Saved invoice PDFs go in the <b>Saved Invoices</b> folder next to it.</li>
   <li><strong>No account, no login, no signup.</strong> The app never asks for an email address or a password to use it.</li>
   <li><strong>No cloud server.</strong> We do not run a server that holds your books. There is nothing of yours on our side to leak or to lose.</li>
-  <li><strong>Google Drive only if you set it up.</strong> If you choose to connect your own Google Drive (Settings → Google Drive), copies of your invoice PDFs and backups go to <i>your</i> Drive. Nothing goes there until you do. See <a href="settings.html#google-drive">Google Drive</a>.</li>
+  <li><strong>Google Drive only if you set it up.</strong> If you choose to connect your own Google Drive (Settings → Data &amp; Backups → Google Drive), copies of your invoice PDFs and backups go to <i>your</i> Drive. Nothing goes there until you do. See <a href="settings.html#google-drive">Google Drive</a>.</li>
 </ul>
 <p>One honest limit: the data files are not encrypted. Anyone who can sign in to your Windows or Mac account can open that folder, the same as your other documents. Protect the computer with its own password, and see <a href="#what-you-should-do">What you should do</a>.</p>
 </section>
@@ -154,7 +154,7 @@ export default [
   <li><strong>Daily automatic backups.</strong> Every day the app copies all your data into a dated backup and keeps the last 30 days. See <a href="backup.html#automatic-backups">Daily backups</a>.</li>
   <li><strong>A copy on another drive.</strong> Choose a second folder (another drive, a USB disk, a synced folder) and every daily backup is copied there too, so a failed hard disk does not take your books with it. See <a href="backup.html#backup-copy">Keeping a copy somewhere else</a>.</li>
   <li><strong>Before every update</strong>, the installer and the updater back up your data first.</li>
-  <li><strong>PIN lock (optional).</strong> On a computer others use, turn on a 6 or 8 digit PIN in Settings → App lock. The PIN is stored only as a scrambled check value (a salted hash), never as the digits, and after five wrong tries in a row it makes you wait 30 seconds. It locks the app's screens; it does not encrypt the files. See <a href="settings.html#lock">App lock</a>.</li>
+  <li><strong>PIN lock (optional).</strong> On a computer others use, turn on a 6 or 8 digit PIN in Settings → Privacy &amp; Security → App lock. The PIN is stored only as a scrambled check value (a salted hash), never as the digits, and after five wrong tries in a row it makes you wait 30 seconds. It locks the app's screens; it does not encrypt the files. See <a href="settings.html#lock">App lock</a>.</li>
 </ul>
 </section>
 
