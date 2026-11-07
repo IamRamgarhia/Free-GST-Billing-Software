@@ -33,7 +33,7 @@ export default [
   slug: 'install',
   title: 'Install on Windows, step by step',
   nav: 'Install on Windows',
-  lead: 'Paste one line and press Enter. About 3 minutes, no technical knowledge needed, no administrator password, and no "Windows protected your PC" warning. Every step below says what to press and what you will see.',
+  lead: 'Download the Setup program and double-click it: it installs like any other Windows program, in about 2 minutes, with no administrator password. Every step below says what to press and what you will see.',
   body: `
 ${which}
 
@@ -46,8 +46,30 @@ ${which}
 </ul>
 </section>
 
+<section id="setup-exe">
+<h2>Install with the Setup program (recommended)</h2>
+<p>Installs like any other Windows program: an icon in the Start menu and on the Desktop, the app in a window of its own (closing it keeps it running near the clock), updates from inside the app, and removal in Windows Settings. No administrator password.</p>
+<ol class="steps">
+  <li><strong>Download it</strong><a class="download" href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe">Download Free-GST-Billing-Windows-Setup.exe</a> (about 35 MB).</li>
+  <li><strong>Open it</strong>Double-click <code>Free-GST-Billing-Windows-Setup.exe</code> in your Downloads folder.</li>
+  <li><strong>If Windows says "Windows protected your PC"</strong>That blue box is SmartScreen. It appears because the Setup is new and not yet signed with a paid certificate, not because anything is wrong with it. Click ${ui('More info')}, then ${ui('Run anyway')}.</li>
+  <li><strong>Answer "Your books"</strong>Your books are your invoices, clients, products and settings. Setup asks where they should be kept:
+    <ul>
+      <li><b>First time on this computer:</b> leave <i>Start new books in C:\\Users\\&lt;your name&gt;\\Free GST Billing</i> ticked.</li>
+      <li><b>You already use Free GST Billing (the ZIP or the one-line install):</b> Setup finds it and shows how many invoices it has. If it finds more than one copy, it lists them all (the one you changed last first, with its invoices and date) and you pick the one you use. <i>Keep using my books where they are</i> uses them in their folder (do not delete that folder afterwards). <i>Copy my books to C:\\Users\\&lt;your name&gt;\\Free GST Billing</i> makes a copy, checks every file, and leaves your old folder exactly as it was, as a backup. Either way nothing in your old folder is changed or deleted.</li>
+      <li><b>Your books are somewhere else</b> (another drive, a copied folder): choose <i>browse</i> and pick the folder that has the <code>data</code> folder in it.</li>
+    </ul></li>
+  <li><strong>Choose the icons</strong>A Desktop icon is ticked. Tick <i>Open Free GST Billing when Windows starts</i> if you want it to open by itself.</li>
+  <li><strong>Click Install, then Finish</strong>The app opens in its own window. The last page shows where your books are and where Setup wrote what it did (<code>Free GST Billing - install log.txt</code>).</li>
+</ol>
+<p><b>Your old icons</b> are not deleted: they are moved into the <code>Old shortcuts (backup)</code> folder next to that log, so two icons never start two copies of the app.</p>
+<p><b>Updates:</b> when a new version is out, the app shows <i>Update to vX</i> in the menu (and a Windows notification, if you allow it in the update window). Click it, then ${ui('Update Now')}: the new Setup downloads and installs by itself, and the app reloads in about a minute. Your books are not touched. You never need to reinstall.</p>
+<p><b>Removing it:</b> Windows ${ui('Settings')} → ${ui('Apps')} → <b>Free GST Billing</b> → ${ui('Uninstall')}. It asks <i>Also delete your books?</i>: the answer is <b>No</b> unless you click Yes, and books in your earlier copy's folder are never deleted by it.</p>
+</section>
+
 <section id="one-line">
-<h2>Install with one line</h2>
+<h2>Other way: install with one line</h2>
+<p>No download to open and no "Windows protected your PC" box: paste one line instead. It sets up the same app with the ZIP's launcher and opens it in Edge's app window.</p>
 <ol class="steps">
   <li><strong>Copy this line</strong>Click the ${ui('Copy')} button at the right end of the line below. (Or select all of it with the mouse and press ${key('Ctrl', 'C')}.)
 <pre><code>${WIN_LINE}</code></pre></li>
@@ -69,30 +91,9 @@ ${which}
 <p>The app is installed to <code>%LOCALAPPDATA%\\Programs\\Free GST Billing</code>. If you installed it from the ZIP before, the line finds that copy (through its Desktop shortcut) and updates it where it is. Your data is in the <code>_system\\data</code> folder inside it.</p>
 </section>
 
-<section id="setup-exe">
-<h2>Other way: the Setup program (.exe)</h2>
-<p>Installs like any other Windows program: an icon in the Start menu and on the Desktop, updates from inside the app, and removal in Windows Settings. No administrator password.</p>
-<ol class="steps">
-  <li><strong>Download it</strong><a class="download" href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe">Download Free-GST-Billing-Windows-Setup.exe</a> (about 30 MB).</li>
-  <li><strong>Open it</strong>Double-click <code>Free-GST-Billing-Windows-Setup.exe</code> in your Downloads folder.</li>
-  <li><strong>If Windows says "Windows protected your PC"</strong>That blue box is SmartScreen. It appears because the Setup is new and not yet signed with a paid certificate, not because anything is wrong with it. Click ${ui('More info')}, then ${ui('Run anyway')}.</li>
-  <li><strong>Answer "Your books"</strong>Your books are your invoices, clients, products and settings. Setup asks where they should be kept:
-    <ul>
-      <li><b>First time on this computer:</b> leave <i>Start new books in C:\\Users\\&lt;your name&gt;\\Free GST Billing</i> ticked.</li>
-      <li><b>You already use Free GST Billing (the ZIP or the one-line install):</b> Setup finds it and shows how many invoices it has. If it finds more than one copy, it lists them all (the one you changed last first, with its invoices and date) and you pick the one you use. <i>Keep using my books where they are</i> uses them in their folder (do not delete that folder afterwards). <i>Copy my books to C:\\Users\\&lt;your name&gt;\\Free GST Billing</i> makes a copy, checks every file, and leaves your old folder exactly as it was, as a backup. Either way nothing in your old folder is changed or deleted.</li>
-      <li><b>Your books are somewhere else</b> (another drive, a copied folder): choose <i>browse</i> and pick the folder that has the <code>data</code> folder in it.</li>
-    </ul></li>
-  <li><strong>Choose the icons</strong>A Desktop icon is ticked. Tick <i>Open Free GST Billing when Windows starts</i> if you want it to open by itself.</li>
-  <li><strong>Click Install, then Finish</strong>The app opens in its own window. The last page shows where your books are and where Setup wrote what it did (<code>Free GST Billing - install log.txt</code>).</li>
-</ol>
-<p><b>Your old icons</b> are not deleted: they are moved into the <code>Old shortcuts (backup)</code> folder next to that log, so two icons never start two copies of the app.</p>
-<p><b>Updates:</b> when a new version is out, the app shows <i>Update to vX</i> in the menu (and a Windows notification, if you allow it in the update window). Click it, then ${ui('Update Now')}: the new Setup downloads and installs by itself, and the app reloads in about a minute. Your books are not touched. You never need to reinstall.</p>
-<p><b>Removing it:</b> Windows ${ui('Settings')} → ${ui('Apps')} → <b>Free GST Billing</b> → ${ui('Uninstall')}. It asks <i>Also delete your books?</i>: the answer is <b>No</b> unless you click Yes, and books in your earlier copy's folder are never deleted by it.</p>
-</section>
-
 <section id="zip">
 <h2>Other way: download the ZIP</h2>
-<p>For offices that copy the app from a USB stick, or where the line above is blocked. It takes a few more clicks and Windows shows a warning the first time.</p>
+<p>For offices that copy the app from a USB stick, or where the Setup and the line above are blocked. It takes a few more clicks and Windows shows a warning the first time.</p>
 </section>
 
 <section id="download">

@@ -20,9 +20,11 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 
 **A free invoice builder and invoice maker** for shop owners, freelancers, consultants, traders and small businesses in India: make a GST invoice, quotation (proforma / estimate), bill of supply, credit note or delivery challan in minutes and save it as a PDF. Free billing software and a free, open-source alternative to Tally, Vyapar, Zoho and myBillBook.
 
-<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip"><img src="https://img.shields.io/github/v/release/IamRamgarhia/Free-GST-Billing-Software?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20Download&color=16a34a&labelColor=15803d" alt="Download the latest version" height="48"></a>&nbsp;&nbsp;<a href="https://dicecodes.com/free-gst-software-documentation/"><img src="https://img.shields.io/badge/%F0%9F%93%96%20Documentation-Read%20the%20guide-2563eb?style=for-the-badge&labelColor=1d4ed8" alt="Read the documentation" height="48"></a>
+<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Windows-Setup%20.exe-0078D4?style=for-the-badge&labelColor=334155" alt="Download for Windows (Setup program)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20macOS-ZIP-111827?style=for-the-badge&labelColor=334155" alt="Download for macOS (ZIP)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Linux-x86_64.AppImage"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Linux-AppImage-E95420?style=for-the-badge&labelColor=334155" alt="Download for Linux (AppImage)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest"><img src="https://img.shields.io/badge/%F0%9F%93%A6%20All-downloads-16a34a?style=for-the-badge&labelColor=334155" alt="All downloads: the latest release" height="40"></a>
 
-<sub>Always the newest version · about 25 MB · Windows, macOS and Linux in one ZIP · <a href="#which-file-do-i-download">Windows Setup and Linux packages</a> · <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release notes</a></sub>
+<a href="https://dicecodes.com/free-gst-software-documentation/"><img src="https://img.shields.io/badge/%F0%9F%93%96%20Documentation-Read%20the%20guide-2563eb?style=for-the-badge&labelColor=1d4ed8" alt="Read the documentation" height="40"></a>
+
+<sub>Each button always gets the newest version · Windows: the Setup program (about 35 MB) · macOS: the ZIP (about 25 MB) · Linux: the AppImage, or the .deb on the <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release page</a> · <a href="#download-and-install">step-by-step for every system</a></sub>
 
 <a href="#quick-start--installation"><img src="https://img.shields.io/badge/%E2%9A%A1%20Install-3%20steps-0f766e?style=for-the-badge&labelColor=334155" alt="Install in 3 steps" height="30"></a> <a href="#your-first-invoice-in-5-minutes"><img src="https://img.shields.io/badge/%F0%9F%A7%BE%20First%20invoice-5%20minutes-7c3aed?style=for-the-badge&labelColor=334155" alt="Your first invoice in 5 minutes" height="30"></a> <a href="#screenshots"><img src="https://img.shields.io/badge/%F0%9F%93%B8%20See-screenshots-0369a1?style=for-the-badge&labelColor=334155" alt="Screenshots" height="30"></a> <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases"><img src="https://img.shields.io/badge/%F0%9F%93%A6%20All-releases-475569?style=for-the-badge&labelColor=334155" alt="All releases" height="30"></a> <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/new/choose"><img src="https://img.shields.io/badge/%F0%9F%90%9B%20Report-a%20problem-b91c1c?style=for-the-badge&labelColor=334155" alt="Report a problem" height="30"></a> <a href="https://dicecodes.com/free-gst-software-documentation/support.html"><img src="https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20Support-the%20project-be123c?style=for-the-badge&labelColor=334155" alt="Support the project" height="30"></a>
 
@@ -61,16 +63,48 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 
 ---
 
-## Which file do I download?
+## Download and install
 
-All files are on the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) page, under **Assets**. Your invoices stay on your computer whichever you pick.
+Pick your computer. Every link below always gets the newest version. Your invoices stay on your computer, whichever you pick. All files are also on the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) page, under **Assets**.
 
-| Your computer | Download | What you get |
-| --- | --- | --- |
-| **Windows 10 / 11** (new) | [`Free-GST-Billing-Windows-Setup.exe`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe) | A normal Windows program: Start menu and Desktop icon, its own window, stays near the clock when closed, updates itself. No administrator password. Windows may say "Windows protected your PC" the first time: **More info → Run anyway**. Already using the ZIP? Setup finds it and asks whether to keep your books where they are or copy them; your old folder is never changed. |
-| **Windows, Mac, Linux** | [`Free-GST-Billing.zip`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip) | The same app with a launcher for each system (steps below). Every existing copy updates from inside the app. |
-| **Ubuntu, Linux Mint, Debian** | `free-gst-billing_<version>_amd64.deb` on the [release page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) | Installs like any other program: `sudo apt install ./free-gst-billing_*_amd64.deb` |
-| **Any 64-bit Linux** | [`Free-GST-Billing-Linux-x86_64.AppImage`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Linux-x86_64.AppImage) | One file: right-click → Properties → Permissions → *Allow executing file as program*, then double-click. |
+### Windows 10 / 11: the Setup program (recommended)
+
+1. **[Download `Free-GST-Billing-Windows-Setup.exe`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe)** (about 35 MB).
+2. **Double-click it** in your Downloads folder. If Windows says *"Windows protected your PC"*, click **More info**, then **Run anyway** (the Setup is new and not yet signed; nothing is wrong with it).
+3. **Your books:** first time? Leave *Start new books* ticked. Already using the ZIP or the one-line install? Setup finds it and asks: keep using your books where they are, or copy them to `C:\Users\<your name>\Free GST Billing`. **Your old folder is never changed or deleted.**
+4. **Click Install, then Finish.** The app opens full screen in its own window. Closing it keeps it running near the clock; right-click that icon for *Quit*.
+
+No administrator password and no Node.js to install: everything it needs is inside. **Updates:** the app shows *Update to vX* → **Update Now** (no reinstalling). **Removing:** Windows **Settings → Apps → Installed apps → Free GST Billing → Uninstall** (it asks before deleting your books; the answer is No unless you choose Yes). Full guide: [Install on Windows](https://dicecodes.com/free-gst-software-documentation/install.html).
+
+Other ways on Windows: [one PowerShell line](#option-0-one-line-no-zip-no-smartscreen--gatekeeper-warning-no-npm) (no SmartScreen box) or [the ZIP](#-install-in-60-seconds--one-launcher-per-platform).
+
+### macOS
+
+1. **[Download `Free-GST-Billing.zip`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip)** (about 25 MB). Double-click it to unpack.
+2. In the **Free-GST-Billing** folder, **Control-click `Free GST Billing - MAC`** → **Open** → **Open**. (macOS 15 or newer without an Open button: Apple menu → System Settings → Privacy & Security → *Open Anyway*.)
+3. Click **Install** in the window that opens. The app opens in your browser at `http://localhost:47371`.
+
+Updates come from the app's **Update** button. **Never drag a new folder over the old one on a Mac**: Finder's Replace swaps the whole folder, including your invoices. Full guide: [Install on a Mac](https://dicecodes.com/free-gst-software-documentation/install-mac.html).
+
+### Linux: Ubuntu, Linux Mint, Debian (.deb)
+
+1. On the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest) page, under **Assets**, download **`free-gst-billing_<version>_amd64.deb`**.
+2. Double-click it, or in a Terminal: `sudo apt install ~/Downloads/free-gst-billing_*_amd64.deb`
+3. Open **Free GST Billing** from your applications menu.
+
+Your books are kept in `~/.local/share/free-gst-billing-data`; `sudo apt remove free-gst-billing` leaves them. To update, install the new .deb the same way.
+
+### Linux: any 64-bit system (AppImage)
+
+1. **[Download `Free-GST-Billing-Linux-x86_64.AppImage`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Linux-x86_64.AppImage)**.
+2. Right-click it → **Properties → Permissions** → tick *Allow executing file as program* (or `chmod +x Free-GST-Billing-Linux-x86_64.AppImage`).
+3. Double-click it.
+
+Same books folder as the .deb. Full guide: [Install on Linux or a NAS](https://dicecodes.com/free-gst-software-documentation/install-linux.html).
+
+### NAS or a home server
+
+Use the ZIP with `Free GST Billing - LINUX.sh` (steps below), or the one-line `install.sh`. A Docker image comes with secure phone and tablet access in a later update.
 
 ---
 
@@ -117,7 +151,7 @@ Free-GST-Billing/
 
 It fetches the latest release, installs it to
 `%LOCALAPPDATA%\Programs\Free GST Billing`, installs Node.js if you do not have
-it, and creates the Desktop shortcut. See [Option 1b](#option-1b-windows--one-powershell-command)
+it, and creates the Desktop shortcut. See [Option 1b](#option-1b-install-into-another-folder)
 for how to choose a different folder.
 
 The launcher:
@@ -157,7 +191,8 @@ More screenshots, next to the steps they show, in the [documentation](https://di
 
 ## 📑 Table of Contents
 
-- [Install in 60 Seconds](#-install-in-60-seconds-windows-one-click) — *Windows one-click*
+- [Download and install](#download-and-install) — *Windows Setup, Mac, Linux (.deb, AppImage), NAS*
+- [Install in 60 Seconds](#-install-in-60-seconds--one-launcher-per-platform) — *the ZIP, one launcher per system*
 - [Why Choose Free GST Billing Software?](#why-choose-free-gst-billing-software)
 - [Your First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) — *start here if you're new*
 - [Key Features](#key-features)
@@ -193,18 +228,11 @@ You need: Windows 10/11 PC, ~50 MB free disk, your business name + bank details 
 
 ### Step 1 — Install (1 minute)
 
-1. **[Download the ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip)** — always the latest version.
-   (Do **not** use the green *Code -> Download ZIP* button — that gives the source code without the built app.)
-2. Right-click the downloaded ZIP → **Extract All** → pick a folder you'll remember (e.g. `Documents\FreeGSTBill`)
-3. Open the **extracted** folder → double-click **`Free GST Billing - WINDOWS`** (each launcher is named after the system it is for)
-4. Click **Install**. It installs Node.js for you if you do not have it, then sets everything up. Takes 1–2 minutes the first time
-5. The app opens by itself at `http://localhost:47371`, and a **Free GST Billing** icon is on your Desktop for next time
+1. **[Download for your computer](#download-and-install)**: Windows, the Setup program; Mac, the ZIP; Linux, the .deb or the AppImage. Each link always gets the latest version.
+   (Do **not** use the green *Code -> Download ZIP* button: that gives the source code without the built app.)
+2. **Windows:** double-click `Free-GST-Billing-Windows-Setup.exe` → (if asked) **More info → Run anyway** → **Install** → **Finish**. **Mac / Linux:** follow the three steps for your system in [Download and install](#download-and-install).
+3. The app opens by itself, and a **Free GST Billing** icon is on your Desktop (or in your applications menu) for next time.
 
-> **Easier: one line, no ZIP, no warnings.** Press **Windows + R**, paste this, press **Enter**:
-> `powershell -ExecutionPolicy Bypass -c "[Net.ServicePointManager]::SecurityProtocol='Tls12'; irm https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.ps1 | iex"`
-> It installs the app, adds Desktop and Start-menu icons and opens it in its own window. Run it again any time to update or repair.
-
-> 💡 **Tip:** Click the small **Install App** icon in your browser's address bar to make the app open in its own window like Tally or Word — no browser chrome, looks and feels native.
 
 ### Step 2 — Set up your business profile (1 minute)
 
@@ -488,7 +516,11 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 - ~600 MB free disk space for the install
 - No internet after install (except for optional Google Drive backup / update check)
 
-### Option 0: one line (recommended — no ZIP, no SmartScreen / Gatekeeper warning, no npm)
+### Windows: the Setup program (recommended)
+
+Download [`Free-GST-Billing-Windows-Setup.exe`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe), double-click it, and click **Install**. Everything it needs is inside; no administrator password. Step by step: [Download and install](#download-and-install).
+
+### Option 0: one line (no ZIP, no SmartScreen / Gatekeeper warning, no npm)
 
 **Windows:** press **Windows + R**, paste, press **Enter**:
 
