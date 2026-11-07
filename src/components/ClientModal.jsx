@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES, decodeGstin, COUNTRIES } from '../utils';
-import { getRegionMode } from '../store';
+import { getRegionMode, activePriceLevels } from '../store';
+import { PriceLevelSelect } from './PriceLevelFields';
 import HelpButton from './HelpButton';
 
 export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
@@ -16,6 +17,10 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
     preferredPaperSize: '',   // '' | 'a4' | 'a5' | 'thermal80' | ...
     preferredCurrency: '',    // '' | 'INR' | 'USD' | ...
     autoPrint: false,          // per-client auto-print override
+    // v1.10.85 - optional: a warning on New Invoice above this outstanding,
+    // and the price level (Settings -> Features -> Price levels).
+    creditLimit: '',
+    priceLevel: '',
   };
   const [form, setForm] = useState({ ...emptyForm });
   const [taxIdWarning, setTaxIdWarning] = useState('');
@@ -31,6 +36,8 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
         preferredPaperSize: client.preferredPaperSize || '',
         preferredCurrency: client.preferredCurrency || '',
         autoPrint: !!client.autoPrint,
+        creditLimit: client.creditLimit || '',
+        priceLevel: client.priceLevel || '',
       });
     } else if (show) {
       setForm({ ...emptyForm });
@@ -71,8 +78,10 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
 
   const handleSave = () => {
     if (!form.name.trim()) return;
-    onSave(form);
+    const limit = Number(form.creditLimit);
+    onSave({ ...form, creditLimit: Number.isFinite(limit) && limit > 0 ? Math.round(limit * 100) / 100 : '' });
   };
+  const levels = activePriceLevels();
 
   return (
     <div className="modal-overlay">
@@ -163,6 +172,20 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
               </label>
             </div>
           )}
+
+          {/* v1.10.85 - credit limit and price level, both optional. */}
+          <div className="form-group" style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
+            <div>
+              <label htmlFor="client-credit-limit" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 3 }}>
+                Credit limit (optional) <HelpButton title="Credit limit" doc="clients#credit-limit" size={14} />
+              </label>
+              <input id="client-credit-limit" type="number" min="0" step="any" className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }}
+                value={form.creditLimit} placeholder="No limit"
+                onChange={e => setForm(prev => ({ ...prev, creditLimit: e.target.value }))}
+                title="New Invoice warns when what they owe plus the new invoice goes over this. It never stops you." />
+            </div>
+            <PriceLevelSelect levels={levels} value={form.priceLevel} onChange={(v) => setForm(prev => ({ ...prev, priceLevel: v }))} />
+          </div>
 
           {/* v1.9.1 — per-client print preferences. All optional; leave blank
               to use the app-wide defaults from Settings. When set, they

@@ -149,7 +149,9 @@ console.log('\n[#134] The Products export imports back, every column');
   // Today's export headings, read from the Products screen itself, so a change
   // to them that the import does not follow fails here.
   const src = readFileSync(new URL('../src/components/InventoryView.jsx', import.meta.url), 'utf8');
-  const headers = JSON.parse((/headers=\{(\[[^\]]*\])\}/.exec(src) || [])[1].replace(/'/g, '"'));
+  // v1.10.85 - the price-level columns (", ...levelCsvHeaders(levels)") are
+  // added only while Price levels is on; scripts/price-levels-test.mjs reads them.
+  const headers = JSON.parse((/headers=\{(\[[^\]]*\])\}/.exec(src) || [])[1].replace(/,\s*\.\.\.\w+\(\w+\)/g, '').replace(/'/g, '"'));
   const row = { Name: 'Pen', Type: 'Goods', 'HSN/SAC': '9608', 'Purchase price': 6, 'Selling price': 10, 'GST %': 12, Unit: 'Nos', Stock: 40 };
   const now = productsCsvToList([toCsvLine(headers), toCsvLine(headers.map((h) => row[h] ?? ''))].join('\n'), []).products[0];
   eq(JSON.stringify([now?.hsn, now?.purchasePrice, now?.sellingPrice, now?.taxPercent, now?.unit, now?.stock]), JSON.stringify(['9608', 6, 10, 12, 'Nos', 40]),

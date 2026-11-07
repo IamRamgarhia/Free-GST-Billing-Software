@@ -140,6 +140,11 @@ export default [
 <p>These are warnings only. They never stop you saving. The message clears as soon as you type in the box again.</p>
 </section>
 
+<section id="credit-limit">
+<h3>Credit limit warning</h3>
+<p>When the client has a <a href="clients.html#credit-limit">credit limit</a>, and what they already owe your business plus this invoice goes over it, a yellow warning shows under the line items: <b>Over the credit limit by ₹…</b>, with what they owe, the total with this invoice, and their limit. It is only a warning: you can still save the invoice. It shows for tax invoices, bills of supply and composition bills, not for quotations, challans or credit notes. When you edit a saved invoice, that invoice is counted once, as this invoice.</p>
+</section>
+
 <section id="client-credit">
 <h3>Using a client's credit</h3>
 <p>If the client paid more than they owed on earlier invoices, a blue banner appears at the top of Billed To on a <em>new</em> invoice: <b>💳 Client has ₹… credit</b>, with the invoices the overpayment came from.</p>
@@ -242,7 +247,7 @@ export default [
 <p>One row for each thing you are selling. The amount for each row and the totals are worked out for you and shown in the preview.</p>
 <div class="table-wrap"><table>
   <tr><th>Field</th><th>What to know</th></tr>
-  <tr><td>Item</td><td>The item name. Typing searches your <a href="products.html">products</a> by name or HSN and shows up to five, with their HSN and price. Pick one with the mouse, or with <kbd>↓</kbd> <kbd>↑</kbd> and <kbd>Enter</kbd>. Picking fills in the HSN, selling price, unit and GST rate, and links the row to the product so its stock is counted. You can also type any name that is not a product.</td></tr>
+  <tr><td>Item</td><td>The item name. Typing searches your <a href="products.html">products</a> by name or HSN and shows up to five, with their HSN and price. Pick one with the mouse, or with <kbd>↓</kbd> <kbd>↑</kbd> and <kbd>Enter</kbd>. Picking fills in the HSN, selling price, unit and GST rate, and links the row to the product so its stock is counted. With <a href="settings.html#price-levels">Price levels</a> on, a client on a level gets the product's price for that level instead, when it has one. You can also type any name that is not a product.</td></tr>
   <tr><td>HSN/SAC</td><td>The goods (HSN) or services (SAC) code. GST returns need it. For common codes the app knows the usual GST rate since 22 September 2025: from the fourth digit it shows the rate and the item type in green under the box, and if the row's GST is still 18% or 0% it is changed to match. Where the rate depends on the price, size or packing (clothes and shoes up to or above ₹2,500, cars and bikes by engine size, loose or packed food) it shows every possible rate and leaves your GST % alone. Always check it: see <a href="gst-basics.html#which-rate">GST basics: what rate do I charge?</a> Finding your code: see <a href="gst-basics.html#hsn-search">GST basics: HSN and SAC</a>.</td></tr>
   <tr><td>Qty</td><td>1 to start. Clicking the box selects the number, so typing replaces it. Decimals are fine, such as 2.5 kg. With the unit <b>NA</b> there is no quantity: the box shows "-" and the amount is the rate (for a service such as a setup fee). GSTR-1 reports such a line with unit NA and quantity 0, as the portal expects.</td></tr>
   <tr><td>Unit</td><td>From the list for Goods, Services or Mixed. A new row starts with the unit of the row above. ${ui('＋ Add custom…')} adds your own unit (up to 20 characters), marked ★ and kept in this browser for later invoices; ${ui('− Remove "unit"')} takes one away again. Invoices already made keep the unit they used. <b>NA</b> is for a service with no quantity (see Qty). With <a href="#size-billing">Size billing</a> on, <b>Sq.ft</b> makes the row a size row.</td></tr>

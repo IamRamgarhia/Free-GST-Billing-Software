@@ -2642,6 +2642,111 @@ try {
     }, { ids: statements85.map((s) => s.id), receipt: pay85?.id || '' });
   }
 
+  // ---- v1.10.85 (#157, #148): the Statement / Aging PDF opens in a preview
+  // (Download, Print, WhatsApp, Email), Show items lists the items on screen
+  // and in the PDF, and the client's payment history. Then New Invoice: a
+  // client on a price level gets the level price, and the credit-limit
+  // warning shows once outstanding + this invoice passes the limit.
+  {
+    const get157 = (url) => page.evaluate(async (url) => (await fetch(url)).json(), url);
+    const prof157 = await get157('/api/profile');
+    const keep157 = await page.evaluate(() => ({ m: localStorage.getItem('gst_enabledModules'), l: localStorage.getItem('gst_priceLevels') }));
+    await page.evaluate(() => {
+      const m = JSON.parse(localStorage.getItem('gst_enabledModules') || '{}');
+      localStorage.setItem('gst_enabledModules', JSON.stringify({ ...m, priceLevels: true }));
+      localStorage.removeItem('gst_priceLevels'); // the default names: Retail, Wholesale, Dealer
+    });
+    const CLIENT = 'Smoke Ledger Client';
+    await api('/api/clients', { id: 'smoketest-cli-157', name: CLIENT, phone: '919800000157', email: 'ledger@dicecodes.example', creditLimit: 1000, priceLevel: '2' });
+    await api('/api/products', { id: 'smoketest-lvl-157', name: 'Smoke Level Widget', hsn: '9608', sellingPrice: 100, rate: 100, taxPercent: 18, unit: 'Nos', levelPrices: { 2: 80 } });
+    // Owes 1180 - 500 = 680 of a 1000 limit.
+    await api('/api/bills', {
+      id: 'smoketest-inv-157', invoiceNumber: 'SMK-157/1', clientName: CLIENT, invoiceDate: today, invoiceType: 'tax-invoice', status: 'partial',
+      totalAmount: 1180, paidAmount: 500, payments: [{ id: 'smoketest-pay-157', amount: 500, date: today, mode: 'upi', note: 'Smoke part payment' }],
+      data: { profile: prof157, client: { name: CLIENT, state: prof157.state, country: 'India' }, details: { invoiceNumber: 'SMK-157/1', invoiceDate: today },
+        invoiceType: 'tax-invoice', invoiceOptions: {}, totals: { total: 1180 },
+        items: [{ id: 'i157', name: 'Smoke Widget', hsn: '9608', quantity: 2, unit: 'Nos', rate: 500, taxPercent: 18, discount: 0 }] },
+    });
+    await page.evaluate(() => { sessionStorage.removeItem('gst_editingBill'); sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.setItem('gst_currentView', 'clients'); });
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await dismissFirstRun(page);
+    // The screen can still be settling after the reload: open the card until it shows its account.
+    for (let i = 0; i < 4 && !(await page.getByRole('button', { name: /Statement PDF/ }).isVisible()); i += 1) {
+      await page.locator('.client-card-header', { hasText: CLIENT }).first().click();
+      await page.getByRole('button', { name: /Statement PDF/ }).waitFor({ timeout: 4000 }).catch(() => {});
+    }
+    const dialog = page.getByRole('dialog', { name: new RegExp(`^Statement: ${CLIENT}`) });
+    const openStatement = async () => {
+      await page.getByRole('button', { name: /Statement PDF/ }).click();
+      await dialog.waitFor({ timeout: 15000 });
+    };
+    const downloadText = async () => {
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), dialog.getByRole('button', { name: 'Download' }).click()]);
+      return { name: dl.suggestedFilename(), text: readFileSync(await dl.path()).toString('latin1') };
+    };
+    await openStatement();
+    const frameSrc = await dialog.locator('iframe').getAttribute('src');
+    const buttons157 = await Promise.all(['WhatsApp', 'Email', 'Download', 'Print'].map((n) => dialog.getByRole('button', { name: n }).count()));
+    const plain = await downloadText();
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+    const closed = (await dialog.count()) === 0 && (await page.getByRole('button', { name: /Statement PDF/ }).count()) === 1;
+    check('v85 #157 Statement PDF opens in a preview (the PDF in the app, Download / Print / WhatsApp / Email), Download saves it, closing goes back to the ledger',
+      /^blob:/.test(frameSrc || '') && buttons157.every((n) => n === 1) && /^statement-Smoke-Ledger-Client-.*\.pdf$/.test(plain.name) && closed,
+      `src=${(frameSrc || '').slice(0, 12)} buttons=${buttons157} file=${plain.name} closed=${closed}`);
+
+    await page.getByLabel('Show items').check();
+    const itemLine = await page.locator('.statement-item').first().innerText({ timeout: 5000 }).catch(() => '');
+    await openStatement();
+    const withItems = await downloadText();
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+    await sleep(500);
+    check('v85 #148 Show items lists the items under the invoice, on screen and in the Statement PDF',
+      /Smoke Widget x 2 Nos/.test(itemLine) && /1,000/.test(itemLine) && withItems.text.includes('Smoke Widget x 2 Nos') && !plain.text.includes('Smoke Widget x 2 Nos'),
+      `screen="${itemLine}" pdf=${withItems.text.includes('Smoke Widget x 2 Nos')} without=${plain.text.includes('Smoke Widget x 2 Nos')}`);
+
+    await page.getByRole('button', { name: /^Payment history \(1\)/ }).click();
+    const history = (await page.getByRole('table', { name: 'Payment history' }).innerText({ timeout: 5000 }).catch(() => '')).replace(/\s+/g, ' ');
+    const lastPaid = (await page.locator('tr', { hasText: 'SMK-157/1' }).first().innerText()).includes('Last paid');
+    check('v85 #157 the client shows a payment history (invoice, amount, mode, note) and the invoice its Last paid date',
+      history.includes('SMK-157/1') && /500/.test(history) && history.includes('UPI') && history.includes('Smoke part payment') && lastPaid, `${history.slice(0, 160)} lastPaid=${lastPaid}`);
+
+    // New Invoice for the Wholesale client.
+    await page.evaluate(() => { sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.setItem('gst_currentView', 'new'); });
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await dismissFirstRun(page);
+    await page.waitForSelector('#invoice-preview', { timeout: 30000 });
+    await page.locator('input[placeholder="Type client name to search or add new"]').fill('Smoke Ledger');
+    await page.locator('.client-suggestion-item', { hasText: CLIENT }).first().click();
+    await sleep(500);
+    const row157 = page.locator('.line-item-row').first();
+    await row157.locator('textarea.line-item-name').first().fill('Smoke Level');
+    await page.locator('.product-suggestion-item', { hasText: 'Smoke Level Widget' }).first().dispatchEvent('mousedown');
+    await sleep(600);
+    const nums157 = row157.locator('input[type="number"]');
+    const rate157 = await nums157.nth(1).inputValue();
+    check('v85 price levels: a product picked for a Wholesale client comes in at its Wholesale price (80, not the selling price 100)', Number(rate157) === 80, `rate=${rate157}`);
+    await sleep(800);
+    const warnBefore = await page.getByTestId('credit-limit-warning').count();
+    await nums157.nth(0).fill('5'); // 5 x 80 + 18% = 472; 680 + 472 = 1152 > 1000
+    await sleep(1200);
+    const warnText = await page.getByTestId('credit-limit-warning').innerText({ timeout: 5000 }).catch(() => '');
+    check('v85 credit limit: no warning while within the limit; over it, a warning by how much (152) near the totals, and Save is still there',
+      warnBefore === 0 && /Over the credit limit by .*152/.test(warnText) && (await page.getByRole('button', { name: /^Save$/ }).first().isEnabled()),
+      `before=${warnBefore} text="${warnText.replace(/\s+/g, ' ').slice(0, 140)}"`);
+
+    await page.evaluate(async (keep) => {
+      sessionStorage.removeItem('gst_invoiceDraft');
+      sessionStorage.setItem('gst_currentView', 'dashboard');
+      if (keep.m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', keep.m);
+      if (keep.l === null) localStorage.removeItem('gst_priceLevels'); else localStorage.setItem('gst_priceLevels', keep.l);
+      await fetch('/api/clients/smoketest-cli-157', { method: 'DELETE' });
+    }, keep157);
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {
