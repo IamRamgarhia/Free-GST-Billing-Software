@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ClipboardList, Search, X, Eye, Edit3, Copy, Ban, FileText, Download, Printer, MessageCircle, Mail } from 'lucide-react';
 import ActionsMenu from './ActionsMenu';
 import { formatCurrency, splitPurchaseTax, parseLocalDate, numberToWords } from '../utils';
-import { purchaseTotals, poStatus, PO_STATUS_LABELS } from '../utils/purchaseOrders';
+import { purchaseTotals, poStatus, PO_STATUS_LABELS, purchaseLineTax } from '../utils/purchaseOrders';
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare } from '../utils/share';
 import { toast } from './Toast';
@@ -20,7 +20,8 @@ const STATUS_COLORS = {
 
 const showDate = (d) => (d ? parseLocalDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const lineAmount = (it) => (Number(it.quantity) || 0) * (Number(it.rate) || 0);
+// v1.10.85 (#171) - after any line discount.
+const lineAmount = (it) => purchaseLineTax({ ...it, quantity: Number(it.quantity) || 0, rate: Number(it.rate) || 0 }).amount;
 
 // Same accent colour the purchase bill PDF uses.
 function accentRGB(ps) {
