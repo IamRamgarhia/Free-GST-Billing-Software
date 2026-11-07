@@ -126,6 +126,12 @@ a backup is made first.
 - **The app window's title bar turns dark** with the app's dark theme
   (Windows Setup).
 
+- **Hide a business behind its own PIN** (#125): **Settings -> Profiles ->
+  Hide with PIN** leaves a business out of the company list until its PIN is
+  typed (**Open a hidden company...** in the list at the top of the sidebar).
+  It hides again when you switch to another business or open the app again.
+  It hides from view; it does not encrypt (the App lock guards the whole app).
+
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
   inside the container; other devices use the paired HTTPS connection.

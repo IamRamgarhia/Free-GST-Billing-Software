@@ -665,6 +665,42 @@ try {
   check('#58 the dashboard re-filters on a company switch, with no reload',
     afterSwitch.includes('SMOKE-BETA/1') && !afterSwitch.includes('SMOKE-MINE/1'));
 
+  // v1.10.85 #125: a company hidden behind its own PIN is not in the company
+  // list; "Open a hidden company..." with its PIN opens it; switching away
+  // hides it again.
+  {
+    await page.evaluate(async () => {
+      const post = (u, body) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      await post('/api/profiles', { id: 'smoketest-hidden', businessName: 'Smoke Hidden', gstin: '29HHHHH4444H4Z4' });
+      await post('/api/profiles/smoketest-hidden/hide-pin', { pin: '246813' });
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await dismissFirstRun(page);
+    const menuItems = async () => {
+      await page.locator('.profile-switcher-btn').click();
+      await sleep(500);
+      const items = await page.locator('.profile-switcher-item').allInnerTexts();
+      return items.map((t) => t.trim());
+    };
+    const before = await menuItems();
+    check('#125 a hidden company is not in the company list', !before.includes('Smoke Hidden') && before.includes('Open a hidden company...'), JSON.stringify(before));
+    await page.locator('.profile-switcher-item', { hasText: 'Open a hidden company...' }).click();
+    await sleep(400);
+    await page.locator('.confirm-modal-content input').fill('246813');
+    await page.keyboard.press('Enter');
+    await sleep(2500);
+    const opened = (await page.locator('.profile-switcher-name').innerText()).trim();
+    check('#125 its PIN opens it', opened === 'Smoke Hidden', opened);
+    const during = await menuItems();
+    await page.locator('.profile-switcher-item', { hasText: /^Smoke Beta$/ }).click();
+    await sleep(2500);
+    const after = await menuItems();
+    await page.keyboard.press('Escape');
+    await page.mouse.click(5, 700);
+    check('#125 switching to another company hides it again', during.includes('Smoke Hidden') && !after.includes('Smoke Hidden'), JSON.stringify({ during, after }));
+  }
+
   // ======================================================================
   // v1.10.66 — #64 (@sangwanmail-eng), #61, #62, #59
   // ======================================================================

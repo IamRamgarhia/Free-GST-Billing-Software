@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart, Banknote } from 'lucide-react';
-import { getAllProfiles, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus } from './store';
+import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
 import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
@@ -23,7 +23,7 @@ import InvoiceGenerator from './components/InvoiceGenerator';
 import SetupWizard from './components/SetupWizard';
 import ToastContainer, { toast } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
-import ConfirmModalContainer from './components/ConfirmModal';
+import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
 const SettingsView = lazy(() => import('./components/SettingsView'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
@@ -412,8 +412,12 @@ function App() {
   // Load all saved business profiles
   useEffect(() => {
     if (serverStatus === 'online') {
-      getAllProfiles().then(setAllProfiles).catch(() => {});
+      getAllProfilesWithHidden().then(setAllProfiles).catch(() => {});
     }
+    // v1.10.85 (#125) - Settings hid or showed a company.
+    const reload = () => getAllProfilesWithHidden().then(setAllProfiles).catch(() => {});
+    window.addEventListener('fgsb:profiles-changed', reload);
+    return () => window.removeEventListener('fgsb:profiles-changed', reload);
   }, [serverStatus]);
 
   // Close profile menu on outside click
@@ -428,13 +432,44 @@ function App() {
     return () => document.removeEventListener('mousedown', handler);
   }, [showProfileMenu]);
 
+  // v1.10.85 (#125) - companies hidden behind their own PIN stay out of the
+  // list until it is typed; a switch elsewhere hides them again.
+  const shownProfiles = visibleProfiles(allProfiles);
+  const anyHidden = hasHiddenProfiles(allProfiles);
+  const openHidden = async () => {
+    setShowProfileMenu(false);
+    const pin = await promptAction({ title: 'Open a hidden company', message: 'Type the PIN of the company you want to open.', inputType: 'password', placeholder: '6 or 8 digits', confirmLabel: 'Open' });
+    if (!pin) return;
+    try {
+      const ids = await openHiddenCompanies(pin.trim());
+      const list = await getAllProfilesWithHidden();
+      setAllProfiles(list);
+      const first = list.find((p) => p.id === ids[0]);
+      if (first) await handleSwitchProfile(first);
+    } catch (e) {
+      toast(e?.body?.code === 'wait' ? `Too many wrong tries. Wait ${e.body.wait} seconds.` : 'That PIN does not open a company.', 'error');
+    }
+  };
+
   const handleSwitchProfile = async (bp) => {
+    hideCompaniesAgain(bp.id);
     setShowProfileMenu(false);
     const loaded = { ...bp };
     delete loaded.id;
+    delete loaded.hidden;
     await saveProfile(loaded);
     setProfile(loaded);
   };
+
+  // A restart while a hidden company was open must not reopen it: move to the
+  // first company that is not hidden (the same match as the switcher's).
+  useEffect(() => {
+    const same = (p) => p.businessName?.trim().toLowerCase() === profile?.businessName?.trim().toLowerCase();
+    if (!allProfiles.some((p) => p.hidden && !isOpenedHidden(p.id) && same(p))) return;
+    const fallback = shownProfiles.find((p) => !same(p));
+    if (fallback) handleSwitchProfile(fallback);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allProfiles, profile?.businessName]);
 
   // v1.10.66 (#64 item 1) — identifies the active business for the screens
   // keyed on it below. GSTIN first, the same rule belongsToProfile() uses to
@@ -930,13 +965,13 @@ function App() {
           <div className="profile-switcher-row">
             <button
               className="profile-switcher-btn"
-              onClick={() => allProfiles.length > 1 && setShowProfileMenu(v => !v)}
-              title={allProfiles.length > 1 ? 'Switch business profile' : profile?.businessName || 'My Business'}
-              style={{ cursor: allProfiles.length > 1 ? 'pointer' : 'default' }}
+              onClick={() => (shownProfiles.length > 1 || anyHidden) && setShowProfileMenu(v => !v)}
+              title={shownProfiles.length > 1 || anyHidden ? 'Switch business profile' : profile?.businessName || 'My Business'}
+              style={{ cursor: shownProfiles.length > 1 || anyHidden ? 'pointer' : 'default' }}
             >
               <Building2 size={14} />
               <span className="profile-switcher-name">{profile?.businessName || 'My Business'}</span>
-              {allProfiles.length > 1 && <ChevronDown size={13} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
+              {(shownProfiles.length > 1 || anyHidden) && <ChevronDown size={13} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
             </button>
             <button
               className="profile-switcher-edit"
@@ -948,7 +983,7 @@ function App() {
           </div>
           {showProfileMenu && (
             <div className="profile-switcher-menu">
-              {allProfiles.map(bp => (
+              {shownProfiles.map(bp => (
                 <button
                   key={bp.id || bp.businessName}
                   className={`profile-switcher-item${bp.businessName?.trim().toLowerCase() === profile?.businessName?.trim().toLowerCase() ? ' active' : ''}`}
@@ -957,6 +992,11 @@ function App() {
                   {bp.businessName}
                 </button>
               ))}
+              {anyHidden && (
+                <button className="profile-switcher-item profile-switcher-manage" onClick={openHidden}>
+                  Open a hidden company...
+                </button>
+              )}
               <button
                 className="profile-switcher-item profile-switcher-manage"
                 onClick={() => { setShowProfileMenu(false); setCurrentView('settings'); }}

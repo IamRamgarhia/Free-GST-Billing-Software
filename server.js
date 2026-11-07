@@ -834,18 +834,66 @@ app.delete('/api/cash-book/:id', (req, res) => {
 // ========================
 // BUSINESS PROFILES (multi-business)
 // ========================
+// v1.10.85 (#125) - a company can be hidden behind its own PIN: the list
+// marks it `hidden` and never sends the PIN's hash; the app leaves it out of
+// the company list until that PIN is typed (POST /api/profiles/unlock). It
+// hides the company from view on a shared PC; the files are not encrypted
+// (the app lock, Settings -> Privacy & Security, guards the whole app).
+const publicProfile = (p) => {
+  if (!p || !p.hideLock) return p;
+  const { hideLock: _lock, ...rest } = p;
+  return { ...rest, hidden: true };
+};
+const profilePath = (id) => path.join(DATA_DIR, 'profiles', safeFileName(id) + '.json');
+
 app.get('/api/profiles', (req, res) => {
-  const profiles = readAllFromDir('profiles');
+  const profiles = readAllFromDir('profiles').map(publicProfile);
   profiles.sort((a, b) => (a.businessName || '').localeCompare(b.businessName || ''));
   res.json(profiles);
 });
 
 app.post('/api/profiles', (req, res) => {
-  const prof = req.body;
+  // The hide PIN is set only through /api/profiles/:id/hide-pin; a save from
+  // the screen (which never has it) keeps the one on file.
+  const { hideLock: _lock, hidden: _hidden, ...prof } = req.body || {};
   if (!prof.id) prof.id = 'biz_' + Date.now() + crypto.randomBytes(3).toString('hex');
-  const filePath = path.join(DATA_DIR, 'profiles', safeFileName(prof.id) + '.json');
-  writeJSON(filePath, prof);
+  const filePath = profilePath(prof.id);
+  const kept = readJSON(filePath, null)?.hideLock;
+  writeJSON(filePath, kept ? { ...prof, hideLock: kept } : prof);
   res.json({ success: true, id: prof.id });
+});
+
+// Hide ({ pin }) or show again ({ pin: null }) a company; changing or
+// removing a hide PIN needs the current one.
+app.post('/api/profiles/:id/hide-pin', (req, res) => {
+  const filePath = profilePath(req.params.id);
+  const prof = readJSON(filePath, null);
+  if (!prof) return errRes(res, 404, 'not-found');
+  const { pin, currentPin } = req.body || {};
+  if (pin !== null && !PIN_RE.test(String(pin ?? ''))) return errRes(res, 400, 'bad-request');
+  if (prof.hideLock && !checkPin(res, prof.hideLock, currentPin)) return undefined;
+  const next = { ...prof };
+  if (pin === null) delete next.hideLock;
+  else {
+    const salt = crypto.randomBytes(16).toString('hex');
+    next.hideLock = { salt, hash: pinHash(pin, salt), length: String(pin).length };
+  }
+  writeJSON(filePath, next);
+  return res.json({ ok: true, hidden: pin !== null });
+});
+
+// "Open a hidden company": the PIN alone, so the list never names the hidden
+// companies; answers the ids of those it opens. Same wrong-try limit as the
+// lock screen.
+app.post('/api/profiles/unlock', (req, res) => {
+  const pin = req.body?.pin;
+  const tries = req.socket.encrypted ? networkPinTries : pinTries;
+  const wait = tries.wait();
+  if (wait > 0) return res.status(429).json({ ok: false, error: 'Too many wrong tries', code: 'wait', wait });
+  const ids = readAllFromDir('profiles').filter((p) => p.hideLock && pinMatches(p.hideLock, pin)).map((p) => p.id);
+  if (!ids.length) return res.status(401).json({ ok: false, error: 'wrong-pin', code: 'wrong-pin', triesLeft: tries.fail() });
+  tries.reset();
+  return res.json({ ok: true, ids });
 });
 
 app.delete('/api/profiles/:id', (req, res) => {
@@ -2829,7 +2877,7 @@ const templateHasEnded = (tpl, today) =>
 function generateFromTemplate(tpl, today) {
       // The business this template bills for: the one it was assigned to
       // (ownerGstin), else its saved profile id / name, else the active one.
-      const profiles = readAllFromDir('profiles');
+      const profiles = readAllFromDir('profiles').map(publicProfile); // never the hide PIN's hash
       let profile = profiles.find(p => p.gstin && tpl.ownerGstin && p.gstin === tpl.ownerGstin)
                  || profiles.find(p => p.id && tpl.profileId && p.id === tpl.profileId)
                  || profiles.find(p => p.businessName && p.businessName === (tpl.profileBusinessName || tpl.ownerName))

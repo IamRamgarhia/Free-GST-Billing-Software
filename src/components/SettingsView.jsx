@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getRegionMode, setRegionMode, getStockAlertSettings, saveStockAlertSettings, renameNumberSeries, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getCostCentres, saveCostCentres } from '../store';
+import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getRegionMode, setRegionMode, getStockAlertSettings, saveStockAlertSettings, renameNumberSeries, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getCostCentres, saveCostCentres, setCompanyHidePin, keepOpened, hideCompaniesAgain } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
 import { getCountryConfig, getStatesForCountry, validateTaxId, getCountriesForRegion, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId, findSameBusiness, businessKeyOf, localToday } from '../utils';
 import { normaliseLutArn, isLikelyLutArn, lutFyOptions, fyOf } from '../utils/lut';
@@ -10,10 +10,10 @@ import { normaliseLutArn, isLikelyLutArn, lutFyOptions, fyOf } from '../utils/lu
 // `new Image()` inside handleImageUpload was trying to construct a
 // React icon. Aliased to `ImageIcon` so `new Image()` resolves to
 // the browser primitive again.
-import { Save, Upload, Download, Plus, Trash2, Edit3, Image as ImageIcon, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw, Save as SaveIcon } from 'lucide-react';
+import { Save, Upload, Download, Plus, Trash2, Edit3, Image as ImageIcon, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw, Save as SaveIcon, Lock } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
-import { confirmAction } from './ConfirmModal';
+import { confirmAction, promptAction } from './ConfirmModal';
 import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
 import AppLockSettings from './AppLockSettings';
@@ -696,8 +696,10 @@ export default function SettingsView({ onSaved }) {
       await saveBusinessProfile({ ...profile, id: existing?.id || undefined });
     }
     loadedProfileId.current = bp.id;
+    hideCompaniesAgain(bp.id); // #125 - a hidden company left behind hides again
     const loaded = { ...bp };
     delete loaded.id;
+    delete loaded.hidden;
     setProfile(loaded);
     await saveProfile(loaded);
     // v1.10.56 (#44) — switching profiles persists immediately, so this IS
@@ -705,6 +707,41 @@ export default function SettingsView({ onSaved }) {
     markProfileSaved(loaded);
     if (onSaved) onSaved(loaded);
     toast(`Switched to ${bp.businessName}`, 'success');
+  };
+
+  // v1.10.85 (#125) - hide a company behind its own PIN, or show it again.
+  const profilesChanged = () => { loadBusinessProfiles(); window.dispatchEvent(new Event('fgsb:profiles-changed')); };
+  const handleHideProfile = async (bp) => {
+    if (businessProfiles.filter((p) => !p.hidden).length < 2) {
+      toast('Keep at least one company that is not hidden, so the app has one to open.', 'warning');
+      return;
+    }
+    const pin = (await promptAction({
+      title: `Hide ${bp.businessName}`,
+      message: 'It leaves the company list until this PIN is typed (company list -> Open a hidden company). Use a PIN different from the app lock. This hides the company from view; it does not encrypt it.',
+      inputType: 'password', placeholder: '6 or 8 digits', confirmLabel: 'Next',
+    }))?.trim();
+    if (!pin) return;
+    if (!/^(\d{6}|\d{8})$/.test(pin)) { toast('The PIN must be 6 or 8 digits.', 'error'); return; }
+    const again = (await promptAction({ title: 'Type the same PIN again', inputType: 'password', placeholder: '6 or 8 digits', confirmLabel: 'Hide company' }))?.trim();
+    if (again !== pin) { if (again !== undefined) toast('The two PINs were not the same. Nothing changed.', 'error'); return; }
+    try {
+      await setCompanyHidePin(bp.id, pin);
+      keepOpened(bp.id); // stays in the list in this window until a switch or restart
+      toast(`${bp.businessName} is hidden. Open it with its PIN from the company list.`, 'success');
+      profilesChanged();
+    } catch { toast('Could not hide the company.', 'error'); }
+  };
+  const handleShowProfile = async (bp) => {
+    const currentPin = (await promptAction({ title: `Stop hiding ${bp.businessName}`, message: 'Type its PIN.', inputType: 'password', placeholder: '6 or 8 digits', confirmLabel: 'Stop hiding' }))?.trim();
+    if (!currentPin) return;
+    try {
+      await setCompanyHidePin(bp.id, null, currentPin);
+      toast(`${bp.businessName} is in the company list again.`, 'success');
+      profilesChanged();
+    } catch (e) {
+      toast(e?.body?.code === 'wait' ? `Too many wrong tries. Wait ${e.body.wait} seconds.` : 'Wrong PIN. Nothing changed.', 'error');
+    }
   };
 
   const handleDeleteProfile = async (id) => {
@@ -1586,6 +1623,12 @@ export default function SettingsView({ onSaved }) {
                     <button className="btn btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
                       onClick={() => handleLoadProfile(bp)} disabled={isActive}>
                       {isActive ? 'Current' : 'Switch'}
+                    </button>
+                    {/* v1.10.85 (#125) */}
+                    <button className="btn btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                      onClick={() => (bp.hidden ? handleShowProfile(bp) : handleHideProfile(bp))}
+                      title={bp.hidden ? 'In the company list again, for everyone' : 'Leave it out of the company list until its own PIN is typed'}>
+                      <Lock size={13} /> {bp.hidden ? 'Stop hiding' : 'Hide with PIN'}
                     </button>
                     <button className="icon-btn icon-btn-red" onClick={() => handleDeleteProfile(bp.id)} title="Delete">
                       <Trash2 size={14} />

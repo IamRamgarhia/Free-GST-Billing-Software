@@ -553,15 +553,36 @@ export const deleteReceipt = async (id) => {
 };
 
 // ---- Business Profiles (multi-business) ----
-export const getAllProfiles = async () => {
-  return apiFetch(`${API}/profiles`);
-};
+// v1.10.85 (#125) - without the companies hidden behind a PIN (unless opened
+// in this window); the company switcher needs them all (WithHidden).
+export const getAllProfilesWithHidden = () => apiFetch(`${API}/profiles`);
+export const getAllProfiles = async () => visibleProfiles(await getAllProfilesWithHidden());
 
 export const saveBusinessProfile = async (profile) => {
   const res = await apiFetch(`${API}/profiles`, { method: 'POST', body: JSON.stringify(profile) });
   if (res.id) profile.id = res.id;
   return profile;
 };
+
+// v1.10.85 (#125) - companies hidden behind their own PIN. The list from the
+// server marks them `hidden`; they are left out of every company list until
+// their PIN is typed in this window, and hidden again on a switch to another
+// company or a restart (opened ids live only in memory).
+const openedHidden = new Set();
+export const visibleProfiles = (list) => (list || []).filter((p) => !p.hidden || openedHidden.has(p.id));
+export const hasHiddenProfiles = (list) => (list || []).some((p) => p.hidden && !openedHidden.has(p.id));
+export const isOpenedHidden = (id) => openedHidden.has(id);
+export const openHiddenCompanies = async (pin) => {
+  const res = await apiFetch(`${API}/profiles/unlock`, { method: 'POST', body: JSON.stringify({ pin }) });
+  (res.ids || []).forEach((id) => openedHidden.add(id));
+  return res.ids || [];
+};
+export const keepOpened = (id) => { if (id) openedHidden.add(id); };
+export const hideCompaniesAgain = (keepId) => {
+  for (const id of [...openedHidden]) if (id !== keepId) openedHidden.delete(id);
+};
+export const setCompanyHidePin = (id, pin, currentPin) => apiFetch(`${API}/profiles/${encodeURIComponent(id)}/hide-pin`,
+  { method: 'POST', body: JSON.stringify({ pin, currentPin }) });
 
 export const deleteBusinessProfile = async (id) => {
   return apiFetch(`${API}/profiles/${encodeURIComponent(id)}`, { method: 'DELETE' });

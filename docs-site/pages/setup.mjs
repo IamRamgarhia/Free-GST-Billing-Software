@@ -289,8 +289,19 @@ export default [
   <tr><td>${ui('+ Add New Profile')}</td><td>Saves the business now on the Company tab into the list first (so it is never lost), then opens the Company tab with an empty form for the new business.</td></tr>
   <tr><td>${ui('Save as Profile')}</td><td>Saves the Company tab as it is into the list, or updates that business's card if it is already there.</td></tr>
   <tr><td>${ui('Switch')}</td><td>Makes that business the active one. The current one is saved first. Every screen then shows the new business. The active card shows ${ui('Current')} instead.</td></tr>
+  <tr><td>${ui('Hide with PIN')}</td><td>Leaves the business out of the company list until its own PIN is typed (see below). ${ui('Stop hiding')} puts it back, after its PIN.</td></tr>
   <tr><td>Bin</td><td>Removes the profile from the list after asking. Its invoices stay.</td></tr>
 </table></div>
+<h3 id="hidden-company">Hiding a business behind a PIN</h3>
+<p>For a business other people at the same PC should not see. Click ${ui('Hide with PIN')} on its card and type a 6 or 8 digit PIN twice (use one different from the app lock). The business then leaves the company list at the top of the sidebar, the Profiles tab and the <b>Billing from</b> choice on New Invoice.</p>
+<ul>
+  <li><b>To open it</b>: click the business name at the top of the sidebar, then ${ui('Open a hidden company...')}, and type its PIN. The list never shows the names of hidden businesses.</li>
+  <li><b>It hides again</b> when you switch to another business, or when the app is opened again.</li>
+  <li>Keep at least one business that is not hidden, so the app always has one to open.</li>
+  <li>Five wrong PINs in a row make the next try wait 30 seconds.</li>
+  <li><b>Forgot the PIN?</b> It cannot be read back. Restore a backup made before the business was hidden, or ask for help on GitHub.</li>
+</ul>
+<p>This hides a business from view. It does not encrypt it: its invoices stay in the books folder and in backups as before. To keep everyone out of the whole app, use the <a href="#lock">App lock</a>.</p>
 <h3>Adding a second business</h3>
 <ol class="steps">
   <li><strong>Save the first</strong>Make sure the first business's Company details are filled in and saved.</li>
