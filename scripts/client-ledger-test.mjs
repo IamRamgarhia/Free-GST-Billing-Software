@@ -7,6 +7,7 @@
 import {
   clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientOutstanding,
   creditLimitCheck, findSavedClient, statementShareMessage, agingShareMessage,
+  clientAccount, thisInvoiceDue, paidTowards, missingRateNote,
 } from '../src/utils/clientLedger.js';
 
 let passed = 0, failed = 0;
@@ -84,6 +85,37 @@ ok(sm.startsWith('*DiceCodes*') && sm.includes('Statement of account: Demo Trade
 ok(statementShareMessage('A', { total: 1, paid: 1, unpaid: 0 }, {}).includes('Nothing outstanding'), 'statement message when settled', '');
 const am = agingShareMessage('Demo Traders', { total: 4000, d90plus: 1000 }, { businessName: 'DiceCodes' });
 ok(/Total outstanding: .*4,000/.test(am) && /Over 90 days: .*1,000/.test(am), 'aging message: total and over 90 days', am);
+
+// ---- review fixes (v1.10.85) ----
+// 7. An old bill marked Paid with no payments and no paidAmount is paid.
+ok(clientOutstanding('Demo Traders', [bill('OLD', { status: 'paid' })], dice) === 0, 'an old bill marked Paid with no payment recorded owes nothing', '');
+
+// 4. Another currency: converted at the bill's own rate; no rate = left out and named.
+const fx = [
+  bill('U1', { currency: 'USD', totalAmount: 100, payments: [{ amount: 40 }], data: { ...mine, invoiceOptions: { currency: 'USD', exchangeRate: 83 } } }), // 60 x 83 = 4980
+  bill('U2', { currency: 'USD', totalAmount: 50, data: { ...mine, invoiceOptions: { currency: 'USD' } } }),                                           // no rate
+  bill('E1', { currency: 'EUR', totalAmount: 10, data: { ...mine, invoiceOptions: { currency: 'EUR' } } }),                                           // no rate
+  bill('R1', { totalAmount: 500 }),
+];
+const acc = clientAccount('Demo Traders', fx, dice);
+ok(acc.owed === 5480, 'a USD invoice counts at its saved rate (60 x 83) plus the rupee one', acc);
+ok(acc.missing.join() === 'USD,EUR', 'invoices with no rate are left out and listed', acc.missing);
+ok(missingRateNote(acc.missing) === '2 invoices in USD and EUR without an exchange rate left out', 'the note says how many and which currencies', missingRateNote(acc.missing));
+ok(missingRateNote(['USD']) === '1 invoice in USD without an exchange rate left out' && missingRateNote([]) === '', 'one invoice / none', '');
+
+// Credit (overpayments) is counted apart, as clientCredit.js does.
+const over = clientAccount('Demo Traders', [bill('OV', { totalAmount: 500, payments: [{ amount: 700 }] }), bill('OW', {})], dice);
+ok(over.owed === 1000 && over.credit === 200, 'an overpayment is credit, not less owed on another bill', over);
+
+// 3. This invoice: what is still due on it, after payments and credit applied, never below 0.
+const totals = { total: 1180 };
+ok(thisInvoiceDue({ totals }, dice).amount === 1180, 'a new invoice counts its total', '');
+ok(thisInvoiceDue({ totals, paid: 500, creditApplied: 180 }, dice).amount === 500, 'less what was paid on it and the credit applied', thisInvoiceDue({ totals, paid: 500, creditApplied: 180 }, dice));
+ok(thisInvoiceDue({ totals, paid: 2000 }, dice).amount === 0, 'never below 0', '');
+ok(thisInvoiceDue({ totals: { total: 1100, tdsAmount: 100 } }, dice).amount === 1000, 'less TDS the client deducts', '');
+ok(thisInvoiceDue({ totals: { total: 10 }, currency: 'USD', exchangeRate: 80 }, dice).amount === 800, 'an invoice in USD at its rate', '');
+ok(thisInvoiceDue({ totals: { total: 10 }, currency: 'USD' }, dice).missing === 'USD', 'an invoice in USD with no rate is named', '');
+ok(paidTowards({ payments: [{ amount: 900 }, { amount: -300, mode: 'credit-transferred-out' }] }) === 900, 'paid on it: credit moved to another invoice is not taken off', '');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

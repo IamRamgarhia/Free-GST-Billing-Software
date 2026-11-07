@@ -7,7 +7,7 @@ import {
   DEFAULT_LEVEL_NAMES, priceLevelList, normaliseLevelNames, priceForLevel, cleanLevelPrices,
   levelCsvHeaders, levelCsvCells,
 } from '../src/utils/priceLevels.js';
-import { productsCsvToList } from '../src/utils/listCsv.js';
+import { productsCsvToList, levelNameProblem } from '../src/utils/listCsv.js';
 import { toCsvLine } from '../src/utils.js';
 
 let passed = 0, failed = 0;
@@ -50,6 +50,28 @@ const off = productsCsvToList(csv, [], []);
 ok(off.products.every((p) => !p.levelPrices) && off.errors.length === 0, 'with Price levels off the columns are ignored', off);
 const byNumber = productsCsvToList([toCsvLine(['Name', 'Selling Price', 'Level 2 price']), toCsvLine(['DiceCodes Ink', 40, 35])].join('\n'), [], levels);
 ok(byNumber.products[0]?.levelPrices?.['2'] === 35, '"Level 2 price" works too', byNumber.products[0]);
+
+// ---- review fixes (v1.10.85) ----
+// 2. "Tax inclusive = Y": the level prices lose the tax too, like the selling price.
+const incl = productsCsvToList([toCsvLine(['Name', 'Selling Price', 'GST %', 'Tax Inclusive', 'Wholesale price']), toCsvLine(['DiceCodes Mug', 118, 18, 'Y', 59])].join('\n'), [], levels);
+ok(incl.products[0]?.sellingPrice === 100 && incl.products[0]?.levelPrices?.['2'] === 50, 'tax-inclusive file: selling 118 -> 100, Wholesale 59 -> 50', incl.products[0]);
+
+// 5. "Level N price" always works; a "... price" column that is no level is a row error.
+const renamed = priceLevelList(['Retail', 'Bulk', 'Dealer']);
+const old = productsCsvToList([toCsvLine(['Name', 'Selling Price', 'Level 2 price']), toCsvLine(['DiceCodes Tape', 40, 30])].join('\n'), [], renamed);
+ok(old.products[0]?.levelPrices?.['2'] === 30, '"Level 2 price" works whatever level 2 is called', old.products[0]);
+const strayFile = [toCsvLine(['Name', 'Selling Price', 'Wholesale price']), toCsvLine(['DiceCodes Clip', 10, 8]), toCsvLine(['DiceCodes Pin', 5, ''])].join('\n');
+const stray = productsCsvToList(strayFile, [], renamed);
+ok(stray.errors.length === 1 && /Row 2 \(DiceCodes Clip\): "Wholesale price" is not one of your price levels/.test(stray.errors[0]), 'a "Wholesale price" column after Wholesale was renamed: the row that fills it is an error', stray.errors);
+ok(stray.products.length === 1 && stray.products[0].name === 'DiceCodes Pin', 'a row that leaves it empty imports', stray.products);
+ok(productsCsvToList(strayFile, [], []).errors.length === 0, 'with Price levels off, other price columns are ignored as before', '');
+
+// 5. Level names that clash with a product column, or each other, are refused.
+for (const bad of ['Selling', 'Sale', 'Purchase', 'MRP', 'Rate', 'cost', 'Level 2', 'Price']) {
+  ok(levelNameProblem(['Retail', bad, '']) !== '', `"${bad}" is refused as a level name`, levelNameProblem(['Retail', bad, '']));
+}
+ok(/both called "Retail"/.test(levelNameProblem(['Retail', 'retail', ''])), 'two levels with the same name are refused', '');
+ok(levelNameProblem(DEFAULT_LEVEL_NAMES) === '' && levelNameProblem(['Shop', '', 'Distributor']) === '', 'ordinary names are fine', '');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

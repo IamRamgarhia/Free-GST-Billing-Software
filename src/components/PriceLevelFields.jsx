@@ -4,7 +4,7 @@
 const muted = { fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 };
 
 // Settings -> Features, under the switch: the names of the (up to 3) levels.
-export function PriceLevelNames({ names, onChange }) {
+export function PriceLevelNames({ names, problem, onChange }) {
   const set = (i, v) => onChange(names.map((n, j) => (j === i ? v : n)));
   return (
     <div style={{ margin: '0.35rem 0 0 1.4rem' }}>
@@ -17,6 +17,7 @@ export function PriceLevelNames({ names, onChange }) {
             style={{ width: 110, fontSize: '0.78rem', padding: '0.3rem 0.45rem' }} />
         ))}
       </div>
+      {problem && <div role="alert" style={{ ...muted, color: '#dc2626', marginTop: '0.3rem' }}>{problem}</div>}
     </div>
   );
 }

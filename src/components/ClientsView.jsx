@@ -2,14 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, saveBill, getProfile, deleteReceipt, trashBill, getAllReceipts } from '../store';
-import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate } from '../utils';
+import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, belongsToProfile } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
 import { toast } from './Toast';
 import { clientVisits } from '../utils/phoneClients';
 // v1.10.85 (#157, #148) - PDF preview, payment history, items, credit limit.
-import { clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientOutstanding, statementShareMessage, agingShareMessage } from '../utils/clientLedger';
+import { clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientAccount, statementShareMessage, agingShareMessage } from '../utils/clientLedger';
 import PdfPreviewModal from './PdfPreviewModal';
 import ClientPaymentHistory from './ClientPaymentHistory';
 
@@ -63,10 +63,13 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
 
   const loadData = async () => {
     try {
-      const [c, b] = await Promise.all([getAllClients(), getAllBills()]);
+      const [c, b, prof] = await Promise.all([getAllClients(), getAllBills(), getProfile().catch(() => null)]);
       setClients(c);
-      setBills(b);
-      getAllReceipts().then((r) => setReceipts(r || [])).catch(() => {});
+      // v1.10.85 - the business you are working in only (as the Dashboard and
+      // Receipts): the card's Outstanding, the credit-limit mark, the
+      // statements and the payment history all agree. Clients stay shared.
+      setBills((b || []).filter((x) => belongsToProfile(x, prof)));
+      getAllReceipts().then((r) => setReceipts((r || []).filter((x) => belongsToProfile(x, prof)))).catch(() => {});
     } catch {
       toast('Failed to load data', 'error');
     }
@@ -459,8 +462,6 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       // v1.10.74 - only real sales count; credit notes subtract; quotes,
       // challans, proformas and cancelled bills count for nothing.
       const total = cBills.reduce((s, b) => s + salesSign(b) * (b.totalAmount || 0), 0);
-      // TDS clients deduct on sales: not paid to us, not owed either.
-      const tds = cBills.reduce((s, b) => s + (salesSign(b) === 1 ? (Number(b.totalAmount) || 0) - amountDue(b) : 0), 0);
       const paid = cBills.reduce((s, b) => {
         if (salesSign(b) !== 1) return s;
         const fromPayments = (b.payments || []).reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
@@ -469,11 +470,15 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
         if (b.status === 'paid') return s + (b.totalAmount || 0);
         return s;
       }, 0);
+      // v1.10.85 - Outstanding is what they owe less their credit
+      // (overpayments), in the business's currency (another currency at each
+      // invoice's saved rate): the same figure the credit limit is checked on.
+      const account = clientAccount(key, cBills, profileForStatement);
       // count: the documents in these totals (sales and credit notes).
-      map.set(key, { total, paid, unpaid: total - tds - paid, count: cBills.filter((b) => salesSign(b) !== 0).length });
+      map.set(key, { total, paid, unpaid: account.owed - account.credit, count: cBills.filter((b) => salesSign(b) !== 0).length });
     }
     return map;
-  }, [billsByClient]);
+  }, [billsByClient, profileForStatement]);
 
   const EMPTY_BILLS = useMemo(() => [], []);
   const getClientBills = (clientName) =>
@@ -794,7 +799,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
             const visits = clientVisits(getClientBills(clientName));
             // v1.10.85 - what they owe this business, against their credit limit.
             const limit = Number(savedClient?.creditLimit) || 0;
-            const overLimit = limit > 0 && clientOutstanding(clientName, getClientBills(clientName), profileForStatement) > limit + 0.005;
+            const overLimit = limit > 0 && stats.unpaid > limit + 0.005;
 
             return (
               <div key={clientName} className="glass-panel mb-4" style={{ overflow: 'hidden' }}>

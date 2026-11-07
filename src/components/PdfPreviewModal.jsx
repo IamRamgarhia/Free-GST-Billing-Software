@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Download, Printer, MessageCircle, Mail, FileText } from 'lucide-react';
 import { openWhatsAppShare } from '../utils/share';
 import { toast } from './Toast';
@@ -9,8 +9,8 @@ import HelpButton from './HelpButton';
 // downloading it", with Download, Print, WhatsApp and Email, and close back
 // to the Client Ledger.
 //
-// The PDF is shown in the browser's own PDF viewer (a blob: frame, allowed by
-// frame-src in index.html). Print prints that same frame, as printViaIframe
+// The PDF is shown in the browser's own PDF viewer, in a frame on a blob: URL
+// (the app's Content-Security-Policy in src/index.html allows frame-src blob:). Print prints that same frame, as printViaIframe
 // does for invoices. WhatsApp and Email work as they do for an invoice on the
 // Invoices list: a phone shares the PDF itself; on a PC (where a web page
 // cannot attach a file to WhatsApp or a mail) the PDF is downloaded and the
@@ -18,8 +18,14 @@ import HelpButton from './HelpButton';
 export default function PdfPreviewModal({ doc, fileName, title, message, phone, email, subject, onClose }) {
   const frameRef = useRef(null);
   const blob = useMemo(() => doc.output('blob'), [doc]);
-  const url = useMemo(() => URL.createObjectURL(blob), [blob]);
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  // Made and revoked in one effect: React StrictMode runs effects twice in
+  // development, and a URL made in useMemo was revoked by the first cleanup.
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const u = URL.createObjectURL(blob);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [blob]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -77,7 +83,7 @@ export default function PdfPreviewModal({ doc, fileName, title, message, phone, 
           </h3>
           <button type="button" className="icon-btn" onClick={onClose} title="Close (Esc)" aria-label="Close"><X size={18} /></button>
         </div>
-        <iframe ref={frameRef} src={url} title={title} style={{ flex: 1, minHeight: 0, width: '100%', border: 0, background: 'var(--bg-secondary)' }} />
+        {url && <iframe ref={frameRef} src={url} title={title} style={{ flex: 1, minHeight: 0, width: '100%', border: 0, background: 'var(--bg-secondary)' }} />}
         <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)', background: 'var(--card-bg)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-secondary" style={btn} onClick={whatsApp} title="Send on WhatsApp"><MessageCircle size={15} /> WhatsApp</button>
           <button type="button" className="btn btn-secondary" style={btn} onClick={mail} title="Send by email"><Mail size={15} /> Email</button>
