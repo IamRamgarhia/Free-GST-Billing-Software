@@ -62,6 +62,10 @@ async function cleanup(page) {
       };
       await del('purchases');
       await del('products');
+      // v1.10.85 - stock adjustments get generated ids: found by their product.
+      const adjs = await (await fetch('/api/stock-adjustments')).json().catch(() => []);
+      await Promise.all((Array.isArray(adjs) ? adjs : []).filter((a) => String(a.productId || '').startsWith('smoketest-'))
+        .map((a) => fetch(`/api/stock-adjustments/${encodeURIComponent(a.id)}`, { method: 'DELETE' })));
       // v1.10.85 #125 - the hidden test company goes only with its key.
       const opened = await (await fetch('/api/profiles/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '246813' }) })).json().catch(() => ({}));
       await Promise.all((opened.profiles || []).filter((p) => String(p.id).startsWith('smoketest-'))
@@ -2754,6 +2758,100 @@ try {
       if (keep.l === null) localStorage.removeItem('gst_priceLevels'); else localStorage.setItem('gst_priceLevels', keep.l);
       await fetch('/api/clients/smoketest-cli-157', { method: 'DELETE' });
     }, keep157);
+  }
+
+  // ---- v1.10.85 (#148, #142): stock - a second unit (Box = 12) on an
+  // invoice, categories and brands as filters, Adjust stock, the serial number
+  // trail, and low stock -> a purchase order.
+  {
+    const get148 = (url) => page.evaluate(async (url) => (await fetch(url)).json(), url);
+    const stock148 = async (id) => (await get148('/api/products')).find((x) => x.id === id)?.stock;
+    const modules148 = await page.evaluate(() => localStorage.getItem('gst_enabledModules'));
+    await page.evaluate(() => {
+      const m = JSON.parse(localStorage.getItem('gst_enabledModules') || '{}');
+      localStorage.setItem('gst_enabledModules', JSON.stringify({ ...m, purchaseOrders: true, inventory: true, purchases: true }));
+    });
+    await api('/api/products', { id: 'smoketest-box148', name: 'Smoke Box Pen', hsn: '9608', sellingPrice: 10, rate: 10, purchasePrice: 6, taxPercent: 18, unit: 'Pcs', stock: 100,
+      altUnit: 'Box', altFactor: 12, category: 'Smoke Stationery > Pens > Gel', brand: 'SmokeBrand' });
+    await api('/api/products', { id: 'smoketest-shirt148', name: 'Smoke Formal Shirt', hsn: '6205', sellingPrice: 800, rate: 800, purchasePrice: 500, taxPercent: 5, unit: 'Pcs', stock: 1,
+      category: 'Smoke Garments > Men > Shirts > Formal', brand: 'SmokeWear' });
+    const toView148 = async (view) => {
+      await page.evaluate((v) => { sessionStorage.removeItem('gst_editingBill'); sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.setItem('gst_currentView', v); }, view);
+      await page.reload({ waitUntil: 'networkidle' });
+      await sleep(2500);
+      await dismissFirstRun(page);
+    };
+
+    // #148 a box on an invoice: rate 12 x 10, and 2 boxes take 24 out of stock.
+    await openDraft({
+      invoiceType: 'tax-invoice',
+      client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: 'India', email: '', phone: '', isSEZ: false },
+      details: { invoiceDate: today, placeOfSupply: 'Punjab' },
+      items: [{ id: 'box148', productId: 'smoketest-box148', name: 'Smoke Box Pen', hsn: '9608', quantity: 2, rate: 10, taxPercent: 18, discount: 0, unit: 'Pcs' }],
+      taxInclusive: false,
+    });
+    const row148 = page.locator('.line-item-row').first();
+    await row148.locator('label:text("Unit") + select').selectOption('Box');
+    await sleep(600);
+    const rate148 = await row148.locator('.line-item-rate').inputValue();
+    check('v85 #148 picking Box on an invoice line bills by the box: rate 12 x 10 = 120', Number(rate148) === 120, `rate=${rate148}`);
+    await page.getByRole('button', { name: /^Save$/ }).first().click();
+    await sleep(3500);
+    check('v85 #148 saving 2 boxes takes 24 pens out of stock (100 -> 76)', (await stock148('smoketest-box148')) === 76, `stock=${await stock148('smoketest-box148')}`);
+
+    // #142 Products: the category filter takes in the sub-levels; Adjust stock.
+    await toView148('inventory');
+    await page.getByLabel('Category', { exact: true }).selectOption('Smoke Garments');
+    await sleep(400);
+    const shownNames = await page.locator('table.data-table tbody td.font-medium').allInnerTexts();
+    check('v85 #142 Products: category "Smoke Garments" shows the shirt (Garments > Men > Shirts > Formal), not the pen',
+      shownNames.some((t) => t.includes('Smoke Formal Shirt')) && !shownNames.some((t) => t.includes('Smoke Box Pen')), shownNames.join(' | ').slice(0, 200));
+    await page.getByLabel('Category', { exact: true }).selectOption('');
+    await page.getByRole('button', { name: 'Adjust stock of Smoke Box Pen' }).click();
+    await page.locator('#adj-reason').selectOption('damaged');
+    await page.locator('#adj-qty').fill('6');
+    await page.getByRole('button', { name: 'Save adjustment' }).click();
+    await sleep(2000);
+    const adj148 = (await get148('/api/stock-adjustments')).filter((a) => a.productId === 'smoketest-box148');
+    check('v85 Adjust stock: 6 damaged pens are written off (76 -> 70) and kept as their own record',
+      (await stock148('smoketest-box148')) === 70 && adj148.length === 1 && adj148[0].quantity === -6 && adj148[0].reason === 'damaged',
+      `stock=${await stock148('smoketest-box148')} adj=${JSON.stringify(adj148.map((a) => [a.quantity, a.reason]))}`);
+
+    // Low stock -> Make purchase order: the PO form opens with the shirt in it.
+    await page.getByLabel('Low stock only').check();
+    await sleep(300);
+    await page.getByRole('button', { name: /Make purchase order/ }).first().click();
+    await sleep(3500);
+    const poNames = await page.evaluate(() => [...document.querySelectorAll('input[list="fgsb-item-history"]')].map((i) => i.value));
+    check('v85 low stock -> Make purchase order opens the PO form with the low product in it', poNames.includes('Smoke Formal Shirt'), JSON.stringify(poNames));
+    await page.getByRole('button', { name: /^Cancel$/ }).first().click().catch(() => {});
+
+    // #142 Reports: a serial number shows where it was bought; the category filter.
+    const prof148 = await get148('/api/profile');
+    await api('/api/purchases', { id: 'smoketest-pur148', date: today, supplierName: 'Smoke Serial Supplier', invoiceNumber: 'SMK-SER-148',
+      paymentStatus: 'Unpaid', interstate: false, ownerGstin: prof148.gstin || '', ownerName: prof148.businessName || '',
+      items: [{ name: 'Smoke Formal Shirt', hsn: '6205', quantity: 1, rate: 500, taxPercent: 5, cessPercent: 0, serialNo: 'SMKSER148001' }], totalAmount: 525, totalTax: 25, taxableAmount: 500 });
+    await toView148('reports');
+    await page.getByRole('button', { name: /Product Performance/ }).click();
+    await sleep(800);
+    await page.getByLabel('Serial number').fill('SMKSER148');
+    await sleep(800);
+    const trailText = await page.getByLabel('Serial number trail').innerText().catch(() => '');
+    check('v85 #142 Reports: a serial number shows the bill it was bought on', /Smoke Serial Supplier/.test(trailText) && /SMK-SER-148/.test(trailText), trailText.replace(/\s+/g, ' ').slice(0, 200));
+    await page.getByLabel('Serial number').fill('');
+    await page.getByLabel('Category', { exact: true }).selectOption('Smoke Stationery');
+    await sleep(600);
+    const perf = (await page.locator('.glass-panel', { hasText: 'All products' }).last().innerText().catch(() => '')).replace(/\s+/g, ' ');
+    check('v85 #142 Reports: category "Smoke Stationery" lists the pen, sold 24 (2 boxes in pieces), and not the shirt',
+      /Smoke Box Pen/.test(perf) && /\b24\b/.test(perf) && !/Smoke Formal Shirt/.test(perf), perf.slice(0, 220));
+
+    await page.evaluate(async (m) => {
+      if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m);
+      sessionStorage.removeItem('fgsb_reorderDraft');
+      for (const a of await (await fetch('/api/stock-adjustments')).json()) {
+        if (String(a.productId).startsWith('smoketest-')) await fetch(`/api/stock-adjustments/${encodeURIComponent(a.id)}`, { method: 'DELETE' });
+      }
+    }, modules148);
   }
 
   // Put the real business details back.
