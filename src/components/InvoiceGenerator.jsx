@@ -21,6 +21,7 @@ import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
 import ScanBarcodeBox from './ScanBarcodeBox';
 import { addScannedLine, findByBarcode } from '../utils/barcode';
+import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { suggestGstRate, autoFillRate, rateText } from '../utils/hsnRates';
 import HelpButton from './HelpButton';
 import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
@@ -1742,17 +1743,6 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // LineItem below sees stable references and only re-renders the ROW
   // that actually changed. Prior code created new function identities
   // every render → every keystroke re-rendered EVERY line item.
-  const handleItemChange = useCallback((id, field, value) => {
-    // #143 / #140 - a unit change can make the line NA (no quantity) or a
-    // Sq.ft size line, or turn a size line back (see itemWithUnit).
-    const change = (item) => (field === 'unit'
-      ? itemWithUnit(item, value, { sizeOn: sizeBillingOn(), step: lastSizeStep() })
-      : { ...item, [field]: value });
-    setItems(prev => prev.map(item => item.id === id ? change(item) : item));
-    if (field === 'name') {
-      setProductSearch({ itemId: id, query: value });
-    }
-  }, []);
 
   // #140 - Length / Width / pieces / rounding / manual amount of a size line.
   const handleSizeChange = useCallback((id, patch) => {
@@ -1780,10 +1770,29 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const savedClientNow = useMemo(() => findSavedClient(savedClients, selectedClientId, client.name), [savedClients, selectedClientId, client.name]);
   const clientLevel = activePriceLevels().some((l) => l.id === savedClientNow?.priceLevel) ? savedClientNow.priceLevel : '';
 
+  const handleItemChange = useCallback((id, field, value) => {
+    // #143 / #140 - a unit change can make the line NA (no quantity) or a
+    // Sq.ft size line, or turn a size line back (see itemWithUnit).
+    // v1.10.85 (#148) - on a product with a second unit, picking Box bills by
+    // the box (stock counts 12 per box) at the box price; back to Pcs, the piece
+    // price. Any unit change drops the box factor first (lineInUnit).
+    const change = (item) => {
+      if (field !== 'unit') return { ...item, [field]: value };
+      const p = item.productId && products.find((x) => x.id === item.productId);
+      const priced = p && hasAltUnit(p) ? { ...p, sellingPrice: priceForLevel(p, clientLevel) } : null;
+      return itemWithUnit(lineInUnit(item, priced, value), value, { sizeOn: sizeBillingOn(), step: lastSizeStep() });
+    };
+    setItems(prev => prev.map(item => item.id === id ? change(item) : item));
+    if (field === 'name') {
+      setProductSearch({ itemId: id, query: value });
+    }
+  }, [products, clientLevel]);
+
   // The line a product makes. v1.10.85 (#137) - shared by picking it from the
   // suggestions and by scanning its barcode, so both fill the same fields.
   const productLine = (item, product) => ({
-    ...itemWithUnit(item, product.unit || item.unit || 'Nos', { sizeOn: sizeBillingOn(), step: lastSizeStep() }),
+    // #148 - lineInUnit with no product drops a box factor left from before.
+    ...itemWithUnit(lineInUnit(item, null, item.unit), product.unit || item.unit || 'Nos', { sizeOn: sizeBillingOn(), step: lastSizeStep() }),
     name: product.name,
     hsn: product.hsn || '',
     // v1.10.29 — Prefer sellingPrice for sales invoices (falls back to

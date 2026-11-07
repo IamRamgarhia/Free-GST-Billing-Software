@@ -25,6 +25,11 @@ import { withReturns, returnableLines, debitNoteTotals, editProblem, notesToRest
 import { Barcode } from 'lucide-react';
 import BarcodeLabels from './BarcodeLabels';
 import { findByBarcode } from '../utils/barcode';
+// v1.10.85 (#148) - alternate units on a purchase line, and the low-stock PO
+// handed over from Products or the Dashboard.
+import { baseQty, lineFactor } from '../utils';
+import { hasAltUnit, lineInUnit } from '../utils/stock';
+import { takeReorderDraft } from '../utils/reorderDraft';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -385,6 +390,23 @@ export default function PurchaseBills() {
     } catch { /* offline: the user can type a number */ }
   };
 
+  // v1.10.85 - "Make purchase order" for low stock: the lines handed over open
+  // in a new PO once the business is known (its PO number series).
+  const reorderRef = useRef(null);
+  useEffect(() => {
+    reorderRef.current = reorderRef.current || takeReorderDraft();
+  }, []);
+  useEffect(() => {
+    if (!reorderRef.current || !ownerProfile) return;
+    const items = reorderRef.current;
+    reorderRef.current = null;
+    if (poEnabled) setTab('orders');
+    openNewPo({ items });
+    toast('Purchase order for the low-stock products: pick the supplier, check the quantities and save', 'info');
+    // Runs when the business has loaded; openNewPo reads it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerProfile]);
+
   const openEditPo = (po) => {
     setForm({
       ...emptyForm,
@@ -694,6 +716,8 @@ export default function PurchaseBills() {
           // v1.10.85 (#171, #160) - a discount and serial numbers only when given.
           ...lineDiscountFields(i),
           ...(String(i.serialNo || '').trim() ? { serialNo: String(i.serialNo).trim() } : {}),
+          // v1.10.85 (#148) - bought in the product's second unit (Box = 12).
+          ...(Number(i.unitFactor) > 0 ? { unitFactor: Number(i.unitFactor), baseUnit: i.baseUnit || '' } : {}),
         })),
         // v1.10.85 (#168) - what its debit notes took off (never saved), so
         // Paid below records the balance less the returns.
@@ -764,7 +788,7 @@ export default function PurchaseBills() {
         const priorQtyByKey = new Map();
         for (const p of priorLines) {
           const key = p.productId || `name:${(p.name || '').trim().toLowerCase()}`;
-          priorQtyByKey.set(key, (priorQtyByKey.get(key) || 0) + (Number(p.quantity) || 0));
+          priorQtyByKey.set(key, (priorQtyByKey.get(key) || 0) + baseQty(p)); // #148 - in the base unit
         }
 
         // Batch stock adjustments per product so we don't race on parallel saves.
@@ -773,7 +797,7 @@ export default function PurchaseBills() {
         const seenPriorKeys = new Set();
 
         for (const it of purchase.items.filter(x => x.name)) {
-          const qty = Number(it.quantity) || 0;
+          const qty = baseQty(it); // #148 - 3 boxes of 12 add 36
           // Match order: productId (persisted below) → name (case-insensitive).
           let existing = it.productId ? byId.get(it.productId) : null;
           if (!existing) {
@@ -791,7 +815,7 @@ export default function PurchaseBills() {
             stockDeltaById.set(existing.id, (stockDeltaById.get(existing.id) || 0) + delta);
             productsToUpsert.set(existing.id, {
               ...existing,
-              purchasePrice: purchaseUnitCost(it), // v1.10.85 (#171) after its discount
+              purchasePrice: purchaseUnitCost(it) / lineFactor(it), // v1.10.85 (#171) after its discount; #148 per base unit
               hsn: existing.hsn || it.hsn,
               taxPercent: existing.taxPercent || it.taxPercent,
               cessPercent: existing.cessPercent || it.cessPercent || 0,
@@ -1094,6 +1118,12 @@ export default function PurchaseBills() {
     setForm(prev => {
       const items = [...prev.items];
       const cur = { ...items[index], name: value };
+      // #148 - a new item name starts in its own unit again.
+      if (cur.unitFactor) {
+        delete cur.unitFactor;
+        delete cur.baseUnit;
+        if (prev.kind !== 'po') delete cur.unit;
+      }
       if (match) {
         const last = cur._auto || {};
         if (isOursToReplace(cur.hsn, last.hsn)) cur.hsn = match.hsn;
@@ -1602,13 +1632,29 @@ export default function PurchaseBills() {
                     onFocus={e => e.target.select()}
                     onChange={e => updateItem(idx, 'quantity', e.target.value)} />
                 </div>
-                {isPo && (
-                  <div className="form-group" style={{ flex: 0.8, margin: 0 }}>
-                    {idx === 0 && <label className="form-label">Unit</label>}
-                    <input type="text" className="form-input" value={item.unit || ''} list="fgsb-unit-list"
-                      autoComplete="off" onChange={e => updateItem(idx, 'unit', e.target.value)} placeholder="Nos" />
-                  </div>
-                )}
+                {(() => {
+                  // v1.10.85 (#148) - a product with a second unit: pick Pcs or Box.
+                  const altProduct = products.find(pr => hasAltUnit(pr) && (pr.name || '').trim().toLowerCase() === (item.name || '').trim().toLowerCase());
+                  if (altProduct) {
+                    return (
+                      <div className="form-group" style={{ flex: 0.8, margin: 0 }}>
+                        {idx === 0 && <label className="form-label">Unit</label>}
+                        <select className="form-input" aria-label={`Unit of ${item.name}`} value={item.unitFactor ? altProduct.altUnit : (altProduct.unit || 'Nos')}
+                          onChange={e => { const unit = e.target.value; setForm(prev => ({ ...prev, items: prev.items.map((x, i) => (i === idx ? lineInUnit(x, altProduct, unit, 'purchase') : x)) })); }}>
+                          <option value={altProduct.unit || 'Nos'}>{altProduct.unit || 'Nos'}</option>
+                          <option value={altProduct.altUnit}>{altProduct.altUnit} of {Number(altProduct.altFactor)}</option>
+                        </select>
+                      </div>
+                    );
+                  }
+                  return isPo && (
+                    <div className="form-group" style={{ flex: 0.8, margin: 0 }}>
+                      {idx === 0 && <label className="form-label">Unit</label>}
+                      <input type="text" className="form-input" value={item.unit || ''} list="fgsb-unit-list"
+                        autoComplete="off" onChange={e => updateItem(idx, 'unit', e.target.value)} placeholder="Nos" />
+                    </div>
+                  );
+                })()}
                 <div className="form-group" style={{ flex: 1, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Rate</label>}
                   <input type="number" className="form-input" value={item.rate} min="0" step="any"
