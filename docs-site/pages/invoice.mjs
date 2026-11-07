@@ -344,44 +344,51 @@ export default [
   <li><strong>TDS</strong>, tax <em>your client deducts</em> when paying you, is for information: the total does not change. See <a href="#tds">TDS</a>.</li>
 </ul>
 <p>Each has a section list and a <b>Rate %</b> box beside it. Picking a section fills in its usual rate; you can type another rate.</p>
-<p>TDS is worked out on the value before GST, as CBDT Circular 23/2017 says when GST is shown separately. TCS under CGST section 52 is worked out on the net taxable value, and TCS under 206C(1) on the amount including GST. Who deducts what, and how to check it reached your PAN: see <a href="gst-basics.html#income-tax-tds">GST basics: TDS and TCS</a>.</p>
+<p>TDS is worked out on the value before GST, as CBDT Circular 23/2017 says when GST is shown separately. TCS under CGST section 52 is worked out on the net taxable value, and income-tax TCS (section 394 from 1 April 2026, 206C before) on the amount including GST. Who deducts what, and how to check it reached your PAN: see <a href="gst-basics.html#income-tax-tds">GST basics: TDS and TCS</a>.</p>
 <ul>
-  <li><strong>194Q</strong> (and 206C(1H) on invoices before April 2025) only applies above ₹50 lakh a year with that client. The app adds up what you have already billed the client this financial year, and charges only the part above ₹50 lakh.</li>
-  <li><strong>Every other section</strong>, such as 194C, 194J or CGST section 52, applies from the first rupee. Tick it only when the rules say it applies to this client.</li>
+  <li><strong>Purchase of goods</strong>: 393(1) Table Sl. 8(ii) from 1 April 2026 (194Q before; and 206C(1H) on invoices before April 2025) only applies above ₹50 lakh a year with that client. The app adds up what you have already billed the client this financial year, and charges only the part above ₹50 lakh.</li>
+  <li><strong>Every other section</strong>, such as contract work, professional fees or CGST section 52, applies from the first rupee. Tick it only when the rules say it applies to this client.</li>
 </ul>
 <p>Invoices with TDS or TCS are listed in <a href="reports.html#tds-tcs">Reports, TDS &amp; TCS</a>, where you also tick off each TDS certificate, and summed in <a href="gst-returns.html#tds-tcs">the GST Returns TDS / TCS tab</a>. A client deducted TDS you did not put on the invoice? Record it with the payment: see <a href="dashboard.html#payment-tds">TDS when recording a payment</a>. Have your CA confirm which sections and rates apply to you.</p>
 </section>
 
 <section id="tcs">
 <h3>TCS: tax collected at source</h3>
-<p>Tick <b>TCS — Tax Collected at Source</b> (marked <i>Adds to invoice total</i>), then pick the section:</p>
+<p>Tick <b>TCS — Tax Collected at Source</b> (marked <i>Adds to invoice total</i>), then pick the section. The list follows the invoice date: from <b>1 April 2026</b> the sections of the <b>Income-tax Act, 2025</b> (section 394, with its Table serial number, as the TCS return needs), with the rates of the Finance Act, 2026:</p>
 <div class="table-wrap"><table>
-  <tr><th>Section</th><th>Starting rate</th><th>Worked out on</th></tr>
-  <tr><td>CGST 52 — E-commerce operator</td><td>0.5% (since 10 July 2024; it was 1%. Invoices made earlier keep their rate)</td><td>The taxable value, without GST</td></tr>
-  <tr><td>206C(1) — Tendu leaves / scrap / minerals (varies)</td><td>1% (type the right rate for your goods)</td><td>The amount including GST</td></tr>
-  <tr><td>Custom rate</td><td>Type it</td><td>The amount including GST</td></tr>
+  <tr><th>Section (from 1 April 2026)</th><th>Was</th><th>Starting rate</th></tr>
+  <tr><td>CGST 52 — E-commerce operator (GST, not income tax)</td><td>the same</td><td>0.5%, on the taxable value without GST</td></tr>
+  <tr><td>394(1) Table Sl. 1 — Alcoholic liquor</td><td>206C(1), 1%</td><td>2%</td></tr>
+  <tr><td>394(1) Table Sl. 2 — Tendu leaves</td><td>206C(1), 5%</td><td>2%</td></tr>
+  <tr><td>394(1) Table Sl. 3 — Timber, other forest produce</td><td>206C(1)</td><td>2%</td></tr>
+  <tr><td>394(1) Table Sl. 4 — Scrap</td><td>206C(1), 1%</td><td>2%</td></tr>
+  <tr><td>394(1) Table Sl. 5 — Coal, lignite, iron ore</td><td>206C(1), 1%</td><td>2%</td></tr>
+  <tr><td>394(1) Table Sl. 6 — Motor vehicle sold for more than ₹10 lakh</td><td>206C(1F)</td><td>1%</td></tr>
+  <tr><td>394(1) Table Sl. 9 — Licence or lease of a parking lot, toll plaza, mine or quarry</td><td>206C(1C)</td><td>2%</td></tr>
+  <tr><td>Custom rate</td><td></td><td>Type it</td></tr>
 </table></div>
-<p>The TCS prints as its own line and is added to the total. Section 206C(1H), TCS on sale of goods, was removed from 1 April 2025, so new invoices cannot choose it; invoices already made with it keep it, and it shows greyed out in the list.</p>
+<p>Income-tax TCS is worked out on the amount including GST. An invoice dated before 1 April 2026 shows the 1961 Act's list (CGST 52, 206C(1) and Custom). TCS on sale of goods (206C(1H)) was removed from 1 April 2025 and has no place in the 2025 Act; invoices already made with it keep it, greyed out in the list. The TCS prints as its own line, for example <b>TCS (394(1) Sl. 4 @ 2%)</b>, and is added to the total.</p>
 </section>
 
 <section id="tds">
 <h3>TDS: tax deducted at source</h3>
-<p>Tick <b>TDS — Tax Deducted at Source</b> (marked <i>Buyer deducts; informational</i>), then pick the section your client deducts under:</p>
+<p>Tick <b>TDS — Tax Deducted at Source</b> (marked <i>Buyer deducts; informational</i>), then pick the section your client deducts under. From <b>1 April 2026</b> the list has the sections of the <b>Income-tax Act, 2025</b>: section 393 with its Table serial number, which the client must quote in its TDS return (Form 140, the old 26Q). Your TDS certificate from the client is now <b>Form 131</b> (the old 16A).</p>
 <div class="table-wrap"><table>
-  <tr><th>Section</th><th>Starting rate</th></tr>
-  <tr><td>194Q — Purchase of goods (buyer turnover &gt; ₹10cr)</td><td>0.1%, only above ₹50 lakh a year</td></tr>
-  <tr><td>194C — Contractor / sub-contractor</td><td>1%</td></tr>
-  <tr><td>194C — Contractor (company)</td><td>2%</td></tr>
-  <tr><td>194J — Professional / technical services</td><td>10%</td></tr>
-  <tr><td>194J — Technical services (lower rate)</td><td>2%</td></tr>
-  <tr><td>194I — Rent (land / building)</td><td>10%</td></tr>
-  <tr><td>194I — Rent (plant / machinery)</td><td>2%</td></tr>
-  <tr><td>194H — Commission / brokerage</td><td>5%</td></tr>
-  <tr><td>194O — E-commerce participant</td><td>1%</td></tr>
-  <tr><td>195 — Payments to non-residents (varies)</td><td>Type it</td></tr>
-  <tr><td>Custom section / rate</td><td>Type it</td></tr>
+  <tr><th>Section (from 1 April 2026)</th><th>Was</th><th>Starting rate</th></tr>
+  <tr><td>393(1) Table Sl. 8(ii) — Purchase of goods (buyer turnover &gt; ₹10 cr)</td><td>194Q</td><td>0.1%, only on the amount above ₹50 lakh a year</td></tr>
+  <tr><td>393(1) Table Sl. 6(i) — Contractor, incl. manpower supply (individual / HUF)</td><td>194C</td><td>1%</td></tr>
+  <tr><td>393(1) Table Sl. 6(i) — Contractor, incl. manpower supply (others)</td><td>194C</td><td>2%</td></tr>
+  <tr><td>393(1) Table Sl. 6(iii) — Professional fees, director fees, royalty</td><td>194J</td><td>10%</td></tr>
+  <tr><td>393(1) Table Sl. 6(iii) — Technical services, film royalty, call centre</td><td>194J</td><td>2%</td></tr>
+  <tr><td>393(1) Table Sl. 2(ii) — Rent: land, building, furniture</td><td>194-I</td><td>10%, when rent is above ₹50,000 a month</td></tr>
+  <tr><td>393(1) Table Sl. 2(ii) — Rent: plant, machinery, equipment</td><td>194-I</td><td>2%, when rent is above ₹50,000 a month</td></tr>
+  <tr><td>393(1) Table Sl. 1(ii) — Commission / brokerage</td><td>194H</td><td>2%, above ₹20,000 a year</td></tr>
+  <tr><td>393(1) Table Sl. 8(v) — E-commerce participant (the operator deducts)</td><td>194O</td><td>0.1%</td></tr>
+  <tr><td>393(2) Table Sl. 17 — Payments to non-residents</td><td>195</td><td>Type it (rates in force, or the tax treaty rate)</td></tr>
+  <tr><td>Custom section / rate</td><td></td><td>Type it</td></tr>
 </table></div>
-<p>TDS is worked out on the value <em>without</em> GST, as the CBDT circulars require when the invoice shows GST separately. The invoice shows <b>Less: TDS</b> and the <b>Net Receivable</b>, the amount you should actually receive. The invoice counts as paid once payments cover the total less the TDS.</p>
+<p>An invoice dated before 1 April 2026 shows the 1961 Act's list (194Q, 194C, 194J, 194I, 194H, 194O, 195). A <b>new</b> invoice, or a copy of an old one, dated from 1 April 2026 moves a 1961 section to its new place by itself (194J becomes 393(1) Sl. 6(iii)). An invoice you saved keeps the section it was made with. The invoice prints, for example, <b>Less: TDS (393(1) Sl. 6(iii) @ 10%)</b>.</p>
+<p>The thresholds above are when the client must deduct (for contract work, ₹30,000 for one payment or ₹1 lakh in the year; for professional fees, ₹50,000 in the year). Tick TDS only when it applies to this client; only purchase of goods is worked out against its ₹50 lakh by the app. TDS is worked out on the value <em>without</em> GST, as the CBDT circulars require when the invoice shows GST separately. The invoice shows <b>Less: TDS</b> and the <b>Net Receivable</b>, the amount you should actually receive. The invoice counts as paid once payments cover the total less the TDS. Have your CA confirm which section and rate apply to you.</p>
 </section>
 
 <section id="currency">

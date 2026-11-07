@@ -14,7 +14,7 @@
 // Every block and every table row here carries data-pdf-page-boundary, so a
 // page can end between rows or blocks but never cuts through one.
 import React from 'react';
-import { filledOrderDetails, getStateCode, printedSubtotal, roundQty } from '../utils';
+import { filledOrderDetails, getStateCode, printedSubtotal, roundQty, sectionPrint } from '../utils';
 import SignatureImages from './SignatureImages';
 import { purposeCodeText } from '../utils/purposeCodes';
 import { sizeLabel, sizePieces, lineSqft, sizeHasDims } from '../utils/glass';
@@ -82,7 +82,7 @@ function taxRows(ctx) {
     } else rows.push([taxLabel, (totals.cgst || 0) + (totals.sgst || 0) + (totals.igst || 0)]);
   }
   if (totals.cess > 0) rows.push(['Cess', totals.cess]);
-  if (totals.tcsAmount > 0) rows.push([`TCS${options.tcsSection ? ` (${options.tcsSection} @ ${options.tcsRate}%)` : ''}`, totals.tcsAmount]);
+  if (totals.tcsAmount > 0) rows.push([`TCS${sectionPrint(options.tcsSection, options.tcsRate)}`, totals.tcsAmount]);
   if (totals.invoiceDiscountAmount > 0) rows.push(['Less : Discount on total', -totals.invoiceDiscountAmount]);
   if (totals.roundOff) rows.push([totals.roundOff < 0 ? 'Less : Round Off' : 'Round Off', totals.roundOff]);
   return rows;
@@ -363,7 +363,7 @@ function TallyLayout({ ctx }) {
       </div>
       {totals.tdsAmount > 0 && (
         <div {...blockProps} style={{ ...cell, borderTop: 'none', ...small }}>
-          Less: TDS{ctx.options.tdsSection ? ` (${ctx.options.tdsSection} @ ${ctx.options.tdsRate}%)` : ''} {fmt(totals.tdsAmount)} · Net Receivable <strong>{fmt(totals.netReceivable)}</strong>
+          Less: TDS{sectionPrint(ctx.options.tdsSection, ctx.options.tdsRate)} {fmt(totals.tdsAmount)} · Net Receivable <strong>{fmt(totals.netReceivable)}</strong>
         </div>
       )}
 

@@ -132,9 +132,28 @@ a backup is made first.
   It hides again when you switch to another business or open the app again.
   It hides from view; it does not encrypt (the App lock guards the whole app).
 
+- **TDS and TCS under the Income-tax Act, 2025** (#180, part 1): invoices
+  dated from 1 April 2026 offer the new sections with their Table numbers, as
+  the TDS / TCS returns now need them: **393(1) Table Sl. 6(i)** (contract
+  work, was 194C), **Sl. 6(iii)** (professional and technical fees, was 194J),
+  **Sl. 2(ii)** (rent, was 194-I), **Sl. 1(ii)** (commission, was 194H),
+  **Sl. 8(ii)** (purchase of goods, was 194Q, still only above Rs 50 lakh),
+  **Sl. 8(v)** (e-commerce, was 194O), **393(2) Sl. 17** (non-residents, was
+  195), and TCS under **394(1)** at the Finance Act 2026 rates (liquor,
+  tendu leaves, timber, scrap, coal: 2%; motor vehicles above Rs 10 lakh:
+  1%). A new invoice moves an old section to its new place by itself;
+  invoices you saved keep theirs. The invoice prints the short form, for
+  example *TDS (393(1) Sl. 6(iii) @ 10%)*. The quick-start Terms templates
+  quote the new sections and Form 131 (was 16A). Part 2 (working TDS out from
+  the payee and the thresholds, and the return exports) comes later.
+
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
   inside the container; other devices use the paired HTTPS connection.
+
+- TDS on invoices dated before 1 April 2026: 194H (commission) now starts at
+  2% and 194O (e-commerce) at 0.1%, the rates since 1 October 2024 (they
+  started at 5% and 1%). Saved invoices keep their rate.
 
 ### Security
 - The phone connection checks every request: a local-network address, the

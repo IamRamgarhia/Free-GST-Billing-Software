@@ -3,7 +3,7 @@
 //
 // Run: `node scripts/lut-tds-test.mjs`
 
-import { computeInvoiceTotals, generateEWayBillJSON, amountDue, paymentStatusFor, TCS_SECTIONS } from '../src/utils.js';
+import { computeInvoiceTotals, generateEWayBillJSON, amountDue, paymentStatusFor, TCS_SECTIONS, TDS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, newActCode, sectionShort, sectionPrint, sectionOptionLabel } from '../src/utils.js';
 import { fyOf, isLikelyLutArn, normaliseLutArn, lutCoversDate, isExportOrSez, exportDeclaration, lutFyOptions, LUT_DECLARATION, IGST_PAID_DECLARATION } from '../src/utils/lut.js';
 import { quarterOf, fyQuarterRange, inRange, panFromGstin, salesTaxRows, purchaseTdsAmount, paidToSupplier, purchaseTdsRows, totalsBy, withClientTds } from '../src/utils/tdsTcs.js';
 
@@ -111,7 +111,7 @@ console.log('\n[TDS & TCS] Sales');
   const tds = salesTaxRows(bills, 'tds');
   eq(tds.map((r) => [r.invoiceNumber, r.section, r.amount, r.certificate, r.quarter, r.pan]), [['INV-1', '194J', 10000, true, 'Q1', 'ABCDE1234F'], ['INV-2', '194C', 1000, false, 'Q3', 'ABCDE1234F']], 'Only sales with TDS; cancelled and quotations left out');
   eq(salesTaxRows(bills, 'tds', fyQuarterRange('2026', 'Q1')).length, 1, 'Quarter filter');
-  eq(salesTaxRows(bills, 'tcs').map((r) => [r.invoiceNumber, r.section, r.amount, r.taxable]), [['INV-3', '52', 100, 20000]], 'TCS collected');
+  eq(salesTaxRows(bills, 'tcs').map((r) => [r.invoiceNumber, r.section, r.amount, r.taxable]), [['INV-3', 'CGST 52', 100, 20000]], 'TCS collected (GST TCS shown as CGST 52)');
   eq(totalsBy(tds, (r) => r.party), [{ key: 'Ramesh Traders', count: 1, taxable: 100000, amount: 10000 }, { key: 'Suresh & Co', count: 1, taxable: 50000, amount: 1000 }], 'Totals by client');
 }
 
@@ -133,6 +133,29 @@ console.log('\n[TDS] Purchase bills');
   const rows = purchaseTdsRows([p, { ...p, id: 'p2', tdsAmount: 0 }, { ...p, id: 'po', kind: 'po' }]);
   eq(rows.map((r) => [r.invoiceNumber, r.section, r.amount, r.paid, r.quarter, r.pan]), [['S-77', '194C', 1000, 58000, 'Q2', 'AAACB1234C']], 'Only bills with TDS; purchase orders left out');
   eq(totalsBy(rows, (r) => r.section), [{ key: '194C', count: 1, taxable: 50000, amount: 1000 }], 'Totals by section');
+}
+
+console.log('\n[#180] TDS / TCS under the Income-tax Act, 2025 (from 1 April 2026)');
+{
+  eq([tdsSectionsFor('2026-03-31') === TDS_SECTIONS, tdsSectionsFor('2026-04-01') === TDS_SECTIONS_2025, tcsSectionsFor('2026-11-07') === TCS_SECTIONS_2025],
+    [true, true, true], 'up to 31 March 2026 the 1961 sections, from 1 April 2026 the 2025 Act');
+  const r = (code, list = TDS_SECTIONS_2025) => list.find((s) => s.code === code)?.rate;
+  eq([r('393-6i-ind'), r('393-6i-oth'), r('393-1ii'), r('393-2ii-pm'), r('393-2ii-lb'), r('393-6iii-prof'), r('393-6iii-tech'), r('393-8ii'), r('393-8v')],
+    [1, 2, 2, 2, 10, 10, 2, 0.1, 0.1], 'TDS rates: contractor 1/2, commission 2, rent 2/10, fees 10/2, goods 0.1, e-commerce 0.1');
+  eq([r('394-1', TCS_SECTIONS_2025), r('394-2', TCS_SECTIONS_2025), r('394-4', TCS_SECTIONS_2025), r('394-5', TCS_SECTIONS_2025), r('394-6', TCS_SECTIONS_2025), r('52', TCS_SECTIONS_2025)],
+    [2, 2, 2, 2, 1, 0.5], 'TCS rates from the Finance Act 2026: liquor, tendu, scrap, coal 2%; motor vehicle 1%; GST TCS 0.5%');
+  eq(TCS_SECTIONS_2025.some((s) => s.code === '206C(1H)'), false, 'TCS on sale of goods (old 206C(1H)) has no place in section 394');
+  eq([newActCode('194C'), newActCode('194C-co'), newActCode('194J'), newActCode('194Q'), newActCode('206C(1)', 'tcs'), newActCode('52', 'tcs'), newActCode('custom')],
+    ['393-6i-ind', '393-6i-oth', '393-6iii-prof', '393-8ii', null, '52', 'custom'], 'a 1961 section moves to its 2025 place (206C(1) "varies": not guessed)');
+  eq([sectionShort('393-6i-oth'), sectionShort('394-4'), sectionShort('194C-co'), sectionShort('52')], ['393(1) Sl. 6(i)', '394(1) Sl. 4', '194C', 'CGST 52'], 'what is printed for a section');
+  eq([sectionPrint('393-6iii-prof', 10), sectionPrint('custom', 3), sectionPrint('', 1)], [' (393(1) Sl. 6(iii) @ 10%)', ' (@ 3%)', ''], 'TDS / TCS line on the invoice');
+  eq(sectionOptionLabel('194J'), '194J — Professional / technical services (Income-tax Act, 1961)', 'a saved 1961 section is named as such');
+  // The ₹50 lakh threshold of 194Q holds for its 2025 place, Sl. 8(ii).
+  const goods = (section, cum) => computeInvoiceTotals({ items: [{ name: 'Steel', hsn: '7208', quantity: 1, rate: 1000000, taxPercent: 18 }], profile, client: { name: 'Buyer', state: 'Karnataka', country: 'India' }, details: { invoiceDate: '2026-11-07' }, showGST: true,
+    invoiceOptions: { showTDS: true, tdsSection: section, tdsRate: 0.1, tdsCumulativeThisYear: cum } }).tdsAmount;
+  eq([goods('393-8ii', 0), goods('393-8ii', 4500000), goods('194Q', 4500000)], [0, 500, 500], 'Sl. 8(ii): nothing up to ₹50 lakh a year, 0.1% on what is above (same as 194Q)');
+  const fees = computeInvoiceTotals({ items, profile, client: usClient, details: { invoiceDate: '2026-11-07' }, showGST: false, invoiceOptions: { showTDS: true, tdsSection: '393-6iii-prof', tdsRate: 10 } }).tdsAmount;
+  eq(fees, 10000, 'Sl. 6(iii) fees: 10% from the first rupee (the user ticks TDS when it applies)');
 }
 
 console.log('\n────────────────────────────────────────');

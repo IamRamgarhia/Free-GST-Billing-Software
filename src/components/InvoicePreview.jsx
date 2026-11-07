@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
 import SignatureImages from './SignatureImages';
 import DOMPurify from 'dompurify';
-import { numberToWords, printedSubtotal, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount, htmlHasText, splitNumberedTerms, invoiceOptionOn, DEFAULT_DECLARATION, filledOrderDetails, formatShortDate, isModuleEnabled, getStateCode, COUNTRIES } from '../utils';
+import { sectionPrint, numberToWords, printedSubtotal, formatCurrency, INVOICE_TYPES, getCountryConfig, CURRENCY_NAMES, formatExchangeRateLine, getAccountById, getPaperSize, resolveLineDiscount, htmlHasText, splitNumberedTerms, invoiceOptionOn, DEFAULT_DECLARATION, filledOrderDetails, formatShortDate, isModuleEnabled, getStateCode, COUNTRIES } from '../utils';
 import { getEnabledModules } from '../store';
 import { getPrintSettings, getLabel, formatCurrencyEx, formatDate } from '../utils/printSettings';
 import InvoiceGridLayout, { HsnSummaryTable } from './InvoiceGridLayout';
@@ -1411,7 +1411,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
           )}
           {totals.tcsAmount > 0 && (
             <div className="inv-total-row">
-              <span>TCS{options.tcsSection ? ` (${options.tcsSection} @ ${options.tcsRate}%)` : ''}</span>
+              <span>TCS{sectionPrint(options.tcsSection, options.tcsRate)}</span>
               <span>{fmt(totals.tcsAmount)}</span>
             </div>
           )}
@@ -1447,7 +1447,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
           {totals.tdsAmount > 0 && (
             <>
               <div className="inv-total-row" style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', borderTop: '1px dashed #e2e8f0', paddingTop: '0.4rem' }}>
-                <span>Less: TDS{options.tdsSection ? ` (${options.tdsSection} @ ${options.tdsRate}%)` : ''}</span>
+                <span>Less: TDS{sectionPrint(options.tdsSection, options.tdsRate)}</span>
                 <span>− {fmt(totals.tdsAmount)}</span>
               </div>
               <div className="inv-total-row" style={{ fontWeight: 600, color: '#0f766e', fontSize: '0.78rem' }}>

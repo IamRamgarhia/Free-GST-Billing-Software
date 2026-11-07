@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload, ClipboardList, Truck } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock, billMatchesSearch } from '../utils';
+import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, tdsSectionsFor, findLowStock, trackedStock, billMatchesSearch } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
@@ -698,7 +698,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
   const openPaymentModal = (bill) => {
     setPaymentModal(bill);
-    setPaymentInput({ amount: '', date: localToday(), mode: 'bank-transfer', note: '', tdsOn: false, tdsSection: '194J', tdsRate: 10 });
+    // v1.10.85 (#180) - the Act of the invoice's date (credit comes before
+    // payment): 393(1) Sl. 6(iii) for one dated from 1 April 2026.
+    const fees = tdsSectionsFor(bill.invoiceDate) === TDS_SECTIONS ? '194J' : '393-6iii-prof';
+    setPaymentInput({ amount: '', date: localToday(), mode: 'bank-transfer', note: '', tdsOn: false, tdsSection: fees, tdsRate: 10 });
   };
   // TDS can be added while recording a payment on an Indian sales invoice that
   // does not already show TDS (one that does is owed its Net Receivable).
@@ -2172,10 +2175,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                         <select className="form-input" aria-label="TDS section" value={paymentInput.tdsSection}
                           onChange={e => {
                             const code = e.target.value;
-                            const sec = TDS_SECTIONS.find(x => x.code === code);
+                            const sec = tdsSectionsFor(paymentModal.invoiceDate).find(x => x.code === code);
                             setPaymentInput(prev => ({ ...prev, tdsSection: code, tdsRate: code === 'custom' ? prev.tdsRate : (sec?.rate ?? prev.tdsRate) }));
                           }}>
-                          {TDS_SECTIONS.map(x => <option key={x.code} value={x.code}>{x.label}</option>)}
+                          {tdsSectionsFor(paymentModal.invoiceDate).map(x => <option key={x.code} value={x.code}>{x.label}</option>)}
                         </select>
                         <input type="number" step="any" min="0" max="100" className="form-input" aria-label="TDS rate %" placeholder="Rate %"
                           value={paymentInput.tdsRate} onChange={e => setPaymentInput(prev => ({ ...prev, tdsRate: e.target.value }))} />

@@ -3,7 +3,7 @@ import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Setting
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, newActCode, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -1611,6 +1611,25 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     ...(cur !== baseCurrency ? { lastForeignCurrency: cur } : {}),
   });
   const setCurrency = (cur) => setInvoiceOptions(prev => ({ ...prev, ...currencyPatch(prev, cur) }));
+  // v1.10.85 (#180) - the TDS / TCS sections of the invoice's date: the
+  // Income-tax Act, 2025 from 1 April 2026. A new invoice (or a copy) dated
+  // then moves a 1961 section to its new place; a saved invoice keeps its own.
+  const tdsList = tdsSectionsFor(details.invoiceDate);
+  const tcsList = tcsSectionsFor(details.invoiceDate);
+  const savedInvoice = !!editingBill && !editingBill._isDuplicate && !editingBill._convertToType;
+  useEffect(() => {
+    if (savedInvoice || tdsList !== TDS_SECTIONS_2025) return;
+    setInvoiceOptions((prev) => {
+      const tds = prev.tdsSection ? newActCode(prev.tdsSection, 'tds') : null;
+      const tcs = prev.tcsSection ? newActCode(prev.tcsSection, 'tcs') : null;
+      const patch = {};
+      if (tds && tds !== prev.tdsSection) Object.assign(patch, { tdsSection: tds, tdsRate: TDS_SECTIONS_2025.find((x) => x.code === tds).rate });
+      if (tcs && tcs !== prev.tcsSection) Object.assign(patch, { tcsSection: tcs, tcsRate: TCS_SECTIONS_2025.find((x) => x.code === tcs).rate });
+      return Object.keys(patch).length ? { ...prev, ...patch } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tdsList, savedInvoice]);
+
   const setExchangeRate = (v) => setInvoiceOptions(prev => ({
     ...prev, exchangeRate: v,
     ...(Number(v) > 0 ? { fxRates: { ...(prev.fxRates || {}), [prev.currency]: v } } : {}),
@@ -4088,9 +4107,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                           // Turning TCS on for an invoice whose remembered section can no
                           // longer be chosen (206C(1H)) starts from the first current one.
                           const turningOn = !prev.showTCS;
-                          const valid = TCS_SECTIONS.some(s => s.code === prev.tcsSection);
+                          const valid = tcsList.some(s => s.code === prev.tcsSection);
                           return turningOn && !valid
-                            ? { ...prev, showTCS: true, tcsSection: TCS_SECTIONS[0].code, tcsRate: TCS_SECTIONS[0].rate }
+                            ? { ...prev, showTCS: true, tcsSection: tcsList[0].code, tcsRate: tcsList[0].rate }
                             : { ...prev, showTCS: turningOn };
                         })}
                         style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
@@ -4100,16 +4119,17 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     </label>
                     {invoiceOptions.showTCS && (
                       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <select className="form-input" value={invoiceOptions.tcsSection || TCS_SECTIONS[0].code}
+                        <select className="form-input" value={invoiceOptions.tcsSection || tcsList[0].code}
                           onChange={(e) => {
                             const code = e.target.value;
-                            const section = TCS_SECTIONS.find(s => s.code === code);
+                            const section = tcsList.find(s => s.code === code);
                             setInvoiceOptions(prev => ({ ...prev, tcsSection: code, tcsRate: code === 'custom' ? prev.tcsRate : section?.rate ?? prev.tcsRate }));
                           }}>
-                          {REMOVED_TCS_SECTIONS[invoiceOptions.tcsSection] && (
-                            <option value={invoiceOptions.tcsSection} disabled>{REMOVED_TCS_SECTIONS[invoiceOptions.tcsSection]}</option>
+                          {/* #180 - a saved invoice keeps its section, even one this date's list no longer has */}
+                          {invoiceOptions.tcsSection && !tcsList.some(s => s.code === invoiceOptions.tcsSection) && (
+                            <option value={invoiceOptions.tcsSection} disabled>{sectionOptionLabel(invoiceOptions.tcsSection)}</option>
                           )}
-                          {TCS_SECTIONS.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
+                          {tcsList.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
                         </select>
                         <input type="number" step="any" min="0" max="100" className="form-input"
                           value={invoiceOptions.tcsRate}
@@ -4133,13 +4153,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     </label>
                     {invoiceOptions.showTDS && (
                       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <select className="form-input" value={invoiceOptions.tdsSection || '194Q'}
+                        <select className="form-input" value={invoiceOptions.tdsSection || tdsList[0].code}
                           onChange={(e) => {
                             const code = e.target.value;
-                            const section = TDS_SECTIONS.find(s => s.code === code);
+                            const section = tdsList.find(s => s.code === code);
                             setInvoiceOptions(prev => ({ ...prev, tdsSection: code, tdsRate: code === 'custom' ? prev.tdsRate : section?.rate ?? prev.tdsRate }));
                           }}>
-                          {TDS_SECTIONS.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
+                          {invoiceOptions.tdsSection && !tdsList.some(s => s.code === invoiceOptions.tdsSection) && (
+                            <option value={invoiceOptions.tdsSection} disabled>{sectionOptionLabel(invoiceOptions.tdsSection)}</option>
+                          )}
+                          {tdsList.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
                         </select>
                         <input type="number" step="any" min="0" max="100" className="form-input"
                           value={invoiceOptions.tdsRate}

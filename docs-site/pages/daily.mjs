@@ -259,7 +259,7 @@ export default [
   <li><strong>Amount Received</strong>Type what actually reached your bank. Or leave it empty to record only the TDS, if you already recorded the payment.</li>
   <li><strong>Record it</strong>Click ${ui('Record Payment')}. The TDS is saved on the invoice (as if you had ticked TDS under Customize), so it is owed only its Net Receivable, and it appears in <a href="reports.html#tds-by-clients">Reports, TDS &amp; TCS</a> for checking against your Form 26AS.</li>
 </ol>
-<p><b>Example.</b> Invoice ₹1,18,000 (₹1,00,000 + 18% GST). The client pays ₹1,08,000 and deducts ₹10,000 TDS under 194J. Tick <b>Client deducted TDS</b>, pick 194J at 10%, type 1,08,000 and record it: the invoice is Paid.</p>
+<p><b>Example.</b> Invoice ₹1,18,000 (₹1,00,000 + 18% GST). The client pays ₹1,08,000 and deducts ₹10,000 TDS under 393(1) Sl. 6(iii) (194J before April 2026). Tick <b>Client deducted TDS</b>, pick 194J at 10%, type 1,08,000 and record it: the invoice is Paid.</p>
 <p>To change or remove the TDS later, open the invoice and change TDS under ${ui('Customize')}.</p>
 <p>The TDS you record here stays as recorded. Opening the invoice later and saving it again no longer works it out afresh (for 194Q the ₹50 lakh threshold could turn it into zero). If you change the TDS section or rate on the invoice, it is worked out again from the new rate.</p>
 </section>

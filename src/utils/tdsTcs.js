@@ -8,7 +8,7 @@
 //   - TDS you deducted from suppliers on purchase bills (purchase.tdsAmount):
 //     what you deposit and report in your own TDS return (Form 26Q).
 
-import { countsAsSales } from '../utils.js';
+import { countsAsSales, sectionShort } from '../utils.js';
 import { billInInr } from './fx.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -42,7 +42,8 @@ export const panFromGstin = (gstin) => {
 };
 
 // '194C-co', '194J-tech', '194I-pm' are rate variants of one section.
-const sectionLabel = (code) => String(code || '').replace(/-(co|tech|pm)$/, '');
+// v1.10.85 (#180) - 393(1) Sl. 6(i) for the 2025 Act's sections (sectionShort).
+const sectionLabel = (code) => (code === 'custom' ? 'Custom' : sectionShort(code));
 const taxableOf = (bill) => {
   const t = bill?.data?.totals || {};
   return r2(t.taxableAmount ?? ((t.subtotal || 0) - (t.totalDiscount || 0)));
@@ -68,7 +69,7 @@ export const salesTaxRows = (bills, kind = 'tds', range = {}) => (bills || [])
       party: client.name || b.clientName || '',
       gstin: client.gstin || '',
       pan: client.pan || panFromGstin(client.gstin),
-      section: kind === 'tds' ? sectionLabel(opt.tdsSection || '194Q') : (opt.tcsSection || '206C(1H)'),
+      section: sectionLabel(kind === 'tds' ? (opt.tdsSection || '194Q') : (opt.tcsSection || '206C(1H)')),
       rate: Number(kind === 'tds' ? opt.tdsRate : opt.tcsRate) || 0,
       taxable: taxableOf(b),
       amount,

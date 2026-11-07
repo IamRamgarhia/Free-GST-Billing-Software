@@ -413,7 +413,7 @@ export default [
 
 <section id="tds-receivable">
 <h3>TDS Receivable (deducted by clients)</h3>
-<p>Tax your clients should have deducted from what they pay you, under sections such as 194C, 194J or 194Q. You claim it against your own income tax, so check it shows in your Form 26AS / AIS.</p>
+<p>Tax your clients should have deducted from what they pay you, under sections such as 393(1) Sl. 6(i), 6(iii) or 8(ii) of the Income-tax Act, 2025 (194C, 194J or 194Q before April 2026). You claim it against your own income tax, so check it shows in your Form 26AS / AIS.</p>
 <ul>
   <li>Three figures: <b>Invoices with TDS</b>, <b>Taxable value</b>, <b>Total TDS receivable</b>.</li>
   <li>A table by <b>Quarter</b> (Q1 is April–June) and <b>Section</b>, with the number of invoices, taxable value and TDS. An invoice with no section chosen is counted under 194Q.</li>

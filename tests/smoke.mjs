@@ -1103,6 +1103,20 @@ try {
   await sleep(800);
   const rft2 = await rftRow();
   check('#140 the Rft line follows a change to the glass line (22 rft, 220)', rft2.qty === '22 rft' && /220\.00/.test(rft2.amount), JSON.stringify(rft2));
+
+  // v1.10.85 #180: a new invoice dated from 1 April 2026 with the old 194J
+  // moves to the Income-tax Act, 2025: section 393(1) Sl. 6(iii) is printed.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/TDS', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [{ id: 'smk-fees', name: 'Consulting', hsn: '998311', quantity: 1, rate: 10000, taxPercent: 18, discount: 0, unit: 'Nos' }],
+    taxInclusive: false,
+    invoiceOptions: { showTDS: true, tdsSection: '194J', tdsRate: 10 },
+  });
+  await sleep(800);
+  const tdsLine = await page.evaluate(() => [...document.querySelectorAll('#invoice-preview span')].map((s) => s.innerText.trim()).find((t) => /^Less: TDS/.test(t)) || '');
+  check('#180 a new invoice under the 2025 Act prints TDS (393(1) Sl. 6(iii) @ 10%)', tdsLine === 'Less: TDS (393(1) Sl. 6(iii) @ 10%)', tdsLine);
   await page.evaluate((m) => { if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m); }, modulesBefore);
 
   // #164: "Print rates before GST" with prices that include tax: 13.25 at 18%

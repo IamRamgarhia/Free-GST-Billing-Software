@@ -107,7 +107,7 @@ export default [
 
 <section id="purchase-tds">
 <h3>TDS on a purchase bill</h3>
-<p>If you must deduct income-tax TDS when you pay this supplier (a contractor under 194C, a professional under 194J, rent under 194I...), record it on the bill. Under the totals strip, tick <b>TDS deducted</b>:</p>
+<p>If you must deduct income-tax TDS when you pay this supplier (a contractor under 393(1) Sl. 6(i), a professional under Sl. 6(iii), rent under Sl. 2(ii), the 2025 Act's places for 194C, 194J and 194I...), record it on the bill. Under the totals strip, tick <b>TDS deducted</b>:</p>
 <ol class="steps">
   <li><strong>Section</strong>Pick the section. Its usual rate fills in.</li>
   <li><strong>Rate or amount</strong>Check the <b>Rate %</b>: the TDS is worked out on the taxable value (before GST), and the amount box shows it as a hint. To use an exact figure instead, type it in the amount box.</li>

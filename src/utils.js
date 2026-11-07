@@ -360,7 +360,7 @@ export function computeInvoiceTotals(opts) {
   // ordinary 194J invoice. No section given = the threshold sections (their
   // defaults), which keeps older saved invoices computing as before.
   const tcsThresholded = !invoiceOptions.tcsSection || invoiceOptions.tcsSection === '206C(1H)';
-  const tdsThresholded = !invoiceOptions.tdsSection || invoiceOptions.tdsSection === '194Q';
+  const tdsThresholded = isPurchaseOfGoodsTds(invoiceOptions.tdsSection); // 194Q, or 393(1) Sl. 8(ii) from 1 Apr 2026
   const tcsCumBefore = tcsThresholded ? (Number(invoiceOptions.tcsCumulativeThisYear) || 0) : Infinity;
   const tdsCumBefore = tdsThresholded ? (Number(invoiceOptions.tdsCumulativeThisYear) || 0) : Infinity;
 
@@ -2103,7 +2103,7 @@ export const TERMS_PRESETS = [
 <ul>
   <li>Payment is due within <strong>7 days</strong> from invoice date.</li>
   <li>Late payments accrue interest at <strong>1.5% per month</strong>.</li>
-  <li>TDS, if applicable, may be deducted under Section 194J. Please share Form 16A.</li>
+  <li>TDS, if applicable, may be deducted under section 393(1) [Table: Sl. No. 6(iii)] of the Income-tax Act, 2025 (old 194J). Please share the TDS certificate (Form 131).</li>
 </ul>
 <p><strong>Intellectual Property:</strong> Final deliverables transfer to client only after the full invoice value is settled.</p>
 <p>Disputes subject to <em>[your city]</em> jurisdiction.</p>`,
@@ -2122,7 +2122,7 @@ export const TERMS_PRESETS = [
 <ul>
   <li>Net <strong>30 days</strong> from date of invoice.</li>
   <li>Interest @ <strong>24% p.a.</strong> on overdue amounts.</li>
-  <li>TDS under Section 194Q applicable for buyers with turnover &gt; ₹10 cr.</li>
+  <li>TDS under section 393(1) [Table: Sl. No. 8(ii)] (old 194Q) applies for buyers with turnover &gt; ₹10 cr.</li>
 </ul>
 <p><strong>Returns:</strong> Goods sold are not returnable unless defective and notified within 7 days of delivery.</p>
 <p>Subject to <em>[your city]</em> jurisdiction.</p>`,
@@ -2164,7 +2164,7 @@ export const TERMS_PRESETS = [
 <ul>
   <li>Net <strong>15 days</strong> from invoice date.</li>
   <li>Late payments accrue interest at <strong>18% p.a.</strong></li>
-  <li>TDS under Section 194J applicable.</li>
+  <li>TDS under section 393(1) [Table: Sl. No. 6(iii)] (old 194J) applicable.</li>
 </ul>
 <p><strong>SLA & Support:</strong> Support is provided per the agreed SLA. Outages caused by hosting providers, third-party APIs, or scheduled maintenance are excluded.</p>
 <p><strong>IP & Confidentiality:</strong> Custom code is licensed to client on full settlement. Confidential information is protected per the signed NDA.</p>
@@ -2184,7 +2184,7 @@ export const TERMS_PRESETS = [
 <ul>
   <li>Payment as per agreed milestones in the contract.</li>
   <li>Final payment due within <strong>30 days</strong> of completion certificate.</li>
-  <li>TDS under Section 194C applicable.</li>
+  <li>TDS under section 393(1) [Table: Sl. No. 6(i)] (old 194C) applicable.</li>
   <li>Retention, if any, will be released as per the contract terms.</li>
 </ul>
 <p><strong>Defects Liability:</strong> 12 months from handover, covering workmanship only.</p>
@@ -2234,7 +2234,7 @@ export const TERMS_PRESETS = [
     body: `<ul>
   <li>Rent is payable on or before the <strong>5th of every month</strong>.</li>
   <li>Late payments attract a penalty of ₹100 per day after grace period.</li>
-  <li>TDS under Section 194I applicable for tenant if annual rent exceeds ₹2.4 lakh.</li>
+  <li>TDS under section 393(1) [Table: Sl. No. 2(ii)] (old 194-I) applicable for the tenant when rent is above ₹50,000 a month.</li>
   <li>Maintenance, electricity, and water charges are billed separately as per usage.</li>
   <li>Premises must be vacated in the same condition as handed over, normal wear and tear excepted.</li>
   <li>Disputes subject to <em>[your city]</em> jurisdiction.</li>
@@ -2291,8 +2291,10 @@ export const TDS_SECTIONS = [
   { code: '194J-tech', label: '194J — Technical services (lower rate)', rate: 2 },
   { code: '194I', label: '194I — Rent (land / building)', rate: 10 },
   { code: '194I-pm', label: '194I — Rent (plant / machinery)', rate: 2 },
-  { code: '194H', label: '194H — Commission / brokerage', rate: 5 },
-  { code: '194O', label: '194O — E-commerce participant', rate: 1 },
+  // v1.10.85 - 2% and 0.1% from 1 October 2024 (Finance (No. 2) Act 2024;
+  // they were 5% and 1%). Saved invoices keep the rate they were made with.
+  { code: '194H', label: '194H — Commission / brokerage', rate: 2 },
+  { code: '194O', label: '194O — E-commerce participant', rate: 0.1 },
   { code: '195',  label: '195 — Payments to non-residents (varies)', rate: 0 },
   { code: 'custom', label: 'Custom section / rate', rate: 0 },
 ];
@@ -2311,6 +2313,78 @@ export const TCS_SECTIONS = [
   { code: '206C(1)',  label: '206C(1) — Tendu leaves / scrap / minerals (varies)', rate: 1 },
   { code: 'custom',   label: 'Custom rate', rate: 0 },
 ];
+
+// v1.10.85 (#180) - the Income-tax Act, 2025 (from 1 April 2026) moved TDS
+// to sections 392-393 and TCS to section 394, each with a Table and serial
+// number; returns must quote those, not 194C or 206C (CBDT FAQ Q2.5). Rates
+// and thresholds as amended by the Finance Act, 2026. Checked against the Act
+// as amended, the Income-tax Rules 2026 and the CBDT transition FAQs.
+// An invoice dated before 1 April 2026 is under the 1961 Act and keeps the
+// lists above; saved invoices keep the section they were made with.
+// `short` is what is printed ("TDS (393(1) Sl. 6(i) @ 2%)"); `old` is the
+// 1961 section it replaces.
+export const NEW_ACT_FROM = '2026-04-01';
+export const TDS_SECTIONS_2025 = [
+  { code: '393-8ii', short: '393(1) Sl. 8(ii)', old: '194Q', rate: 0.1, label: '393(1) Table Sl. 8(ii) — Purchase of goods (buyer turnover > ₹10 cr; on the amount above ₹50 lakh)' },
+  { code: '393-6i-ind', short: '393(1) Sl. 6(i)', old: '194C', rate: 1, label: '393(1) Table Sl. 6(i) — Contractor, incl. manpower supply (individual / HUF)' },
+  { code: '393-6i-oth', short: '393(1) Sl. 6(i)', old: '194C-co', rate: 2, label: '393(1) Table Sl. 6(i) — Contractor, incl. manpower supply (others)' },
+  { code: '393-6iii-prof', short: '393(1) Sl. 6(iii)', old: '194J', rate: 10, label: '393(1) Table Sl. 6(iii) — Professional fees, director fees, royalty (10%)' },
+  { code: '393-6iii-tech', short: '393(1) Sl. 6(iii)', old: '194J-tech', rate: 2, label: '393(1) Table Sl. 6(iii) — Technical services, film royalty, call centre (2%)' },
+  { code: '393-2ii-lb', short: '393(1) Sl. 2(ii)', old: '194I', rate: 10, label: '393(1) Table Sl. 2(ii) — Rent: land, building, furniture (above ₹50,000 a month)' },
+  { code: '393-2ii-pm', short: '393(1) Sl. 2(ii)', old: '194I-pm', rate: 2, label: '393(1) Table Sl. 2(ii) — Rent: plant, machinery, equipment (above ₹50,000 a month)' },
+  { code: '393-1ii', short: '393(1) Sl. 1(ii)', old: '194H', rate: 2, label: '393(1) Table Sl. 1(ii) — Commission / brokerage (above ₹20,000 a year)' },
+  { code: '393-8v', short: '393(1) Sl. 8(v)', old: '194O', rate: 0.1, label: '393(1) Table Sl. 8(v) — E-commerce participant (deducted by the operator)' },
+  { code: '393-2-17', short: '393(2) Sl. 17', old: '195', rate: 0, label: '393(2) Table Sl. 17 — Payments to non-residents (rates in force or DTAA)' },
+  { code: 'custom', short: '', label: 'Custom section / rate', rate: 0 },
+];
+// TCS on sale of goods (old 206C(1H)) has no place in section 394: it stays
+// gone. GST's own TCS (CGST section 52) is not income tax and is unchanged.
+export const TCS_SECTIONS_2025 = [
+  { code: '52', short: 'CGST 52', rate: 0.5, label: 'CGST 52 — E-commerce operator (GST)' },
+  { code: '394-1', short: '394(1) Sl. 1', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 1 — Alcoholic liquor for human consumption' },
+  { code: '394-2', short: '394(1) Sl. 2', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 2 — Tendu leaves' },
+  { code: '394-3', short: '394(1) Sl. 3', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 3 — Timber, other forest produce' },
+  { code: '394-4', short: '394(1) Sl. 4', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 4 — Scrap' },
+  { code: '394-5', short: '394(1) Sl. 5', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 5 — Coal, lignite, iron ore' },
+  { code: '394-6', short: '394(1) Sl. 6', old: '206C(1F)', rate: 1, label: '394(1) Table Sl. 6 — Motor vehicle sold for more than ₹10 lakh' },
+  { code: '394-9', short: '394(1) Sl. 9', old: '206C(1C)', rate: 2, label: '394(1) Table Sl. 9 — Licence or lease of a parking lot, toll plaza, mine or quarry' },
+  { code: 'custom', short: '', label: 'Custom rate', rate: 0 },
+];
+// The lists for a date: the 2025 Act from 1 April 2026 (no date = today).
+const underNewAct = (date) => String(date || new Date().toISOString().slice(0, 10)).slice(0, 10) >= NEW_ACT_FROM;
+export const tdsSectionsFor = (date) => (underNewAct(date) ? TDS_SECTIONS_2025 : TDS_SECTIONS);
+export const tcsSectionsFor = (date) => (underNewAct(date) ? TCS_SECTIONS_2025 : TCS_SECTIONS);
+// A 1961 code moved to the 2025 Act for a new document dated from 1 April
+// 2026 (null when there is no single place for it, e.g. 206C(1) "varies").
+export const newActCode = (code, kind = 'tds') => {
+  const list = kind === 'tcs' ? TCS_SECTIONS_2025 : TDS_SECTIONS_2025;
+  if (list.some((s) => s.code === code)) return code;
+  const hits = list.filter((s) => s.old === code);
+  return hits.length === 1 ? hits[0].code : null;
+};
+// What an invoice, a PDF and the TDS / TCS report print for a section.
+export const sectionShort = (code) => {
+  const s = [...TDS_SECTIONS_2025, ...TCS_SECTIONS_2025].find((x) => x.code === code);
+  if (s) return s.short || '';
+  return String(code || '').replace(/-(co|tech|pm)$/, '');
+};
+// " (393(1) Sl. 6(i) @ 2%)" after TDS / TCS on an invoice; " (@ 2%)" for a
+// custom section; '' with no section.
+export const sectionPrint = (code, rate) => {
+  if (!code) return '';
+  const short = code === 'custom' ? '' : sectionShort(code);
+  return ` (${short ? `${short} @ ` : '@ '}${Number(rate) || 0}%)`;
+};
+// The full name of any section ever offered (a saved invoice keeps its own).
+export const sectionOptionLabel = (code) => {
+  const now = [...TDS_SECTIONS_2025, ...TCS_SECTIONS_2025].find((x) => x.code === code && x.code !== 'custom');
+  if (now) return now.label;
+  const before = [...TDS_SECTIONS, ...TCS_SECTIONS].find((x) => x.code === code && x.code !== 'custom');
+  if (before) return `${before.label} (Income-tax Act, 1961)`;
+  return REMOVED_TCS_SECTIONS[code] || String(code || '');
+};
+// 194Q and its 2025 place (Sl. 8(ii)) count only above ₹50 lakh a year.
+export const isPurchaseOfGoodsTds = (code) => !code || code === '194Q' || code === '393-8ii';
 
 // v1.10.6 — audit L3: getTDSSection / getTCSSection had no importers.
 // Components filter TDS_SECTIONS / TCS_SECTIONS directly.
