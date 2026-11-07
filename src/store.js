@@ -1,9 +1,10 @@
 // File-based storage via local Express API server
 // All data persists as JSON files in the ./data/ folder
 
-import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta } from './utils';
+import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta, isModuleEnabled } from './utils';
 import { poCounterKey, formatPoNumber } from './utils/purchaseOrders';
 import { dnCounterKey, formatDnNumber } from './utils/debitNotes';
+import { DEFAULT_LEVEL_NAMES, normaliseLevelNames, priceLevelList } from './utils/priceLevels';
 
 import { logProblem } from './utils/problemLog';
 
@@ -235,6 +236,23 @@ export const setMenuOrder = (order) => {
   } catch { /* ignore */ }
   menuChanged();
 };
+
+// v1.10.85 - the names of the price levels (Settings -> Features -> Price
+// levels): three strings, '' = level not used. One per PC like the switches,
+// mirrored to the data folder by prefsMirror.
+const PRICE_LEVELS_KEY = 'gst_priceLevels';
+export const getPriceLevelNames = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(PRICE_LEVELS_KEY) || 'null');
+    return normaliseLevelNames(Array.isArray(v) ? v : DEFAULT_LEVEL_NAMES);
+  } catch { return normaliseLevelNames(DEFAULT_LEVEL_NAMES); }
+};
+export const setPriceLevelNames = (names) => {
+  try { localStorage.setItem(PRICE_LEVELS_KEY, JSON.stringify(normaliseLevelNames(names))); } catch { /* ignore */ }
+};
+// The levels to offer now: [] while Price levels is switched off.
+export const activePriceLevels = () => (isModuleEnabled('priceLevels', getEnabledModules())
+  ? priceLevelList(getPriceLevelNames()) : []);
 
 // ---- Invoice counter ----
 // Uses the atomic /meta/:key/increment endpoint so two concurrent saves can't both

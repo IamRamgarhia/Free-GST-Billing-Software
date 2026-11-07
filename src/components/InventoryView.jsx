@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, Table2, Factory } from 'lucide-react';
-import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings, getEnabledModules } from '../store';
+import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings, getEnabledModules, activePriceLevels } from '../store';
+import { cleanLevelPrices, levelCsvHeaders, levelCsvCells } from '../utils/priceLevels';
+import { PriceLevelPrices } from './PriceLevelFields';
 import { getAllUnits, getCountryConfig, formatCurrency, isModuleEnabled, isServiceProduct, trackedStock, filterUnitsByMode, getDefaultUnitForMode } from '../utils';
 import { productsCsvToList, PRODUCTS_SAMPLE } from '../utils/listCsv';
 import CsvListImport from './CsvListImport';
@@ -22,6 +24,7 @@ const emptyForm = {
   // kind: v1.10.83 (#121) - 'goods' or 'service' (a service has no stock).
   kind: 'goods', name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', gstTreatment: '', unit: 'Pcs', stock: '', description: '',
   madeHere: false, bom: [],
+  levelPrices: {}, // v1.10.85 - price per level, { '1': 90 } (Price levels on)
 };
 
 export default function InventoryView() {
@@ -46,6 +49,8 @@ export default function InventoryView() {
   // v1.10.83 (#115) - manufacturing (Settings -> Features). When off, nothing
   // below changes: no Make button, no BOM in the form, no production list.
   const mfgOn = isModuleEnabled('manufacturing', getEnabledModules());
+  // v1.10.85 - [] unless Settings -> Features -> Price levels is on.
+  const levels = activePriceLevels();
   const [showMake, setShowMake] = useState(false);
   const [mfgReload, setMfgReload] = useState(0);
   const afterProduction = () => { setShowMake(false); setMfgReload((n) => n + 1); loadProducts(); };
@@ -97,6 +102,7 @@ export default function InventoryView() {
       description: product.description || '',
       madeHere: !!product.madeHere,
       bom: (product.bom || []).map((l) => ({ productId: l.productId, qty: String(l.qty ?? '') })),
+      levelPrices: product.levelPrices || {},
     });
     setEditingId(product.id);
     setShowForm(true);
@@ -152,6 +158,7 @@ export default function InventoryView() {
         // Only written while the feature is on; otherwise the fields a product
         // already has are kept as they are (spread above).
         ...(mfgOn ? (form.madeHere && !service ? { madeHere: true, bom } : { madeHere: false }) : {}),
+        ...(levels.length ? { levelPrices: cleanLevelPrices(form.levelPrices) } : {}),
       };
       await saveProduct(product);
       toast(editingId ? 'Product updated' : 'Product added', 'success');
@@ -246,8 +253,8 @@ export default function InventoryView() {
       </div>
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
-          intro="One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST % and Stock (leave Stock blank for a service). For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed."
-          parse={(rows) => { const r = productsCsvToList(rows, products); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
+          intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST % and Stock (leave Stock blank for a service).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}
+          parse={(rows) => { const r = productsCsvToList(rows, products, levels); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
           save={saveProduct} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); loadProducts(); }} />
       )}
       {showMake && <MakeModal products={products} currency={profileCurrency} onClose={() => setShowMake(false)} onSaved={afterProduction} />}
@@ -340,6 +347,7 @@ export default function InventoryView() {
                     onChange={e => updateField('stock', e.target.value)} placeholder="Blank = not counted" min="0" />
                 </div>
               )}
+              <PriceLevelPrices levels={levels} prices={form.levelPrices} onChange={(v) => updateField('levelPrices', v)} />
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Description (optional)</label>
                 <input type="text" className="form-input" value={form.description}
@@ -366,8 +374,8 @@ export default function InventoryView() {
           <h3>Products & Services <HelpButton title="The product list" doc="products#product-list" size={16} /></h3>
           {!bulkEdit && (
             <TableExport title="Products" filename="Products"
-              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock']}
-              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? ''])} />
+              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', ...levelCsvHeaders(levels)]}
+              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', ...levelCsvCells(p, levels)])} />
           )}
         </div>
         {bulkEdit && filtered.length > 0 ? (

@@ -2011,6 +2011,8 @@ export const FEATURE_GROUPS = [
       { id: 'upiQr', label: 'UPI QR code', help: 'Print a UPI QR code so customers can pay by scanning.', defaultOn: true, indiaOnly: true },
       // v1.10.84 (#140) - glass, mirror, flex, tile shops; off until wanted.
       { id: 'sizeBilling', label: 'Size billing (Sq.ft)', help: 'For glass, mirror, flex and tile shops: an item line can be "Sq.ft" - type Length x Width in inches and the pieces, pick 3 or 6 inch rounding, and the square feet and amount are worked out. An "Rft" line (polish, channel) takes the square feet or the edges of the glass lines. The invoice prints Size and SQFT columns.', defaultOn: false },
+      // v1.10.85 - off until wanted; the level names are set below the switch.
+      { id: 'priceLevels', label: 'Price levels', help: 'Up to 3 price lists (for example Retail, Wholesale, Dealer). A product can have a price for each level and a client can be given a level; their invoices then take that price.', defaultOn: false },
     ],
   },
   {

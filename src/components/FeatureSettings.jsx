@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { FEATURE_GROUPS, isModuleEnabled } from '../utils';
 import { BUSINESS_TYPES, businessTypeById, applyBusinessType, featureChanges, moduleLabel, orderedMenu, moveMenuItem, invoiceDefaultsForType } from '../utils/businessTypes';
-import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, getAllRecurring, patchInvoiceDefaults } from '../store';
+import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, getAllRecurring, patchInvoiceDefaults, getPriceLevelNames, setPriceLevelNames } from '../store';
+import { PriceLevelNames } from './PriceLevelFields';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -15,7 +16,8 @@ import HelpButton from './HelpButton';
 // like the Company form). The sidebar follows the saved copy only.
 
 const muted = { fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 };
-const readSaved = () => ({ modules: getEnabledModules(), type: getBusinessType(), order: getMenuOrder() });
+// v1.10.85 - levels: the price level names (shown under Price levels).
+const readSaved = () => ({ modules: getEnabledModules(), type: getBusinessType(), order: getMenuOrder(), levels: getPriceLevelNames() });
 const orderKey = (order) => orderedMenu(order).map(m => m.id).join();
 
 // Draft + saved copy for both tabs. SettingsView adds `unsaved` to its bar
@@ -25,10 +27,11 @@ export function useFeatureDraft() {
   const [draft, setDraft] = useState(saved);
   const changes = featureChanges(saved.modules, draft.modules);
   const typeChanged = draft.type !== saved.type;
-  const featuresChanged = changes.turnOn.length > 0 || changes.turnOff.length > 0 || orderKey(draft.order) !== orderKey(saved.order);
+  const levelsChanged = draft.levels.join('|') !== saved.levels.join('|');
+  const featuresChanged = changes.turnOn.length > 0 || changes.turnOff.length > 0 || orderKey(draft.order) !== orderKey(saved.order) || levelsChanged;
   const unsaved = [typeChanged && 'Business type', featuresChanged && 'Features'].filter(Boolean);
   const save = () => {
-    if (featuresChanged) { setEnabledModules(draft.modules); setMenuOrder(draft.order); }
+    if (featuresChanged) { setEnabledModules(draft.modules); setMenuOrder(draft.order); setPriceLevelNames(draft.levels); }
     if (typeChanged && draft.type) { setBusinessType(draft.type); patchInvoiceDefaults(invoiceDefaultsForType(draft.type)); }
     setSaved(draft);
     toast('Features saved. The menu now shows your choices.', 'success');
@@ -199,7 +202,14 @@ export function FeaturesPanel({ features, regionMode }) {
             <div key={group.id} className="surface-card">
               <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.5rem' }}>{group.label}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {mods.map(mod => <Check key={mod.id} id={mod.id} label={mod.label} help={mod.help} modules={draft.modules} onToggle={toggle} note={notes[mod.id]} />)}
+                {mods.map(mod => (
+                  <Fragment key={mod.id}>
+                    <Check id={mod.id} label={mod.label} help={mod.help} modules={draft.modules} onToggle={toggle} note={notes[mod.id]} />
+                    {mod.id === 'priceLevels' && isModuleEnabled(mod.id, draft.modules) && (
+                      <PriceLevelNames names={draft.levels} onChange={(levels) => setDraft({ ...draft, levels })} />
+                    )}
+                  </Fragment>
+                ))}
               </div>
             </div>
           );

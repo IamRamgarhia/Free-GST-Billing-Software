@@ -5,6 +5,7 @@
 // loosely (case, spaces, %, / ignored), so the Products export imports back.
 import { toCsvLine } from '../utils.js';
 import { rowsToRecords, toNum, percentPart } from './bulkCsv.js';
+import { levelCsvFields, levelPricesFromRecord } from './priceLevels.js';
 
 const PRODUCT_FIELDS = {
   name: ['name', 'product', 'product name', 'item', 'item name'],
@@ -57,15 +58,20 @@ export function fillBlanks(saved, fresh) {
     if (isEmpty(saved[k], saved) && !FILL[k](fresh[k], fresh)) add[k] = fresh[k];
   }
   if ('sellingPrice' in add) add.rate = add.sellingPrice; // mirror for older readers
+  // v1.10.85 - a level price the saved product does not have yet.
+  const levelAdd = Object.fromEntries(Object.entries(fresh.levelPrices || {}).filter(([id]) => !(Number(saved.levelPrices?.[id]) > 0)));
+  if (Object.keys(levelAdd).length) add.levelPrices = { ...(saved.levelPrices || {}), ...levelAdd };
   return Object.keys(add).length ? { ...saved, ...add } : null;
 }
 
+// v1.10.85 - `levels` (Price levels on): each level's "<name> price" column
+// is read into levelPrices; a saved product without level prices gets them.
 // Rows (CSV text or a sheet) -> { products, updates, skipped, errors }. A row
 // with a problem is left out and named in errors. A name already saved is not
 // added again (importing twice is safe): its empty details are filled in
 // (updates), or it is skipped when there is nothing to fill.
-export function productsCsvToList(text, existing = []) {
-  const { records } = rowsToRecords(text, PRODUCT_FIELDS);
+export function productsCsvToList(text, existing = [], levels = []) {
+  const { records } = rowsToRecords(text, { ...PRODUCT_FIELDS, ...levelCsvFields(levels) });
   const key = (n) => String(n || '').trim().toLowerCase();
   const saved = new Map((existing || []).map((p) => [key(p.name), p]));
   const seen = new Set();
@@ -80,6 +86,8 @@ export function productsCsvToList(text, existing = []) {
     const bad = Object.entries(nums).find(([k, v]) => (k === 'stock' ? v !== null && !Number.isFinite(v) : !Number.isFinite(v)));
     if (bad) { out.errors.push(`Row ${r._line} (${name}): ${bad[0] === 'stock' ? 'stock' : bad[0] === 'taxPercent' ? 'GST %' : 'price'} must be a number`); continue; }
     if (nums.taxPercent < 0 || nums.taxPercent > 100) { out.errors.push(`Row ${r._line} (${name}): GST % must be 0 to 100`); continue; }
+    const lv = levelPricesFromRecord(r, levels, toNum);
+    if (lv.error) { out.errors.push(`Row ${r._line} (${name}): ${lv.error}`); continue; }
     if (seen.has(key(name))) { out.skipped++; continue; }
     seen.add(key(name));
     // Our product prices are before tax: take the tax out of an inclusive one.
@@ -98,6 +106,7 @@ export function productsCsvToList(text, existing = []) {
       // A service has no stock; goods with a blank stock are "not tracked yet".
       ...(!service && nums.stock !== null ? { stock: nums.stock } : {}),
       description: r.description || '',
+      ...(Object.keys(lv.prices).length ? { levelPrices: lv.prices } : {}),
     };
     const old = saved.get(key(name));
     if (!old) { out.products.push(product); continue; }
