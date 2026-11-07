@@ -4,8 +4,9 @@
 // A credit (money in) can be a payment already recorded on an invoice, or an
 // unpaid / partly paid invoice whose balance is that amount. A debit (money
 // out) can be a payment to a supplier, an unpaid purchase bill, or an
-// expense. A suggestion needs the amount (exact, or within a rupee of
-// round-off) and the date (within 7 days of a payment; for an unpaid
+// expense; never a payment or expense paid in cash. A suggestion needs the
+// amount (exact, or within a rupee of round-off; for an unpaid invoice or
+// bill, its balance or up to a rupee more) and the date (within 7 days of a payment; for an unpaid
 // invoice or bill, not more than 7 days before it), and ranks higher when
 // the client or supplier name, or the invoice number, is in the bank's
 // description. Each suggestion says why it was made.
@@ -17,9 +18,10 @@
 // Pure: no React, no storage. Tested by scripts/bank-match-test.mjs.
 import { toIsoDate } from './bulkCsv.js';
 import { amountDue, paymentStatusFor, isCancelledBill, SALES_INVOICE_TYPES } from '../utils.js';
-import { purchaseStatus, purchasePaymentDue } from './purchasePayments.js';
+import { purchaseStatus, purchasePaymentDue, withPurchasePayments } from './purchasePayments.js';
 import { expenseStatus } from './expensePayment.js';
 import { billCurrency } from './partyOutstanding.js';
+import { isCash } from './cashBook.js';
 
 export const WINDOW_DAYS = 7;
 export const ROUND_OFF = 1;
@@ -31,8 +33,12 @@ const sideOf = (l) => (l.credit > 0 ? 'credit' : 'debit');
 const dayNo = (iso) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) / 86400000;
 const inRupees = (c) => !c || c === 'INR';
 
-// The bank's date as YYYY-MM-DD. Some banks add the time ("05/11/2026 10:42").
-const bankDate = (v) => toIsoDate(v) || toIsoDate(String(v || '').trim().split(/\s+/)[0]);
+// The bank's date as YYYY-MM-DD. Some banks add the time ("05/11/2026 10:42"),
+// some write the month in full ("5 November 2026").
+const bankDate = (v) => {
+  const s = String(v || '').trim();
+  return toIsoDate(s) || toIsoDate(s.split(/\s+/)[0]) || toIsoDate(s.replace(/\b([A-Za-z]{3})[A-Za-z]+\b/, '$1').replace(/,/g, ''));
+};
 
 // Parsed statement rows (utils/itr.js parseBankRows) -> lines to save. Rows
 // with no date or no amount (opening balance, totals) are left out.
@@ -48,25 +54,37 @@ export function toBankLines(transactions, statementId) {
     .map((l, i) => ({ id: `${statementId}-${i + 1}`, ...l, status: 'open', match: null }));
 }
 
-// The same bank line in two statements: same date, amount and reference.
-export const lineKey = (l) => `${l.date}|${sideOf(l)}|${amountOf(l).toFixed(2)}|${compact(l.reference)}`;
+// The same bank line in two statements: same date and amount, and the same
+// reference; when either has no reference, the same description.
+const baseKey = (l) => `${l.date}|${sideOf(l)}|${amountOf(l).toFixed(2)}`;
+const sameLine = (a, b) => (compact(a.reference) && compact(b.reference)
+  ? compact(a.reference) === compact(b.reference)
+  : compact(a.description) === compact(b.description));
 
-// The incoming lines not already saved. Counted per key: a statement
-// imported again (or two overlapping ones) adds nothing twice, while two
-// equal payments on the same day in one file both stay.
+// The incoming lines not already saved. Each saved line answers for one
+// incoming line: a statement imported again (or two overlapping ones) adds
+// nothing twice, while two equal payments on the same day in one file both stay.
 export function freshLines(savedLines, incoming) {
-  const seen = new Map();
-  for (const l of savedLines || []) seen.set(lineKey(l), (seen.get(lineKey(l)) || 0) + 1);
+  const pool = new Map();
+  for (const l of savedLines || []) pool.set(baseKey(l), [...(pool.get(baseKey(l)) || []), l]);
   return (incoming || []).filter((l) => {
-    const n = seen.get(lineKey(l)) || 0;
-    if (n > 0) { seen.set(lineKey(l), n - 1); return false; }
-    return true;
+    const list = pool.get(baseKey(l)) || [];
+    const at = list.findIndex((x) => sameLine(x, l));
+    if (at < 0) return true;
+    pool.set(baseKey(l), list.filter((_, i) => i !== at));
+    return false;
   });
 }
+
+// An old payment saved without an id gets a key from what it says, so the
+// key stays the same when another payment is added or deleted.
+const hash = (str) => { let h = 5381; for (const ch of str) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0; return h.toString(36); };
+export const paymentKeyOf = (p) => p.id || `h${hash(`${p.date}|${r2(p.amount)}|${p.mode || ''}|${p.note || ''}|${p.reference || ''}`)}`;
 
 // Everything in the books a bank line could be. `record: true` means
 // confirming records a payment (an unpaid invoice or bill) or marks an
 // unpaid expense paid; otherwise the money is already in the books.
+// Payments and expenses paid in cash never went through the bank: left out.
 // Pass this business's records, purchases with their returns (withReturns).
 export function bookEntries({ bills = [], purchases = [], expenses = [] } = {}) {
   const out = [];
@@ -74,9 +92,9 @@ export function bookEntries({ bills = [], purchases = [], expenses = [] } = {}) 
     if (!b?.id || isCancelledBill(b) || !SALES_INVOICE_TYPES.includes(b.invoiceType || 'tax-invoice') || !inRupees(billCurrency(b))) continue;
     const base = { side: 'credit', kind: 'invoice', id: b.id, number: b.invoiceNumber || '', party: b.clientName || b.data?.client?.name || '' };
     const payments = Array.isArray(b.payments) ? b.payments : [];
-    payments.forEach((p, i) => {
-      if (!(Number(p?.amount) > 0)) return;
-      const paymentId = p.id || `at${i}`;
+    payments.forEach((p) => {
+      if (!(Number(p?.amount) > 0) || isCash(p.mode)) return;
+      const paymentId = paymentKeyOf(p);
       out.push({ ...base, key: `invoice:${b.id}:${paymentId}`, paymentId, record: false, amount: r2(p.amount), date: p.date || b.invoiceDate || '' });
     });
     const due = r2(amountDue(b) - payments.reduce((s, p) => s + (Number(p?.amount) || 0), 0));
@@ -85,9 +103,9 @@ export function bookEntries({ bills = [], purchases = [], expenses = [] } = {}) 
   for (const p of purchases) {
     if (!p?.id) continue;
     const base = { side: 'debit', kind: 'purchase', id: p.id, number: p.invoiceNumber || '', party: p.supplierName || '' };
-    (Array.isArray(p.payments) ? p.payments : []).forEach((x, i) => {
-      if (!(Number(x?.amount) > 0)) return;
-      const paymentId = x.id || `at${i}`;
+    (Array.isArray(p.payments) ? p.payments : []).forEach((x) => {
+      if (!(Number(x?.amount) > 0) || isCash(x.mode)) return;
+      const paymentId = paymentKeyOf(x);
       out.push({ ...base, key: `purchase:${p.id}:${paymentId}`, paymentId, record: false, amount: r2(x.amount), date: x.date || p.date || '' });
     });
     const due = purchasePaymentDue(p);
@@ -98,7 +116,7 @@ export function bookEntries({ bills = [], purchases = [], expenses = [] } = {}) 
     // first part was paid (cash?) are not known to the bank line.
     if (!e?.id || !inRupees(e.currency) || !(Number(e.amount) > 0)) continue;
     const status = expenseStatus(e);
-    if (status === 'partial') continue;
+    if (status === 'partial' || (status === 'paid' && isCash(e.paymentMode))) continue;
     out.push({
       side: 'debit', kind: 'expense', id: e.id, number: e.invoiceNo || '', party: e.vendorName || e.description || '',
       key: `expense:${e.id}:${status === 'paid' ? 'paid' : 'open'}`, record: status === 'unpaid', amount: r2(e.amount), date: e.date || '',
@@ -137,6 +155,9 @@ export function suggestFor(line, entries, used = new Set(), { windowDays = WINDO
     if (e.side !== side || used.has(e.key) || !e.date) continue;
     const diff = r2(Math.abs(e.amount - amount));
     if (diff > slack + 0.005) continue;
+    // An unpaid invoice or bill is offered for its balance, or up to a rupee
+    // more (round-off): a payment short of it would leave it Partly paid.
+    if (e.record && amount < e.amount - 0.005) continue;
     const gap = dayNo(line.date) - dayNo(e.date); // days after the entry's date
     if (e.record ? gap < -windowDays : Math.abs(gap) > windowDays) continue;
     const why = [diff < 0.005 ? 'Same amount' : `Amount ${diff.toFixed(2)} apart (round-off)`];
@@ -209,6 +230,27 @@ export function invoiceWithoutPayment(bill, paymentId) {
   const payments = (bill.payments || []).filter((p) => p.id !== paymentId);
   const paid = r2(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0));
   return { ...bill, payments, paidAmount: paid, status: isCancelledBill(bill) ? 'cancelled' : paymentStatusFor(bill, paid) };
+}
+
+// A purchase bill with these payments. Its status counts the goods returned
+// on debit notes (_returned, set by withReturns), which is never saved.
+export const purchaseWithPayments = (p, payments) => Object.fromEntries(
+  Object.entries(withPurchasePayments(p, payments)).filter(([k]) => k !== '_returned'));
+
+// Kept on the match, so Undo can put the invoice or bill back as it was.
+export const payStateOf = (doc) => ({
+  count: (doc.payments || []).length,
+  fields: Object.fromEntries(['status', 'paymentStatus', 'paidAmount'].filter((k) => k in doc).map((k) => [k, doc[k]])),
+});
+
+// Undo: the invoice or bill without the payment this line recorded. When no
+// other payment was added or deleted since, it gets back the status it had
+// (an old bill marked Partly paid by hand stays so).
+export function withoutBankPayment(kind, doc, paymentId, before) {
+  const payments = (doc.payments || []).filter((x) => x.id !== paymentId);
+  const next = kind === 'invoice' ? invoiceWithoutPayment(doc, paymentId) : purchaseWithPayments(doc, payments);
+  const asBefore = before?.fields && payments.length === before.count && !isCancelledBill(doc);
+  return asBefore ? { ...next, ...before.fields } : next;
 }
 
 // The receipt the Dashboard makes for a payment, so it shows in Receipts.
