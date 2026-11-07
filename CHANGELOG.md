@@ -108,6 +108,34 @@ a backup is made first.
   the supplier's credit note). A **Returns** tab on Purchases lists them;
   **Cancel debit note** (or Delete) undoes all of it. GSTR-2B matching is
   unchanged.
+- **Discount on purchase bill lines** (#171): tick **Discount column** above
+  the items and enter a discount per line, as a **%** or a **₹** amount, as on
+  the supplier's bill. It comes off before GST and cess, so the bill total,
+  input tax credit (GSTR-3B), GSTR-2B matching, cost-centre and income-tax
+  purchases all use the discounted value; the product's purchase price is the
+  cost of one unit after the discount, and a return of a discounted line goes
+  back at the discounted value. Bills without a discount add up exactly as
+  before.
+- **Serial number / IMEI on purchase bill lines** (#160): tick **Serial No.
+  column** above the items and type the serial numbers or IMEIs of the pieces.
+  They show in the bill's view and PDF, and the Purchases search finds a bill
+  by any of them. Both columns stay hidden until you tick them (remembered).
+
+### Fixed
+- Purchase returns: editing a bill can no longer cut a returned line below
+  what went back, or rename or remove it; **Paid** on such a bill records the
+  balance less the returns; a bill returned in full owes nothing, round-off
+  included; the debit note date cannot be before the bill's date; a debit
+  note can no longer be saved twice when its stock change failed (it says so
+  instead); debit notes of bills with no business follow the bill to its
+  business; returns on reverse-charge bills also come off GSTR-3B 3.1(d); a
+  returned item that matches no product is named; and a debit note number
+  already in use (after restoring an older backup) is skipped.
+- Sales orders: cancelling or deleting an invoice that took in a sales
+  order's delivery challans lets those challans count again (undoing the
+  cancel takes them back in); a challan that could not be marked converted
+  now says so; a business that already numbered with the prefix SO or DN keeps
+  its settings, with a warning.
 
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
