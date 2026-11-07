@@ -22,7 +22,7 @@ export default [
   <tr><td>${ui('Make')}</td><td>Only when manufacturing is turned on: records goods you made from raw materials. See <a href="#manufacturing">Manufacturing</a>.</td></tr>
   <tr><td>${ui('Add Product')}</td><td>Opens the product form. See <a href="#add-product">Adding a product or service</a>.</td></tr>
 </table></div>
-<p><b>Search by name or HSN...</b> narrows the list as you type. The cross clears it.</p>
+<p><b>Search by name or HSN...</b> narrows the list as you type (with <a href="#barcodes">Barcodes</a> on, it finds the barcode too). The cross clears it.</p>
 <p><b>Deleting many products at once:</b> tick the box at the start of each row (the box in the header ticks every product the list shows), then click ${ui('Delete selected')} and confirm. Only ticked products the list shows are deleted; invoices that used them keep their lines. ${ui('Clear')} unticks them all.</p>
 <p>The <b>Products &amp; Services</b> table:</p>
 <div class="table-wrap"><table>
@@ -180,14 +180,51 @@ export default [
   <tr><td><code>GST %</code> (or <code>GST Rate</code>, <code>Tax %</code>)</td><td>GST rate, such as 18. 0 to 100.</td></tr>
   <tr><td><code>Stock</code> (or <code>Quantity</code>, <code>Opening Stock</code>)</td><td>Opening stock of goods. Leave it blank for a service, or for goods you do not count.</td></tr>
   <tr><td><code>Description</code></td><td>Optional</td></tr>
+  <tr><td><code>Barcode</code> (or <code>Bar code</code>, <code>EAN</code>, <code>UPC</code>)</td><td>Optional. The product's <a href="#barcodes">barcode</a>. A code another product already has is refused, with its row.</td></tr>
 </table></div>
 <p>The sample file looks like this:</p>
-<pre><code>Name,Type,HSN/SAC,Unit,Purchase Price,Selling Price,GST %,Stock,Description
-Demo A4 Paper Ream 75 GSM,Goods,4802,Nos,220,280,18,50,Sample goods row - replace with your own
-Demo Printing service,Service,998912,Page,,5,18,,Sample service row - a service has no stock</code></pre>
+<pre><code>Name,Type,HSN/SAC,Unit,Purchase Price,Selling Price,GST %,Stock,Description,Barcode
+Demo A4 Paper Ream 75 GSM,Goods,4802,Nos,220,280,18,50,Sample goods row - replace with your own,
+Demo Printing service,Service,998912,Page,,5,18,,Sample service row - a service has no stock,</code></pre>
 <p>Products you already have (same name, any capitals) are skipped, and so are repeats inside the file, so importing the same file twice is safe. The CSV saved by the ${ui('CSV')} button above the list uses the same columns, so you can export, edit in Excel and import into another copy of the app.</p>
 <div class="note info"><p><b>Old invoices</b> are imported somewhere else: on the Dashboard, with ${ui('CSV import / export')}, which has its own template. See <a href="dashboard.html#csv">Importing and exporting invoices as CSV</a>. The link at the bottom of the import window goes there too.</p></div>
 <div class="note tip"><strong>Something wrong?</strong><p>A row is listed as a problem, such as "Row 4 (Tea): GST % must be 0 to 100" or "Type must be Goods or Service": fix that row in the file and choose it again (the rows already imported are skipped). Nothing is read: the file is not a plain CSV, or the headings are not in the first row. An <code>.xlsx</code> file renamed to <code>.csv</code> does not work. See <a href="troubleshooting.html#csv-import">A CSV import did not work</a>.</p></div>
+</section>
+
+<section id="barcodes">
+<h2>Barcodes</h2>
+<p>Give a product a barcode, and at the counter a USB barcode scanner adds it to the invoice in one beep. You can also print barcode labels for goods that have none. It is on to start for shops, wholesale and manufacturing; turn it on or off in <a href="settings.html#features">Settings → Features</a> (${ui('Barcodes')}, under the Products screen). Turning it off hides it; the codes stay saved.</p>
+<ol class="steps">
+  <li><strong>Open the product</strong>Click ${ui('Add Product')}, or the pencil of a product.</li>
+  <li><strong>Its barcode</strong>Click in <b>Barcode (optional)</b> and scan the code printed on the pack, or type it. Goods with no code of their own: click ${ui('Make one')}. The app gives the shop's own next code (20000001, 20000002, ...), to print on <a href="#barcode-labels">labels</a>.</li>
+  <li><strong>Save</strong>Click ${ui('Save')}. Each product needs its own code: one that another product already has is refused, with that product's name.</li>
+</ol>
+<p>The code shows in small letters under the product name in the list, and <b>Search by name, HSN or barcode...</b> finds it. Imports and the ${ui('CSV')} / ${ui('Excel')} export carry it as the <code>Barcode</code> column (see <a href="#import">Importing products</a>).</p>
+</section>
+
+<section id="barcode-scan">
+<h3>Scanning on an invoice</h3>
+<p>Once a product has a barcode, <b>New invoice</b> shows a <b>Scan barcode</b> box above the line items. Click in it and scan: the product goes on as a line with its rate, HSN, GST and unit, as if you had picked it from the suggestions. Scan the same product again and its quantity goes up by 1, on the same line. The box empties after each scan, so you can go on scanning. A code that no product has shows <b>No product has the barcode ...</b>: add it to the product first.</p>
+<p>A scanner is a keyboard that types the code and presses Enter, so you can also scan (or type) a code into the <b>Item</b> box of a line and press Enter, and on a purchase bill into the item <b>Name</b> box. The box is not shown on a services invoice.</p>
+</section>
+
+<section id="barcode-labels">
+<h3>Printing barcode labels</h3>
+<ol class="steps">
+  <li><strong>Choose the products</strong>On Products, tick them and click ${ui('Print labels')} in the bar above the list. Or, for goods just bought: open the purchase bill (the eye in the Purchases list) and click ${ui('Print labels for this purchase')}: each product gets one label per piece bought (2.5 kg makes 3), matched to your products by name.</li>
+  <li><strong>How many</strong>Type the number of labels for each product. A product with no barcode gets none; ${ui('Give them a code')} makes codes for them, as ${ui('Make one')} does.</li>
+  <li><strong>The labels</strong>Under <b>Labels</b> choose your sheet or roll, under <b>Price on the label</b> the selling price, the MRP (the selling price with GST) or no price, and tick or untick <b>Business name</b>. The app remembers these.</li>
+  <li><strong>Print</strong>The preview shows the sheets as they print. Click ${ui('Print')}, and in the print window set the scale to <b>100%</b> (Actual size, not Fit to page) and the margins to <b>None</b>.</li>
+</ol>
+<div class="table-wrap"><table>
+  <tr><th>Labels</th><th>For</th></tr>
+  <tr><td>A4 sheet, 65 labels (38 x 21 mm)</td><td>5 across, 13 down</td></tr>
+  <tr><td>A4 sheet, 40 labels (48 x 25 mm)</td><td>4 across, 10 down</td></tr>
+  <tr><td>A4 sheet, 24 labels (64 x 34 mm)</td><td>3 across, 8 down</td></tr>
+  <tr><td>Thermal roll, 50 x 25 mm</td><td>A label printer: one label per page. Choose the 50 x 25 mm label size in the printer's own settings too.</td></tr>
+</table></div>
+<p>Each label shows the business name and price if chosen, the item name, the barcode (Code 128, which every scanner reads) and its digits under it.</p>
+<div class="note tip"><strong>Labels a little off the sheet?</strong><p>Print one sheet on plain paper first and hold it against a label sheet. If it is shifted or smaller, the print window's scale is not 100% or its margins are not None.</p></div>
 </section>
 
 <section id="manufacturing">
