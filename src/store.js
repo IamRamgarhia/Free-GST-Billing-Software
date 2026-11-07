@@ -33,6 +33,9 @@ async function apiFetch(url, options = {}) {
     // invoice number). Attach status so callers can branch on it.
     let body = null;
     try { body = await res.json(); } catch { /* non-JSON body */ }
+    // v1.10.85 - a phone removed on the PC (or whose pairing ran out): back to
+    // the pairing page instead of every screen failing.
+    if (res.status === 401 && body?.code === 'not-paired' && typeof location !== 'undefined') location.assign('/pair');
     const err = new Error(body?.error || `API error: ${res.status}`);
     err.status = res.status;
     err.body = body;
@@ -50,6 +53,12 @@ export const getLockStatus = () => apiFetch(`${API}/lock`);
 export const verifyPin = (pin) => apiFetch(`${API}/lock/verify`, { method: 'POST', body: JSON.stringify({ pin }) });
 // pin null turns the lock off. currentPin is needed when a PIN is already set.
 export const setLockPin = (pin, currentPin) => apiFetch(`${API}/lock/set`, { method: 'POST', body: JSON.stringify({ pin, currentPin }) });
+
+// ---- Phone / tablet access (v1.10.85; server.js PHONE / TABLET ACCESS) ----
+export const getPhoneAccess = () => apiFetch(`${API}/phone-access`);
+export const setPhoneAccess = (enabled) => apiFetch(`${API}/phone-access`, { method: 'POST', body: JSON.stringify({ enabled }) });
+export const newPairingCode = () => apiFetch(`${API}/phone-access/pairing-code`, { method: 'POST' });
+export const removePairedDevice = (id) => apiFetch(`${API}/phone-access/devices/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 // ---- Invoice Number Settings ----
 const DEFAULT_INV_SETTINGS = {

@@ -1887,6 +1887,74 @@ try {
       JSON.stringify({ locked, unlocked, metaRefused, off }));
     await dismissFirstRun(page);
 
+    // v1.10.85 - Settings -> Privacy & Security -> Use on phone or tablet.
+    // Off by default, and it cannot be switched on without a PIN.
+    {
+      const phoneCard = async () => {
+        await openView('Settings');
+        await page.locator('.settings-jumpnav a[href="#tab-privacy"]').click();
+        await sleep(800);
+        return page.evaluate(() => {
+          const card = document.getElementById('section-phone');
+          const sw = document.getElementById('phone-access-switch');
+          return { shown: !!card && getComputedStyle(card).display !== 'none', title: /Use on phone or tablet/.test(card?.innerText || ''),
+            sw: !!sw, checked: !!sw?.checked, disabled: !!sw?.disabled, needsPin: /Set a PIN first/.test(card?.innerText || '') };
+        });
+      };
+      const before = (await get77('/api/phone-access')).json || {};
+      const noPin = await phoneCard();
+      check('v85 Privacy & Security has "Use on phone or tablet": off, and without a PIN it says to set one and cannot be switched on',
+        before.enabled === false && noPin.shown && noPin.title && noPin.sw && !noPin.checked && noPin.disabled && noPin.needsPin, JSON.stringify({ before: before.enabled, noPin }));
+      await post77('/api/lock/set', { pin: '13572468' });
+      await page.evaluate(() => sessionStorage.setItem('gst_unlocked', '1'));
+      await page.reload({ waitUntil: 'networkidle' });
+      await sleep(2000);
+      await dismissFirstRun(page);
+      const withPin = await phoneCard();
+      check('v85 with a PIN the switch can be turned on', withPin.sw && !withPin.disabled && !withPin.needsPin && !withPin.checked, JSON.stringify(withPin));
+      // Turning it on opens a port on the network (and Windows asks about the
+      // firewall), so only against a server started for that:
+      // FGSB_PHONE_LISTEN=127.0.0.1 FGSB_PHONE_PORT=<test port> + SMOKE_PHONE=1.
+      if (process.env.SMOKE_PHONE === '1') {
+        // The switch follows the server's answer, so click and wait for it.
+        await page.locator('#phone-access-switch').click();
+        await sleep(2000);
+        await page.getByRole('button', { name: /Pair a phone or tablet/ }).click({ timeout: 15000 });
+        await sleep(1500);
+        const pc = await page.evaluate(() => ({ qr: !!document.querySelector('.phone-pair img[src^="data:image/png"]'), fp: document.querySelector('.phone-fingerprint')?.innerText.trim() || '' }));
+        const st = (await get77('/api/phone-access')).json;
+        const code = (await post77('/api/phone-access/pairing-code', {})).json.code;
+        const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
+        const ph = await phoneCtx.newPage();
+        const phoneCsp = [];
+        ph.on('console', (m) => { if (/Content-Security-Policy/i.test(m.text())) phoneCsp.push(m.text()); });
+        const base = `https://127.0.0.1:${st.port}`;
+        await ph.goto(`${base}/`, { waitUntil: 'networkidle' });
+        const sentToPair = new URL(ph.url()).pathname === '/pair';
+        await ph.goto(`${base}/pair?code=${code}`, { waitUntil: 'networkidle' });
+        const phoneFp = (await ph.locator('#fp').innerText()).trim();
+        await ph.locator('#pin').fill('11112222');
+        await ph.locator('#go').click();
+        await sleep(1500);
+        const wrongMsg = (await ph.locator('#err').innerText()).trim();
+        await ph.locator('#pin').fill('13572468');
+        await ph.locator('#go').click();
+        await ph.waitForURL(`${base}/`, { timeout: 20000 }).catch(() => {});
+        await sleep(3000);
+        const appOnPhone = await ph.evaluate(() => /Enter your PIN|Dashboard|New Invoice/.test(document.body.innerText));
+        const devices = (await get77('/api/phone-access')).json.devices || [];
+        check('v85 pairing screen: QR code and the security code on the PC; the phone is sent to the pairing page, sees the same code, a wrong PIN is refused, the right one opens the app',
+          pc.qr && pc.fp && pc.fp === st.shortFingerprint && sentToPair && phoneFp === pc.fp && /Wrong PIN/.test(wrongMsg) && appOnPhone && devices.length === 1,
+          JSON.stringify({ pc, sentToPair, phoneFp, wrongMsg, appOnPhone, devices: devices.length }));
+        check('v85 the app on the phone loads with no CSP errors', phoneCsp.length === 0, phoneCsp.slice(0, 2).join(' | '));
+        for (const d of devices) await page.evaluate((id) => fetch(`/api/phone-access/devices/${id}`, { method: 'DELETE' }), d.id);
+        await post77('/api/phone-access', { enabled: false });
+        await phoneCtx.close();
+      }
+      await post77('/api/lock/set', { pin: null, currentPin: '13572468' });
+      check('v85 phone access is off again after the test', (await get77('/api/phone-access')).json?.enabled === false);
+    }
+
     // #84 settings are kept in the data folder too, so a browser that loses
     // its storage gets them back (no welcome wizard, same Region and Print).
     const prefs = (await get77('/api/local-prefs')).json?.value || {};

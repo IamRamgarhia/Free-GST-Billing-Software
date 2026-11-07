@@ -18,6 +18,7 @@ import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
 import AppLockSettings from './AppLockSettings';
 import PrivacyInternet from './PrivacyInternet';
+import PhoneAccessSettings from './PhoneAccessSettings';
 import CostCentreSettings from './CostCentreSettings';
 import { BusinessTypePanel, FeaturesPanel, useFeatureDraft } from './FeatureSettings';
 import { rekeyCentres } from '../utils/costCentres';
@@ -40,7 +41,7 @@ const SETTINGS_TABS = [
   ['tab-company',  'Company',            ['section-biztype', 'section-company', 'section-profiles', 'section-terms']],
   ['tab-print',    'Print & PDF',        ['section-print', 'section-region']],
   ['tab-features', 'Features',           ['section-modules', 'section-costcentres', 'section-stock']],
-  ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-privacy']],
+  ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-phone', 'section-privacy']],
   ['tab-data',     'Data & Backups',     ['section-backups', 'section-cloud', 'section-data']],
   ['tab-updates',  'Updates',            ['section-updates']],
 ];
@@ -55,7 +56,7 @@ const SETTINGS_TAB_DOCS = {
   'section-biztype': 'settings#business-type',
   'section-company': 'settings#company-details', 'section-profiles': 'settings#business-profiles',
   'section-terms': 'settings#terms', 'section-print': 'print-settings', 'section-modules': 'settings#features',
-  'section-stock': 'settings#stock', 'section-region': 'settings#region', 'section-lock': 'settings#lock', 'section-privacy': 'security#offline-mode',
+  'section-stock': 'settings#stock', 'section-region': 'settings#region', 'section-lock': 'settings#lock', 'section-phone': 'phone', 'section-privacy': 'security#offline-mode',
   'section-backups': 'backup#automatic-backups', 'section-cloud': 'settings#google-drive', 'section-data': 'backup#export-import',
   'section-updates': 'settings#updates',
 };
@@ -1058,6 +1059,10 @@ export default function SettingsView({ onSaved }) {
       {/* v1.10.77 (#84) - optional PIN lock. Same order as Region, so it sits right after it. */}
       <div id="section-lock" className="glass-panel p-6 mb-6" style={{ order: 7 }}>
         <AppLockSettings />
+      </div>
+      {/* v1.10.85 - use on a phone or tablet on the same Wi-Fi (needs the PIN above). */}
+      <div id="section-phone" className="glass-panel p-6 mb-6" style={{ order: 7 }}>
+        <PhoneAccessSettings />
       </div>
       <div id="section-privacy" className="glass-panel p-6 mb-6" style={{ order: 7 }}>
         <PrivacyInternet />
