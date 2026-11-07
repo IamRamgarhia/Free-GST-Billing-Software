@@ -2028,6 +2028,10 @@ export const FEATURE_GROUPS = [
     modules: [
       // v1.10.83 (#115) - off by default: most shops buy and sell, they do not make.
       { id: 'manufacturing', label: 'Manufacturing (bill of materials)', help: 'Say what goes into a product, then "Make" it to move the stock.', defaultOn: false },
+      // v1.10.85 (#137, #158) - on by default (nothing shows until a product
+      // has a barcode, except the box in the product form); a business type
+      // turns it on only for retail, wholesale and manufacturing.
+      { id: 'barcodes', label: 'Barcodes', help: 'A barcode on each product, a Scan barcode box on New Invoice for a USB scanner, and barcode labels to print from Products or a purchase bill.', defaultOn: true },
     ],
   },
   {

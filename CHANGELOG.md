@@ -147,6 +147,23 @@ a backup is made first.
 - **Dashboard totals for a chosen period**: **Totals for** above the four
   cards shows them for this month, last month, any month you pick, or a
   financial year. All time is still the default.
+- **Barcodes** (#137, #158): a **Barcode** box on each product (optional).
+  Scan the code on the pack into it, or click **Make one** for goods without
+  one (the shop's own codes, 20000001, 20000002, ...). A code another product
+  already has is refused. The products search finds it, and the CSV import and
+  export carry it. On **New Invoice**, a **Scan barcode** box above the line
+  items takes a USB scanner: the product goes on with its rate, HSN, GST and
+  unit, and the same code again adds 1 to its quantity. A code scanned or
+  typed into an item's name box (also on purchase bills) and Enter works too.
+  **Barcode labels**: tick products on Products and click **Print labels**, or
+  open a purchase bill and click **Print labels for this purchase** (one label
+  per piece bought). Each label has the item name, the barcode (Code 128) with
+  its digits, and if wanted the business name and the price or MRP. A4 sheets
+  of 65, 40 or 24 labels, or a 50 x 25 mm thermal roll; printed from the
+  browser's print window. On to start (nothing shows on invoices until a
+  product has a barcode); turn it off in **Settings → Features → Barcodes**.
+  Choosing a business type turns it on for Retail, Wholesale, Manufacturing
+  and Everything, and off for the others.
 
 - **Profit & Loss in another currency shows the cost of goods too** (idea from
   PR #178): each invoice's cost is converted from rupees at the exchange rate

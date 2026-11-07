@@ -19,6 +19,12 @@ import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, 
 import PurchasePaymentModal from './PurchasePaymentModal';
 import DebitNotesList, { ReturnToSupplierModal } from './DebitNotes';
 import { withReturns, returnableLines, debitNoteTotals, editProblem, notesToRestamp } from '../utils/debitNotes';
+// v1.10.85 (#137, #158) - barcodes: labels for a bill, and a scanned code in
+// the item name box. Kept to these imports, one state, one button, one modal
+// and one onKeyDown, marked "#137 barcodes" below.
+import { Barcode } from 'lucide-react';
+import BarcodeLabels from './BarcodeLabels';
+import { findByBarcode } from '../utils/barcode';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -149,6 +155,8 @@ export default function PurchaseBills() {
   // check the price without downloading the file every time". Holds the
   // purchase being previewed; modal has a Download PDF button inside.
   const [viewPurchase, setViewPurchase] = useState(null);
+  // #137 barcodes - the bill whose labels are being printed.
+  const [labelBill, setLabelBill] = useState(null);
   // v1.10.83 (#123) - the bill whose supplier payments are open, and the
   // status filter ('' all, 'due' unpaid or partly paid, 'Paid').
   const [payPurchase, setPayPurchase] = useState(null);
@@ -1226,6 +1234,8 @@ export default function PurchaseBills() {
       )}
 
       {/* v1.10.30 — Purchase view modal (quick check, no download). */}
+      {/* #137 barcodes */}
+      {labelBill && <BarcodeLabels billItems={labelBill.items || []} title="Print labels for this purchase" onClose={() => setLabelBill(null)} />}
       {viewPurchase && (() => {
         const p = viewPurchase;
         const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
@@ -1341,6 +1351,10 @@ export default function PurchaseBills() {
                 <button className="btn btn-secondary" onClick={() => setViewPurchase(null)}>Close</button>
                 <button className="btn btn-secondary" onClick={() => { setPayPurchase(p); setViewPurchase(null); }}><IndianRupee size={14} /> Payments</button>
                 <button className="btn btn-secondary" onClick={() => { openEdit(p); setViewPurchase(null); }}><Edit3 size={14} /> Edit</button>
+                {/* #137 barcodes - one label per piece bought, matched to Products. */}
+                {isModuleEnabled('barcodes', getEnabledModules()) && (
+                  <button className="btn btn-secondary" onClick={() => { setLabelBill(p); setViewPurchase(null); }}><Barcode size={14} /> Print labels for this purchase</button>
+                )}
                 <button className="btn btn-primary" onClick={() => viewAsPdf(p)}><Download size={14} /> Download PDF</button>
               </div>
             </div>
@@ -1568,6 +1582,8 @@ export default function PurchaseBills() {
                   <input type="text" className="form-input" value={item.name}
                     list="fgsb-item-history" autoComplete="off"
                     onChange={e => updateItemName(idx, e.target.value)}
+                    // #137 barcodes - a scanned (or typed) barcode + Enter puts in its product.
+                    onKeyDown={e => { const hit = e.key === 'Enter' && findByBarcode(products, item.name); if (hit) { e.preventDefault(); updateItemName(idx, hit.name); } }}
                     placeholder={itemHistory.length ? 'Type or pick a previous item' : 'Item name'} />
                 </div>
                 <div className="form-group" style={{ flex: isPo ? 0.8 : 1, margin: 0 }}>

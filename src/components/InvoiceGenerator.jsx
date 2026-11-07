@@ -19,6 +19,8 @@ import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDr
 import { isOfflineMode } from '../utils/offlineMode';
 import DOMPurify from 'dompurify';
 import InvoicePreview from './InvoicePreview';
+import ScanBarcodeBox from './ScanBarcodeBox';
+import { addScannedLine, findByBarcode } from '../utils/barcode';
 import { suggestGstRate, autoFillRate, rateText } from '../utils/hsnRates';
 import HelpButton from './HelpButton';
 import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
@@ -304,6 +306,12 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
     });
   };
   const handleKey = (e) => {
+    // v1.10.85 (#137) - a barcode typed (or scanned) into the Item box, then
+    // Enter: its product is picked, as if its suggestion were clicked.
+    if (e.key === 'Enter' && !e.shiftKey && activeIdx < 0) {
+      const hit = suggestions.indexOf(findByBarcode(suggestions, item.name));
+      if (hit >= 0) { e.preventDefault(); e.stopPropagation(); commit(hit); return; }
+    }
     // A name is one line: Enter never breaks it (the row's Enter-adds-a-row still runs).
     if (e.key === 'Enter' && !e.shiftKey && activeIdx < 0) e.preventDefault();
     if (!suggestions.length) return;
@@ -1763,30 +1771,35 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     label: `${i.name || `Line ${items.indexOf(i) + 1}`} (${sizeSqft(i.size)} sq.ft${perimeterRft(i.size) ? `, ${perimeterRft(i.size)} rft` : ''})`,
   })) : []), [items, hasRft]);
 
-  const selectProduct = useCallback((itemId, product) => {
+  // The line a product makes. v1.10.85 (#137) - shared by picking it from the
+  // suggestions and by scanning its barcode, so both fill the same fields.
+  const productLine = (item, product) => ({
+    ...itemWithUnit(item, product.unit || item.unit || 'Nos', { sizeOn: sizeBillingOn(), step: lastSizeStep() }),
+    name: product.name,
+    hsn: product.hsn || '',
     // v1.10.29 — Prefer sellingPrice for sales invoices (falls back to
     // legacy `rate` for pre-v1.10.29 products).
-    const salePrice = product.sellingPrice ?? product.rate ?? 0;
-    setItems(prev => prev.map(item => item.id === itemId ? {
-      ...itemWithUnit(item, product.unit || item.unit || 'Nos', { sizeOn: sizeBillingOn(), step: lastSizeStep() }),
-      name: product.name,
-      hsn: product.hsn || '',
-      rate: salePrice,
-      taxPercent: product.taxPercent ?? defaultTaxRate,
-      // v1.10.84 - nil-rated / exempt / non-GST, for GSTR-1 Table 8.
-      gstTreatment: product.gstTreatment || '',
-      productId: product.id,
-      isCharge: false, // a product picked on the delivery line makes it a product line
-    } : item));
+    rate: product.sellingPrice ?? product.rate ?? 0,
+    taxPercent: product.taxPercent ?? defaultTaxRate,
+    // v1.10.84 - nil-rated / exempt / non-GST, for GSTR-1 Table 8.
+    gstTreatment: product.gstTreatment || '',
+    productId: product.id,
+    isCharge: false, // a product picked on the delivery line makes it a product line
+  });
+  const selectProduct = useCallback((itemId, product) => {
+    setItems(prev => prev.map(item => item.id === itemId ? productLine(item, product) : item));
     setProductSearch({ itemId: null, query: '' });
   }, [countryTaxRates]);
 
   const getProductSuggestions = useCallback((itemId) => {
     if (productSearch.itemId !== itemId || !productSearch.query.trim()) return [];
     const q = productSearch.query.toLowerCase();
-    return products.filter(p =>
+    // #137 - the product whose barcode this is comes first (Enter picks it).
+    const hit = findByBarcode(products, productSearch.query);
+    const list = products.filter(p => p !== hit && (
       p.name?.toLowerCase().includes(q) || p.hsn?.toLowerCase().includes(q)
-    ).slice(0, 5);
+    ));
+    return (hit ? [hit, ...list] : list).slice(0, 5);
   }, [productSearch.itemId, productSearch.query, products]);
 
   // v1.10.77 (#87) - one delivery-charges line per invoice (see deliveryChargeLine).
@@ -1801,20 +1814,30 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setItems((prev) => [...prev, deliveryChargeLine(prev)]);
   };
 
+  // An empty line. Default unit depends on whether this invoice is for goods
+  // or services — freelancers and consultants get 'Hrs' by default,
+  // retailers/manufacturers get 'Nos'. The dropdown still shows the user's
+  // last-used unit if they've overridden a previous row.
+  const blankLine = (list) => ({
+    id: Date.now().toString(), name: '', hsn: '', quantity: 1, rate: 0, discount: 0,
+    unit: list.length > 0 && list[list.length - 1].unit ? list[list.length - 1].unit : getDefaultUnitForMode(invoiceOptions.invoiceMode),
+    taxPercent: showGST ? defaultTaxRate : 0,
+    cessPercent: 0,
+  });
+
+  // v1.10.85 (#137) - the Scan barcode box: the product goes on as a new line
+  // (or the empty one), and the same code again adds 1 to its quantity.
+  const barcodesOn = isModuleEnabled('barcodes', getEnabledModules());
+  const scanBarcode = (code) => {
+    const product = findByBarcode(products, code);
+    if (!product) { toast(`No product has the barcode ${code}`, 'warning'); return; }
+    setItems(prev => addScannedLine(prev, product, (line) => productLine(line, product), blankLine));
+  };
+
   const addItem = () => {
-    // Default unit depends on whether this invoice is for goods or services —
-    // freelancers and consultants get 'Hrs' by default, retailers/manufacturers
-    // get 'Nos'. The dropdown still shows the user's last-used unit if they've
-    // overridden a previous row.
-    const defaultUnit = items.length > 0 && items[items.length - 1].unit
-      ? items[items.length - 1].unit
-      : getDefaultUnitForMode(invoiceOptions.invoiceMode);
-    const newId = Date.now().toString();
-    setItems(prev => [...prev, {
-      id: newId, name: '', hsn: '', quantity: 1, unit: defaultUnit, rate: 0, discount: 0,
-      taxPercent: showGST ? defaultTaxRate : 0,
-      cessPercent: 0,
-    }]);
+    const line = blankLine(items);
+    const newId = line.id;
+    setItems(prev => [...prev, line]);
     // Move keyboard focus to the new row's Item box so users who
     // Tab to the Add Item button and press Enter don't have to grab the
     // mouse. requestAnimationFrame waits until React has actually rendered
@@ -5014,6 +5037,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               )}
               </div>
             </div>
+            {barcodesOn && !servicesMode && !readOnlyDoc && products.some((p) => p.barcode) && (
+              <ScanBarcodeBox onScan={scanBarcode} />
+            )}
             {items.map((item, idx) => (
               <LineItem
                 key={item.id}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, Table2, Factory } from 'lucide-react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, Table2, Factory, Barcode } from 'lucide-react';
 import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings, getEnabledModules } from '../store';
 import { getAllUnits, getCountryConfig, formatCurrency, isModuleEnabled, isServiceProduct, trackedStock, filterUnitsByMode, getDefaultUnitForMode } from '../utils';
 import { productsCsvToList, PRODUCTS_SAMPLE } from '../utils/listCsv';
@@ -11,6 +11,8 @@ import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import ProductBulkEdit from './ProductBulkEdit';
 import TableExport from './TableExport';
+import BarcodeLabels from './BarcodeLabels';
+import { barcodeProblem, normaliseBarcode, nextInternalCode } from '../utils/barcode';
 
 // v1.10.29 — reported: "here purchase price and selling price need".
 // Product now carries BOTH: `purchasePrice` (what we paid the supplier) and
@@ -22,6 +24,7 @@ const emptyForm = {
   // kind: v1.10.83 (#121) - 'goods' or 'service' (a service has no stock).
   kind: 'goods', name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', gstTreatment: '', unit: 'Pcs', stock: '', description: '',
   madeHere: false, bom: [],
+  barcode: '', // v1.10.85 (#137) - optional, one per product
 };
 
 export default function InventoryView() {
@@ -49,6 +52,10 @@ export default function InventoryView() {
   const [showMake, setShowMake] = useState(false);
   const [mfgReload, setMfgReload] = useState(0);
   const afterProduction = () => { setShowMake(false); setMfgReload((n) => n + 1); loadProducts(); };
+  // v1.10.85 (#137, #158) - barcodes (Settings -> Features). When off, the
+  // form, list and selection bar show nothing about them.
+  const barcodesOn = isModuleEnabled('barcodes', getEnabledModules());
+  const [labelIds, setLabelIds] = useState(null);
 
   const loadProducts = async () => {
     try {
@@ -69,7 +76,8 @@ export default function InventoryView() {
   const filtered = search.trim()
     ? products.filter(p =>
         (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.hsn || '').toLowerCase().includes(search.toLowerCase())
+        (p.hsn || '').toLowerCase().includes(search.toLowerCase()) ||
+        (barcodesOn && (p.barcode || '').toLowerCase().includes(search.trim().toLowerCase())) // #137
       )
     : products;
   const pickedShown = filtered.filter((p) => picked.has(p.id));
@@ -97,6 +105,7 @@ export default function InventoryView() {
       description: product.description || '',
       madeHere: !!product.madeHere,
       bom: (product.bom || []).map((l) => ({ productId: l.productId, qty: String(l.qty ?? '') })),
+      barcode: product.barcode || '',
     });
     setEditingId(product.id);
     setShowForm(true);
@@ -125,6 +134,13 @@ export default function InventoryView() {
       const err = bomError(editingId || '_new', bom, products);
       if (err) { toast(err, 'warning'); return; }
     }
+    // v1.10.85 (#137) - a barcode another product has is refused (a scan must
+    // find one product).
+    const barcode = normaliseBarcode(form.barcode);
+    if (barcodesOn) {
+      const problem = barcodeProblem(barcode, products, editingId);
+      if (problem) { toast(problem, 'warning'); return; }
+    }
     try {
       // v1.10.29 — Persist both prices. `rate` mirrors sellingPrice so any
       // old caller reading .rate still gets the right number.
@@ -152,6 +168,8 @@ export default function InventoryView() {
         // Only written while the feature is on; otherwise the fields a product
         // already has are kept as they are (spread above).
         ...(mfgOn ? (form.madeHere && !service ? { madeHere: true, bom } : { madeHere: false }) : {}),
+        // Same rule: written only while Barcodes is on.
+        ...(barcodesOn ? { barcode } : {}),
       };
       await saveProduct(product);
       toast(editingId ? 'Product updated' : 'Product added', 'success');
@@ -246,17 +264,18 @@ export default function InventoryView() {
       </div>
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
-          intro="One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST % and Stock (leave Stock blank for a service). For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed."
+          intro="One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST %, Stock (leave Stock blank for a service) and Barcode (optional). For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed."
           parse={(rows) => { const r = productsCsvToList(rows, products); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
           save={saveProduct} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); loadProducts(); }} />
       )}
+      {labelIds && <BarcodeLabels productIds={labelIds} onClose={() => setLabelIds(null)} onSaved={loadProducts} />}
       {showMake && <MakeModal products={products} currency={profileCurrency} onClose={() => setShowMake(false)} onSaved={afterProduction} />}
 
       {/* Search */}
       <div className="glass-panel p-4 mb-6">
         <div className="search-box" style={{ maxWidth: '400px' }}>
           <Search size={16} className="search-icon" />
-          <input type="text" placeholder="Search by name or HSN..." value={search}
+          <input type="text" placeholder={barcodesOn ? 'Search by name, HSN or barcode...' : 'Search by name or HSN...'} value={search}
             onChange={e => setSearch(e.target.value)} className="search-input" disabled={bulkEdit}
             title={bulkEdit ? 'Save or cancel the bulk edit first' : undefined} />
           {search && <button className="icon-btn" onClick={() => setSearch('')} title="Clear search" aria-label="Clear search"><X size={14} /></button>}
@@ -340,6 +359,24 @@ export default function InventoryView() {
                     onChange={e => updateField('stock', e.target.value)} placeholder="Blank = not counted" min="0" />
                 </div>
               )}
+              {barcodesOn && (
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label" htmlFor="product-barcode">Barcode (optional) <HelpButton title="Barcodes" doc="products#barcodes" size={14} /></label>
+                  {/* #137 - scan the code printed on the goods into this box, or Make one. */}
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input id="product-barcode" type="text" className="form-input" value={form.barcode} maxLength={40}
+                      onChange={e => updateField('barcode', e.target.value)}
+                      placeholder="Scan or type the code on the pack" autoComplete="off" />
+                    {!form.barcode.trim() && (
+                      <button type="button" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}
+                        title="Gives this product the next code of the shop's own (20000001, 20000002, ...), to print on labels"
+                        onClick={() => updateField('barcode', nextInternalCode(products))}>
+                        <Barcode size={15} /> Make one
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Description (optional)</label>
                 <input type="text" className="form-input" value={form.description}
@@ -366,8 +403,8 @@ export default function InventoryView() {
           <h3>Products & Services <HelpButton title="The product list" doc="products#product-list" size={16} /></h3>
           {!bulkEdit && (
             <TableExport title="Products" filename="Products"
-              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock']}
-              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? ''])} />
+              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', 'Barcode']}
+              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', p.barcode || ''])} />
           )}
         </div>
         {bulkEdit && filtered.length > 0 ? (
@@ -388,6 +425,12 @@ export default function InventoryView() {
                 <button type="button" className="btn btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={() => deletePicked(pickedShown)}>
                   <Trash2 size={14} /> Delete selected
                 </button>
+                {barcodesOn && (
+                  <button type="button" className="btn btn-secondary" onClick={() => setLabelIds(pickedShown.map((p) => p.id))}
+                    title="Barcode labels for the ticked products: choose how many of each">
+                    <Barcode size={14} /> Print labels
+                  </button>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={() => setPicked(new Set())}>Clear</button>
               </div>
             )}
@@ -417,6 +460,9 @@ export default function InventoryView() {
                     </td>
                     <td className="font-medium" title={product.description || ''}>
                       {product.name}
+                      {barcodesOn && product.barcode && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{product.barcode}</div>
+                      )}
                       {mfgOn && product.madeHere && (
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                           Made here · cost {formatCurrency(unitCost(product, products), profileCurrency)} per {product.unit || 'unit'}

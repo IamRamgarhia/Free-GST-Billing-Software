@@ -40,6 +40,9 @@ console.log('Retail, restaurant, service');
 eq(shown('retail_shop', 'inventory') && shown('retail_shop', 'purchases'), true, 'retail: products and purchases on');
 eq(shown('retail_shop', 'manufacturing') || shown('retail_shop', 'purchaseOrders'), false, 'retail: no manufacturing, no purchase orders');
 eq(shown('restaurant', 'upiQr') && !shown('restaurant', 'recurring'), true, 'restaurant: UPI QR on, recurring off');
+// v1.10.85 (#137) - barcodes: shops that sell goods off a shelf.
+eq(['retail_shop', 'wholesale', 'manufacturer', 'everything'].map((t) => shown(t, 'barcodes')), [true, true, true, true], 'barcodes on: retail, wholesale, manufacturing, everything');
+eq(['freelancer', 'restaurant', 'service'].map((t) => shown(t, 'barcodes')), [false, false, false], 'barcodes off: freelancer, restaurant, service');
 eq(shown('service', 'recurring') && shown('service', 'inventory'), true, 'service: recurring and spare parts on');
 
 console.log('Everything');
