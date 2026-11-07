@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee } from 'lucide-react';
+import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee, RotateCcw } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber } from '../store';
+import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS } from '../utils';
 import { purchaseTdsAmount } from '../utils/tdsTcs';
 import { purchaseTotals as calcPurchaseTotal, billFormFromPo } from '../utils/purchaseOrders';
@@ -17,6 +17,8 @@ import { CostCentreSelect, CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields } from '../utils/costCentres';
 import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, purchasePaid, purchaseOwed, hasPurchasePayments, withPurchasePayments, markPurchasePaid, markPurchaseUnpaid, purchasePaymentModeName } from '../utils/purchasePayments';
 import PurchasePaymentModal from './PurchasePaymentModal';
+import DebitNotesList, { ReturnToSupplierModal } from './DebitNotes';
+import { withReturns, returnableLines, debitNoteTotals } from '../utils/debitNotes';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -135,6 +137,9 @@ export default function PurchaseBills() {
   const [poEnabled] = useState(() => isModuleEnabled('purchaseOrders', getEnabledModules()));
   const [tab, setTab] = useState('bills');
   const [orders, setOrders] = useState([]);
+  // v1.10.85 (#168) - purchase returns, and the bill being returned.
+  const [debitNotes, setDebitNotes] = useState([]);
+  const [returnBill, setReturnBill] = useState(null);
   // The number shown on a new PO; only that one is swapped for a reserved
   // number on save, so a number the user typed is kept.
   const previewedPoRef = useRef('');
@@ -203,16 +208,21 @@ export default function PurchaseBills() {
 
   const loadPurchases = async () => {
     try {
-      const [rows, prof, pos] = await Promise.all([
+      const [rows, prof, pos, dns] = await Promise.all([
         getAllPurchases(),
         getProfile().catch(() => null),
         poEnabled ? getAllPurchaseOrders().catch(() => []) : [],
+        getAllDebitNotes().catch(() => []),
       ]);
       setOwnerProfile(prof);
       // v1.10.65 (#58 item 3) — show only this business's records. Anything
       // saved before businesses were separated has no owner recorded and is
       // always shown, so nothing disappears from an existing ledger.
-      setPurchases((rows || []).filter(r => belongsToProfile(r, prof)));
+      // v1.10.85 (#168) - each bill knows what its debit notes took off it
+      // (_returned), so its balance and status follow.
+      const mineDn = (dns || []).filter(r => belongsToProfile(r, prof));
+      setDebitNotes(mineDn);
+      setPurchases(withReturns((rows || []).filter(r => belongsToProfile(r, prof)), mineDn));
       setOrders((pos || []).filter(r => belongsToProfile(r, prof)));
     } catch {
       toast('Failed to load purchases', 'error');
@@ -265,6 +275,11 @@ export default function PurchaseBills() {
     const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
     return { taxable: acc.taxable + t.taxable, tax: acc.tax + t.tax, total: acc.total + t.finalTotal, owed: acc.owed + purchaseBalance(p) };
   }, { taxable: 0, tax: 0, total: 0, owed: 0 });
+  // v1.10.85 (#168) - returns against the bills shown come off the cards.
+  const shownIds = new Set(filtered.map(p => p.id));
+  const returnStats = debitNotes.filter(dn => !dn.cancelled && shownIds.has(dn.purchaseId)).map(debitNoteTotals)
+    .reduce((acc, t) => ({ total: acc.total + t.total, tax: acc.tax + t.tax }), { total: 0, tax: 0 });
+  const canReturn = (p) => returnableLines(p, debitNotes).some(l => l.left > 0);
 
   const openAdd = () => {
     setForm({ ...emptyForm, date: localToday(), items: [{ ...emptyItem }] });
@@ -566,10 +581,11 @@ export default function PurchaseBills() {
           y += 5;
         }
       }
-      if (pays.length || purchaseStatus(purchase) === 'Paid') {
+      if (pays.length || purchaseStatus(purchase) === 'Paid' || purchase._returned > 0) {
         y += pays.length ? 1 : 8;
         doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(0);
         if (pays.length) { doc.text('Paid', marginL + 100, y); doc.text(fmt(purchasePaid(purchase)), marginR, y, { align: 'right' }); y += 5; }
+        if (purchase._returned > 0) { doc.text('Returned (debit notes)', marginL + 100, y); doc.text('-' + fmt(purchase._returned), marginR, y, { align: 'right' }); y += 5; }
         doc.setFont('helvetica', 'bold');
         doc.text('Balance due', marginL + 100, y); doc.text(fmt(purchaseBalance(purchase)), marginR, y, { align: 'right' });
       }
@@ -834,6 +850,12 @@ export default function PurchaseBills() {
   const handleDelete = async (id) => {
     // A bill's payments are kept only on the bill, so they go with it.
     const target = purchases.find(p => p.id === id);
+    // v1.10.85 (#168) - its returns would be left pointing at nothing.
+    const dns = debitNotes.filter(dn => dn.purchaseId === id);
+    if (dns.length) {
+      toast(`This bill has ${dns.length === 1 ? 'a debit note' : `${dns.length} debit notes`} (${dns.map(dn => dn.dnNumber).join(', ')}). Delete ${dns.length === 1 ? 'it' : 'them'} on the Returns tab first.`, 'warning', 8000);
+      return;
+    }
     const paidNote = hasPurchasePayments(target)
       ? ` Its payments of ${formatCurrency(purchasePaid(target))} are deleted with it and leave the Cash book. To re-enter the bill, edit it instead.`
       : '';
@@ -1117,15 +1139,30 @@ export default function PurchaseBills() {
 
       {/* v1.10.83 (#112) - Purchase bills | Purchase orders, only when the
           Purchase orders feature is on. */}
-      {poEnabled && (
+      {/* v1.10.85 (#168) - and Returns, once there is a debit note. */}
+      {(poEnabled || debitNotes.length > 0) && (
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
           <button className={`btn ${tab === 'bills' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('bills')} aria-pressed={tab === 'bills'}>
             <ShoppingCart size={16} /> Purchase bills
           </button>
-          <button className={`btn ${tab === 'orders' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('orders')} aria-pressed={tab === 'orders'}>
-            <ClipboardList size={16} /> Purchase orders
-          </button>
+          {poEnabled && (
+            <button className={`btn ${tab === 'orders' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('orders')} aria-pressed={tab === 'orders'}>
+              <ClipboardList size={16} /> Purchase orders
+            </button>
+          )}
+          {debitNotes.length > 0 && (
+            <button className={`btn ${tab === 'returns' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('returns')} aria-pressed={tab === 'returns'}>
+              <RotateCcw size={16} /> Returns ({debitNotes.length})
+            </button>
+          )}
         </div>
+      )}
+
+      {tab === 'returns' && <DebitNotesList notes={debitNotes} purchases={purchases} ownerProfile={ownerProfile} onChanged={() => { loadPurchases(); loadProducts(); }} />}
+      {returnBill && (
+        <ReturnToSupplierModal bill={returnBill} debitNotes={debitNotes} ownerProfile={ownerProfile}
+          onClose={() => setReturnBill(null)}
+          onSaved={() => { setReturnBill(null); setTab('returns'); loadPurchases(); loadProducts(); }} />
       )}
 
       {tab === 'orders' && (
@@ -1228,6 +1265,10 @@ export default function PurchaseBills() {
                 {hasPurchasePayments(p) && (
                   <><span style={{ color: 'var(--text-muted)' }}>Paid</span><span style={{ textAlign: 'right' }}>{formatCurrency(purchasePaid(p))}</span></>
                 )}
+                {/* v1.10.85 (#168) */}
+                {p._returned > 0 && (
+                  <><span style={{ color: 'var(--text-muted)' }}>Returned (debit notes)</span><span style={{ textAlign: 'right' }}>-{formatCurrency(p._returned)}</span></>
+                )}
                 <span style={{ fontWeight: 600 }}>Balance due</span>
                 <span style={{ textAlign: 'right', fontWeight: 600, color: purchaseBalance(p) > 0.005 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(purchaseBalance(p))}</span>
               </div>
@@ -1275,7 +1316,8 @@ export default function PurchaseBills() {
       <div className="stats-grid stats-grid-4">
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple"><ShoppingCart size={22} /></div>
-          <div><p className="stat-label">Total Purchases</p><h2 className="stat-value stat-value-purple">{formatCurrency(totalStats.total)}</h2></div>
+          <div><p className="stat-label">{returnStats.total > 0 ? 'Total Purchases (less returns)' : 'Total Purchases'}</p><h2 className="stat-value stat-value-purple">{formatCurrency(totalStats.total - returnStats.total)}</h2>
+            {returnStats.total > 0 && <p className="text-muted" style={{ fontSize: '0.72rem', margin: 0 }}>{formatCurrency(totalStats.total)} bought, {formatCurrency(returnStats.total)} returned</p>}</div>
         </div>
         {/* v1.10.83 (#123) - what is still to pay on the bills shown. */}
         <div className="stat-card">
@@ -1287,7 +1329,7 @@ export default function PurchaseBills() {
         </div>
         <div className="stat-card">
           <div className="stat-icon stat-icon-green"><ShoppingCart size={22} /></div>
-          <div><p className="stat-label">GST (ITC Eligible)</p><h2 className="stat-value stat-value-green">{formatCurrency(totalStats.tax)}</h2></div>
+          <div><p className="stat-label">GST (ITC Eligible)</p><h2 className="stat-value stat-value-green">{formatCurrency(totalStats.tax - returnStats.tax)}</h2></div>
         </div>
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue"><ShoppingCart size={22} /></div>
@@ -1693,6 +1735,10 @@ export default function PurchaseBills() {
                           {/* v1.10.83 (#123) - record / see payments to the supplier. */}
                           <button className="icon-btn icon-btn-green" onClick={() => setPayPurchase(p)} title={st === 'Paid' ? 'Payment history' : 'Record payment to supplier'} aria-label="Payments to supplier"><IndianRupee size={15} /></button>
                           <button className="icon-btn icon-btn-blue" onClick={() => openEdit(p)} title="Edit"><Edit3 size={15} /></button>
+                          {/* v1.10.85 (#168) - send goods back: a debit note against this bill. */}
+                          {canReturn(p) && (
+                            <button className="icon-btn" onClick={() => setReturnBill(p)} title="Return to supplier (debit note)" aria-label={`Return goods on ${p.invoiceNumber} to supplier`}><RotateCcw size={15} /></button>
+                          )}
                           <button className="icon-btn icon-btn-red" onClick={() => handleDelete(p.id)} title="Delete"><Trash2 size={15} /></button>
                         </div>
                       </td>

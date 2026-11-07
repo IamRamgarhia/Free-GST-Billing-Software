@@ -53,21 +53,32 @@ export function purchaseOwed(p) {
 }
 export const purchasePaid = (p) => r2(paymentsOf(p).reduce((s, x) => s + (Number(x?.amount) || 0), 0));
 
+// v1.10.85 (#168) - goods sent back on debit notes are not paid for: what
+// the debit notes against a bill take off it (set in memory by withReturns in
+// utils/debitNotes.js; never saved). Payments are still checked against the
+// whole bill (validatePurchasePayments), since a bill paid in full before the
+// return stays paid and the supplier owes you the refund.
+const returnedOn = (p) => Math.max(0, Number(p?._returned) || 0);
+
 // 'Paid' | 'Partial' | 'Unpaid'.
 export function purchaseStatus(p) {
-  if (!hasPurchasePayments(p)) return ['Paid', 'Partial'].includes(p?.paymentStatus) ? p.paymentStatus : 'Unpaid';
+  const returned = returnedOn(p);
+  if (!hasPurchasePayments(p)) {
+    if (returned > 0.005 && returned >= purchaseOwed(p) - 0.005) return 'Paid';
+    return ['Paid', 'Partial'].includes(p?.paymentStatus) ? p.paymentStatus : 'Unpaid';
+  }
   const paid = purchasePaid(p);
-  if (paid >= purchaseOwed(p) - 0.005) return 'Paid';
+  if (paid + returned >= purchaseOwed(p) - 0.005) return 'Paid';
   return paid > 0.005 ? 'Partial' : 'Unpaid';
 }
 
 // Still to pay, for the list and reports. An old bill marked Paid owes nothing.
 export function purchaseBalance(p) {
   if (!hasPurchasePayments(p) && purchaseStatus(p) === 'Paid') return 0;
-  return Math.max(0, r2(purchaseOwed(p) - purchasePaid(p)));
+  return Math.max(0, r2(purchaseOwed(p) - purchasePaid(p) - returnedOn(p)));
 }
-// Still to pay going by the payments alone: the amount a new payment starts at.
-export const purchasePaymentDue = (p) => Math.max(0, r2(purchaseOwed(p) - purchasePaid(p)));
+// Still to pay going by the payments (and returns): the amount a new payment starts at.
+export const purchasePaymentDue = (p) => Math.max(0, r2(purchaseOwed(p) - purchasePaid(p) - returnedOn(p)));
 
 // '' when a payment can be saved, else what to fix, in words for the user.
 export function validatePurchasePayment(x) {

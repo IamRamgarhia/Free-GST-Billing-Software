@@ -19,6 +19,7 @@
  * them on the record itself.
  */
 import { salesSign, businessKeyOf } from '../utils.js';
+import { debitNoteTotals } from './debitNotes.js';
 
 export const UNTAGGED = '__untagged';
 
@@ -71,7 +72,7 @@ const purchaseTaxable = (p) => (p.taxableAmount != null ? Number(p.taxableAmount
  * the period, a centre a document names but the list no longer has (e.g. a
  * backup from another PC), then "Untagged". Plus a total row.
  */
-export function costCentreReport({ bills = [], purchases = [], expenses = [], centres = [], from = '', to = '' }) {
+export function costCentreReport({ bills = [], purchases = [], expenses = [], debitNotes = [], centres = [], from = '', to = '' }) {
   const rows = new Map();
   const blank = (id, name, extra = {}) => ({ id, name, code: '', archived: false, salesTaxable: 0, salesTax: 0, salesTotal: 0, purchases: 0, expenses: 0, profit: 0, count: 0, ...extra });
   for (const c of centres) rows.set(c.id, blank(c.id, c.name, { code: c.code || '', archived: !!c.archived }));
@@ -96,6 +97,12 @@ export function costCentreReport({ bills = [], purchases = [], expenses = [], ce
   for (const p of purchases) {
     if (!inRange(p?.date, from, to)) continue;
     rowFor(p).purchases += purchaseTaxable(p);
+  }
+  // v1.10.85 (#168) - goods sent back on a debit note come off the purchases
+  // of the bill's cost centre (the debit note carries it), by its date.
+  for (const dn of debitNotes) {
+    if (!dn || dn.cancelled || !inRange(dn.date, from, to)) continue;
+    rowFor(dn).purchases -= debitNoteTotals(dn).taxable;
   }
   for (const e of expenses) {
     if (!inRange(e?.date, from, to)) continue;

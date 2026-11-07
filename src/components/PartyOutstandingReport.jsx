@@ -4,7 +4,8 @@
 import { useState, useEffect } from 'react';
 import { Wallet } from 'lucide-react';
 import { getFinancialYearStart, belongsToProfile } from '../utils';
-import { getAllPurchases, getProfile } from '../store';
+import { getAllPurchases, getProfile, getAllDebitNotes } from '../store';
+import { withReturns } from '../utils/debitNotes';
 import { periodMonths, partyOutstanding, supplierOutstanding, billCurrency } from '../utils/partyOutstanding';
 import TableExport from './TableExport';
 import HelpButton from './HelpButton';
@@ -23,8 +24,9 @@ export default function PartyOutstandingReport({ bills, businessName }) {
   const [purchases, setPurchases] = useState(null);
   useEffect(() => {
     if (side !== 'suppliers' || purchases) return;
-    Promise.all([getAllPurchases(), getProfile().catch(() => null)])
-      .then(([rows, prof]) => setPurchases((rows || []).filter((r) => belongsToProfile(r, prof))))
+    // v1.10.85 (#168) - goods returned on debit notes are not owed.
+    Promise.all([getAllPurchases(), getProfile().catch(() => null), getAllDebitNotes().catch(() => [])])
+      .then(([rows, prof, dns]) => setPurchases(withReturns((rows || []).filter((r) => belongsToProfile(r, prof)), (dns || []).filter((r) => belongsToProfile(r, prof)))))
       .catch(() => setPurchases([]));
   }, [side, purchases]);
   const suppliers = side === 'suppliers';

@@ -4,7 +4,7 @@
 // this report reads every invoice and purchase, not just the open company's.
 import { useEffect, useState } from 'react';
 import { Package } from 'lucide-react';
-import { getAllBills, getAllProducts, getAllPurchases, getAllProductions } from '../store';
+import { getAllBills, getAllProducts, getAllPurchases, getAllProductions, getAllDebitNotes } from '../store';
 import { localToday } from '../utils';
 import { closingStock, stockValueOf } from '../utils/products';
 import { toast } from './Toast';
@@ -27,12 +27,14 @@ export default function StockReport({ businessName }) {
   useEffect(() => {
     // v1.10.83 (#115) - production entries move stock too (always read, even
     // with the feature off: entries saved earlier still moved stock).
-    Promise.all([getAllProducts(), getAllBills(), getAllPurchases(), getAllProductions().catch(() => [])])
-      .then(([products, bills, purchases, productions]) => setData({
+    // v1.10.85 (#168) - and purchase returns (debit notes).
+    Promise.all([getAllProducts(), getAllBills(), getAllPurchases(), getAllProductions().catch(() => []), getAllDebitNotes().catch(() => [])])
+      .then(([products, bills, purchases, productions, debitNotes]) => setData({
         products: products || [],
         bills: bills || [],
         purchases: purchases || [],
         productions: productions || [],
+        debitNotes: debitNotes || [],
       }))
       .catch(() => toast('Failed to load stock', 'error'));
   }, []);
@@ -40,7 +42,7 @@ export default function StockReport({ businessName }) {
   if (!data) return <div className="glass-panel" style={{ padding: '1.25rem' }}>Loading stock…</div>;
 
   const asOf = monthEnd(month);
-  const qty = closingStock(data.products, data.bills, data.purchases, asOf, data.productions);
+  const qty = closingStock(data.products, data.bills, data.purchases, asOf, data.productions, data.debitNotes);
   const rows = data.products
     .filter((p) => qty.has(p.id)) // services have no stock (#121)
     .map((p) => ({ p, q: qty.get(p.id) ?? 0, ...stockValueOf(p, qty.get(p.id)) }))

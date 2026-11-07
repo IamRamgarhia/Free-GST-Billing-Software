@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
-import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules } from '../store';
+import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules, getAllDebitNotes } from '../store';
+import { purchaseReturnsTax, netItc } from '../utils/debitNotes';
 import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, mergeHsnRows, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
@@ -518,6 +519,7 @@ export default function GSTReturns() {
   const [cancelledBills, setCancelledBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [debitNotes, setDebitNotes] = useState([]);
   const [profile, setProfile] = useState({});
   const [filterMode, setFilterMode] = useState('month');
   const [fyFilter, setFyFilter] = useState('');
@@ -589,6 +591,8 @@ export default function GSTReturns() {
       setExpenses((e || []).filter(r => belongsToProfile(r, p))); setProfile(p || {});
       // Purchases endpoint may not exist on older server versions
       try { const pur = await getAllPurchases(); setPurchases((pur || []).filter(r => belongsToProfile(r, p))); } catch { /* ignore — older servers don't have this endpoint */ }
+      // v1.10.85 (#168) - purchase returns take their ITC back (Table 4).
+      try { const dns = await getAllDebitNotes(); setDebitNotes((dns || []).filter(r => belongsToProfile(r, p))); } catch { setDebitNotes([]); }
     } catch { toast('Failed to load data', 'error'); }
   };
 
@@ -884,13 +888,22 @@ export default function GSTReturns() {
   // Table 4(A) csamt); it was always reported as 0.
   const itcCessFromPurchases = filteredPurchases.reduce((s, p) => s + purchaseBookTotals(p).cess, 0);
   // Combined ITC
-  const itcFromExpenses = {
+  const itcGross = {
     cgst: itcFromExpensesOnly.cgst + itcFromPurchases.cgst,
     sgst: itcFromExpensesOnly.sgst + itcFromPurchases.sgst,
     igst: itcFromExpensesOnly.igst + itcFromPurchases.igst,
   };
+  // v1.10.85 (#168) - purchase returns (debit notes dated in the period) take
+  // their ITC back: 4(A)(5) is reported net of them, as GSTR-2B nets the
+  // supplier's credit notes; a head whose returns are more than its ITC goes
+  // to 4(B)(2) "ITC reversed - others", paid with the tax (utils/debitNotes.js).
+  const returnsItc = purchaseReturnsTax(debitNotes, filterByPeriod);
+  const hasReturns = returnsItc.igst + returnsItc.cgst + returnsItc.sgst + returnsItc.cess > 0;
+  const { avl: itcNet, rev: itcReversed } = netItc({ ...itcGross, cess: itcCessFromPurchases }, returnsItc);
+  const hasReversal = itcReversed.igst + itcReversed.cgst + itcReversed.sgst + itcReversed.cess > 0;
+  const itcFromExpenses = { cgst: itcNet.cgst, sgst: itcNet.sgst, igst: itcNet.igst };
   // v1.10.76 (#81) - credit set off across heads in the legal order (see setOffITC).
-  const setOff = setOffITC(outputTax, itcFromExpenses);
+  const setOff = setOffITC({ igst: outputTax.igst + itcReversed.igst, cgst: outputTax.cgst + itcReversed.cgst, sgst: outputTax.sgst + itcReversed.sgst }, itcFromExpenses);
   const netTax = setOff.payable;
   const itcCarry = setOff.carry;
   const hasCarry = itcCarry.igst + itcCarry.cgst + itcCarry.sgst > 0;
@@ -1010,7 +1023,7 @@ export default function GSTReturns() {
 
   // A period with purchase bills has input tax credit to claim (and maybe
   // reverse charge), so it is not a NIL GSTR-3B even with no sales.
-  const isNilReturn = filteredBills.length === 0 && filteredExpenses.length === 0 && filteredPurchases.length === 0;
+  const isNilReturn = filteredBills.length === 0 && filteredExpenses.length === 0 && filteredPurchases.length === 0 && !hasReturns;
 
   // ========== CSV Exports ==========
   const exportB2B = () => {
@@ -1171,9 +1184,15 @@ export default function GSTReturns() {
           iamt: round2(itcFromExpenses.igst),
           camt: round2(itcFromExpenses.cgst),
           samt: round2(itcFromExpenses.sgst),
-          csamt: round2(itcCessFromPurchases),
+          csamt: round2(itcNet.cess),
         },
       ],
+      // v1.10.85 (#168) - only when purchase returns are more than the
+      // period's ITC; otherwise the file is exactly as before.
+      ...(hasReversal ? { itc_rev: [
+        { ty: 'RUL', iamt: 0, camt: 0, samt: 0, csamt: 0 },
+        { ty: 'OTH', iamt: round2(itcReversed.igst), camt: round2(itcReversed.cgst), samt: round2(itcReversed.sgst), csamt: round2(itcReversed.cess) },
+      ] } : {}),
       itc_inelg: [
         { ty: 'RUL', iamt: 0, camt: 0, samt: 0, csamt: 0 },
         { ty: 'OTH', iamt: 0, camt: 0, samt: 0, csamt: 0 },
@@ -1963,13 +1982,21 @@ export default function GSTReturns() {
               <table className="data-table" style={{ minWidth: '500px' }}>
                 <thead><tr><th>Details</th><th style={{ textAlign: 'right' }}>IGST</th><th style={{ textAlign: 'right' }}>CGST</th><th style={{ textAlign: 'right' }}>SGST</th></tr></thead>
                 <tbody>
-                  <tr><td className="font-medium">(A) ITC Available — All other ITC</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.sgst)}</td></tr>
+                  {/* v1.10.85 (#168) - purchase returns netted off 4(A)(5). */}
+                  {hasReturns && <>
+                    <tr><td className="font-medium">ITC on purchase bills and expenses</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcGross.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcGross.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcGross.sgst)}</td></tr>
+                    <tr><td className="font-medium" style={{ color: '#dc2626' }}>Less: purchase returns (debit notes)</td><td style={{ textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(returnsItc.igst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(returnsItc.cgst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(returnsItc.sgst)}</td></tr>
+                  </>}
+                  <tr><td className="font-medium">(A)(5) ITC Available — All other ITC{hasReturns ? ' (net of returns)' : ''}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.sgst)}</td></tr>
+                  {hasReversal && (
+                    <tr><td className="font-medium" style={{ color: '#dc2626' }}>(B)(2) ITC reversed — returns more than this period's ITC (paid with the tax)</td><td style={{ textAlign: 'right', color: '#dc2626' }}>{formatCurrency(itcReversed.igst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>{formatCurrency(itcReversed.cgst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>{formatCurrency(itcReversed.sgst)}</td></tr>
+                  )}
                   <tr className="font-bold"><td>Net ITC Available</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.sgst)}</td></tr>
                 </tbody>
               </table>
             </div>
             <p className="field-hint" style={{ padding: '0.75rem 1.25rem' }}>
-              ITC calculated from Expense Tracker and Purchase Bills entries with GST. Verify against GSTR-2B on the GST portal for actual eligible ITC.
+              ITC calculated from Expense Tracker and Purchase Bills entries with GST{hasReturns ? ', less the GST on goods returned to suppliers (debit notes dated in this period; the supplier\'s credit note shows in your GSTR-2B)' : ''}. Verify against GSTR-2B on the GST portal for actual eligible ITC.
             </p>
           </div>
 
@@ -1981,6 +2008,9 @@ export default function GSTReturns() {
                 <thead><tr><th>Description</th><th style={{ textAlign: 'right' }}>IGST</th><th style={{ textAlign: 'right' }}>CGST</th><th style={{ textAlign: 'right' }}>SGST</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
                 <tbody>
                   <tr><td className="font-medium">Output Tax Liability</td><td style={{ textAlign: 'right' }}>{formatCurrency(outputTax.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(outputTax.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(outputTax.sgst)}</td><td style={{ textAlign: 'right' }} className="font-bold">{formatCurrency(outputTax.igst + outputTax.cgst + outputTax.sgst)}</td></tr>
+                  {hasReversal && (
+                    <tr><td className="font-medium" style={{ color: '#dc2626' }}>Add: ITC reversed, 4(B)(2)</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcReversed.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcReversed.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcReversed.sgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcReversed.igst + itcReversed.cgst + itcReversed.sgst)}</td></tr>
+                  )}
                   <tr><td className="font-medium" style={{ color: '#059669' }}>Less: ITC utilised</td><td style={{ textAlign: 'right', color: '#059669' }}>-{formatCurrency(setOff.used.igst)}</td><td style={{ textAlign: 'right', color: '#059669' }}>-{formatCurrency(setOff.used.cgst)}</td><td style={{ textAlign: 'right', color: '#059669' }}>-{formatCurrency(setOff.used.sgst)}</td><td style={{ textAlign: 'right', color: '#059669' }}>-{formatCurrency(setOff.used.igst + setOff.used.cgst + setOff.used.sgst)}</td></tr>
                 </tbody>
                 <tfoot><tr style={{ fontWeight: 'bold', borderTop: '2px solid var(--border)' }}>

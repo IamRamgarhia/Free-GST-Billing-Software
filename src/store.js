@@ -3,6 +3,7 @@
 
 import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta } from './utils';
 import { poCounterKey, formatPoNumber } from './utils/purchaseOrders';
+import { dnCounterKey, formatDnNumber } from './utils/debitNotes';
 
 import { logProblem } from './utils/problemLog';
 
@@ -410,7 +411,10 @@ export const getAllPurchases = async () => {
 };
 
 export const savePurchase = async (purchase) => {
-  const res = await apiFetch(`${API}/purchases`, { method: 'POST', body: JSON.stringify(purchase) });
+  // v1.10.85 (#168) - _returned (what debit notes take off, see
+  // utils/debitNotes.js withReturns) is worked out when shown, never saved.
+  const { _returned, ...stored } = purchase || {};
+  const res = await apiFetch(`${API}/purchases`, { method: 'POST', body: JSON.stringify(stored) });
   if (res.id) purchase.id = res.id;
   return purchase;
 };
@@ -435,6 +439,22 @@ export const getNextPoNumber = async ({ peek = false, businessKey = '', date = '
     ? nextCounterValue((await apiFetch(`${API}/meta/${key}`)).value)
     : (await apiFetch(`${API}/meta/${key}/increment`, { method: 'POST', body: JSON.stringify({}) })).value;
   return formatPoNumber(next, date);
+};
+
+// ---- v1.10.85 (#168) Debit notes (purchase returns) ----
+export const getAllDebitNotes = async () => apiFetch(`${API}/debit-notes`);
+export const saveDebitNote = async (note) => {
+  const res = await apiFetch(`${API}/debit-notes`, { method: 'POST', body: JSON.stringify(note) });
+  return res.id ? { ...note, id: res.id } : note;
+};
+export const deleteDebitNote = async (id) => apiFetch(`${API}/debit-notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+// The next debit note number for a business, DN/26-27/0001 (peek: shown, not used up).
+export const getNextDnNumber = async ({ peek = false, businessKey = '', date = '' } = {}) => {
+  const key = encodeURIComponent(dnCounterKey(businessKey));
+  const next = peek
+    ? nextCounterValue((await apiFetch(`${API}/meta/${key}`)).value)
+    : (await apiFetch(`${API}/meta/${key}/increment`, { method: 'POST', body: JSON.stringify({}) })).value;
+  return formatDnNumber(next, date);
 };
 
 // ---- Recurring Invoices ----
@@ -680,6 +700,7 @@ export const exportAllData = async (selection) => {
   if (sel.receipts)       data.receipts = all.receipts;
   if (sel.purchases)      data.purchases = all.purchases;
   if (sel.purchases)      data.purchaseOrders = all.purchaseOrders; // v1.10.83 (#112) - travel with purchase bills
+  if (sel.purchases)      data.debitNotes = all.debitNotes; // v1.10.85 (#168) - so do purchase returns
   if (sel.meta)           data.meta = all.meta; // includes regionMode, enabledModules, etc. on server
   if (sel.localStorage)   data.localStorage = collectLocalStorage();
 
@@ -735,6 +756,7 @@ export const importData = async (jsonString, selection) => {
   if (sel.receipts && data.receipts)             payload.receipts = data.receipts;
   if (sel.purchases && data.purchases)           payload.purchases = data.purchases;
   if (sel.purchases && data.purchaseOrders)      payload.purchaseOrders = data.purchaseOrders;
+  if (sel.purchases && data.debitNotes)          payload.debitNotes = data.debitNotes;
   if (sel.meta && data.meta)                     payload.meta = data.meta;
 
   const result = await apiFetch(`${API}/import`, { method: 'POST', body: JSON.stringify(payload) });

@@ -3,7 +3,7 @@
 // maths is costCentreReport() in utils/costCentres.js (tested in
 // scripts/costcentre-test.mjs).
 import { useState, useEffect } from 'react';
-import { getAllPurchases } from '../store';
+import { getAllPurchases, getAllDebitNotes } from '../store';
 import { formatCurrency, belongsToProfile } from '../utils';
 import { costCentreReport, centreLabel } from '../utils/costCentres';
 import { billCurrency } from '../utils/partyOutstanding';
@@ -19,15 +19,21 @@ const HEADERS = ['Cost centre', 'Sales (taxable)', 'GST on sales', 'Sales total'
 export default function CostCentreReport({ bills, expenses, profile, from, to, currency, subtitle, periodLabel }) {
   const { centres } = useCostCentres(profile);
   const [purchases, setPurchases] = useState([]);
+  const [debitNotes, setDebitNotes] = useState([]);
   useEffect(() => {
     getAllPurchases()
       .then((rows) => setPurchases((rows || []).filter((p) => belongsToProfile(p, profile))))
       .catch(() => toast('Failed to load purchases', 'error'));
+    // v1.10.85 (#168) - purchase returns come off the purchases.
+    getAllDebitNotes()
+      .then((rows) => setDebitNotes((rows || []).filter((p) => belongsToProfile(p, profile))))
+      .catch(() => setDebitNotes([]));
   }, [profile]);
 
   const { rows, total } = costCentreReport({
     bills: bills.filter((b) => billCurrency(b) === currency),
     purchases: currency === 'INR' ? purchases : [],
+    debitNotes: currency === 'INR' ? debitNotes : [],
     expenses: expenses.filter((e) => (e.currency || 'INR') === currency),
     centres, from, to,
   });
