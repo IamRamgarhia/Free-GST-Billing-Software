@@ -107,3 +107,23 @@ export const costOfGoodsSold = (bills, products) => {
   }
   return { cost: Math.round(cost * 100) / 100, missing: [...missing] };
 };
+
+// v1.10.85 (idea from PR #178) - the cost of goods for a report shown in a
+// foreign currency: purchase prices are in the business's own currency, so
+// each invoice's cost is divided by the exchange rate saved on it (rupees per
+// unit of the invoice's currency). An invoice without a rate cannot be
+// converted: it is counted in `noRate` and adds nothing.
+export const costOfGoodsSoldIn = (bills, products, base, rateOf) => {
+  let cost = 0;
+  let noRate = 0;
+  const missing = new Set();
+  for (const bill of bills || []) {
+    const c = costOfGoodsSold([bill], products);
+    c.missing.forEach((m) => missing.add(m));
+    if (!c.cost) continue;
+    const rate = rateOf(bill, base);
+    if (rate > 0) cost += c.cost / rate;
+    else noRate += 1;
+  }
+  return { cost: Math.round(cost * 100) / 100, missing: [...missing], noRate };
+};

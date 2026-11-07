@@ -2,7 +2,7 @@
 // Run: `node scripts/cogs-test.mjs`
 //
 // Reported: with no expenses entered, the whole revenue showed as profit.
-import { costOfGoodsSold } from '../src/utils/products.js';
+import { costOfGoodsSold, costOfGoodsSoldIn } from '../src/utils/products.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -43,6 +43,19 @@ eq(costOfGoodsSold([
   bill('delivery-challan', [{ productId: 'p1', name: 'A4 Paper', quantity: 5 }]),
   bill('tax-invoice', [{ productId: 'p1', name: 'A4 Paper', quantity: 5 }], { status: 'cancelled' }),
 ], products).cost, 0, 'quotes, challans and cancelled invoices sold nothing');
+
+console.log('\n[v1.10.85] A report in a foreign currency: cost at each invoice\'s own rate');
+{
+  const usd = (qty, rate) => bill('tax-invoice', [{ productId: 'p1', name: 'A4 Paper', quantity: qty }],
+    { currency: 'USD', data: { items: [{ productId: 'p1', name: 'A4 Paper', quantity: qty }], invoiceOptions: { currency: 'USD', exchangeRate: rate } } });
+  const rateOf = (b) => Number(b.data?.invoiceOptions?.exchangeRate) || 0;
+  eq(costOfGoodsSoldIn([usd(10, 80), usd(5, 75)], products, 'INR', rateOf),
+    { cost: 11.5, missing: [], noRate: 0 }, '10 x Rs 60 at Rs 80/$ = $7.50, 5 x Rs 60 at Rs 75/$ = $4.00');
+  eq(costOfGoodsSoldIn([usd(10, 80), usd(5, 0)], products, 'INR', rateOf),
+    { cost: 7.5, missing: [], noRate: 1 }, 'an invoice with no exchange rate is counted apart, not guessed');
+  eq(costOfGoodsSoldIn([bill('tax-invoice', [{ productId: 'p2', name: 'Stapler', quantity: 1 }])], products, 'INR', () => 0),
+    { cost: 0, missing: ['Stapler'], noRate: 0 }, 'no purchase price: listed as missing, not as "no rate"');
+}
 
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);

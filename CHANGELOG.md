@@ -120,6 +120,12 @@ a backup is made first.
   cards shows them for this month, last month, any month you pick, or a
   financial year. All time is still the default.
 
+- **Profit & Loss in another currency shows the cost of goods too** (idea from
+  PR #178): each invoice's cost is converted from rupees at the exchange rate
+  saved on it. Invoices with no rate are counted apart and named in a warning.
+- **The app window's title bar turns dark** with the app's dark theme
+  (Windows Setup).
+
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
   inside the container; other devices use the paired HTTPS connection.

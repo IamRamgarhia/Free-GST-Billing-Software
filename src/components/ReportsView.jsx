@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package, Boxes, Building2, Percent } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllProducts, getProfile } from '../store';
-import { costOfGoodsSold } from '../utils/products';
+import { costOfGoodsSold, costOfGoodsSoldIn } from '../utils/products';
 import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, calculateLineItemTax, roundQty, parseLocalDate, amountDue } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -9,7 +9,7 @@ import PartyOutstandingReport from './PartyOutstandingReport';
 import StockReport from './StockReport';
 import TableExport from './TableExport';
 import { billCurrency } from '../utils/partyOutstanding';
-import { billsInInr, baseCurrencyOf } from '../utils/fx';
+import { billsInInr, baseCurrencyOf, billRate } from '../utils/fx';
 import CostCentreReport from './CostCentreReport';
 import { costCentresOn } from './useCostCentres';
 import TdsTcsReport from './TdsTcsReport';
@@ -162,8 +162,12 @@ export default function ReportsView() {
   // utils/products.js) is subtracted too; profit used to be sales minus
   // Expenses only. Purchase prices are in the business's own currency, so the
   // cost is worked out only when the report is shown in that currency.
+  // v1.10.85 - shown in another currency: each invoice's cost at the exchange
+  // rate saved on it (an invoice with no rate is counted apart, see noRate).
   const cogsShown = shownCurrency === baseCurrencyOf(ownerProfile);
-  const cogsOf = (list) => (cogsShown ? costOfGoodsSold(list, products) : { cost: 0, missing: [] });
+  const cogsOf = (list) => (cogsShown
+    ? costOfGoodsSold(list, products)
+    : costOfGoodsSoldIn(list, products, baseCurrencyOf(ownerProfile), billRate));
   const cogs = cogsOf(plBills);
   const grossProfit = revenueExTax - cogs.cost;
   const netProfit = grossProfit - expenseExGST;
@@ -396,8 +400,13 @@ export default function ReportsView() {
                     <td style={{ padding: '0.6rem 0', fontWeight: 500, color: 'var(--text-secondary)' }}>
                       Less: Cost of goods sold
                       <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>
-                        {cogsShown ? 'Quantity sold x Purchase price (Products page), less goods returned on credit notes' : `Worked out only in ${baseCurrencyOf(ownerProfile)}: purchase prices are in ${baseCurrencyOf(ownerProfile)}`}
+                        {cogsShown ? 'Quantity sold x Purchase price (Products page), less goods returned on credit notes' : `Quantity sold x Purchase price, from ${baseCurrencyOf(ownerProfile)} at the exchange rate saved on each invoice`}
                       </div>
+                      {cogs.noRate > 0 && (
+                        <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--warn-text, #b45309)' }}>
+                          ⚠ {cogs.noRate} invoice{cogs.noRate !== 1 ? 's have' : ' has'} no exchange rate, so {cogs.noRate !== 1 ? 'their' : 'its'} cost is left out. Open the invoice and add the exchange rate next to its currency.
+                        </div>
+                      )}
                       {cogs.missing.length > 0 && (
                         <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--warn-text, #b45309)' }}>
                           ⚠ {cogs.missing.length} item{cogs.missing.length !== 1 ? 's' : ''} sold with no purchase price, counted at 0: {cogs.missing.slice(0, 3).join(', ')}{cogs.missing.length > 3 ? ` +${cogs.missing.length - 3} more` : ''}. Fill in the Purchase price on the Products page.
