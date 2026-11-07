@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.85] - 2026-11-14
+
+### How to update
+
+**Current version:** 1.10.84  →  **New version:** 1.10.85
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.85** in the menu, or
+   **Settings → Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### Installed with the Windows Setup
+Click **Update Now** in the app (or **Check for updates** on the icon near
+the clock). Nothing to download by hand.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server**, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards.
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+### Added
+- **Sales orders, with a dispatch status** (#135, #112, #115): the order
+  between the quotation and the invoice. Turn it on in **Settings → Features
+  → Sales orders** (already on for the Wholesale, Manufacturing and Everything
+  business types). Make one with **New Invoice → Sales Order**, or from an
+  accepted quotation (**⋯ → Make sales order**); it has its own numbers
+  (`SO/2026-27/0001`) and prints and shares like a quotation, but it is never
+  counted as a sale, never in GST returns and never moves stock. The
+  Dashboard gets a **Sales orders** tab beside Invoices, Cancelled and Trash:
+  each order shows **Open**, **Partly dispatched**, **Dispatched** or
+  **Invoiced**, how much has gone ("4 of 10 sent") and its challans and
+  invoices. The truck button makes a **delivery challan** for some or all of
+  what is left to send; the green button **invoices the rest** in one go
+  (challans not yet invoiced are taken in, so their goods leave stock only
+  once). The challan or invoice carries the order number (Buyer's Order No).
+- **Purchase returns: debit notes** (#168): on a purchase bill, the new
+  return button (**Return to supplier**) lets you pick the items and
+  quantities going back, and makes a **Debit Note** (`DN/26-27/0001`) against
+  that bill, with its number and date, to download or print for the supplier.
+  The goods go out of stock, the bill's balance (and Party Outstanding) goes
+  down, the Purchases totals and cost-centre and income-tax purchase figures
+  are less the return, and **GSTR-3B Table 4(A)(5)** input tax credit is
+  reduced by the GST on it in the month of the debit note (as GSTR-2B nets off
+  the supplier's credit note). A **Returns** tab on Purchases lists them;
+  **Cancel debit note** (or Delete) undoes all of it. GSTR-2B matching is
+  unchanged.
+
 ## [1.10.84] - 2026-11-07
 
 ### How to update

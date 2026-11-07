@@ -373,9 +373,10 @@ export default [
 <p>Switches for parts of a screen, grouped by the screen they appear on:</p>
 <div class="table-wrap"><table>
   <tr><th>Screen</th><th>Switch</th><th>What it shows</th></tr>
-  <tr><td rowspan="4">Invoice screen</td><td>TDS / TCS</td><td>Tax deducted or collected at source on an invoice. See <a href="invoices.html#tds-tcs">TDS and TCS</a>.</td></tr>
+  <tr><td rowspan="5">Invoice screen</td><td>TDS / TCS</td><td>Tax deducted or collected at source on an invoice. See <a href="invoices.html#tds-tcs">TDS and TCS</a>.</td></tr>
   <tr><td>E-way bill</td><td>The button to download the e-way bill file for goods you send.</td></tr>
   <tr><td>E-invoicing (IRN)</td><td>Only if your yearly turnover is above ₹5 crore. <b>Off</b> to start. See <a href="gst-returns.html#e-invoice">E-invoicing</a>.</td></tr>
+  <tr><td>Sales orders</td><td>The Sales Order document and a ${ui('Sales orders')} tab on the Dashboard: send an order in parts with delivery challans, then invoice it. <b>Off</b> to start (on for Wholesale, Manufacturing and Everything). See <a href="invoices.html#sales-orders">Sales orders</a>.</td></tr>
   <tr><td>UPI QR code</td><td>The scan-to-pay QR code on invoices.</td></tr>
   <tr><td rowspan="2">Purchases screen</td><td>Purchase orders</td><td>Orders to suppliers, turned into bills when goods arrive. <b>Off</b> to start. See <a href="purchases.html#purchase-orders">Purchase orders</a>.</td></tr>
   <tr><td>GSTR-2B matching</td><td>Matching your purchase bills with GSTR-2B, a tab on GST returns.</td></tr>

@@ -456,6 +456,26 @@ export default [
 <p>When the rest comes, convert the same order again: only what is still to come is filled in. Deleting a bill made from an order takes the stock back out and puts the order back to Open or Partly received.</p>
 </section>
 
+<section id="purchase-returns">
+<h2>Returning goods to a supplier (debit notes)</h2>
+<p>When goods you bought go back to the supplier (damaged, wrong item, too many), record it as a <b>debit note</b> against their purchase bill. The supplier issues you a credit note for the return; your debit note is your record of it, and the document you send them.</p>
+<ol class="steps">
+  <li><strong>Open the return</strong>In the purchase list, click the return arrow on the bill, <b>Return to supplier (debit note)</b>. It is shown while anything on the bill can still go back.</li>
+  <li><strong>Choose what goes back</strong>For each item the window shows <b>Bought</b>, <b>Returned</b> (on earlier debit notes) and the rate. Type the quantity going back in <b>Return now</b>; you cannot send back more than is left. Set the <b>Debit note date</b>, a <b>Reason</b> (pick one or type your own) and an optional <b>Note</b>. The taxable value, GST and <b>Debit note total</b> are worked out at the bill's rates.</li>
+  <li><strong>Save debit note</strong>It gets the next number, <code>DN/26-27/0001</code> (each business counts its own), and opens the ${ui('Returns')} tab on Purchases.</li>
+  <li><strong>Send it</strong>The download button on the row makes the PDF: <b>DEBIT NOTE</b>, your business, the supplier, <b>Against bill No</b> and <b>Bill date</b>, the goods returned with their GST, and a signature box. ${ui('⋯')}, ${ui('Print')} prints it.</li>
+</ol>
+<p><strong>What a debit note changes</strong></p>
+<ul>
+  <li><strong>Stock:</strong> the returned quantity goes out of the product's stock. The Stock report on an earlier date counts it back.</li>
+  <li><strong>What you owe the supplier:</strong> the bill's <b>Balance due</b> (on the list, in the view, in its PDF and in Reports, Party Outstanding, Suppliers) is less the debit note's total. A bill already paid in full stays Paid: the supplier owes you the refund.</li>
+  <li><strong>Purchases total and ITC:</strong> the Purchases cards show <b>Total Purchases (less returns)</b> and the GST card less the returned GST. Cost-centre purchases and the Income Tax trading purchases are less its taxable value.</li>
+  <li><strong>GSTR-3B:</strong> the GST on the returned goods comes off <b>Table 4(A)(5), all other ITC</b>, in the month of the debit note, as GSTR-2B nets off the supplier's credit note. The Table 4 card shows the line <b>Less: purchase returns (debit notes)</b>. If a month's returns are more than its input tax credit, the extra is shown as <b>(B)(2) ITC reversed</b> and added to the tax to pay.</li>
+  <li><strong>GSTR-2B matching</strong> is not changed: it matches your purchase bills as before. The supplier's credit note shows in your GSTR-2B under credit notes.</li>
+</ul>
+<p><strong>Cancel or delete:</strong> on the Returns tab, ${ui('⋯')}, ${ui('Cancel debit note')} keeps its number but undoes all of the above (stock back, ITC and balance back); ${ui('Undo cancel')} applies it again. ${ui('Delete')} removes it for good and also puts the stock back. A purchase bill that has debit notes cannot be deleted until they are deleted.</p>
+</section>
+
 <section id="unassigned">
 <h2>"Not assigned to a business"</h2>
 <p>This only matters if you keep <a href="settings.html#multiple-businesses">more than one business</a> in the app. Records saved before you began keeping businesses separate have no business recorded, so they show under <b>every</b> business. Nothing is hidden, so nothing goes missing.</p>
