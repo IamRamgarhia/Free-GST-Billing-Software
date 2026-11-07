@@ -519,6 +519,17 @@ export const INVOICE_TYPES = {
     showGST: true,
     description: 'Priced offer for work or supply — not a tax document. Convert it to a tax invoice when accepted',
   },
+  // v1.10.85 (#135, #112, #115) - the customer's confirmed order. Not a sale:
+  // never in totals, reports or GST returns, never moves stock. It is sent in
+  // parts with delivery challans (or invoices); utils/salesOrders.js works out
+  // what is dispatched and invoiced from the documents made from it.
+  'sales-order': {
+    label: 'Sales Order',
+    prefix: 'SO',
+    title: 'SALES ORDER',
+    showGST: true,
+    description: "The customer's confirmed order - not a tax document. Send it in parts with delivery challans, and invoice it when the goods go",
+  },
   'proforma': {
     label: 'Proforma / Estimate',
     prefix: 'EST',
@@ -720,7 +731,7 @@ export const setOffITC = (liability, credit) => {
 // save applies only the difference from what the bill last did.
 const STOCK_SIGN = {
   'tax-invoice': -1, 'bill-of-supply': -1, composition: -1, 'delivery-challan': -1,
-  'credit-note': 1, quotation: 0, proforma: 0,
+  'credit-note': 1, quotation: 0, proforma: 0, 'sales-order': 0,
 };
 // What a bill of this type and status should have done to stock.
 export const stockEffect = (items, invoiceType, status) => {
@@ -1993,6 +2004,9 @@ export const FEATURE_GROUPS = [
       { id: 'einvoice', label: 'E-invoicing (IRN)', help: 'Only if your yearly turnover is above ₹5 crore: make the e-invoice file and print the IRN with its QR code.', defaultOn: false, indiaOnly: true },
       // v1.10.84 (#129) - cafes and shops find or add the customer by phone.
       { id: 'phoneFirst', label: 'Customer phone box', help: 'A phone box at the top of the invoice: typing a number fills in that customer, or adds a new one with just a name. Clients shows their visits.', defaultOn: true },
+      // v1.10.85 (#135) - off by default, like purchase orders; on for the
+      // wholesale, manufacturing and everything business types.
+      { id: 'salesOrders', label: 'Sales orders', help: "Take the customer's order (or turn a quotation into one), send it in parts with delivery challans and invoice it. A Sales orders tab on the Dashboard shows Open, Partly dispatched, Dispatched or Invoiced.", defaultOn: false },
       { id: 'upiQr', label: 'UPI QR code', help: 'Print a UPI QR code so customers can pay by scanning.', defaultOn: true, indiaOnly: true },
       // v1.10.84 (#140) - glass, mirror, flex, tile shops; off until wanted.
       { id: 'sizeBilling', label: 'Size billing (Sq.ft)', help: 'For glass, mirror, flex and tile shops: an item line can be "Sq.ft" - type Length x Width in inches and the pieces, pick 3 or 6 inch rounding, and the square feet and amount are worked out. The invoice prints Size and SQFT columns.', defaultOn: false },
@@ -2383,7 +2397,7 @@ export const startFor = (invoiceType, numberSettings) =>
 // Each business can have its own series (own prefix, start, counters) or use
 // the shared one. Invoices are stored under their number, so a business with
 // its own series must print a prefix no other series uses.
-export const DOC_TYPE_PREFIXES = ['INV', 'QUO', 'EST', 'BOS', 'COMP', 'CN', 'DC', 'RCP'];
+export const DOC_TYPE_PREFIXES = ['INV', 'QUO', 'SO', 'EST', 'BOS', 'COMP', 'CN', 'DC', 'RCP', 'DN'];
 export const DEFAULT_NUMBER_SETTINGS = { format: 'branded', brandPrefix: '', separator: '/', showFinYear: true, startNumber: 1, padDigits: 4 };
 // Who a series belongs to: the GSTIN, else the business name (as belongsToProfile matches).
 export const businessKeyOf = (profile) => {

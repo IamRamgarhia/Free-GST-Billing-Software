@@ -326,7 +326,7 @@ export default function RecurringInvoices() {
               <div className="form-group">
                 <label className="form-label">Invoice Type</label>
                 <select className="form-input" value={form.invoiceType} onChange={e => updateField('invoiceType', e.target.value)}>
-                  {Object.entries(INVOICE_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Object.entries(INVOICE_TYPES).filter(([k]) => k !== 'sales-order').map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
             </div>

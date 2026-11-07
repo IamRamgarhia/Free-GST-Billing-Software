@@ -495,12 +495,14 @@ function App() {
     setCurrentView('new');
   };
 
-  const handleConvertToInvoice = (bill) => {
+  // v1.10.85 (#135) - also quotation -> sales order, and a sales order's
+  // challan / invoice (prepared by utils/salesOrders.js dispatchDraft).
+  const handleConvertToInvoice = (bill, type = 'tax-invoice') => {
     setEditorKey((k) => k + 1);
     sessionStorage.removeItem('gst_invoiceDraft');
     const clone = JSON.parse(JSON.stringify(bill));
     clone._isDuplicate = true;
-    clone._convertToType = 'tax-invoice';
+    clone._convertToType = clone._convertToType || type;
     setEditingBill(clone);
     setCurrentView('new');
   };

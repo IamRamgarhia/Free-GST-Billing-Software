@@ -247,6 +247,7 @@ export const DEFAULT_PRINT_SETTINGS = {
     'composition': '',      // default 'COMP'
     'credit-note': '',      // default 'CN'
     'delivery-challan': '', // default 'DC'
+    'sales-order': '',      // default 'SO' (v1.10.85)
   },
 
   // v1.10.11 — Compact upper-header mode. Reduces the padding + spacing

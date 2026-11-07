@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload } from 'lucide-react';
+import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload, ClipboardList, Truck } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock, billMatchesSearch } from '../utils';
@@ -21,6 +21,16 @@ import { confirmAction } from './ConfirmModal';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
+import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../utils/salesOrders';
+
+// v1.10.85 (#135) - the dispatch status badge of a sales order.
+const SO_STATUS_COLORS = {
+  open: { bg: 'rgba(37, 99, 235, 0.14)', color: '#3b82f6' },
+  'partly-dispatched': { bg: 'rgba(245, 158, 11, 0.14)', color: '#d97706' },
+  dispatched: { bg: 'rgba(139, 92, 246, 0.14)', color: '#8b5cf6' },
+  invoiced: { bg: 'rgba(5, 150, 105, 0.14)', color: '#059669' },
+  cancelled: { bg: 'rgba(100, 116, 139, 0.16)', color: '#94a3b8' },
+};
 
 // v1.10.13 — `bg` values switched from opaque tints (#fffbeb / #f5f3ff /
 // etc.) to translucent alpha versions of the accent color. Reason:
@@ -306,6 +316,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   const [allTrash, setAllTrash] = useState([]);
   const trash = useMemo(() => allTrash.filter((b) => belongsToProfile(b, profile)), [allTrash, profile]);
   const cancelledCount = useMemo(() => bills.filter((b) => isCancelledBill(b)).length, [bills]);
+  // v1.10.85 (#135) - with Sales orders on (Settings -> Features), orders get
+  // their own tab beside Invoices | Cancelled | Trash and leave the Invoices
+  // tab, which keeps listing what is billed. With it off they stay listed
+  // among the invoices, as any document type does.
+  const soOn = isModuleEnabled('salesOrders', getEnabledModules());
+  const orderCount = useMemo(() => bills.filter((b) => isSalesOrder(b) && !isCancelledBill(b)).length, [bills]);
+  const orderInfo = useMemo(() => new Map(bills.filter(isSalesOrder).map((o) => [o.id, orderSummary(o, bills)])), [bills]);
   // Bulk-selection state. Stores a Set of bill IDs (not the bills themselves)
   // so we don't hold stale references when the underlying bill is edited
   // elsewhere. Cleared whenever filters change so the user doesn't accidentally
@@ -500,7 +517,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (typeFilter !== 'all') result = result.filter(b => (b.invoiceType || 'tax-invoice') === typeFilter);
     if (statusFilter !== 'all') result = result.filter(b => (b.status || 'unpaid') === statusFilter);
     // The folder tabs: Invoices = not cancelled, Cancelled = only cancelled.
-    if (folder === 'invoices') result = result.filter((b) => !isCancelledBill(b));
+    if (folder === 'invoices') result = result.filter((b) => !isCancelledBill(b) && !(soOn && isSalesOrder(b)));
+    else if (folder === 'orders') result = result.filter((b) => !isCancelledBill(b) && isSalesOrder(b));
     else if (folder === 'cancelled') result = result.filter((b) => isCancelledBill(b));
     if (fyFilter !== 'all') {
       const fy = fyOptions.find(f => f.value === fyFilter);
@@ -510,7 +528,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (dateTo) result = result.filter(b => b.invoiceDate <= dateTo);
     if (centreFilter) result = result.filter(b => matchesCentre(b, centreFilter));
     setFiltered(result);
-  }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter, folder]);
+  }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter, folder, soOn]);
 
   // v1.10.67 (#66 item 12, @sangwanmail-eng) — an issued invoice is not
   // deleted: its number has to stay in the books, gapless, for GST. Cancelling
@@ -1649,7 +1667,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         {/* v1.10.84 (maintainer) - folders on top: active invoices, cancelled ones, and the Trash. */}
         <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0 0 0.25rem', padding: '0 1.25rem' }}>
           {[
-            ['invoices', 'Invoices', bills.length - cancelledCount, <FileText size={14} />],
+            ['invoices', 'Invoices', bills.length - cancelledCount - (soOn ? orderCount : 0), <FileText size={14} />],
+            ...(soOn ? [['orders', 'Sales orders', orderCount, <ClipboardList size={14} />]] : []),
             ['cancelled', 'Cancelled', cancelledCount, <Ban size={14} />],
             ['trash', 'Trash', trash.length, <Trash2 size={14} />],
           ].map(([id, label, count, icon]) => {
@@ -1837,7 +1856,9 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <FileText size={48} />
-            <p>{bills.length === 0 ? 'No invoices yet.' : folder === 'cancelled' ? 'No cancelled invoices.' : 'No invoices match your filters.'}</p>
+            <p>{folder === 'orders' && orderCount === 0
+              ? 'No sales orders yet. Make one with New Invoice -> Sales Order, or from a quotation (its ... menu -> Make sales order).'
+              : bills.length === 0 ? 'No invoices yet.' : folder === 'cancelled' ? 'No cancelled invoices.' : 'No invoices match your filters.'}</p>
             {bills.length === 0 && <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> Create Invoice</button>}
           </div>
         ) : (
@@ -1873,6 +1894,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                   // Paid / Unpaid / Partial menu (and can be overdue).
                   const tracksPayment = SALES_INVOICE_TYPES.includes(bill.invoiceType || 'tax-invoice');
                   const readOnly = status === 'cancelled' || !!bill.convertedTo;
+                  const order = isSalesOrder(bill) ? orderInfo.get(bill.id) : null;
+                  const orderOpen = !!order && !readOnly;
                   const isOverdue = tracksPayment && status !== 'paid' && status !== 'cancelled' && bill.data?.details?.dueDate && new Date(bill.data.details.dueDate) < new Date();
                   const daysOverdue = isOverdue ? Math.floor((new Date() - new Date(bill.data.details.dueDate)) / 86400000) : 0;
                   const billCurrency = bill.currency || bill.data?.invoiceOptions?.currency || 'INR';
@@ -1908,6 +1931,20 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                             menu is locked, with Undo to bring it back. */}
                         {status === 'cancelled' ? (
                           <span className="type-badge" style={{ background: sc.bg, color: sc.color }}>Cancelled</span>
+                        ) : order ? (
+                          // v1.10.85 (#135) - dispatch status, how much has gone, and the
+                          // challans / invoices made from the order.
+                          <span title={order.docs.map((x) => `${x.number}${x.convertedTo ? ` (invoiced as ${x.convertedTo})` : ''}`).join(', ')}>
+                            <span className="type-badge" style={{ background: SO_STATUS_COLORS[order.status].bg, color: SO_STATUS_COLORS[order.status].color }}>{SO_STATUS_LABELS[order.status]}</span>
+                            <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                              {order.dispatched} of {order.ordered} sent{order.invoiced > 0 ? `, ${order.invoiced} invoiced` : ''}
+                            </span>
+                            {order.docs.length > 0 && (
+                              <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', maxWidth: 190, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                                {order.docs.map((x) => x.number).join(', ')}
+                              </span>
+                            )}
+                          </span>
                         ) : !tracksPayment ? (
                           <span className="type-badge" title={bill.convertedTo ? `Converted to ${bill.convertedTo}` : ''}>
                             {bill.convertedTo ? 'Converted' : bill.invoiceType === 'credit-note' ? 'Issued' : 'Open'}
@@ -1950,10 +1987,24 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                           {!readOnly && ['quotation', 'proforma', 'delivery-challan'].includes(bill.invoiceType) && !bill.convertedTo && (
                             <button className="icon-btn icon-btn-green" onClick={() => onConvert(bill)} title="Convert to Tax Invoice"><FileText size={15} /></button>
                           )}
+                          {/* v1.10.85 (#135) - dispatch a sales order: a challan for some or
+                              all of what is left to send, or one invoice for everything not
+                              yet invoiced (its challans included). */}
+                          {orderOpen && order.leftToSend && (
+                            <button className="icon-btn icon-btn-blue" onClick={() => onConvert(dispatchDraft(bill, bills, 'delivery-challan'))}
+                              title="Make delivery challan (send some or all of what is left)" aria-label={`Make delivery challan from ${bill.invoiceNumber}`}><Truck size={15} /></button>
+                          )}
+                          {orderOpen && order.leftToInvoice && (
+                            <button className="icon-btn icon-btn-green" onClick={() => onConvert(dispatchDraft(bill, bills, 'tax-invoice'))}
+                              title="Invoice the rest (everything not yet invoiced, with its challans)" aria-label={`Invoice the rest of ${bill.invoiceNumber}`}><FileText size={15} /></button>
+                          )}
                           {/* v1.10.77 (#86) - cancelled and converted documents are read-only:
                               View and Duplicate only (Undo is in the Status column). */}
                           <ActionsMenu label={`More actions for ${bill.invoiceNumber}`} items={[
                             { label: 'Duplicate', icon: Copy, onClick: () => onDuplicate(bill) },
+                            // v1.10.85 (#135) - the customer accepted the quotation: their order.
+                            { label: 'Make sales order', icon: ClipboardList, onClick: () => onConvert(bill, 'sales-order'),
+                              hidden: !soOn || readOnly || bill.invoiceType !== 'quotation' },
                             { label: 'Print', icon: Printer, onClick: () => onPrint(bill), hidden: readOnly },
                             { label: 'WhatsApp', icon: MessageCircle, tone: 'green', onClick: () => shareWhatsApp(bill), hidden: readOnly,
                               title: 'Share via WhatsApp — PDF attaches on mobile Chrome/Safari. On desktop it sends the invoice as text only (browser can\'t attach files to WhatsApp Web — security limitation, not our app).' },
@@ -1961,7 +2012,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                             { label: status === 'partial' ? 'Reminder (partial pending)' : 'Send reminder', icon: Send, onClick: () => sendReminder({ ...bill, clientPhone: getClientPhone(bill) }),
                               hidden: readOnly || !tracksPayment || isCancelledBill(bill) || !(isOverdue || status === 'overdue' || status === 'unpaid' || status === 'partial') || !(amountDue(bill) - (bill.paidAmount || 0) > 0.01) },
                             { label: 'Email', icon: Mail, onClick: () => shareEmail(bill), hidden: readOnly },
-                            { label: 'Cancel invoice', icon: Ban, tone: 'danger', onClick: () => handleCancelInvoice(bill), hidden: readOnly,
+                            { label: order ? 'Cancel order' : 'Cancel invoice', icon: Ban, tone: 'danger', onClick: () => handleCancelInvoice(bill), hidden: readOnly,
                               title: 'Cancel invoice — keeps the number; undo it with the Undo cancel arrow on the row' },
                             // Also on a cancelled invoice: cancel it, then delete it if it should go.
                             { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDeleteInvoice(bill),

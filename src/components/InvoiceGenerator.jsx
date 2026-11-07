@@ -3,7 +3,7 @@ import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Setting
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode } from '../utils';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -27,6 +27,7 @@ import { EInvoiceEditorModal } from './EInvoiceModal';
 import { toast } from './Toast';
 import { phoneDigits, findClientByPhone, newPhoneClient } from '../utils/phoneClients';
 import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS } from '../utils/glass';
+import { orderSummary, salesOrderOf, SO_STATUS_LABELS } from '../utils/salesOrders';
 
 // Rich text editor component that works with contentEditable properly
 function RichEditor({ value, onChange, placeholder, toolbar = false }) {
@@ -1389,7 +1390,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         getNextInvoiceNumber(prefix, { peek: true, explicitPrefix: !!overridePrefix, invoiceType: type, businessKey: businessKeyOf(profile) }).then(num => {
           if (seq !== peekSeq.current) return;
           peekedNumber.current = num;
-          setDetails({ ...d.details, invoiceNumber: num, invoiceDate: localToday() });
+          // v1.10.85 (#135) - a conversion keeps the sales order it belongs to
+          // (salesOrderNo, set by utils/salesOrders.js dispatchDraft or copied
+          // from a challan); a plain Duplicate is a new sale of its own.
+          const { salesOrderNo: _so, ...ownDetails } = d.details || {};
+          setDetails({ ...(convertType ? d.details : ownDetails), invoiceNumber: num, invoiceDate: localToday() });
           numberReserved.current = false;
         });
       } else {
@@ -1517,8 +1522,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
   };
 
+  // v1.10.85 (#135) - "Invoice the rest" of a sales order takes over its
+  // challans (and their stock): it can only be an invoice.
+  const absorbLocked = (type) => !!editingBill?._absorb?.length && !SALES_INVOICE_TYPES.includes(type);
   const handleTypeChange = async (type) => {
-    if (isIssuedInvoice) return;
+    if (isIssuedInvoice || absorbLocked(type)) return;
     setInvoiceType(type);
     const config = INVOICE_TYPES[type];
     // v1.10.14 — honour the per-type prefix override when switching invoice type.
@@ -2392,12 +2400,21 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // Written to a fresh copy of the original, not the one cloned when Convert
     // was clicked, so nothing done to it since is undone. Its stock record went
     // to the new invoice (stockStart), so its own is now empty.
-    if (editingBill?._convertToType && !conversionMarked.current && savedNumber) {
+    // v1.10.85 (#135) - except a sales order: it is sent in parts, and follows
+    // the challans and invoices made from it (utils/salesOrders.js) instead.
+    // Its "Invoice the rest" takes in the order's challans not yet invoiced
+    // (_absorb, whose stock it took over through stockStart): those are
+    // marked converted to this invoice, as a converted challan is.
+    const markSources = editingBill?.invoiceType === 'sales-order' ? (editingBill._absorb || []) : [editingBill?.id];
+    if (editingBill?._convertToType && markSources.length && !conversionMarked.current && savedNumber) {
       conversionMarked.current = true;
       try {
-        const source = (await getAllBills()).find((b) => b.id === editingBill.id);
-        if (source) {
-          await saveBill({ ...source, convertedTo: savedNumber, ...(source.data ? { data: { ...source.data, stockApplied: {} } } : {}) }, { overwrite: true });
+        const all = await getAllBills();
+        for (const id of markSources) {
+          const source = all.find((b) => b.id === id);
+          if (source) {
+            await saveBill({ ...source, convertedTo: savedNumber, ...(source.data ? { data: { ...source.data, stockApplied: {} } } : {}) }, { overwrite: true });
+          }
         }
       } catch { /* the invoice itself is saved */ }
     }
@@ -3607,6 +3624,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const tdsTcsOn = isModuleEnabled('tdsTcs', getEnabledModules());
   const ewayOn = isModuleEnabled('ewayBill', getEnabledModules());
   const phoneFirstOn = isModuleEnabled('phoneFirst', getEnabledModules());
+  const salesOrdersOn = isModuleEnabled('salesOrders', getEnabledModules());
+  const orderInfo = isIssuedInvoice && invoiceType === 'sales-order' ? orderSummary(editingBill, allBillsForCredit) : null;
   const saveEinvoice = async (value) => {
     try {
       const stored = (await getAllBills()).find((b) => b.id === savedId.current);
@@ -3830,10 +3849,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               <h3 className="section-title" style={{ margin: 0 }}>Invoice Type <HelpButton title="Invoice Type" doc="invoices#invoice-types" size={16} /></h3>
             </div>
             <div className="type-selector" style={{ marginTop: '0.75rem' }}>
-              {Object.entries(INVOICE_TYPES).map(([key, val]) => (
+              {/* v1.10.85 (#135) - Sales Order only with the feature on (or on one already made). */}
+              {Object.entries(INVOICE_TYPES).filter(([key]) => key !== 'sales-order' || salesOrdersOn || invoiceType === key).map(([key, val]) => (
                 <button key={key} type="button"
                   className={`type-chip ${invoiceType === key ? 'type-chip-active' : ''}`}
-                  disabled={isIssuedInvoice && invoiceType !== key}
+                  disabled={(isIssuedInvoice && invoiceType !== key) || absorbLocked(key)}
                   title={isIssuedInvoice ? 'The type cannot change once an invoice is saved. Duplicate it to make a different document.' : val.description}
                   onClick={() => handleTypeChange(key)}>{val.label}</button>
               ))}
@@ -3844,6 +3864,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               </p>
             )}
             <p className="type-desc">{typeConfig?.description}</p>
+            {/* v1.10.85 (#135) - a saved sales order: how far it has gone. */}
+            {orderInfo && (
+              <p className="type-desc" role="status" style={{ color: 'var(--text)' }}>
+                <strong>{SO_STATUS_LABELS[orderInfo.status]}</strong> - {orderInfo.dispatched} of {orderInfo.ordered} dispatched, {orderInfo.invoiced} invoiced
+                {orderInfo.docs.length > 0 && <> ({orderInfo.docs.map((x) => x.number).join(', ')})</>}. Make delivery challans or invoices from it on the Dashboard, Sales orders tab.
+              </p>
+            )}
+            {salesOrderOf({ data: { details } }) && invoiceType !== 'sales-order' && (
+              <p className="type-desc" style={{ color: 'var(--text)' }}>Made from sales order <strong>{details.salesOrderNo}</strong>.</p>
+            )}
 
             {/* Goods / Services / Mixed selector — drives default line-item unit
                 (Hrs vs Nos) and filters the unit dropdown. Stays out of the way
