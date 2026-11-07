@@ -33,7 +33,7 @@ import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS, withRftLin
 import { orderSummary, salesOrderOf, SO_STATUS_LABELS } from '../utils/salesOrders';
 // v1.10.85 - price levels and the credit-limit warning.
 import { priceForLevel } from '../utils/priceLevels';
-import { findSavedClient } from '../utils/clientLedger';
+import { findSavedClient, paidTowards } from '../utils/clientLedger';
 import CreditLimitWarning from './CreditLimitWarning';
 
 // Rich text editor component that works with contentEditable properly
@@ -5134,7 +5134,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             </div>
             )}
             <CreditLimitWarning savedClient={savedClientNow} bills={allBillsForCredit} profile={profile}
-              excludeId={editingBill && !editingBill._isDuplicate ? editingBill.id : null} invoiceType={invoiceType} totals={totals} />
+              excludeId={editingBill && !editingBill._isDuplicate ? editingBill.id : null} invoiceType={invoiceType} totals={totals}
+              currency={invoiceOptions.currency} exchangeRate={invoiceOptions.exchangeRate}
+              paid={editingBill && !editingBill._isDuplicate ? paidTowards(editingBill) : 0} creditApplied={editingBill ? 0 : creditToApply} />
           </div>
 
           {/* Terms */}
