@@ -151,8 +151,10 @@ copyFileSync(join(REPO_ROOT, 'src', 'utils.js'), join(SYSTEM, 'src', 'utils.js')
 // rules (standalone too). assertServerImportsResolve() below checks it.
 mkdirSync(join(SYSTEM, 'src', 'utils'), { recursive: true });
 copyFileSync(join(REPO_ROOT, 'src', 'utils', 'errorReport.js'), join(SYSTEM, 'src', 'utils', 'errorReport.js'));
-// The cash book endpoints check entries with the form's own rules (imports ../utils.js only).
+// The cash book endpoints check entries with the form's own rules (imports
+// ../utils.js and, from v1.10.85 (#165), ./expensePayment.js).
 copyFileSync(join(REPO_ROOT, 'src', 'utils', 'cashBook.js'), join(SYSTEM, 'src', 'utils', 'cashBook.js'));
+copyFileSync(join(REPO_ROOT, 'src', 'utils', 'expensePayment.js'), join(SYSTEM, 'src', 'utils', 'expensePayment.js'));
 // Supplier payments are checked on save (#123): purchasePayments.js imports
 // purchaseOrders.js, which imports ../utils.js only.
 // v1.10.84 - the books folder (home.txt), the one-server-per-books lock, and

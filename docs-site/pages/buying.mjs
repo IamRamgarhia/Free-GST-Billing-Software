@@ -485,15 +485,18 @@ export default [
 <section id="expense-list">
 <h2>The expense list</h2>
 <p>Open <b>Expenses</b> from the menu. ${ui('Add Expense')} at the top right opens a new expense.</p>
-<h3>The three totals</h3>
-<p><b>Total Expenses</b> is everything you paid, with GST. <b>GST Paid (ITC)</b> is the GST inside those amounts, your input tax credit. <b>Entries</b> is how many expenses are shown. All three follow the search and filters.</p>
+<h3>The four totals</h3>
+<p><b>Outstanding</b> is what you still have to pay on the expenses shown (Unpaid and Partly paid ones); click it to list only those. <b>Total Expenses</b> is everything, with GST. <b>GST Paid (ITC)</b> is the GST inside those amounts, your input tax credit. <b>Entries</b> is how many expenses are shown. All four follow the search and filters.</p>
+<h3>Paid, Unpaid or Partly paid</h3>
+<p>When you add an expense, <b>Payment</b> says whether it is <b>Paid</b> (the usual), <b>Unpaid</b> (a bill you still owe, such as rent due or a repair not yet paid) or <b>Partly paid</b> (type what you have paid so far in <b>Paid so far</b>). The <b>Payment</b> column shows how much is still due, and ${ui('✓')} (<b>Mark as paid</b>) on the row records the rest as paid. The <b>Cash book</b> counts only what was paid in cash, so an Unpaid expense does not show there until you pay it. Expenses entered before this option are Paid.</p>
 <h3>Search and filters</h3>
 <ul>
   <li><b>Search expenses...</b>: part of the description, the vendor's name or the bill number.</li>
   <li><b>All Categories</b>: show one <a href="#categories">category</a> only, such as Office Rent.</li>
   <li><b>Year</b>: the current financial year (April to March) to start; one of the last five, or <b>All years</b>.</li>
+  <li><b>Paid and unpaid / Unpaid / Partly paid</b>: show only the expenses you still owe.</li>
   <li><b>Cost centre</b>: only when <a href="reports.html#cost-centres">cost centres</a> are on.</li>
-  <li>The red ${ui('✕')} clears the search, category and cost centre, and puts the year back to the current one.</li>
+  <li>The red ${ui('✕')} clears the search, category, payment and cost centre filters, and puts the year back to the current one.</li>
 </ul>
 <h3>Expense Records</h3>
 <p>The table lists <b>Date</b>, <b>Description</b>, <b>Category</b>, <b>Vendor</b>, <b>Amount</b>, <b>GST</b> and <b>Mode</b> (how you paid), with a <b>Total</b> row. The pencil opens an expense to change it; the bin deletes it, after asking. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons save the <a href="#export">expense statement</a>.</p>

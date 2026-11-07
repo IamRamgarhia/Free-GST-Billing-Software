@@ -139,6 +139,21 @@ console.log('\n[cash book] Balance and periods');
   eq(periodRange('all'), { from: '', to: '' }, 'All dates');
 }
 
+// v1.10.85 (#165): Paid / Unpaid / Partly paid expenses. An expense saved
+// before (no status) is Paid, as before; the Cash book shows only cash paid.
+{
+  const { expenseStatus, expensePaid, expenseDue } = await import('../src/utils/expensePayment.js');
+  const old = { id: 'e1', amount: 1000, paymentMode: 'Cash', date: '2026-11-01' };
+  const unpaid = { id: 'e2', amount: 500, paymentMode: 'Cash', date: '2026-11-02', paymentStatus: 'unpaid' };
+  const part = { id: 'e3', amount: 800, paymentMode: 'Cash', date: '2026-11-03', paymentStatus: 'partial', paidAmount: 300 };
+  eq([expenseStatus(old), expensePaid(old), expenseDue(old)], ['paid', 1000, 0], '#165 an old expense (no status) is Paid in full, as before');
+  eq([expensePaid(unpaid), expenseDue(unpaid)], [0, 500], '#165 an Unpaid expense: nothing paid, all due');
+  eq([expensePaid(part), expenseDue(part)], [300, 500], '#165 Partly paid: the paid part and the rest due');
+  eq(expensePaid({ amount: 100, paymentStatus: 'partial', paidAmount: 250 }), 100, '#165 a paid part above the amount is capped at the amount');
+  const lines = linkedCashLines({ expenses: [old, unpaid, part] });
+  eq(lines.map((l) => `${l.key}:${l.amount}`), ['expense:e1:1000', 'expense:e3:300'], '#165 the Cash book shows only cash paid: none for Unpaid, the paid part for Partly paid');
+}
+
 console.log('\n────────────────────────────────────────');
 console.log(`Passed: ${passed}   Failed: ${failed}`);
 if (failed) process.exit(1);

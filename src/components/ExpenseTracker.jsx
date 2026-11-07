@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Plus, Edit3, Trash2, Search, X, Save, Calendar } from 'lucide-react';
+import { Wallet, Plus, Edit3, Trash2, Search, X, Save, Calendar, CheckCircle } from 'lucide-react';
 import { getAllExpenses, saveExpense, deleteExpense, getProfile } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
+import { EXPENSE_PAYMENT, expenseStatus, expensePaid, expenseDue } from '../utils/expensePayment';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import TableExport from './TableExport';
@@ -69,6 +70,9 @@ const emptyForm = {
   vendorGstin: '',
   invoiceNo: '',
   paymentMode: 'Bank Transfer',
+  // v1.10.85 (#165) - Paid / Unpaid / Partly paid (utils/expensePayment.js)
+  paymentStatus: 'paid',
+  paidAmount: '',
   note: '',
   // v1.10.83 (#112) - optional; see utils/costCentres.js
   costCentre: '',
@@ -88,6 +92,7 @@ export default function ExpenseTracker() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [centreFilter, setCentreFilter] = useState('');
+  const [payFilter, setPayFilter] = useState('all'); // v1.10.85 (#165): 'all' | 'due'
   const { on: ccOn, centres } = useCostCentres(ownerProfile);
 
   const fyOptions = getFYOptions();
@@ -145,6 +150,18 @@ export default function ExpenseTracker() {
 
   const totalAmount = filtered.reduce((s, e) => s + (e.amount || 0), 0);
   const totalGST = filtered.reduce((s, e) => s + (e.gstAmount || 0), 0);
+  // v1.10.85 (#165) - still to pay on the expenses shown.
+  const totalDue = filtered.reduce((s, e) => s + expenseDue(e), 0);
+  const shown = payFilter === 'due' ? filtered.filter((e) => expenseDue(e) > 0) : filtered;
+
+  // Mark an Unpaid / Partly paid expense as fully paid.
+  const markPaid = async (exp) => {
+    try {
+      await saveExpense({ ...exp, paymentStatus: 'paid', paidAmount: Number(exp.amount) || 0 });
+      toast('Marked as paid', 'success');
+      loadExpenses();
+    } catch { toast('Failed to save expense', 'error'); }
+  };
 
   const openAdd = () => {
     setForm({ ...emptyForm, date: localToday() });
@@ -164,6 +181,8 @@ export default function ExpenseTracker() {
       vendorGstin: exp.vendorGstin || '',
       invoiceNo: exp.invoiceNo || '',
       paymentMode: exp.paymentMode || 'Bank Transfer',
+      paymentStatus: expenseStatus(exp),
+      paidAmount: expenseStatus(exp) === 'partial' ? String(exp.paidAmount ?? '') : '',
       interstate: !!exp.interstate,
       note: exp.note || '',
       costCentre: exp.costCentre || '',
@@ -185,6 +204,11 @@ export default function ExpenseTracker() {
     // v1.10.74 - GST % must be 0 to 100 (40% is a real rate, so no 28 cap).
     const gstPct = form.gstPercent === '' ? 0 : parseFloat(form.gstPercent);
     if (!(gstPct >= 0 && gstPct <= 100)) { toast('GST % must be between 0 and 100', 'warning'); return; }
+    const amountNum = parseFloat(form.amount);
+    const paidNum = form.paymentStatus === 'partial' ? parseFloat(form.paidAmount) : NaN;
+    if (form.paymentStatus === 'partial' && !(paidNum > 0 && paidNum < amountNum)) {
+      toast('For Partly paid, enter the amount paid so far (more than 0 and less than the amount)', 'warning'); return;
+    }
     try {
       const expense = {
         ...(editingId ? { id: editingId } : {}),
@@ -198,6 +222,8 @@ export default function ExpenseTracker() {
         vendorGstin: form.vendorGstin.trim(),
         invoiceNo: form.invoiceNo.trim(),
         paymentMode: form.paymentMode,
+        paymentStatus: form.paymentStatus,
+        paidAmount: form.paymentStatus === 'partial' ? paidNum : form.paymentStatus === 'unpaid' ? 0 : amountNum,
         interstate: !!form.interstate,
         note: form.note.trim(),
         // Stamp the business this expense belongs to. `vendorGstin` above is
@@ -284,7 +310,14 @@ export default function ExpenseTracker() {
       />
 
       {/* Stats */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {/* v1.10.85 (#165) - what is still to pay on the expenses shown; click to list them */}
+        <button type="button" className="stat-card" onClick={() => setPayFilter(payFilter === 'due' ? 'all' : 'due')}
+          title={payFilter === 'due' ? 'Show all expenses' : 'Show only Unpaid and Partly paid expenses'}
+          style={{ textAlign: 'left', cursor: 'pointer', border: payFilter === 'due' ? '1px solid #d97706' : undefined }}>
+          <div className="stat-icon stat-icon-amber"><Wallet size={22} /></div>
+          <div><p className="stat-label">Outstanding</p><h2 className="stat-value stat-value-amber">{formatCurrency(totalDue)}</h2></div>
+        </button>
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple"><Wallet size={22} /></div>
           <div><p className="stat-label">Total Expenses</p><h2 className="stat-value stat-value-purple">{formatCurrency(totalAmount)}</h2></div>
@@ -317,9 +350,13 @@ export default function ExpenseTracker() {
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
           </select>
           {/* v1.10.74 - Clear filters also puts the FY back to the current one. */}
+          <select className="filter-select" value={payFilter} onChange={e => setPayFilter(e.target.value)} aria-label="Payment">
+            <option value="all">Paid and unpaid</option>
+            <option value="due">Unpaid / Partly paid</option>
+          </select>
           {ccOn && <CostCentreFilter centres={centres} value={centreFilter} onChange={setCentreFilter} />}
-          {(search || categoryFilter !== 'all' || fyFilter !== defaultFy || centreFilter) && (
-            <button className="icon-btn icon-btn-red" onClick={() => { setSearch(''); setCategoryFilter('all'); setFyFilter(defaultFy); setCentreFilter(''); }} title="Clear filters" aria-label="Clear filters"><X size={15} /></button>
+          {(search || categoryFilter !== 'all' || fyFilter !== defaultFy || centreFilter || payFilter !== 'all') && (
+            <button className="icon-btn icon-btn-red" onClick={() => { setSearch(''); setCategoryFilter('all'); setFyFilter(defaultFy); setCentreFilter(''); setPayFilter('all'); }} title="Clear filters" aria-label="Clear filters"><X size={15} /></button>
           )}
         </div>
       </div>
@@ -378,6 +415,22 @@ export default function ExpenseTracker() {
                   {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="expense-payment">Payment</label>
+                <select id="expense-payment" className="form-input" value={form.paymentStatus} onChange={e => updateField('paymentStatus', e.target.value)}>
+                  {EXPENSE_PAYMENT.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              {form.paymentStatus === 'partial' && (
+                <div className="form-group">
+                  <label className="form-label" htmlFor="expense-paid">Paid so far</label>
+                  <input id="expense-paid" type="number" className="form-input" value={form.paidAmount} min="0"
+                    onChange={e => updateField('paidAmount', e.target.value)} placeholder="0.00" />
+                  {Number(form.amount) > 0 && Number(form.paidAmount) > 0 && (
+                    <p className="field-hint">Still to pay: {formatCurrency(Math.max(0, Number(form.amount) - Number(form.paidAmount)))}</p>
+                  )}
+                </div>
+              )}
               {ccOn && (
                 <div className="form-group">
                   <label className="form-label" htmlFor="cost-centre">Cost centre</label>
@@ -421,10 +474,10 @@ export default function ExpenseTracker() {
             headers={['Date', 'Description', 'Category', 'Amount', 'GST Amount', 'GST %', 'Vendor', 'Vendor GSTIN', 'Invoice No', 'Payment Mode', 'Inter-state', 'Note']}
             rows={statementRows} />
         </div>
-        {filtered.length === 0 ? (
+        {shown.length === 0 ? (
           <div className="empty-state">
             <Wallet size={48} />
-            <p>{expenses.length === 0 ? 'No expenses recorded yet.' : 'No expenses match your filters.'}</p>
+            <p>{expenses.length === 0 ? 'No expenses recorded yet.' : payFilter === 'due' ? 'Nothing outstanding: every expense shown is paid.' : 'No expenses match your filters.'}</p>
             {expenses.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Expense</button>}
           </div>
         ) : (
@@ -439,11 +492,12 @@ export default function ExpenseTracker() {
                   <th style={{ textAlign: 'right' }}>Amount</th>
                   <th style={{ textAlign: 'right' }}>GST</th>
                   <th>Mode</th>
+                  <th>Payment</th>
                   <th className="col-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(exp => (
+                {shown.map(exp => (
                   <tr key={exp.id}>
                     <td className="text-muted">{exp.date ? new Date(exp.date).toLocaleDateString('en-IN') : ''}</td>
                     <td className="font-medium">{exp.description}</td>
@@ -453,7 +507,17 @@ export default function ExpenseTracker() {
                     <td style={{ textAlign: 'right' }} className="text-muted">{exp.gstAmount ? formatCurrency(exp.gstAmount) : '-'}</td>
                     <td className="text-muted">{exp.paymentMode}</td>
                     <td>
+                      {expenseStatus(exp) === 'paid' ? <span className="text-muted">Paid</span> : (
+                        <span style={{ color: '#d97706', fontWeight: 600 }} title={`Paid ${formatCurrency(expensePaid(exp))} of ${formatCurrency(exp.amount)}`}>
+                          {expenseStatus(exp) === 'unpaid' ? 'Unpaid' : 'Partly paid'} · {formatCurrency(expenseDue(exp))} due
+                        </span>
+                      )}
+                    </td>
+                    <td>
                       <div className="table-actions">
+                        {expenseDue(exp) > 0 && (
+                          <button className="icon-btn" onClick={() => markPaid(exp)} title="Mark as paid" aria-label="Mark as paid"><CheckCircle size={15} /></button>
+                        )}
                         <button className="icon-btn icon-btn-blue" onClick={() => openEdit(exp)} title="Edit"><Edit3 size={15} /></button>
                         <button className="icon-btn icon-btn-red" onClick={() => handleDelete(exp.id)} title="Delete"><Trash2 size={15} /></button>
                       </div>
@@ -466,7 +530,9 @@ export default function ExpenseTracker() {
                   <td colSpan={4}>Total</td>
                   <td style={{ textAlign: 'right' }}>{formatCurrency(totalAmount)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCurrency(totalGST)}</td>
-                  <td colSpan={2}></td>
+                  <td></td>
+                  <td>{totalDue > 0 ? `${formatCurrency(totalDue)} due` : ''}</td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>
