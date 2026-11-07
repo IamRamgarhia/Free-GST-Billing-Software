@@ -94,6 +94,7 @@ export default [
 <section id="network">
 <h2>Other computers cannot open it</h2>
 <p>The app has a small built-in server that your browser talks to. It listens only on this computer's own internal address, <code>127.0.0.1</code>, so other computers on your Wi-Fi or office network cannot open the app or read your data.</p>
+<p><b>Unless you turn on phone access.</b> With ${ui('Use on phone or tablet')} on (Settings → Privacy &amp; Security), the app also answers your own Wi-Fi, over an encrypted connection, and only devices you paired with a QR code and your PIN get in. It is off until you turn it on, and turning it off cuts every phone off at once. See <a href="phone.html">Use on a phone or tablet</a> and <a href="phone.html#how-safe">how it is kept safe</a>.</p>
 <p>It also refuses requests from other websites: a web page you visit cannot quietly read your books from the app in the background.</p>
 <p><b>A computer shared by several people with their own Windows, Mac or Linux logins:</b> the address <code>127.0.0.1</code> belongs to the whole computer, so someone signed in with another login on the same computer at the same time could also reach the app while it is running. Use the app on a computer only you (or people you trust) sign in to, and turn on the <a href="settings.html#lock">PIN lock</a>. A login checked by the app's own server is planned with the secure phone and network access.</p>
 <p>This is also why several people cannot use it from different computers at the same time. See <a href="limitations.html#multi-user">Several people, or several computers</a>.</p>
@@ -109,7 +110,7 @@ export default [
   <li><strong>The "free" plans are not free for long.</strong> Most now give a trial credit and then charge every month, plus extra for storage that keeps your files.</li>
 </ul>
 <p>Hosting it online would also send your books to someone else's server, which is the one thing this app promises not to do.</p>
-<p><b>What you can do instead:</b> keep the app on one computer and take a <a href="backup.html">backup</a> often. To move to a new computer, see <a href="backup.html#move-pc">moving to a new computer</a>. Using the app from a phone or tablet on the <b>same Wi-Fi</b>, with a PIN that the app's server checks, is planned for the update on Saturday 14 November 2026, over an encrypted (HTTPS) connection. Using it over the internet may come later, but only after the app has a proper login of its own; this page will say so when it does.</p>
+<p><b>What you can do instead:</b> keep the app on one computer and take a <a href="backup.html">backup</a> often. To move to a new computer, see <a href="backup.html#move-pc">moving to a new computer</a>. Using the app from a phone or tablet on the <b>same Wi-Fi</b> works: see <a href="phone.html">Use on a phone or tablet</a> (encrypted, paired with your PIN, which the app's server checks). Using it over the internet may come later, but only after the app has a proper login of its own; this page will say so when it does.</p>
 </section>
 
 <section id="check-yourself">
@@ -192,6 +193,89 @@ export default [
   <li><strong>Email</strong>: Contact@dicecodes.com with <code>SECURITY</code> in the subject.</li>
 </ul>
 <p>Use made-up data when you describe it, never real invoices or GSTINs. The full policy is in <a href="${SITE.repo}/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+</section>
+`,
+},
+// v1.10.85 - Use on a phone or tablet. Matches src/components/PhoneAccessSettings.jsx
+// and the pairing page (src/utils/pairPage.js); change them together.
+{
+  slug: 'phone',
+  title: 'Use on a phone or tablet',
+  nav: 'Phone or tablet',
+  lead: 'Open the app on your phone or tablet while your books stay on your PC: on the same Wi-Fi only, over an encrypted connection, with each device paired once using a QR code and the app\'s PIN.',
+  body: `
+<div class="note tip"><strong>In short</strong>
+<p>Set a PIN, tick ${ui('Use on phone or tablet')} in ${ui('Settings')} → ${ui('Privacy &amp; Security')}, click ${ui('Pair a phone or tablet')} and scan the QR code with the phone. The phone's browser warns once that the connection is "not private"; compare the security code, continue, type the PIN. Done: the phone opens the app. The PC must be on, with the app running, and both on the same Wi-Fi.</p></div>
+
+<section id="turn-on">
+<h2>Turn it on (on the PC)</h2>
+<ol class="steps">
+  <li><strong>Set a PIN</strong>A phone must type the app's PIN to pair, so it needs one: ${ui('Settings')} → ${ui('Privacy &amp; Security')} → <a href="settings.html#lock">App lock</a> → ${ui('Turn on PIN lock')}. The phone card has a ${ui('Set a PIN')} button that takes you there.</li>
+  <li><strong>Tick the switch</strong>In the same tab, the <b>Use on phone or tablet</b> card: tick ${ui('Use on phone or tablet')}.</li>
+  <li><strong>Windows asks about the firewall</strong>The first time, Windows Security may ask whether to allow <b>Node.js JavaScript Runtime</b> (the engine the app runs on) on networks. Tick <b>Private networks</b> (your home or shop Wi-Fi), leave <b>Public networks</b> unticked, and click ${ui('Allow')}. Windows may ask for an administrator password. Clicked Cancel? See <a href="#cannot-connect">Phones cannot connect</a>.</li>
+</ol>
+<p>It is <b>off</b> until you turn it on. Off, nothing on your network can reach the app, exactly as before.</p>
+</section>
+
+<section id="pair">
+<h2>Pair a phone or tablet</h2>
+<ol class="steps">
+  <li><strong>Show the QR code</strong>On the PC click ${ui('Pair a phone or tablet')}. A QR code appears with the address in words, a pairing code, and this PC's <b>security code</b> (eight pairs of letters and digits).</li>
+  <li><strong>Scan it</strong>Connect the phone to <b>the same Wi-Fi</b> as the PC (not mobile data), open its camera and point it at the QR code, then tap the link. No camera app that reads QR codes? Type the address shown on the PC (it starts with <code>https://</code>) in the phone's browser; the page then asks for the pairing code too.</li>
+  <li><strong>The warning, once</strong>The browser says <i>Your connection is not private</i> (Chrome) or <i>This Connection Is Not Private</i> (Safari). This is expected; <a href="#certificate-warning">here is why</a>. Tap <b>Advanced</b> → <b>Proceed to ...</b> (Chrome), or <b>Show Details</b> → <b>visit this website</b> (Safari).</li>
+  <li><strong>Compare the security code</strong>The phone's <b>Pair this device</b> page shows a security code. It must be <b>exactly</b> the one on the PC. If it is different, stop and close the page. The sure check is the browser's own: see <a href="#certificate-warning">how to check it fully</a>.</li>
+  <li><strong>Type the PIN</strong>The app's PIN, and a name for the device if you like (it is shown on the PC). Tap ${ui('Pair this device')}. The app opens on the phone and asks for the PIN, as on the PC.</li>
+</ol>
+<p>Each QR code works <b>once</b>, for <b>10 minutes</b>, so a photo of an old one is useless. ${ui('Show a new QR code')} makes a fresh one (the old one stops working). Five wrong PINs in a row: wait 30 seconds, and show a new QR code.</p>
+<p><b>Tip:</b> in the phone's browser menu choose <b>Add to Home screen</b> to open the app like any other.</p>
+</section>
+
+<section id="certificate-warning">
+<h2>Why the browser says "Your connection is not private"</h2>
+<p>Everything between the phone and the PC is encrypted (HTTPS), so nobody else on the Wi-Fi can read your invoices on the way. For that, the PC uses its own <b>certificate</b>, made by the app on your PC the first time you turn phone access on. Websites buy their certificates from companies the browsers know; yours is the PC's own, so the browser cannot check who made it and warns you. That is all the warning means here.</p>
+<p>What protects you is the <b>security code</b>: it is the start of the certificate's fingerprint, and it is different on every PC. The same code on the PC and on the phone means the phone is talking to your PC.</p>
+<p><b>The sure check</b> is in the browser, not on the page: someone who took over your Wi-Fi could show a fake pairing page that copies the PC's code. On the phone, tap the warning sign or <b>Not secure</b> next to the address, open the certificate's details, and compare the start of its <b>SHA-256 fingerprint</b> with the security code on the PC. Do this at least on a Wi-Fi other people also use.</p>
+<p>The warning comes back only if the certificate changes: after about two years (the app makes a new one by itself), or if the books' <code>data\phone-access</code> folder was deleted.</p>
+</section>
+
+<section id="devices">
+<h2>See and remove paired devices</h2>
+<p>The card lists every paired device with when it was paired and last used. ${ui('Remove')} cuts that device off <b>at once</b>; to use it again, pair it again. Remove a phone that is lost, sold or given away.</p>
+<p>Unticking ${ui('Use on phone or tablet')} cuts every phone off at once and closes the network connection; the devices stay in the list and work again when you tick it. Turning the PIN off turns phone access off too.</p>
+</section>
+
+<section id="on-the-phone">
+<h2>What works on the phone</h2>
+<p>The whole app: invoices, quotes, clients, products and stock, payments, reports, GST returns. The PIN lock asks for the PIN when the app opens on the phone too. Not on a phone: the <a href="control-panel.html">Control Panel</a> (update, restart, remove the app, open folders), choosing a backup folder, and phone access itself. Those act on the PC, so they are done on the PC.</p>
+<p>The phone shows the books that are on the PC: the PC must be on, with the app running, and the phone on the same Wi-Fi. Away from that Wi-Fi the app does not open on the phone; that is on purpose.</p>
+</section>
+
+<section id="cannot-connect">
+<h2>Phones cannot connect</h2>
+<ul>
+  <li><b>Same Wi-Fi?</b> The phone must be on the PC's Wi-Fi, not mobile data. A <b>guest</b> Wi-Fi often keeps devices apart: use the main one.</li>
+  <li><b>Clicked Cancel on the firewall question?</b> Open <b>Windows Security</b> → <b>Firewall &amp; network protection</b> → <b>Allow an app through firewall</b> → ${ui('Change settings')}. Find <b>Node.js JavaScript Runtime</b> (there may be two lines), tick <b>Private</b> on each, and click ${ui('OK')}. This needs an administrator.</li>
+  <li><b>Windows calls your Wi-Fi "Public"?</b> Then the firewall blocks it. <b>Settings</b> → <b>Network &amp; internet</b> → <b>Wi-Fi</b> → your network → <b>Private network</b> (only for your own home or shop Wi-Fi).</li>
+  <li><b>The PC's address changed</b> (the router gave it a new one after a restart): the old link or home-screen icon stops working. Click ${ui('Pair a phone or tablet')} again and scan the new QR code. To keep the address the same, ask whoever set up your router to give the PC a fixed address.</li>
+  <li><b>"Port 47443 is used by another program"</b> on the card: another program uses that port. Close it, then untick and tick the switch.</li>
+  <li><b>"This pairing link is not valid any more"</b>: the code was used, ran out (10 minutes), or a newer QR code was shown. Show a new QR code and scan it.</li>
+  <li><b>The phone shows the pairing page again</b>: the device was removed on the PC, or the browser's data was cleared. Pair it again.</li>
+</ul>
+</section>
+
+<section id="how-safe">
+<h2>How it is kept safe</h2>
+<ul>
+  <li><strong>Off by default.</strong> Until you tick the switch, the app listens on the PC itself only (<code>127.0.0.1</code>), as it always did.</li>
+  <li><strong>Your own network only.</strong> The app answers only addresses of a home or office network (<code>192.168.x.x</code>, <code>10.x.x.x</code>, <code>172.16-31.x.x</code>) and refuses anything from the internet. Never forward its port (47443) on your router.</li>
+  <li><strong>Encrypted.</strong> HTTPS with the PC's own certificate. Its private key stays in the books' <code>data\phone-access</code> folder, is never sent anywhere, and is never put in a backup.</li>
+  <li><strong>Paired devices only.</strong> A device without a pairing gets only the pairing page; the app and your data answer nobody else. Pairing needs a one-time code from the PC's screen (10 minutes, once) <b>and</b> the PIN, which the PC checks: five wrong tries and it waits 30 seconds, and the code is thrown away.</li>
+  <li><strong>A long random key per device</strong>, kept by the phone's browser where web pages cannot read it (an HttpOnly, Secure, SameSite=Strict cookie). The PC keeps only a fingerprint of it (a hash), so even its own files cannot be used to get in.</li>
+  <li><strong>Other websites cannot use it.</strong> Changes are accepted only from the app's own page, and only under the PC's own address or name (this stops "DNS rebinding" tricks by websites).</li>
+  <li><strong>You stay in charge.</strong> Remove a device, or untick the switch, and it is cut off at once. Changing or removing the PIN, the Control Panel and phone access itself work only on the PC.</li>
+  <li><strong>On a NAS</strong>, Docker hides the real address of each device, so there the pairing alone keeps others out: never forward the port on your router. Other web pages served by the same NAS address (its own admin pages, for example) count as the same site for the browser; use only ones you trust.</li>
+</ul>
+<p>On a NAS with Docker, the same pairing is the only way in: see <a href="install-linux.html#nas-docker">Install on a NAS</a>.</p>
 </section>
 `,
 },

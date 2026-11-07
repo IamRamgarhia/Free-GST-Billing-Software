@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.85] - 2026-11-14
+
+### How to update
+
+**Current version:** 1.10.84  →  **New version:** 1.10.85
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.85** in the menu, or
+   **Settings → Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### Installed with the Windows Setup
+Click **Update Now** in the app (or right-click the icon near the clock →
+**Check for updates**). Nothing to download by hand.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server**, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards. The `.deb` and the AppImage:
+download the new file and install or use it instead of the old one.
+**Docker:** download the new `docker-compose.yml` (it changed: put your PIN
+in `FGSB_PIN`), put the new version in its `image:` line and run
+`docker compose up -d`.
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+### Added
+- **Use the app on a phone or tablet** on the same Wi-Fi as your PC
+  (Settings → Privacy & Security → **Use on phone or tablet**). Off until you
+  turn it on, and a PIN must be set first. Click **Pair a phone or tablet**,
+  scan the QR code with the phone, and type the app's PIN there. The
+  connection is encrypted (HTTPS, with your PC's own certificate), so the
+  phone's browser warns once that the connection is "not private": the PC and
+  the phone show the same security code to compare, then tap Advanced →
+  Proceed (Chrome) or Show Details → visit this website (Safari). Each QR code
+  works once, for 10 minutes. The PC lists the paired devices with
+  **Remove**, which cuts a device off at once; unticking the switch cuts every
+  phone off at once. Only devices on your own network are answered, never the
+  internet. Windows asks once whether to allow Node.js on networks: choose
+  **Private networks**. The Control Panel and phone access itself stay on the
+  PC. Guide: [Use on a phone or tablet](https://dicecodes.com/free-gst-software-documentation/phone.html).
+- **NAS / Docker image with secure access**: every phone, tablet or PC pairs
+  the same way (a one-time code from `docker logs free-gst-billing` for the
+  first one, and the PIN from `FGSB_PIN`), over HTTPS on port 47443. Nothing
+  on the network gets in without pairing.
+  Guide: [On a NAS: Docker](https://dicecodes.com/free-gst-software-documentation/install-linux.html#nas-docker).
+
+### Changed
+- Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
+  inside the container; other devices use the paired HTTPS connection.
+
+### Security
+- The phone connection checks every request: a local-network address, the
+  PC's own address or name (stops "DNS rebinding" tricks by websites), changes
+  only from the app's own page, and a paired device's key (a long random
+  cookie the page cannot read; the PC keeps only its hash). Pairing needs the
+  one-time code and the PIN, with the lock screen's 5-tries-then-wait rule.
+  The certificate's private key and the paired devices are never put in a
+  backup.
+
+---
+
 ## [1.10.84] - 2026-11-07
 
 ### How to update

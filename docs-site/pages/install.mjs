@@ -341,14 +341,16 @@ ${which}
 <section id="nas-docker">
 <h2>On a NAS or home server: Docker</h2>
 <p>For a Synology, QNAP, TrueNAS or any machine with Docker. The app runs in a container; your books are kept in a Docker volume.</p>
-<div class="note warn"><strong>Opening it from other PCs comes on 14 November</strong>
-<p>The app has no login yet, so for now the container answers <b>the NAS itself only</b>. Safe access from the other PCs and phones on your network, with pairing, a PIN and HTTPS, comes with the 14 November update. Until then, from another PC open a tunnel in its Terminal (<code>ssh -L 47371:127.0.0.1:47371 you@your-nas</code>) and go to <code>http://localhost:47371</code>.</p></div>
+<p>A NAS has no screen, so you open the app from your phones, tablets and PCs on the same network, the same safe way as <a href="phone.html">using it on a phone</a>: every device is <b>paired once</b> with a one-time code and the app's PIN, and the connection is encrypted (HTTPS). Nobody on your network gets in without pairing.</p>
 <ol class="steps">
   <li><strong>Get docker-compose.yml</strong>Download it from the <a href="${RELEASES}">latest release</a> into a folder on the NAS.</li>
+  <li><strong>Choose your PIN</strong>Open the file and replace <code>CHANGE-ME</code> in <code>FGSB_PIN: "CHANGE-ME"</code> with a PIN of 6 or 8 digits. In <code>FGSB_PHONE_HOSTS</code>, put the NAS's address as you will type it, for example <code>"192.168.1.50"</code>.</li>
   <li><strong>Start it</strong>In that folder: <code>docker compose up -d</code></li>
-  <li><strong>Open it</strong><code>http://localhost:47371</code> on the NAS, or through the tunnel above.</li>
+  <li><strong>Get the pairing link</strong><code>docker logs free-gst-billing</code> shows a line <i>Pair your first phone, tablet or PC: open https://192.168.1.50:47443/pair?code=...</i>. The code works for 10 minutes; a new one is printed after that, until the first device is paired.</li>
+  <li><strong>Pair the first device</strong>Open that link on the phone or PC. The browser warns <i>Your connection is not private</i> once: see <a href="phone.html#certificate-warning">why, and how to check it</a>. Type the PIN and tap ${ui('Pair this device')}.</li>
+  <li><strong>More devices</strong>On a paired device: ${ui('Settings')} → ${ui('Privacy &amp; Security')} → <b>Use on phone or tablet</b> → ${ui('Pair a phone or tablet')}, and scan the QR code. Remove a device there too.</li>
 </ol>
-<p><b>Never change</b> the line <code>"127.0.0.1:47371:47371"</code> to <code>"47371:47371"</code>: everyone on your network could then open and change your books without a password. To update: put the new version number in the <code>image:</code> line and run <code>docker compose up -d</code> again; the books stay in the volume. The container runs as an ordinary user, never as root.</p>
+<p>After the first start you can delete the <code>FGSB_PIN</code> line: the PIN is kept with the books (change it in ${ui('App lock')}). <b>Never forward port 47443 on your router</b>: the app is for your own network, not the internet. To update: put the new version number in the <code>image:</code> line and run <code>docker compose up -d</code> again; the books stay in the volume, and paired devices stay paired. The container runs as an ordinary user, never as root.</p>
 </section>
 
 <section id="terminal">
@@ -415,7 +417,7 @@ ${which}
 cd Free-GST-Billing
 bash "_system/start-unix.sh"</code></pre>
 <p>The ZIP carries the app's packages, so there is no <code>npm install</code>; any Node.js 18 or newer runs it.</p>
-<p>The app listens on <code>127.0.0.1:47371</code> only (it has no login, so it is never opened to the network). Updating from inside the app needs <code>unzip</code> or python3.</p>
+<p>The app listens on <code>127.0.0.1:47371</code> only. For phones and other PCs, turn on <a href="phone.html">phone and tablet access</a> (pairing, PIN and HTTPS on port 47443); on a server with no screen, start it with <code>FGSB_PHONE_ACCESS=1</code> and <code>FGSB_PIN=&lt;6 or 8 digits&gt;</code> and pair the first device with the code it prints, as in <a href="#nas-docker">Docker</a>. Updating from inside the app needs <code>unzip</code> or python3.</p>
 </section>
 `,
 },

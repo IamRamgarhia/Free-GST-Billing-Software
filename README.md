@@ -37,6 +37,7 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 - **Your data never leaves your computer.** Invoices, clients and settings are plain files in the app's own folder. No cloud server of ours, nothing to leak.
 - **No account, no login, no ads, no tracking.** No analytics, and none of your business data is ever sent to us.
 - **Other computers cannot open it.** The app's server listens only on `127.0.0.1`, this computer itself, and refuses requests from other websites.
+- **Phones only if you say so, and only yours.** *Use on phone or tablet* (Settings → Privacy & Security) is off until you turn it on. On, it answers your own Wi-Fi only, encrypted (HTTPS), and only devices you paired with a QR code from your screen **and** your PIN get in. Remove a device, or untick it, and it is cut off at once. [How it is kept safe →](https://dicecodes.com/free-gst-software-documentation/phone.html#how-safe)
 - **Open source — check every line.** The full code is right here under the MIT licence; the release ZIP is built from it with `npm run release:zip`.
 - **No admin rights needed.** It installs into your own user folder, and your data is backed up automatically every day.
 - **Works offline, and says what it connects to.** On its own it contacts only GitHub (the update check and the public supporters list) — plus your own Google Drive, only if you connect it. Even its font is built in.
@@ -56,6 +57,7 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 | Your own Google Drive | Only if you set it up | Automatic copies **stopped** |
 | Installing and updating | When you click Install / Update | Only when you click |
 | Help pages, Report a problem, WhatsApp, GST portal links | When you click them | Only when you click |
+| Phone / tablet access: **your own Wi-Fi only, never the internet** | Only if you turn it on, and only paired devices | Not affected (it is not the internet) |
 
 **That is the complete list.** No analytics, no ads, no error-tracking service, and no server of ours that receives your data.
 
@@ -104,7 +106,7 @@ Same books folder as the .deb. Full guide: [Install on Linux or a NAS](https://d
 
 ### NAS or a home server
 
-Use the ZIP with `Free GST Billing - LINUX.sh` (steps below), or the one-line `install.sh`. A Docker image comes with secure phone and tablet access in a later update.
+Docker: download `docker-compose.yml` from the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest), put your own 6 or 8 digit PIN in `FGSB_PIN`, run `docker compose up -d`, and open the pairing link that `docker logs free-gst-billing` shows on your phone or PC. Every device is paired with a one-time code and the PIN, over HTTPS; nothing gets in without pairing. Step by step: [On a NAS: Docker](https://dicecodes.com/free-gst-software-documentation/install-linux.html#nas-docker). Or use the ZIP with `Free GST Billing - LINUX.sh` (steps below), or the one-line `install.sh`.
 
 ---
 
@@ -747,32 +749,14 @@ If the app saves you time, you can help keep it going:
 | Question | Answer |
 |----------|--------|
 | **Where is my data stored?** | In a `data/` folder on your computer as plain JSON files. No server, no cloud, no database. |
-| **Can anyone access my invoices?** | No. The app runs on `localhost` — not accessible from the internet or other computers. |
+| **Can anyone access my invoices?** | No. The app runs on `localhost` — not accessible from the internet or other computers. If you turn on **Use on phone or tablet**, only the phones and tablets you pair (QR code + your PIN) on your own Wi-Fi can open it, encrypted; never the internet. |
 | **What if I uninstall?** | **Control Panel → Remove…** removes the app and its icons in one click. Tick boxes choose whether your data, PDFs and backups go too; by default your `data/` folder stays, and reinstalling brings everything back. |
 | **Do I need internet?** | Only to download the app and its updates. Everything else works offline. Turn on **Offline mode** (Settings → Privacy & internet) and it never goes online by itself. |
 | **How do I backup?** | Settings → Export Data → save JSON file. Import on any machine. |
 
-### Running on a shop LAN (POS tablets)
+### Running on a shop LAN (phones, tablets, POS tablets)
 
-Since v1.10.0, the Express server accepts requests only from
-`localhost` (`127.0.0.1`, `[::1]`). If you run the server on one
-machine and access it from a POS tablet on the same Wi-Fi:
-
-1. Find the server machine's LAN IP (e.g. `192.168.1.42`).
-2. Open [server.js](server.js), find the CORS middleware near the top
-   (search for `v1.10.0 — CORS lockdown`), and add your LAN origin
-   to the allowlist regex:
-
-   ```js
-   /^https?:\/\/192\.168\.1\.42(:\d+)?$/i.test(origin) ||
-   ```
-
-3. Restart the server.
-4. From the tablet's browser, hit `http://192.168.1.42:47371/`.
-
-If you don't lock the middleware to specific IPs, any device on the
-same Wi-Fi (including guests) can hit your server. That's the trade —
-the default is safest, LAN access is opt-in.
+Do not edit the code for this any more. Since v1.10.85: **Settings → Privacy & Security → Use on phone or tablet** (a PIN must be set first), then **Pair a phone or tablet** and scan the QR code with the tablet. The tablet's browser warns once that the connection is not private (the PC's own HTTPS certificate): compare the security code, continue, type the PIN. Windows asks once about the firewall: allow **Private networks**. Only paired devices on your local network get in; remove one at any time. Full guide: [Use on a phone or tablet](https://dicecodes.com/free-gst-software-documentation/phone.html).
 
 ---
 
@@ -900,7 +884,7 @@ The `.hta` launcher is Windows-only, but the app itself works on macOS and Linux
 Updates only refresh the app code and dependencies. Your `data/` folder (invoices, clients, products, settings) and `Saved Invoices/` PDF archive are **never touched**. The updater also saves a backup ZIP to `Documents\FreeGSTBill Backups` before it changes anything.
 
 ### Is there a mobile app?
-No, and no Android app is planned. Using the app from a phone or tablet on the same Wi-Fi as your computer is planned for the update on Saturday 14 November 2026.
+No, and no Android app is planned. Since v1.10.85 you can use the app from a phone or tablet on the same Wi-Fi as your computer: [Use on a phone or tablet](https://dicecodes.com/free-gst-software-documentation/phone.html).
 
 ### Can I import data from Tally / Vyapar / Excel?
 CSV import is supported today for clients and products. Direct Tally XML import is on the Coming Soon roadmap. Free-form Excel import requires manual mapping today.

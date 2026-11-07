@@ -59,14 +59,20 @@ If a report is declined you will get a reason, not silence.
 
 This app is **offline-first and runs entirely on the user's own machine**.
 The bundled server binds to `127.0.0.1` and data lives in a local
-`_system/data/` folder. There is no hosted backend and no multi-tenant
+`_system/data/` folder. Optional, off by default (v1.10.85): *Use on phone
+or tablet* adds an HTTPS listener on the local network (port 47443, the
+PC's own self-signed certificate) that answers only private-network
+addresses and only devices paired with a one-time code and the app's PIN
+(`src/utils/phoneAccess.js`). There is no hosted backend and no multi-tenant
 service, so the threat model is not a typical web app's.
 
 **In scope**
 
 - Code execution or file access beyond the app's own folder
-- Anything reachable from another machine on the network (the server is
-  meant to be loopback-only)
+- Anything reachable from another machine on the network without a
+  paired device (the plain HTTP server is meant to be loopback-only; the
+  phone listener must refuse everything but pairing until a device is
+  paired)
 - XSS or HTML injection via invoice fields, client names, rich-text Terms,
   imported JSON/CSV, or OCR'd content
 - Content Security Policy weaknesses or bypasses

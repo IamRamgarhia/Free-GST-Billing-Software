@@ -51,6 +51,6 @@ export const NAV = [
   { title: 'Clients, stock and payments', pages: ['clients', 'products', 'receipts', 'cash-book', 'recurring'] },
   { title: 'Buying', pages: ['purchases', 'expenses'] },
   { title: 'Tax and reports', pages: ['gst-returns', 'reports', 'income-tax'] },
-  { title: 'Setting up', pages: ['settings', 'print-settings', 'backup', 'control-panel'] },
+  { title: 'Setting up', pages: ['settings', 'print-settings', 'backup', 'control-panel', 'phone'] },
   { title: 'Help', pages: ['shortcuts', 'troubleshooting', 'terminal', 'limitations', 'glossary', 'support'] },
 ];
