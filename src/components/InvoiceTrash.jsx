@@ -7,6 +7,8 @@ import { formatCurrency } from '../utils';
 
 export const TRASH_DAYS = 30;
 const DAY = 24 * 60 * 60 * 1000;
+// The same day format as the Invoices list (4/11/2026).
+const day = (v) => { const t = Date.parse(v || ''); return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-IN') : '-'; };
 
 export const daysLeft = (trashedAt, now = Date.now()) => {
   const t = Date.parse(trashedAt || '');
@@ -25,32 +27,32 @@ export default function InvoiceTrash({ items, onRestore, onPurge, busy }) {
   }
   return (
     <div className="table-scroll">
-      <p className="text-muted" style={{ fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
+      <p className="text-muted" style={{ fontSize: '0.8rem', margin: '0.6rem 0 0.5rem', padding: '0 1.25rem' }}>
         Deleted invoices stay here {TRASH_DAYS} days, then they are removed for good. Restore puts one back in your invoices (and takes its stock out again).
       </p>
-      <table className="data-table">
+      <table className="data-table invoice-table">
         <thead>
           <tr>
-            <th>Date</th>
+            <th style={{ paddingLeft: '1.25rem' }}>Date</th>
             <th>Invoice No.</th>
             <th>Client</th>
             <th>Amount</th>
             <th>Deleted on</th>
             <th>Days left</th>
-            <th className="col-center">Actions</th>
+            <th className="col-center col-sticky-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           {items.map((b) => (
             <tr key={b.id}>
-              <td>{b.invoiceDate || b.data?.details?.invoiceDate || '-'}</td>
+              <td className="text-muted" style={{ paddingLeft: '1.25rem' }}>{day(b.invoiceDate || b.data?.details?.invoiceDate)}</td>
               <td className="font-medium">{b.invoiceNumber || '-'}</td>
               <td>{b.clientName || '-'}</td>
               <td>{formatCurrency(b.totalAmount || 0, b.currency || 'INR')}</td>
-              <td className="text-muted">{b._trashedAt ? new Date(b._trashedAt).toLocaleDateString() : '-'}</td>
+              <td className="text-muted">{day(b._trashedAt)}</td>
               <td>{daysLeft(b._trashedAt)}</td>
-              <td>
-                <div className="table-actions">
+              <td className="col-sticky-actions">
+                <div className="table-actions" style={{ justifyContent: 'center' }}>
                   <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => onRestore(b)}
                     style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} title="Put it back in your invoices">
                     <RotateCcw size={13} /> Restore

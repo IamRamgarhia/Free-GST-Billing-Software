@@ -435,6 +435,13 @@ body {
   }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > svg { flex-shrink: 0; }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > span:not(.nav-badge):not(.server-status-dot) { display: none; }
+  /* v1.10.84 (maintainer: "fix control panel design when compact sidebar") -
+     the Control Panel's status dot (margin-left: auto) pushed its icon to the
+     left edge; in the closed rail it sits in the corner, like the badges. */
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn { position: relative; }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .server-status-dot {
+    position: absolute; top: 6px; right: 8px; margin-left: 0;
+  }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-badge {
     top: 6px !important; right: 10px !important; min-width: 0 !important; width: 8px; height: 8px !important; padding: 0 !important; font-size: 0 !important;
   }
@@ -1130,6 +1137,31 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 }
 .data-table tr:hover td:first-child {
   box-shadow: inset 3px 0 0 var(--primary);
+}
+
+/* v1.10.84 - the Invoices list has 9 columns: slightly tighter cells, so at
+   1366 px with the full menu it fits without scrolling sideways. */
+.data-table.invoice-table { min-width: 0; } /* the 1100 px floor was for the old 8-icon action row */
+.data-table.invoice-table th,
+.data-table.invoice-table td { padding-left: 0.4rem; padding-right: 0.4rem; }
+
+/* v1.10.84 - the Actions column of the Invoices list (and its Trash tab) stays
+   on screen: at 1366 px with the full menu, the ⋯ button (Delete) was off the
+   right edge of the scrolling table. Pinned right, on a solid background in
+   every row state, so the rows never show through it. */
+.data-table .col-sticky-actions {
+  position: sticky; right: 0; z-index: 1;
+  background-color: #fff;
+  box-shadow: -10px 0 10px -10px rgba(15, 23, 42, 0.25);
+}
+.data-table th.col-sticky-actions { background-color: #f9fafb; }
+.data-table tr:hover td.col-sticky-actions { background-color: #f9fafb; }
+.data-table tr.row-overdue td.col-sticky-actions { background-color: #fef2f2; }
+[data-theme="dark"] .data-table .col-sticky-actions { background-color: #1e293b; }
+[data-theme="dark"] .data-table th.col-sticky-actions { background-color: #1e293b; }
+[data-theme="dark"] .data-table tr:hover td.col-sticky-actions { background-color: #253247; }
+[data-theme="dark"] .data-table tr.row-overdue td.col-sticky-actions {
+  background: linear-gradient(rgba(220, 38, 38, 0.12), rgba(220, 38, 38, 0.12)), #1e293b !important;
 }
 
 /* v1.10.33 — Actions column: keep it flush right so the last icon

@@ -1647,7 +1647,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       <div className="glass-panel">
         <div className="table-header"><h3>Invoices <HelpButton title="Finding an invoice" doc="dashboard#invoice-list" size={16} /></h3></div>
         {/* v1.10.84 (maintainer) - folders on top: active invoices, cancelled ones, and the Trash. */}
-        <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0 0 0.75rem' }}>
+        <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0 0 0.25rem', padding: '0 1.25rem' }}>
           {[
             ['invoices', 'Invoices', bills.length - cancelledCount, <FileText size={14} />],
             ['cancelled', 'Cancelled', cancelledCount, <Ban size={14} />],
@@ -1673,6 +1673,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             <input type="text" placeholder="Search client, invoice, order no, AWB, phone..." value={search}
               onChange={e => setSearch(e.target.value)} className="search-input" />
           </div>
+          {/* v1.10.84 - in the Trash tab only the search applies. */}
+          {folder !== 'trash' && (<>
           <select className="filter-select" value={fyFilter} onChange={e => setFyFilter(e.target.value)}>
             <option value="all">All Years</option>
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
@@ -1702,10 +1704,11 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             style={{ marginLeft: 'auto', fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
             <FileText size={15} /> Columns
           </button>
+          </>)}
         </div>
 
         {/* v1.9.4 — column picker popover */}
-        {showColumnPicker && (
+        {showColumnPicker && folder !== 'trash' && (
           <div style={{
             padding: '0.75rem 1rem', margin: '0.5rem 0',
             background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
@@ -1734,6 +1737,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         {/* v1.9.1 — Quick bulk-print filters. One-click "print everything
              matching X" without needing to manually tick rows. Useful for
              month-end filing, wholesale reminders, CA handoffs. */}
+        {folder !== 'trash' && (
         <div style={{
           padding: '0.5rem 0.85rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap',
           alignItems: 'center', borderBottom: '1px solid var(--border)',
@@ -1765,6 +1769,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             <CheckCircle size={12} /> Paid ({filtered.filter(b => b.status === 'paid').length})
           </button>
         </div>
+        )}
 
         {/* Bulk-action toolbar — only renders when at least one row is ticked. */}
         {selectedIds.size > 0 && (
@@ -1837,7 +1842,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table">
+            <table className="data-table invoice-table">
               <thead>
                 <tr>
                   <th style={{ width: '32px', padding: '0.5rem 0.25rem 0.5rem 0.75rem' }}>
@@ -1857,7 +1862,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                   {visibleColumns.printed && <th>Printed</th>}
                   <th className="col-center">Paid</th>
                   {visibleColumns.status && <th className="col-center">Status</th>}
-                  {visibleColumns.actions && <th className="col-center">Actions</th>}
+                  {visibleColumns.actions && <th className="col-center col-sticky-actions">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1918,7 +1923,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                         {daysOverdue > 0 && <span style={{ fontSize: '0.7rem', color: '#dc2626', display: 'block', marginTop: 2 }}>{daysOverdue}d overdue</span>}
                         </>}
                       </td>}
-                      {visibleColumns.actions && <td>
+                      {visibleColumns.actions && <td className="col-sticky-actions" style={selectedIds.has(bill.id) ? { backgroundImage: 'linear-gradient(var(--info-bg), var(--info-bg))' } : undefined}>
                         {/* v1.10.80 (#100) - View (read-only preview) and Edit up front,
                             with Payment, Convert and Undo where they apply; the rest
                             in the ⋯ menu instead of a long row of icons. */}

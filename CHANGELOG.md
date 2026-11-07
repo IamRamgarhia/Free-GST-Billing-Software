@@ -162,6 +162,11 @@ a backup is made first.
 - The window title reads like a desktop program: the page and your business name.
 
 ### Fixed
+- **The Invoices list fits the screen**: at 1366 px with the full menu its last
+  column (with the ⋯ menu and Delete) was off the right edge; the list now fits,
+  and the Actions column stays visible on narrower windows too.
+- **Compact menu**: the Control Panel icon sat off-centre (its status dot pushed
+  it left); the dot is now a small badge in the corner.
 - **The app window never shows "Needs a Quick Start"** (ERR-085): while an
   update or a restart stopped the app for a moment, the window showed the
   browser's start-up instructions; it now shows "Starting again..." and
