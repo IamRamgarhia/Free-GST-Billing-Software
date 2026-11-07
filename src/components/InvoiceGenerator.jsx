@@ -26,7 +26,7 @@ import ClientModal from './ClientModal';
 import { EInvoiceEditorModal } from './EInvoiceModal';
 import { toast } from './Toast';
 import { phoneDigits, findClientByPhone, newPhoneClient } from '../utils/phoneClients';
-import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS } from '../utils/glass';
+import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS, withRftLines, rftSources, perimeterRft } from '../utils/glass';
 import { orderSummary, salesOrderOf, SO_STATUS_LABELS } from '../utils/salesOrders';
 
 // Rich text editor component that works with contentEditable properly
@@ -441,13 +441,59 @@ function SizeFields({ item, onSizeChange, clampNonNeg }) {
   );
 }
 
+// v1.10.85 (#140) - an RFT line (polish, channel): its quantity is the sq.ft
+// or the edges (running feet) of all glass lines, the ticked ones, or typed.
+function RftFields({ item, sizeLines, onRftChange, clampNonNeg }) {
+  const r = item.rft;
+  const set = (patch) => onRftChange(item.id, patch);
+  const ids = new Set(r.ids || []);
+  return (
+    <div className="line-item-field" style={{ flex: 2.4, minWidth: 220 }}>
+      <label className="form-label">Running feet from</label>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <select className="form-input" style={{ flex: 1, minWidth: 110 }} value={r.basis} aria-label="Measure"
+          onChange={(e) => set({ basis: e.target.value })}>
+          <option value="sqft">Sq.ft of glass</option>
+          <option value="perimeter">Edges (running ft)</option>
+        </select>
+        <select className="form-input" style={{ flex: 1, minWidth: 100 }} value={r.from} aria-label="Which lines"
+          onChange={(e) => set({ from: e.target.value })}>
+          <option value="all">All glass lines</option>
+          <option value="selected">Lines I tick</option>
+          <option value="custom">Type it</option>
+        </select>
+        {r.from === 'custom' ? (
+          <input type="number" min="0" step="any" className="form-input" style={{ width: 80 }} value={r.custom ?? ''}
+            aria-label="Quantity" onFocus={(e) => e.target.select()}
+            onChange={(e) => set({ custom: clampNonNeg(e.target.value) })} />
+        ) : (
+          <input type="text" className="form-input" style={{ width: 80 }} value={item.quantity} disabled aria-label="Quantity"
+            title={r.basis === 'perimeter' ? '2 x (rounded length + width) / 12 x pieces' : 'Sq.ft of the glass lines'} />
+        )}
+      </div>
+      {r.from === 'selected' && (
+        <div style={{ display: 'flex', gap: '2px 10px', flexWrap: 'wrap', fontSize: '0.72rem', marginTop: 3 }}>
+          {sizeLines.length === 0 && <span style={{ color: 'var(--text-muted)' }}>No Sq.ft lines on this invoice yet</span>}
+          {sizeLines.map((s) => (
+            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+              <input type="checkbox" checked={ids.has(s.id)}
+                onChange={(e) => set({ ids: e.target.checked ? [...ids, s.id] : [...ids].filter((x) => x !== s.id) })} />
+              {s.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const LineItem = memo(function LineItem({
   item, invoiceOptions, showGST, taxLabel,
   units, countryTaxRates, filterUnitsByMode, invoiceMode,
   currency, profileCountry, suggestions,
   onFieldChange, onSelectProduct, onSetProductSearch,
   onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
-  isLastRow, onAddRow, isOnlyRow, onSizeChange,
+  isLastRow, onAddRow, isOnlyRow, onSizeChange, sizeLines, onRftChange,
 }) {
   // v1.10.37 — Keyboard shortcut: Enter on any input inside the LAST
   // row adds a new row. Muscle-memory for POS users — reported: "if
@@ -525,6 +571,8 @@ const LineItem = memo(function LineItem({
       )}
       {item.size ? (
         <SizeFields item={item} onSizeChange={onSizeChange} clampNonNeg={clampNonNeg} />
+      ) : item.rft ? (
+        <RftFields item={item} sizeLines={sizeLines || []} onRftChange={onRftChange} clampNonNeg={clampNonNeg} />
       ) : (
       <div className="line-item-field" style={{ flex: 0.7 }}>
         <label className="form-label">Qty</label>
@@ -1682,6 +1730,19 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ? changeSize(item, patch)
       : item)));
   }, []);
+
+  // #140 - an RFT line's measure, lines or typed value; the quantity follows
+  // from the size lines in the effect below, after any change to them.
+  const handleRftChange = useCallback((id, patch) => {
+    setItems(prev => prev.map(item => (item.id === id && item.rft ? { ...item, rft: { ...item.rft, ...patch } } : item)));
+  }, []);
+  useEffect(() => { setItems(prev => withRftLines(prev)); }, [items]);
+  // The Sq.ft lines an RFT line can tick; only RFT rows get it (memo).
+  const hasRft = items.some((i) => i.rft);
+  const sizeLines = useMemo(() => (hasRft ? rftSources(items).map((i) => ({
+    id: i.id,
+    label: `${i.name || `Line ${items.indexOf(i) + 1}`} (${sizeSqft(i.size)} sq.ft${perimeterRft(i.size) ? `, ${perimeterRft(i.size)} rft` : ''})`,
+  })) : []), [items, hasRft]);
 
   const selectProduct = useCallback((itemId, product) => {
     // v1.10.29 — Prefer sellingPrice for sales invoices (falls back to
@@ -4952,6 +5013,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 isOnlyRow={items.length === 1}
                 onAddRow={addItem}
                 onSizeChange={handleSizeChange}
+                sizeLines={item.rft ? sizeLines : undefined}
+                onRftChange={handleRftChange}
               />
             ))}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

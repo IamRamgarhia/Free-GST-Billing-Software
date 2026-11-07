@@ -78,7 +78,7 @@ export default [
 <p>Under the type chips, <b>This invoice is for:</b> sets which units the Unit list offers and which unit a new row starts with. It does not change the tax.</p>
 <div class="table-wrap"><table>
   <tr><th>Chip</th><th>Units offered</th><th>Good for</th></tr>
-  <tr><td>📦 Goods</td><td>Pcs, Nos, Kg, g, Tonne, Ltr, ml, Mtr, cm, Ft, In, Sq.ft, Sq.m, Box, Dozen, Pair, Set, Bag, Roll, Bottle and the like. The default.</td><td>Shops, traders, manufacturers</td></tr>
+  <tr><td>📦 Goods</td><td>Pcs, Nos, Kg, g, Tonne, Ltr, ml, Mtr, cm, Ft, In, Rft, Sq.ft, Sq.m, Box, Dozen, Pair, Set, Bag, Roll, Bottle and the like. The default.</td><td>Shops, traders, manufacturers</td></tr>
   <tr><td>⏱ Services</td><td>Hrs, Day, Week, Month, Year, Visit, Session, Project, Word, Page, plus Nos, Sq.ft and Sq.m. A reminder appears to use a <b>SAC code</b> (the services version of HSN) in the HSN/SAC box. Terms print in the <b>Formatted</b> layout unless you choose otherwise.</td><td>Freelancers, consultants, repair and service businesses</td></tr>
   <tr><td>🔀 Mixed</td><td>Every unit, unfiltered.</td><td>Selling goods and doing the work, such as supply and installation</td></tr>
 </table></div>
@@ -525,6 +525,15 @@ export default [
   <tr><td>Type amount</td><td>Tick it to type the amount yourself; the box beside it becomes <b>Amount</b> and nothing is worked out. The size and square feet still print.</td></tr>
 </table></div>
 <p>The invoice then prints <b>Size</b> (25 x 30, as measured) and <b>SQFT</b> columns, and <b>Qty</b> shows the pieces. Tally style and Boxed grid print the size under the item name. Items sold by the piece (hole cutting, silicon) stay ordinary rows. GSTR-1 counts a size row in Sq.ft (unit SQF). Pick any other unit to turn a size row back into an ordinary one.</p>
+<h3 id="rft">Polish and channel: Rft rows</h3>
+<p>For work charged on the glass already on the bill, pick the unit <b>Rft</b> on a row. Its quantity is worked out from the Sq.ft rows, and it follows them when they change:</p>
+<table>
+  <tr><th>Box</th><th>What it does</th></tr>
+  <tr><td>Sq.ft of glass</td><td>The square feet of the glass rows. Two rows of 12.50 and 3 sq.ft = 15.50.</td></tr>
+  <tr><td>Edges (running ft)</td><td>The running feet round each piece: 2 × (rounded length + rounded width) ÷ 12 × pieces. 30 × 30, 2 pieces = 20 rft.</td></tr>
+  <tr><td>All glass lines / Lines I tick / Type it</td><td>Count every glass row, only the rows you tick, or type the quantity yourself.</td></tr>
+</table>
+<p>The amount is the quantity × the rate, and the invoice prints it as <b>15.5 sqft</b> or <b>20 rft</b> in the Qty column. A glass row with only its sq.ft typed (no length and width) has no edges, so it adds nothing to <b>Edges</b>. GSTR-1 counts an Rft row under the unit OTH (others).</p>
 </section>
 
 <section id="whatsapp">

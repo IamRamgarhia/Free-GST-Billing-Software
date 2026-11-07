@@ -59,7 +59,18 @@ export const changeSize = (item, patch) => {
 // size is typed; any other unit turns a size line back into a plain one (one
 // piece per square foot is not assumed: the quantity becomes the pieces).
 // NA (#143) has no quantity: held at 1.
-export const itemWithUnit = (item, unit, { sizeOn = false, step = 0 } = {}) => {
+export const itemWithUnit = (item, unit, opts = {}) => {
+  const base = plainWithUnit(item, unit, opts);
+  if (opts.sizeOn && unit === RFT_UNIT && !base.rft) return { ...base, rft: { basis: 'sqft', from: 'all', ids: [], custom: '' } };
+  if (unit !== RFT_UNIT && base.rft) {
+    const plain = { ...base };
+    delete plain.rft;
+    return plain;
+  }
+  return base;
+};
+
+const plainWithUnit = (item, unit, { sizeOn = false, step = 0 } = {}) => {
   if (sizeOn && unit === 'Sq.ft' && !item.size) {
     return applySize(item, { l: '', w: '', pcs: 1, step, sqft: Number(item.quantity) || 0 });
   }
@@ -84,3 +95,49 @@ export const sizeHasDims = hasDims;
 
 // The square feet printed in the SQFT column.
 export const lineSqft = (item) => (item?.size ? sizeSqft(item.size) : null);
+
+// v1.10.85 (#140) - RFT lines (polish, aluminium channel): the quantity comes
+// from the size lines on the same invoice, either their square feet or their
+// edges (2 x (rounded L + rounded W) / 12 x pieces, in running feet), for all
+// of them, the ticked ones, or a value typed by hand. The quantity is stored
+// like any line's, so totals, GST, GSTR-1 and old invoices are unchanged.
+//
+// item.rft = { basis: 'sqft' | 'perimeter', from: 'all' | 'selected' | 'custom', ids, custom }
+export const RFT_UNIT = 'Rft';
+
+export const perimeterRft = (size) => {
+  if (!hasDims(size)) return 0;
+  const l = roundUpTo(size?.l, size?.step);
+  const w = roundUpTo(size?.w, size?.step);
+  const pcs = Math.max(0, Number(size?.pcs) || 0);
+  return round2((2 * (l + w) / 12) * pcs);
+};
+
+// The size lines an RFT line can be worked out from.
+export const rftSources = (items) => (items || []).filter((i) => i.size && !i.rft);
+
+export const rftQuantity = (rft, items) => {
+  if (rft?.from === 'custom') return round2(Math.max(0, Number(rft.custom) || 0));
+  const ids = rft?.from === 'selected' ? new Set(rft.ids || []) : null;
+  const measure = rft?.basis === 'perimeter' ? perimeterRft : sizeSqft;
+  return round2(rftSources(items)
+    .filter((i) => !ids || ids.has(i.id))
+    .reduce((sum, i) => sum + measure(i.size), 0));
+};
+
+// Every RFT line's quantity brought up to date; the same array when nothing
+// moved, so it can run after every change without re-rendering for nothing.
+export const withRftLines = (items) => {
+  let changed = false;
+  const next = (items || []).map((i) => {
+    if (!i.rft) return i;
+    const quantity = rftQuantity(i.rft, items);
+    if (quantity === Number(i.quantity)) return i;
+    changed = true;
+    return { ...i, quantity };
+  });
+  return changed ? next : items;
+};
+
+// What an RFT line measures, for the printed Qty: "18.33 rft" or "12.5 sqft".
+export const rftLabel = (item) => `${Number(item?.quantity) || 0} ${item?.rft?.basis === 'perimeter' ? 'rft' : 'sqft'}`;

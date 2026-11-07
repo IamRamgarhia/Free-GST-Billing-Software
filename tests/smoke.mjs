@@ -1025,6 +1025,30 @@ try {
   // 31 rounds up to 36: 36 x 30 / 144 x 2 = 15 sq.ft = Rs 750.
   check('#140 changing the length re-works the sq.ft and amount (31 in -> 36 in)',
     glass2.sqft === '15.00' && /750\.00/.test(glass2.amount), JSON.stringify(glass2));
+
+  // v1.10.85 #140: an Rft line (polish) on the glass edges: 30 x 30 rounded,
+  // 2 pcs = 2 x 60 / 12 x 2 = 20 rft x Rs 10 = 200; a longer glass line
+  // (31 -> 36 in) moves it to 22 rft = 220 with no typing on the Rft line.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/RFT', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [
+      { id: 'smk-glass', name: '6mm Mirror', hsn: '7009', quantity: 12.5, unit: 'Sq.ft', rate: 50, taxPercent: 18, discount: 0, size: { l: 25, w: 30, pcs: 2, step: 6 } },
+      { id: 'smk-polish', name: 'Edge polish', hsn: '7009', quantity: 0, unit: 'Rft', rate: 10, taxPercent: 18, discount: 0, rft: { basis: 'perimeter', from: 'all', ids: [], custom: '' } },
+    ],
+    taxInclusive: false,
+  });
+  const rftRow = () => page.evaluate(() => {
+    const cells = [...document.querySelectorAll('#invoice-preview .inv-table tbody tr:nth-child(2) td')].map((t) => t.innerText.trim());
+    return { qty: cells.find((t) => /rft$/.test(t)) || '', amount: cells[cells.length - 1] };
+  });
+  const rft1 = await rftRow();
+  check('#140 an Rft line takes the glass edges: 20 rft, amount 200', rft1.qty === '20 rft' && /200\.00/.test(rft1.amount), JSON.stringify(rft1));
+  await page.locator('.line-item-row').first().locator('label:text("Length (in)") + input').fill('31');
+  await sleep(800);
+  const rft2 = await rftRow();
+  check('#140 the Rft line follows a change to the glass line (22 rft, 220)', rft2.qty === '22 rft' && /220\.00/.test(rft2.amount), JSON.stringify(rft2));
   await page.evaluate((m) => { if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m); }, modulesBefore);
 
   // #164: "Print rates before GST" with prices that include tax: 13.25 at 18%

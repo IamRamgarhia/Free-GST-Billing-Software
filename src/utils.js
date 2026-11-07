@@ -1701,6 +1701,7 @@ export const BUILTIN_UNITS = [
   { label: 'cm',      uqc: 'CMS', kind: 'goods' },
   { label: 'Ft',      uqc: 'FTS', kind: 'goods' },
   { label: 'In',      uqc: 'INS', kind: 'goods' },
+  { label: 'Rft',     uqc: 'OTH', kind: 'goods' }, // running feet (#140): glass polish, channel
   { label: 'Sq.ft',   uqc: 'SQF', kind: 'both'  }, // construction services use this too
   { label: 'Sq.m',    uqc: 'SQM', kind: 'both'  },
   { label: 'Hrs',     uqc: 'HRS', kind: 'services' },
@@ -2009,7 +2010,7 @@ export const FEATURE_GROUPS = [
       { id: 'salesOrders', label: 'Sales orders', help: "Take the customer's order (or turn a quotation into one), send it in parts with delivery challans and invoice it. A Sales orders tab on the Dashboard shows Open, Partly dispatched, Dispatched or Invoiced.", defaultOn: false },
       { id: 'upiQr', label: 'UPI QR code', help: 'Print a UPI QR code so customers can pay by scanning.', defaultOn: true, indiaOnly: true },
       // v1.10.84 (#140) - glass, mirror, flex, tile shops; off until wanted.
-      { id: 'sizeBilling', label: 'Size billing (Sq.ft)', help: 'For glass, mirror, flex and tile shops: an item line can be "Sq.ft" - type Length x Width in inches and the pieces, pick 3 or 6 inch rounding, and the square feet and amount are worked out. The invoice prints Size and SQFT columns.', defaultOn: false },
+      { id: 'sizeBilling', label: 'Size billing (Sq.ft)', help: 'For glass, mirror, flex and tile shops: an item line can be "Sq.ft" - type Length x Width in inches and the pieces, pick 3 or 6 inch rounding, and the square feet and amount are worked out. An "Rft" line (polish, channel) takes the square feet or the edges of the glass lines. The invoice prints Size and SQFT columns.', defaultOn: false },
     ],
   },
   {

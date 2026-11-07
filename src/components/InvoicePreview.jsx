@@ -8,7 +8,7 @@ import { getPrintSettings, getLabel, formatCurrencyEx, formatDate } from '../uti
 import InvoiceGridLayout, { HsnSummaryTable } from './InvoiceGridLayout';
 import { exportDeclaration } from '../utils/lut';
 import { purposeCodeText } from '../utils/purposeCodes';
-import { sizeLabel, sizePieces, lineSqft, sizeHasDims } from '../utils/glass';
+import { sizeLabel, sizePieces, lineSqft, sizeHasDims, rftLabel } from '../utils/glass';
 
 // v1.10.36 — Optional `previewOnly` prop suppresses the internal
 // `id="invoice-preview"`. The parent's on-screen preview keeps the id
@@ -76,6 +76,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   // Qty column then shows their pieces. NA lines (#143) print "-".
   const hasSize = (items || []).some((i) => i.size);
   const printedQty = (item) => (item.size ? sizePieces(item)
+    : item.rft ? rftLabel(item) // v1.10.85 - "19.5 sqft" / "27 rft"
     : item.unit === 'NA' ? '-'
       : `${item.quantity}${showItemUnit && item.unit ? ` ${item.unit}` : ''}`);
   const showState = opt('showState');
@@ -740,6 +741,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 // #140 - a size line: "25 x 30 x 2 = 12.5 sqft" (a manual one has no rate).
                 const qtyBit = item.size
                   ? `${sizeHasDims(item.size) ? `${sizeLabel(item.size)} x ${sizePieces(item)} = ` : ''}${lineSqft(item)} sqft`
+                  : item.rft ? rftLabel(item)
                   : item.unit === 'NA' ? '' : `${qty}${unitBit}`;
                 const showLineRate = showRate && !item.size?.manual;
                 return (
