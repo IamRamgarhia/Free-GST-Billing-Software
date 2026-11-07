@@ -774,23 +774,33 @@ const BANK_FORMATS = [
     }),
   },
   // Fallback — best-effort column detection.
+  // v1.10.85 (#175) - whole words only: "Cr" used to match "desCRiption", so
+  // the description column was read as the credit. A statement with one
+  // Amount column (signed, or with a Dr / Cr column, or "500.00 Cr") works too.
   {
     name: 'Generic',
     match: () => true,
-    map: (row, hIdx) => ({
-      date: row[hIdx.date],
-      description: row[hIdx.description],
-      debit: parseAmt(row[hIdx.debit]),
-      credit: parseAmt(row[hIdx.credit]),
-      balance: parseAmt(row[hIdx.balance]),
-    }),
-    headerMap: (headers) => ({
-      date: findCol(headers, /Date/i),
-      description: findCol(headers, /Description|Narration|Particulars|Remarks/i),
-      debit: findCol(headers, /Debit|Withdrawal|Dr/i),
-      credit: findCol(headers, /Credit|Deposit|Cr/i),
-      balance: findCol(headers, /Balance/i),
-    }),
+    map: (row, hIdx) => {
+      const base = { date: row[hIdx.date], description: row[hIdx.description], balance: parseAmt(row[hIdx.balance]) };
+      if (hIdx.debit >= 0 || hIdx.credit >= 0) return { ...base, debit: parseAmt(row[hIdx.debit]), credit: parseAmt(row[hIdx.credit]) };
+      const raw = String(row[hIdx.amount] ?? '');
+      const amt = parseAmt(raw.replace(/\s*(cr|dr)\.?\s*$/i, ''));
+      const side = `${row[hIdx.drcr] ?? ''} ${(/(cr|dr)\.?\s*$/i.exec(raw) || [])[1] || ''}`.trim().toLowerCase();
+      const isCredit = /^(cr|c\b|credit|deposit)/.test(side) || (!side && amt > 0);
+      return { ...base, debit: isCredit ? 0 : Math.abs(amt), credit: isCredit ? Math.abs(amt) : 0 };
+    },
+    headerMap: (headers) => {
+      const date = findCol(headers, /Date/i);
+      const description = findCol(headers, /Description|Narration|Particulars|Remarks|Details/i);
+      const balance = findCol(headers, /Balance/i);
+      const drcr = findCol(headers, /^\s*(dr\s*\/\s*cr|cr\s*\/\s*dr|debit\s*\/\s*credit|(transaction |txn )?type)\s*$/i);
+      const skip = [date, description, balance, drcr];
+      const col = (pattern) => headers.findIndex((h, i) => !skip.includes(i) && pattern.test(String(h || '').trim()));
+      const debit = col(/\b(debit|withdrawals?|dr)\b/i);
+      const credit = col(/\b(credit|deposits?|cr)\b/i);
+      const amount = col(/\bamount\b/i);
+      return { date, description, balance, drcr, debit, credit, amount };
+    },
   },
 ];
 

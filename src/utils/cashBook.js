@@ -68,7 +68,7 @@ export function cleanCashEntry(e) {
   };
 }
 
-const isCash = (mode) => String(mode || '').trim().toLowerCase() === 'cash';
+export const isCash = (mode) => String(mode || '').trim().toLowerCase() === 'cash';
 const inRupees = (currency) => !currency || currency === 'INR';
 const billCurrency = (b) => b?.currency || b?.data?.invoiceOptions?.currency || 'INR';
 // As the Dashboard compares them: 'Bank Transfer' on a receipt is 'bank-transfer' on a payment.

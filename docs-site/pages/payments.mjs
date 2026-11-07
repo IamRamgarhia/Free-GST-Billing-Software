@@ -247,11 +247,11 @@ export default [
 <h3>Importing a statement</h3>
 <ol class="steps">
   <li><strong>Download it</strong>In your net-banking, open the account statement for the dates you want and download it as <b>CSV</b> or <b>Excel (.xlsx)</b>. Old Excel files (.xls) cannot be read: open them in Excel and save as .xlsx or CSV.</li>
-  <li><strong>Bank</strong>Leave <b>Find out from the file</b>: SBI, HDFC, ICICI, Axis, Kotak, PNB and Yes Bank are recognised from their columns. If the lines come out wrong, choose your bank here and import again.</li>
+  <li><strong>Bank</strong>Leave <b>Find out from the file</b>: SBI, HDFC, ICICI, Axis, Kotak, PNB and Yes Bank are recognised from their columns. Other banks work when the file has a date, a description and either Debit and Credit columns or one Amount column (with a minus for money out, a Dr / Cr column, or written as 500.00 Dr). If the lines come out wrong, choose your bank here and import again.</li>
   <li><strong>Import</strong>Click ${ui('Import statement (CSV or Excel)')} and choose the file. You see, for example, "4 lines read (HDFC)".</li>
 </ol>
-<p>Each line keeps its date, description, the amount in or out, and the bank's reference (cheque, UTR or reference number) when the bank gives one. Opening balance and total rows are left out.</p>
-<p><strong>Importing twice is safe.</strong> A line already here (same date, amount and reference) is skipped, so you can import an overlapping statement, such as the whole month again: "All 4 lines of this statement are already here. Nothing was added."</p>
+<p>Each line keeps its date, description, the amount in or out, and the bank's reference (cheque, UTR or reference number) when the bank gives one. Dates may be written 05/11/2026, 05-Nov-2026 or 5 November 2026. Opening balance and total rows are left out. A statement of more than 1,000 lines is kept in parts ("part 1 of 3"), each listed under the statements.</p>
+<p><strong>Importing twice is safe.</strong> A line already here (same date, amount and reference; when one of the two has no reference, the same description) is skipped, so you can import an overlapping statement, such as the whole month again: "All 4 lines of this statement are already here. Nothing was added."</p>
 <p>The cards on top show the <b>Lines</b> imported, how many are <b>Matched</b> (and ignored), how many are still <b>To match</b> with their money in and out, and the total <b>Money in / out</b>. Choose a statement in the bar below the cards to see the numbers for that one statement.</p>
 </section>
 
@@ -264,11 +264,11 @@ export default [
   <tr><td>Money out</td><td>A payment already recorded on a purchase bill, an unpaid purchase bill, or an expense (paid or unpaid)</td></tr>
 </table></div>
 <ul>
-  <li><b>Amount</b>: the same, or within ₹1 (round-off).</li>
+  <li><b>Amount</b>: the same, or within ₹1 (round-off). For an unpaid invoice or bill, its balance or up to ₹1 more: a payment short of the balance is not suggested, since it would leave the invoice Partly paid (pick it by hand if the client really paid less).</li>
   <li><b>Date</b>: within 7 days of a payment or expense already entered. An unpaid invoice or bill may be paid any time after its date, but not more than 7 days before it.</li>
   <li><b>Name or number</b>: a suggestion comes first when the client's or supplier's name, or the invoice or bill number, is in the bank's description.</li>
 </ul>
-<p>Invoices in another currency, cancelled invoices, quotations and challans are not suggested, nor are partly paid expenses. A payment or expense matched to one line is not offered for another.</p>
+<p>Invoices in another currency, cancelled invoices, quotations and challans are not suggested, nor are partly paid expenses. Payments and expenses paid in <b>Cash</b> are never suggested: cash does not go through the bank. A payment or expense matched to one line is not offered for another.</p>
 </section>
 
 <section id="bank-actions">
@@ -283,7 +283,7 @@ export default [
 </table></div>
 <p>The list shows the lines <b>To match</b> to start; choose <b>All lines</b>, <b>Matched</b> or <b>Ignored</b> in the bar, or search by description, reference or amount. The bin next to a chosen statement removes it from Bank matching (your invoices, bills and expenses are not changed); undo its lines that recorded a payment or added an expense first.</p>
 <p>Payments recorded here use mode Bank transfer, so they are not in the cash book, which counts cash only. Your statements and their matches are in your backups: in <a href="backup.html#export-import">Export Backup</a> they travel with <b>Expenses</b>.</p>
-<div class="note tip"><strong>Something wrong?</strong><p>"No transactions found": the file is not a statement the app can read; download the CSV or Excel statement again, or choose your bank. "Could not read this statement": the file is damaged, or an old .xls. No suggestion for a line you know is there: the amount or date may be off by more than ₹1 or 7 days; use the magnifier to pick it by hand. "Payments of ... are more than ... this bill comes to": the bank amount is more than the purchase bill's balance; pick the right bill.</p></div>
+<div class="note tip"><strong>Something wrong?</strong><p>"No transactions found": the file is not a statement the app can read; download the CSV or Excel statement again, or choose your bank. "Could not read this statement": the file is damaged, or an old .xls. No suggestion for a line you know is there: the amount or date may be off by more than ₹1 or 7 days; use the magnifier to pick it by hand. "Payments of ... are more than ... this bill comes to": the bank amount is more than the purchase bill's balance; pick the right bill. "Could not save the match, so the payment was taken back. Try again.": the app could not save the line, so it undid the payment it had just recorded; nothing is half done. Try again, and if it keeps happening see <a href="troubleshooting.html#saving">Saving and working in the app</a>.</p></div>
 </section>
 `,
 },

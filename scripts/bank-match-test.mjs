@@ -6,8 +6,9 @@
 
 import { parseBankStatement, parseBankRows, BANK_NAMES } from '../src/utils/itr.js';
 import {
-  toBankLines, lineKey, freshLines, bookEntries, usedKeys, suggestFor, pickList, matchedLine, ignoredLine, expenseLine, openLine,
+  toBankLines, freshLines, bookEntries, usedKeys, suggestFor, pickList, matchedLine, ignoredLine, expenseLine, openLine,
   bankPayment, invoiceWithPayment, invoiceWithoutPayment, receiptForPayment, expenseFromLine, bankSummary, nameInText,
+  paymentKeyOf, purchaseWithPayments, payStateOf, withoutBankPayment,
 } from '../src/utils/bankMatch.js';
 import { withPurchasePayments, purchaseStatus, newPurchasePaymentId } from '../src/utils/purchasePayments.js';
 
@@ -40,6 +41,17 @@ const xl = parseBankRows([['Txn Date', 'Value Date', 'Description', 'Ref No./Che
 eq([xl.bankName, toBankLines(xl.transactions, 'x')[0]?.date, xl.transactions[0].reference], ['SBI', '2026-11-04', 'R1'], 'Rows from an .xlsx: an Excel day number is a date');
 eq(toBankLines([{ date: '05/11/2026 10:42:00', description: 'x', credit: 5 }], 's')[0]?.date, '2026-11-05', 'A date with the time after it');
 eq(toBankLines([{ date: 'Opening balance', credit: 5 }, { date: '01/11/2026', credit: 0, debit: 0 }], 's').length, 0, 'Rows with no date or no amount are left out');
+eq(['5 November 2026', '05-November-2026', '5 Nov 2026', 'November 5, 2026'].map((d) => toBankLines([{ date: d, description: 'x', credit: 5 }], 's')[0]?.date),
+  ['2026-11-05', '2026-11-05', '2026-11-05', undefined], 'Dates with the month in full; month-first is not guessed');
+const rowsOf = (rows) => parseBankRows(rows).transactions.map((t) => [t.description, t.debit, t.credit]);
+eq(rowsOf([['Date', 'Description', 'Debit', 'Credit', 'Balance'], ['05/11/2026', 'NEFT DiceCodes', '', '1,000.00', '5000'], ['06/11/2026', 'Fee', '10', '', '4990']]),
+  [['NEFT DiceCodes', 0, 1000], ['Fee', 10, 0]], 'Date, Description, Debit, Credit, Balance: "desCRiption" is not the credit column');
+eq(rowsOf([['Date', 'Description', 'Amount', 'Balance'], ['05/11/2026', 'In', '1,000.00', '5000'], ['06/11/2026', 'Out', '-10', '4990']]),
+  [['In', 0, 1000], ['Out', 10, 0]], 'One signed Amount column: minus is money out');
+eq(rowsOf([['Date', 'Narration', 'Amount', 'Dr / Cr', 'Balance'], ['05/11/2026', 'In', '1000', 'CR', '5000'], ['06/11/2026', 'Out', '10', 'DR', '4990']]),
+  [['In', 0, 1000], ['Out', 10, 0]], 'Amount with a Dr / Cr column');
+eq(rowsOf([['Date', 'Particulars', 'Amount', 'Balance'], ['05/11/2026', 'In', '1000.00 Cr', '5000'], ['06/11/2026', 'Out', '10.00 Dr', '4990']]),
+  [['In', 0, 1000], ['Out', 10, 0]], 'Amount written as "1000.00 Cr" / "10.00 Dr"');
 
 console.log('\n[bank match] Duplicates');
 const again = toBankLines(parsed.transactions, 'st2');
@@ -49,7 +61,11 @@ eq(freshLines(lines, overlap).map((l) => l.description), ['NEFT CR-NEW'], 'An ov
 const twin = [{ date: '2026-11-08', credit: 100, debit: 0, reference: '' }, { date: '2026-11-08', credit: 100, debit: 0, reference: '' }];
 eq(freshLines([], twin).length, 2, 'Two equal payments on one day in one file both stay');
 eq(freshLines([twin[0]], twin).length, 1, '... and only the one not saved yet is added');
-eq(lineKey({ date: '2026-11-08', credit: 0, debit: 100, reference: 'A-1' }) === lineKey({ date: '2026-11-08', credit: 100, debit: 0, reference: 'A-1' }), false, 'Money in and money out of the same amount are different lines');
+eq(freshLines([{ date: '2026-11-08', credit: 0, debit: 100, reference: 'A-1' }], [{ date: '2026-11-08', credit: 100, debit: 0, reference: 'A-1' }]).length, 1, 'Money in and money out of the same amount are different lines');
+const saved = [{ date: '2026-11-09', credit: 250, debit: 0, reference: '', description: 'UPI/DICECODES' }];
+eq(freshLines(saved, [{ date: '2026-11-09', credit: 250, debit: 0, reference: 'UPI123', description: 'UPI/DICECODES' }]).length, 0, 'One file has the reference, the other not: the same description is the same line');
+eq(freshLines(saved, [{ date: '2026-11-09', credit: 250, debit: 0, reference: '', description: 'IMPS OTHER' }]).length, 1, '... another description is another line');
+eq(freshLines([{ ...saved[0], reference: 'R1' }], [{ ...saved[0], reference: 'R2' }]).length, 1, 'Both with references: different references are different lines');
 
 console.log('\n[bank match] Suggestions');
 const prof = { gstin: '07ABCDE1234F1Z5', businessName: 'DiceCodes' };
@@ -85,6 +101,17 @@ const twoSame = bookEntries({ bills: [{ ...invUnpaid, id: 'n1', invoiceNumber: '
 eq(suggestFor({ ...lines[0], description: 'NEFT KAVERI VENTURES' }, twoSame)[0].id, 'n2', 'Name hint: of two invoices of the same amount, the one whose client is named comes first');
 eq(suggestFor({ ...lines[0], description: 'NEFT INVB' }, twoSame)[0].id, 'n2', 'Number hint: the invoice number in the description comes first');
 eq(nameInText('The Traders Pvt Ltd', 'neftsomeone'), false, 'Common words of a name are not a hint');
+eq(suggestFor({ ...lines[3], credit: 2359 }, entries).map((x) => x.key), [], 'Round-off: a payment short of an unpaid invoice is not offered (it would stay Partly paid)');
+const cashBooks = bookEntries({
+  bills: [{ ...invPaid, payments: [{ id: 'pay_c', amount: 500, date: '2026-11-07', mode: 'cash' }] }],
+  purchases: [{ ...bill, payments: [{ id: 'pp_c', amount: 5900, date: '2026-11-04', mode: 'Cash' }] }],
+  expenses: [{ ...expPaid, paymentMode: 'Cash' }, { ...expPaid, id: 'e9', paymentMode: 'UPI' }],
+});
+eq(cashBooks.map((e) => e.key), ['expense:e9:paid'], 'Payments and expenses paid in cash are never matched to the bank');
+const legacy = { ...invPaid, payments: [{ amount: 200, date: '2026-11-07', mode: 'upi', note: 'a' }, { amount: 300, date: '2026-11-07', mode: 'upi', note: 'b' }] };
+const k1 = bookEntries({ bills: [legacy] }).map((e) => e.key);
+const k2 = bookEntries({ bills: [{ ...legacy, payments: legacy.payments.slice(1) }] }).map((e) => e.key);
+eq([k1.length, k1[1] === k2[0], k1[1] === `invoice:b3:${paymentKeyOf(legacy.payments[1])}`], [2, true, true], 'An old payment with no id keeps its key when another is deleted');
 
 console.log('\n[bank match] Confirm and undo');
 const pay = bankPayment(lines[0], 'pay_bank1');
@@ -108,6 +135,17 @@ const pid = newPurchasePaymentId();
 const paidPurchase = withPurchasePayments(bill, [bankPayment(lines[1], pid)]);
 eq([purchaseStatus(paidPurchase), paidPurchase.paidAmount], ['Paid', 5900], 'Confirm on a purchase bill: Paid');
 eq(purchaseStatus(withPurchasePayments(paidPurchase, [])), 'Unpaid', 'Undo: Unpaid again');
+const returned = { ...bill, totalAmount: 5900, _returned: 900 };
+const paidLess = purchaseWithPayments(returned, [bankPayment({ ...lines[1], debit: 5000 }, 'pp1')]);
+eq([paidLess.paymentStatus, '_returned' in paidLess], ['Paid', false], 'A bill with goods returned is Paid by the rest; the returns are not saved on it');
+const handPartial = { ...bill, paymentStatus: 'Partial' };
+const before = payStateOf(handPartial);
+const withBank = purchaseWithPayments(handPartial, [bankPayment(lines[1], 'pp2')]);
+eq(withoutBankPayment('purchase', withBank, 'pp2', before).paymentStatus, 'Partial', 'Undo gives a bill back the status it had (Partly paid by hand)');
+eq(withoutBankPayment('purchase', { ...withBank, payments: [...withBank.payments, { id: 'other', amount: 100, date: '2026-11-05' }] }, 'pp2', before).paymentStatus, 'Partial',
+  '... worked out from the payments when another was added since');
+const invBefore = payStateOf({ ...invUnpaid, status: 'overdue' });
+eq(withoutBankPayment('invoice', invoiceWithPayment({ ...invUnpaid, status: 'overdue' }, pay), pay.id, invBefore).status, 'overdue', 'Undo gives an invoice back its status');
 
 const exp = expenseFromLine(lines[2], prof);
 eq([exp.amount, exp.category, exp.paymentStatus, exp.paymentMode, exp.ownerGstin, exp.date], [17.7, 'Bank Charges', 'paid', 'Bank Transfer', prof.gstin, '2026-11-05'], 'Add as expense: paid by bank transfer, this business');
