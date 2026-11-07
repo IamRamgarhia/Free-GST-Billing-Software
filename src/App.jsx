@@ -783,6 +783,27 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showPalette, paletteIdx, filteredPalette]);
 
+  // v1.10.84 (maintainer, 7 Nov: "this window should never come") - inside the
+  // Windows Setup's own window (WebView2 gives every page window.chrome.webview)
+  // the window starts the app again by itself, and an update stops it for a
+  // moment. No instructions there: the start screen's look until it answers
+  // (the check below every 5 s brings the app back by itself). A browser or
+  // the ZIP's launcher still gets the Quick Start help.
+  if (serverDown && typeof window !== 'undefined' && window.chrome?.webview) {
+    return (
+      <div className="app-window-starting" role="status" aria-live="polite" style={{
+        position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: '1rem',
+        background: darkMode ? '#0f172a' : '#f0f2f5', color: darkMode ? '#e2e8f0' : '#0f172a',
+      }}>
+        <img src="/icons/icon-192.png" alt="" width={72} height={72} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Free GST Billing</h2>
+        <div className="server-down-waiting"><div className="server-down-spinner" /><span>Starting again…</span></div>
+        <p style={{ position: 'absolute', bottom: 28, margin: 0, fontSize: '0.8rem', color: darkMode ? '#94a3b8' : '#64748b' }}>by DiceCodes</p>
+      </div>
+    );
+  }
+
   if (serverDown) {
     return (
       <div className="server-down-overlay">

@@ -2180,6 +2180,28 @@ try {
     check('#177 select all + Delete selected removes the products the list shows, and only those', barText === '2 selected' && ids.join() === 'smoketest-tick-keep', `bar="${barText}" left=${ids.join() || 'none'}`);
   }
 
+  // ---- v1.10.84 (maintainer: "this window should never come"): with the
+  // server not answering, the Windows Setup's own window (WebView2:
+  // window.chrome.webview) shows "Starting again..." - never the Quick Start
+  // instructions, which a browser still gets.
+  {
+    const seen = {};
+    for (const [label, asWindow] of [['window', true], ['browser', false]]) {
+      const c = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+      if (asWindow) await c.addInitScript(() => { window.chrome = window.chrome || {}; window.chrome.webview = {}; });
+      const p = await c.newPage();
+      await p.route('**/api/profile', (r) => r.abort());
+      try {
+        await p.goto(APP, { waitUntil: 'load' });
+        await p.waitForTimeout(3000);
+        const text = await p.locator('body').innerText().catch(() => '');
+        seen[label] = { starting: /Starting again/.test(text), quickStart: /Needs a Quick Start/.test(text) };
+      } finally { await c.close(); }
+    }
+    check('v84 the app window never shows "Needs a Quick Start" (it shows Starting again); a browser still gets the help',
+      seen.window?.starting && !seen.window?.quickStart && seen.browser?.quickStart && !seen.browser?.starting, JSON.stringify(seen));
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {

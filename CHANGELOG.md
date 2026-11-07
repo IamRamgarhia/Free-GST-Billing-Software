@@ -162,6 +162,10 @@ a backup is made first.
 - The window title reads like a desktop program: the page and your business name.
 
 ### Fixed
+- **The app window never shows "Needs a Quick Start"** (ERR-085): while an
+  update or a restart stopped the app for a moment, the window showed the
+  browser's start-up instructions; it now shows "Starting again..." and
+  carries on by itself.
 - **Cancel invoices did nothing when the ticked invoices were already
   cancelled**: it now says so and points to *Delete invoices*.
 - **A deleted invoice now really stays 30 days in the Trash** (ERR-084): an

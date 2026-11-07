@@ -730,6 +730,31 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-085 - "Needs a Quick Start" inside the app's own window during an update
+
+**Version:** the v1.10.84 test Setup (never released) · fixed before release
+**Reported by:** the maintainer, running the new Setup over their install (2026-11-07), with a screenshot: "this window should never come"
+
+**Symptom** - while the Setup updated the app, the open app window showed the
+browser-style "Free GST Billing Software Needs a Quick Start" page (double-click
+the Desktop icon, Chrome/Edge app icons...).
+
+**Cause** - that screen is the app's own `serverDown` view (App.jsx), drawn in
+the page when `/api/profile` stops answering. An update stops the server for a
+moment. The window's guard (ERR-075 follow-up in FreeGSTBilling.cs) only looks
+at page loads, and this view appears without one, so it was never covered.
+
+**Rule** - inside the Windows Setup's window (`window.chrome.webview`, WebView2)
+the page never shows start-up instructions: it shows the start screen's
+"Starting again..." until the server answers; the window starts the server
+itself. Browsers and the ZIP launcher keep the Quick Start help.
+
+**Guard** - `tests/smoke.mjs` "v84 the app window never shows Needs a Quick
+Start": with `/api/profile` refused, a page with `window.chrome.webview` shows
+"Starting again" and no Quick Start, a plain browser shows the Quick Start.
+
+---
+
 ## ERR-084 - A deleted invoice could leave the Trash at once instead of after 30 days
 
 **Version:** every version since 1.9.5 · fixed in 1.10.84
