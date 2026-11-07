@@ -373,17 +373,30 @@ export default [
 <p>Switches for parts of a screen, grouped by the screen they appear on:</p>
 <div class="table-wrap"><table>
   <tr><th>Screen</th><th>Switch</th><th>What it shows</th></tr>
-  <tr><td rowspan="5">Invoice screen</td><td>TDS / TCS</td><td>Tax deducted or collected at source on an invoice. See <a href="invoices.html#tds-tcs">TDS and TCS</a>.</td></tr>
+  <tr><td rowspan="6">Invoice screen</td><td>TDS / TCS</td><td>Tax deducted or collected at source on an invoice. See <a href="invoices.html#tds-tcs">TDS and TCS</a>.</td></tr>
   <tr><td>E-way bill</td><td>The button to download the e-way bill file for goods you send.</td></tr>
   <tr><td>E-invoicing (IRN)</td><td>Only if your yearly turnover is above ₹5 crore. <b>Off</b> to start. See <a href="gst-returns.html#e-invoice">E-invoicing</a>.</td></tr>
   <tr><td>Sales orders</td><td>The Sales Order document and a ${ui('Sales orders')} tab on the Dashboard: send an order in parts with delivery challans, then invoice it. <b>Off</b> to start (on for Wholesale, Manufacturing and Everything). See <a href="invoices.html#sales-orders">Sales orders</a>.</td></tr>
   <tr><td>UPI QR code</td><td>The scan-to-pay QR code on invoices.</td></tr>
+  <tr><td>Price levels</td><td>Up to 3 price lists, such as Retail, Wholesale and Dealer. <b>Off</b> to start. See <a href="#price-levels">Price levels</a>.</td></tr>
   <tr><td rowspan="2">Purchases screen</td><td>Purchase orders</td><td>Orders to suppliers, turned into bills when goods arrive. <b>Off</b> to start. See <a href="purchases.html#purchase-orders">Purchase orders</a>.</td></tr>
   <tr><td>GSTR-2B matching</td><td>Matching your purchase bills with GSTR-2B, a tab on GST returns.</td></tr>
   <tr><td>Products screen</td><td>Manufacturing (bill of materials)</td><td>What goes into a product, and ${ui('Make')} to move the stock. <b>Off</b> to start. See <a href="products.html#manufacturing">Manufacturing</a>.</td></tr>
   <tr><td>Reports screen</td><td>Cost centres</td><td>Tag bills, purchases and expenses with a branch, site or project, and see profit for each. <b>Off</b> to start.</td></tr>
   <tr><td>Integrations</td><td>Google Drive</td><td>Saving invoice PDFs and backups to your Google Drive.</td></tr>
 </table></div>
+</section>
+
+<section id="price-levels">
+<h3>Price levels</h3>
+<p>For a business that sells the same product at different prices to different customers: shop customers, wholesalers, dealers.</p>
+<ol class="steps">
+  <li><strong>Turn it on</strong>Tick <b>Price levels</b> under <b>Invoice screen</b>. Three boxes appear under it with the level names: <b>Retail</b>, <b>Wholesale</b> and <b>Dealer</b>. Change them to your own names, or empty one to use only two levels. Click ${ui('Save all changes')}.</li>
+  <li><strong>Prices</strong>On the <a href="products.html#add-product">product form</a>, <b>Price for each level (optional)</b> has a box per level, besides the <b>Selling Price</b>. Leave a box empty where that level pays the selling price.</li>
+  <li><strong>Clients</strong>On the <a href="clients.html#client-form">client form</a>, pick their <b>Price level</b>. <b>Selling price (no level)</b> is the default.</li>
+  <li><strong>Invoices</strong>On New Invoice, pick the client, then the products: each product comes in at the client's level price, or at its selling price when it has none for that level. You can still change the rate on the line.</li>
+</ol>
+<p>The Products <a href="products.html#import">CSV import</a> reads a <code>&lt;level name&gt; price</code> column for each level (such as <code>Wholesale price</code>), and the Products export writes them, so the file goes out and comes back the same. Renaming a level keeps every price and client on it. Turning the feature off hides the boxes and invoices use the selling price again; the level prices stay saved for when you turn it back on.</p>
 </section>
 
 <section id="stock">

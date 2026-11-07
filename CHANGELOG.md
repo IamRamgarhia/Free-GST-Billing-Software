@@ -125,6 +125,31 @@ a backup is made first.
   saved on it. Invoices with no rate are counted apart and named in a warning.
 - **The app window's title bar turns dark** with the app's dark theme
   (Windows Setup).
+- **Preview the Statement and Aging PDFs** (#157): on a client's account,
+  **Statement PDF** and **Aging PDF** open in the app first instead of
+  downloading at once, with **Download**, **Print**, **WhatsApp** and
+  **Email** at the bottom (as for invoices: a phone shares the PDF itself; on
+  a PC it downloads and the chat or mail opens with a short message, ready to
+  attach it). Close it to get back to the account.
+- **Payment history on each client** (#157): **Payment history** under their
+  invoices lists every payment with its date, invoice number, amount, mode
+  and note, newest first: the payments recorded on invoices and the receipts
+  made on the Receipts page (an advance on no invoice too). Each invoice row
+  shows **Last paid** with the date of its latest payment.
+- **Items on the client statement** (#148): tick **Show items** on a client's
+  account (off to start) and each invoice lists its items, name x quantity
+  and the line amount, under it, on screen and in the Statement PDF.
+- **Credit limit for a client**: an optional **Credit limit** on the client
+  form. On New Invoice a warning shows under the items when what the client
+  owes your business plus this invoice goes over it (you can still save), and
+  the Clients list marks them **Over credit limit**. Only real sales of the
+  business you are working in count, less payments, TDS and credit notes.
+- **Price levels**: **Settings → Features → Price levels** (off to start).
+  Name up to 3 levels (Retail, Wholesale, Dealer to start); give a product a
+  price for each level besides its selling price, and a client a level. On a
+  new invoice, a product picked for that client takes its level price, or the
+  selling price when it has none. The Products CSV import and export carry a
+  column per level (such as *Wholesale price*).
 
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only

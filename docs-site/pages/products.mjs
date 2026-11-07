@@ -72,6 +72,7 @@ export default [
   <tr><td>Unit</td><td>Pcs to start. Pcs, Nos, Kg, g, Tonne, Ltr, ml, Mtr, cm, Ft, In, Rft, Sq.ft, Sq.m, Hrs, Day, Week, Month, Year, Visit, Session, Project, Word, Page, Box, Dozen, Pair, Set, Bag, Roll, Bottle, and your own <a href="invoices.html#items">custom units</a>, marked ★.</td></tr>
   <tr><td>Stock Quantity</td><td>Goods only. How many you have now. After this, sales and purchases change it for you; see <a href="#stock">How stock is counted</a>. Left blank, the stock is <b>not counted</b>: the list shows a dash, never <b>Out of Stock</b>, until you type a number, buy it on a purchase bill or sell it.</td></tr>
   <tr><td>Description (optional)</td><td>For your own reference. It shows when you point at the name in the list.</td></tr>
+  <tr><td>Price for each level (optional)</td><td>Only when <a href="settings.html#price-levels">Price levels</a> is on: a price for each level, such as Wholesale and Dealer. Blank uses the selling price for that level.</td></tr>
   <tr><td>Made here (from raw materials)</td><td>Only when manufacturing is turned on. See <a href="#bill-of-materials">Bill of materials</a>.</td></tr>
 </table></div>
 <p>Changing a product's price or GST % does not change invoices already made. New invoices use the new figures.</p>
@@ -180,6 +181,7 @@ export default [
   <tr><td><code>GST %</code> (or <code>GST Rate</code>, <code>Tax %</code>)</td><td>GST rate, such as 18. 0 to 100.</td></tr>
   <tr><td><code>Stock</code> (or <code>Quantity</code>, <code>Opening Stock</code>)</td><td>Opening stock of goods. Leave it blank for a service, or for goods you do not count.</td></tr>
   <tr><td><code>Description</code></td><td>Optional</td></tr>
+  <tr><td><code>Wholesale price</code> (the level's name + <code>price</code>, or <code>Level 2 price</code>)</td><td>Only read when <a href="settings.html#price-levels">Price levels</a> is on: the product's price for that level. One column per level. The Products export writes them the same way.</td></tr>
 </table></div>
 <p>The sample file looks like this:</p>
 <pre><code>Name,Type,HSN/SAC,Unit,Purchase Price,Selling Price,GST %,Stock,Description

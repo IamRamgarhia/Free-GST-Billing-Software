@@ -35,6 +35,7 @@ export default [
   <tr><td><b>Paid</b> (green)</td><td>What they have paid you on those invoices.</td></tr>
   <tr><td><b>Outstanding</b> (red)</td><td>What they still owe. TDS that the client deducted is not counted as owed, since they pay it to the government for you. Green ₹0 means all settled.</td></tr>
   <tr><td><b>Overpaid</b> (blue)</td><td>Shown instead of Outstanding when they paid more than they were billed. The extra can be used on <a href="invoices.html#client-credit">their next invoice</a>.</td></tr>
+  <tr><td><b>Over credit limit</b> (red, next to the name)</td><td>They owe your business more than the <a href="#credit-limit">credit limit</a> you gave them.</td></tr>
   <tr><td>${ui('View')} / ${ui('Hide')}</td><td>Click anywhere on the card to open or close the client's account.</td></tr>
 </table></div>
 <p>Only real sales count in these figures: Tax Invoices, Bills of Supply and Composition bills. Credit notes are subtracted. Quotations, proformas, delivery challans and cancelled invoices are left out, because nobody owes money on them.</p>
@@ -69,6 +70,8 @@ export default [
   <tr><td>Email</td><td>Used as the "To" address when you email an invoice from the client's account.</td></tr>
   <tr><td>Phone</td><td>Used for WhatsApp. Write it with the country code, such as +91 98765 43210.</td></tr>
   <tr><td>SEZ unit / Developer</td><td>India only. See <a href="#client-sez">SEZ clients</a>.</td></tr>
+  <tr><td>Credit limit (optional)</td><td>The most they should owe you. See <a href="#credit-limit">Credit limit</a>.</td></tr>
+  <tr><td>Price level</td><td>Shown only when <a href="settings.html#price-levels">Price levels</a> is on: the price list this client buys at.</td></tr>
   <tr><td>Print preferences (optional)</td><td>Preferred paper size, currency and auto-print for this client. See <a href="#client-print-prefs">Print preferences</a>.</td></tr>
 </table></div>
 <p>Changing a client's details does not change invoices already made: each invoice keeps the details it was saved with. To correct one, open it, pick the client again under <b>Client Name</b>, and save.</p>
@@ -115,6 +118,16 @@ export default [
 <p>Tick <b>SEZ unit / Developer</b> for a client in a Special Economic Zone. Supplies to them are charged IGST whatever their state, even if they are in your own state (section 16 of the IGST Act). The box only shows when the country is India.</p>
 </section>
 
+<section id="credit-limit">
+<h3>Credit limit</h3>
+<p>Some clients buy on credit. Type the most they should owe you in <b>Credit limit</b> on the client form (leave it blank for no limit). Then:</p>
+<ul>
+  <li>On <a href="invoices.html#credit-limit">New Invoice</a>, when what they already owe plus the new invoice goes over the limit, a warning shows under the items: <b>Over the credit limit by ₹…</b>, with what they owe and the limit. It never stops you saving.</li>
+  <li>On the client list, their card shows <b>Over credit limit</b> next to the name while they owe more than the limit.</li>
+</ul>
+<p>What they owe is counted for the business you are working in: unpaid tax invoices, bills of supply and composition bills, less payments, TDS they deducted and credit notes. Quotations, proformas, challans and cancelled invoices are not counted.</p>
+</section>
+
 <section id="client-print-prefs">
 <h3>Print preferences</h3>
 <p>Some clients always want the same thing: a thermal receipt, an A5 bill, or an invoice in dollars. Set it once here and every new invoice for them starts that way. All three are optional; leave them blank to use your normal settings.</p>
@@ -134,10 +147,11 @@ export default [
 <figure><img src="${img('app-clients.png')}" alt="A client opened, with their invoices, ageing strip and PDFs." loading="lazy"><figcaption>A client opened, with their invoices, ageing strip and PDFs.</figcaption></figure>
 <p>From top to bottom:</p>
 <ol>
-  <li>${ui('Statement PDF')} and ${ui('Aging PDF')}: see <a href="#statement">Statement and ageing PDFs</a>.</li>
+  <li>${ui('Show items')}, ${ui('Statement PDF')} and ${ui('Aging PDF')}: see <a href="#statement">Statement and ageing PDFs</a>.</li>
   <li>The <b>Aging</b> strip, when they owe you anything: see <a href="#ageing">Ageing</a>.</li>
   <li>Their address, email and phone, if saved.</li>
   <li>All their invoices, newest first.</li>
+  <li>${ui('Payment history')}, when they have paid you: see <a href="#payment-history">Payment history</a>.</li>
   <li>${ui('Edit Client')} and ${ui('Delete Client')}, or ${ui('Save as Client')}.</li>
 </ol>
 <p>A client with no invoices shows <b>No invoices for this client yet.</b> and a ${ui('Create Invoice')} button.</p>
@@ -154,8 +168,14 @@ export default [
   <tr><td>Email</td><td>Opens your email program with a message about the invoice, addressed to the client's saved email.</td></tr>
   <tr><td>Delete Invoice (bin)</td><td>Asks first, then moves the invoice to the Trash for 30 days and puts its stock back.</td></tr>
 </table></div>
-<p>A row past its due date and not paid is highlighted as overdue.</p>
+<p>A row past its due date and not paid is highlighted as overdue. Under the status, <b>Last paid</b> shows the date of the latest payment on that invoice.</p>
 <p>Deleted by mistake? Restore it from <a href="backup.html#trash">Settings, Trash bin</a> within 30 days. For an invoice already given to the client, <a href="dashboard.html#cancel">cancel it</a> on the Dashboard instead of deleting, so its number stays in your records.</p>
+</section>
+
+<section id="payment-history">
+<h3>Payment history</h3>
+<p>Every payment the client made, newest first. Click ${ui('Payment history')} under their invoices to open it (the number in brackets is how many there are); click again to close it. Each row has the <b>Date</b>, <b>Invoice No.</b>, <b>Amount</b>, <b>Mode</b> (Cash, UPI, Bank Transfer, Cheque...) and <b>Note</b>.</p>
+<p>It lists the payments recorded on their invoices (the ${ui('₹')} button on the <a href="dashboard.html#payments">Dashboard</a>, or marking an invoice Paid), and receipts made on the <a href="receipts.html">Receipts</a> page. A receipt made against an invoice is listed once. A receipt on no invoice, such as an advance, shows its receipt number instead of an invoice. Using a client's credit from an overpayment on another invoice is not new money, so it is not listed.</p>
 </section>
 
 <section id="client-status">
@@ -197,7 +217,16 @@ export default [
 
 <section id="statement">
 <h2>Statement and ageing PDFs</h2>
-<p>Two buttons at the top of an opened client make PDFs you can send them or keep. Each one downloads straight away, and you see "Statement PDF generated" or "Aging report for <i>name</i> downloaded". If you set your own PDF colours in <a href="print-settings.html#colours">Print Settings</a>, the coloured bands and lines follow them.</p>
+<p>Two buttons at the top of an opened client make PDFs you can send them or keep. Each one opens a preview first, so you can read it without downloading. At the bottom of the preview:</p>
+<div class="table-wrap"><table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td>${ui('WhatsApp')}</td><td>On a phone, the share sheet opens with the PDF: pick WhatsApp. On a PC, the PDF downloads and WhatsApp opens at the client's chat (from their saved phone) with a short message; drag the PDF into the chat. Browsers do not let a web page attach a file to WhatsApp, as for <a href="invoices.html#whatsapp">invoices</a>.</td></tr>
+  <tr><td>${ui('Email')}</td><td>The PDF downloads and your email program opens, addressed to the client's saved email, with a short message. Attach the PDF to the mail.</td></tr>
+  <tr><td>${ui('Download')}</td><td>Saves the PDF.</td></tr>
+  <tr><td>${ui('Print')}</td><td>Opens the print window for the PDF.</td></tr>
+</table></div>
+<p>The cross at the top, <kbd>Esc</kbd>, or a click outside the preview closes it and you are back in the client's account. If you set your own PDF colours in <a href="print-settings.html#colours">Print Settings</a>, the coloured bands and lines follow them.</p>
+<p><b>Show items</b>, next to the buttons, is off at first. Tick it and each invoice in the list shows its items under the invoice number (name x quantity, and the line amount), and the Statement PDF lists them under each invoice too. The line amount is quantity x rate less the line discount, as typed on the invoice.</p>
 </section>
 
 <section id="statement-pdf">
@@ -216,7 +245,7 @@ export default [
 <section id="aging-pdf">
 <h3>Aging PDF</h3>
 <p>Only what is still unpaid, for collection calls. It lists each unpaid invoice with its <b>Invoice #</b>, <b>Date</b>, <b>Due</b> date, <b>Age</b> in days, <b>Total</b> and <b>Outstanding</b>. Amounts more than 60 days old are in red. Below the list, an <b>AGING SUMMARY</b> gives the four groups (0–30, 31–60, 61–90 and 90+ days) and the <b>TOTAL OUTSTANDING</b>. The file is named like <code>Aging-Sharma_Traders-2026-10-29.pdf</code>.</p>
-<div class="note tip"><strong>Something wrong?</strong><p>"No invoices for this client" or "<i>name</i> has no outstanding balance.": there is nothing to put in that PDF. A paid-up client has no Aging PDF.</p><p>Nothing downloads: your browser may be asking where to save, or blocking downloads from the app. Allow downloads, then click again.</p><p>The balance looks wrong: check that each payment was recorded on the right invoice, and that quotations were converted into invoices. See <a href="dashboard.html#payments">Recording a payment</a>.</p></div>
+<div class="note tip"><strong>Something wrong?</strong><p>"No invoices for this client" or "<i>name</i> has no outstanding balance.": there is nothing to put in that PDF. A paid-up client has no Aging PDF.</p><p>The preview stays blank: your browser cannot show PDFs inside a page. Click ${ui('Download')} and open the file. Nothing downloads: your browser may be asking where to save, or blocking downloads from the app. Allow downloads, then click again.</p><p>The balance looks wrong: check that each payment was recorded on the right invoice, and that quotations were converted into invoices. See <a href="dashboard.html#payments">Recording a payment</a>.</p></div>
 </section>
 
 <section id="import-csv">
