@@ -105,6 +105,11 @@ window.addEventListener('blur', () => {
 //      referencing files the SW's cache doesn't have), auto-reload
 //      once — belt-and-braces after case 1.
 if ('serviceWorker' in navigator) {
+  // v1.10.85 - the very first service worker taking control of a page that
+  // loaded from the network is not an update: that page is already current.
+  // Reloading then (about 3 s after the first open) closed any form already
+  // opened, on every fresh browser and in the smoke test's fresh books.
+  const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.getRegistration().then(reg => {
     if (!reg) return;
     // Take the waiting SW live if there is one.
@@ -118,7 +123,7 @@ if ('serviceWorker' in navigator) {
     // it ourselves (already-mounted app).
     let alreadyReloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (alreadyReloaded) return;
+      if (alreadyReloaded || !hadController) return;
       alreadyReloaded = true;
       window.location.reload();
     });
