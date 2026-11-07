@@ -9,7 +9,8 @@ import HelpButton from './HelpButton';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import { formatCurrency, parseLocalDate, numberToWords, localToday, businessKeyOf, stockDelta } from '../utils';
-import { returnableLines, returnProblem, debitNoteFromBill, debitNoteTotals, debitNoteStock } from '../utils/debitNotes';
+import { returnableLines, returnProblem, debitNoteFromBill, debitNoteTotals, debitNoteStock, unmatchedLines, freeDnNumber } from '../utils/debitNotes';
+import { purchaseLineTax } from '../utils/purchaseOrders';
 import { getPrintSettings } from '../utils/printSettings';
 import { getAllProducts, applyStockChanges, saveDebitNote, deleteDebitNote, getNextDnNumber } from '../store';
 
@@ -25,11 +26,16 @@ function accentRGB(ps) {
 // Saves a debit note and moves stock from what it did before (`prev`) to
 // what it does now: a new or restored one takes the goods out, a cancelled
 // one puts them back. The note is saved first, so a failed save moves nothing.
+// Throws only when the note itself was not saved; a stock problem after it was
+// saved comes back as stockOk: false (the caller reloads and warns, so a retry
+// can never save the note twice). `unmatched` = returned lines with no product.
 export async function saveDebitNoteWithStock(next, prev = null) {
-  const applied = debitNoteStock(next, await getAllProducts());
+  const products = await getAllProducts();
+  const applied = debitNoteStock(next, products);
   const saved = await saveDebitNote({ ...next, stockApplied: applied });
-  await applyStockChanges(stockDelta(prev?.stockApplied || {}, applied));
-  return saved;
+  let stockOk = true;
+  try { await applyStockChanges(stockDelta(prev?.stockApplied || {}, applied)); } catch { stockOk = false; }
+  return { saved, stockOk, unmatched: unmatchedLines(next, products) };
 }
 
 // The debit note as an A4 PDF for the supplier: your business, the supplier,
@@ -87,7 +93,8 @@ async function buildDnPdf(dn, profile) {
     doc.text(String(it.unit || ''), cols.u, y);
     doc.text(fmt(it.rate), cols.r, y, { align: 'right' });
     doc.text(`${Number(it.taxPercent) || 0}%`, cols.g, y, { align: 'right' });
-    doc.text(fmt((Number(it.quantity) || 0) * (Number(it.rate) || 0)), R, y, { align: 'right' });
+    // v1.10.85 (#171) - after its discount, as on the bill.
+    doc.text(fmt(purchaseLineTax(it).amount), R, y, { align: 'right' });
     y += rowH;
   });
 
@@ -140,17 +147,22 @@ export function ReturnToSupplierModal({ bill, debitNotes, ownerProfile, onClose,
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const draft = debitNoteFromBill(bill, debitNotes, qty, { date, reason, note });
+  // A bill saved before bills had a business gets the open one.
+  const owner = { gstin: ownerProfile?.gstin || '', name: ownerProfile?.businessName || '' };
+  const draft = debitNoteFromBill(bill, debitNotes, qty, { date, reason, note, owner });
   const t = debitNoteTotals(draft);
 
   const save = async () => {
-    const problem = returnProblem(bill, debitNotes, qty) || (!date ? 'Enter the date of the return' : '');
+    const problem = (!date ? 'Enter the date of the return' : '') || returnProblem(bill, debitNotes, qty, date);
     if (problem) { toast(problem, 'warning'); return; }
     setBusy(true);
     try {
-      const dnNumber = await getNextDnNumber({ businessKey: businessKeyOf(ownerProfile), date });
-      const saved = await saveDebitNoteWithStock({ ...draft, dnNumber, createdAt: new Date().toISOString() });
-      toast(`${dnNumber} saved: ${formatCurrency(t.total)} returned, stock and ITC reduced`, 'success');
+      // Skips a number already used (an older backup restored puts the counter back).
+      const dnNumber = await freeDnNumber(() => getNextDnNumber({ businessKey: businessKeyOf(ownerProfile), date }), debitNotes);
+      const { saved, stockOk, unmatched } = await saveDebitNoteWithStock({ ...draft, dnNumber, createdAt: new Date().toISOString() });
+      if (!stockOk) toast(`${dnNumber} is saved, but the stock could not be changed. Check the stock of the returned items in Products.`, 'warning', 10000);
+      else if (unmatched.length) toast(`${dnNumber} saved. No product is named ${unmatched.join(', ')}, so no stock moved for ${unmatched.length === 1 ? 'it' : 'them'}.`, 'warning', 10000);
+      else toast(`${dnNumber} saved: ${formatCurrency(t.total)} returned, stock and ITC reduced`, 'success');
       onSaved(saved);
     } catch (err) {
       console.error('Debit note save failed:', err);
@@ -178,7 +190,7 @@ export function ReturnToSupplierModal({ bill, debitNotes, ownerProfile, onClose,
                   <td style={{ whiteSpace: 'normal' }}>{l.name}<span className="text-muted"> · {l.taxPercent}% GST</span></td>
                   <td style={{ textAlign: 'right' }}>{l.bought}</td>
                   <td style={{ textAlign: 'right' }} className="text-muted">{l.returned || '-'}</td>
-                  <td style={{ textAlign: 'right' }}>{formatCurrency(l.rate)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(l.rate)}{l.discount ? <span className="text-muted"> less {l.discountType === 'percent' ? `${l.discount}%` : formatCurrency(l.discount)}</span> : null}</td>
                   <td style={{ textAlign: 'right' }}>
                     <input type="number" min="0" max={l.left} step="any" className="form-input" style={{ width: 90, textAlign: 'right' }}
                       aria-label={`Return quantity of ${l.name}`} disabled={l.left <= 0} placeholder={`max ${l.left}`}
@@ -235,8 +247,9 @@ export default function DebitNotesList({ notes, purchases = [], ownerProfile, on
     })) return;
     try {
       const next = { ...dn, cancelled, cancelledAt: cancelled ? new Date().toISOString() : undefined };
-      await saveDebitNoteWithStock(next, dn);
-      toast(cancelled ? `${dn.dnNumber} cancelled, stock put back` : `${dn.dnNumber} is back`, 'success');
+      const { stockOk } = await saveDebitNoteWithStock(next, dn);
+      if (!stockOk) toast(`${dn.dnNumber} is ${cancelled ? 'cancelled' : 'back'}, but the stock could not be changed. Check Products.`, 'warning', 10000);
+      else toast(cancelled ? `${dn.dnNumber} cancelled, stock put back` : `${dn.dnNumber} is back`, 'success');
       onChanged();
     } catch { toast('Could not change the debit note', 'error'); }
   };
