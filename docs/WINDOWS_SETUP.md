@@ -63,14 +63,14 @@ npm run release:exe            # = node scripts/build-installer.mjs
    (`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`, C# 5, .NET
    Framework 4.x - nothing to install) and Microsoft's WebView2 SDK: the NuGet
    package `Microsoft.Web.WebView2` **1.0.4258.31**, unpacked in
-   `release-build/tools/webview2-sdk/pkg` (or `WEBVIEW2_SDK=<folder>`). The
+   `.installer-cache/webview2-sdk/pkg` (or `WEBVIEW2_SDK=<folder>`). The
    three files used are checked against SHA-256s in `build-installer.mjs`;
    another SDK version needs new hashes there (check `Get-AuthenticodeSignature`:
    *Valid*, *Microsoft Corporation*).
    It also takes Microsoft's WebView2 Runtime installer (the Evergreen
    bootstrapper `MicrosoftEdgeWebview2Setup.exe`, about 2 MB, from
    <https://go.microsoft.com/fwlink/p/?LinkId=2124703>) from
-   `release-build/tools/webview2-bootstrapper/` (or
+   `.installer-cache/webview2-bootstrapper/` (or
    `WEBVIEW2_BOOTSTRAPPER=<file>`): its SHA-256 is pinned in
    `build-installer.mjs` and its signature must be valid, Microsoft
    Corporation. Microsoft updates that file now and then: a fresh download

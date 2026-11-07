@@ -107,9 +107,9 @@ if (arg('version')) {
 // the C# compiler that is part of Windows (.NET Framework 4.x, no SDK), with
 // Microsoft's WebView2 SDK (NuGet Microsoft.Web.WebView2 1.0.4258.31, its
 // files checked against these SHA-256s; a new SDK version: new hashes here).
-// WEBVIEW2_SDK=<the unpacked package> or release-build/tools/webview2-sdk/pkg.
+// WEBVIEW2_SDK=<the unpacked package> or .installer-cache/webview2-sdk/pkg (not release-build/: release:zip empties it).
 {
-  const sdk = resolve(process.env.WEBVIEW2_SDK || join(ROOT, 'release-build', 'tools', 'webview2-sdk', 'pkg'));
+  const sdk = resolve(process.env.WEBVIEW2_SDK || join(ROOT, '.installer-cache', 'webview2-sdk', 'pkg'));
   const pinned = {
     'lib/net462/Microsoft.Web.WebView2.Core.dll': 'd60e6e94245078cb56e44ebd5f360dc04bf18e460136be93bfc4cfca43b98505',
     'lib/net462/Microsoft.Web.WebView2.WinForms.dll': '6a9e6856f23c463783c3afb0ca5d78f56324c86657162ccb16d5227b3233b32a',
@@ -137,8 +137,8 @@ if (arg('version')) {
 // https://go.microsoft.com/fwlink/p/?LinkId=2124703), which Setup runs only on
 // a PC without the runtime. Checked: this SHA-256 (a newer download needs a
 // new hash here) and a valid Microsoft Corporation signature.
-// WEBVIEW2_BOOTSTRAPPER=<file> or release-build/tools/webview2-bootstrapper/.
-const bootstrapper = resolve(process.env.WEBVIEW2_BOOTSTRAPPER || join(ROOT, 'release-build', 'tools', 'webview2-bootstrapper', 'MicrosoftEdgeWebview2Setup.exe'));
+// WEBVIEW2_BOOTSTRAPPER=<file> or .installer-cache/webview2-bootstrapper/.
+const bootstrapper = resolve(process.env.WEBVIEW2_BOOTSTRAPPER || join(ROOT, '.installer-cache', 'webview2-bootstrapper', 'MicrosoftEdgeWebview2Setup.exe'));
 {
   if (!existsSync(bootstrapper)) fail(`${bootstrapper} is missing. Download it from https://go.microsoft.com/fwlink/p/?LinkId=2124703, or set WEBVIEW2_BOOTSTRAPPER=<file>.`);
   const sha = createHash('sha256').update(readFileSync(bootstrapper)).digest('hex');
