@@ -120,6 +120,32 @@ a backup is made first.
   column** above the items and type the serial numbers or IMEIs of the pieces.
   They show in the bill's view and PDF, and the Purchases search finds a bill
   by any of them. Both columns stay hidden until you tick them (remembered).
+- **Alternate units: Box = 12 Pcs** (#148): in the product form, **+ Also
+  sold or bought in a second unit** sets one (and, if you like, a price per
+  box). On an invoice, choose **Box** in the line's Unit: the rate becomes the
+  box price, or 12 x the piece price. Purchase bill lines of such a product get
+  a Unit box too (12 x the purchase price). Stock always counts pieces (2
+  boxes sold = 24 out), and the GSTR-1 HSN summary reports the quantity in
+  pieces. Old products, invoices and bills are unchanged.
+- **Categories and brands** (#142, #148): an optional **Category** on each
+  product, a main category and up to 3 levels under it (Garments > Men >
+  Shirts > Formal), and a **Brand**. They are the "stock groups": one tree.
+  Products, **Reports → Product Performance** and **Reports → Stock** filter
+  by them (a category takes in everything under it) and by item name. The CSV
+  import and export carry both columns.
+- **Serial number lookup** (#142, #160): in **Reports → Product
+  Performance**, type a serial number or IMEI to see the purchase bill it was
+  bought on, and any invoice whose line names it.
+- **Adjust stock** on Products (the sliders button in a row): add or remove
+  goods damaged, lost, found, used in the shop or an opening correction, with
+  its date and a note. Each one is kept, listed in **Reports → Stock** for its
+  month (delete puts the stock back), counted on earlier dates, included in
+  backups, and locked with the rest once the books are closed.
+- **Low stock to a purchase order**: with purchase orders on, **Make purchase
+  order** on the Dashboard's low-stock strip, or on Products with **Low stock
+  only** ticked, opens a new purchase order with those products (enough to
+  reach twice the low-stock level, at the purchase price) for you to pick the
+  supplier, check and save.
 
 ### Fixed
 - Purchase returns: editing a bill can no longer cut a returned line below

@@ -212,7 +212,13 @@ export default [
 
 <section id="products">
 <h2>Product Performance</h2>
-<p>What you sold, by item, in the period chosen at the top. Revenue here is the line's taxable value: after line discounts and without GST, so it matches your invoices. Credit notes are subtracted (returned quantities come off too). Delivery charges and other charge lines are not a product and are left out. Items are grouped by the name on the invoice line.</p>
+<p>What you sold, by item, in the period chosen at the top. Revenue here is the line's taxable value: after line discounts and without GST, so it matches your invoices. Credit notes are subtracted (returned quantities come off too). Delivery charges and other charge lines are not a product and are left out. Items are grouped by the name on the invoice line. A line sold by the <a href="products.html#alternate-units">box</a> counts in the product's own unit (2 boxes of 12 = 24).</p>
+</section>
+
+<section id="product-filters">
+<h3>Filtering by item, category, brand or serial number</h3>
+<p>The boxes above the tables narrow every table on the tab: <b>Item name</b> (part of it), a <a href="products.html#categories">category</a> (with everything under it) and a brand. The category and brand lists appear once a product has one; lines that are not linked to a product drop out while either is chosen.</p>
+<p><b>Serial no. / IMEI</b>: type 3 characters or more. A card shows the purchase bill it was bought on (date, supplier, bill number), from the serial numbers written on <a href="purchases.html">purchase bill</a> lines, and any invoice whose line names it (in the item name or description).</p>
 </section>
 
 <section id="top-products">
@@ -245,16 +251,16 @@ export default [
 <section id="stock">
 <h2>Stock</h2>
 <p>Closing stock of every product at the end of a month, and what it is worth. Useful at year end (closing stock for your accounts or a bank loan), and to check stock against the shelf. The card is titled <b>Closing stock as on</b> and the date.</p>
-<p>Choose the month in the box next to the title: this month and the 35 before it. A past month shows its last day; the current month shows today's stock.</p>
+<p>Choose the month in the box next to the title: this month and the 35 before it. A past month shows its last day; the current month shows today's stock. The item name, category and brand boxes beside it narrow the list (and its total).</p>
 <div class="table-wrap"><table>
   <tr><th>Column</th><th>Meaning</th></tr>
   <tr><td><b>Product</b>, <b>HSN/SAC</b>, <b>Unit</b></td><td>From the <a href="products.html">product list</a>, A to Z. Unit shows Nos when none is set.</td></tr>
-  <tr><td><b>Closing qty</b></td><td>Worked back from today's stock, using the dates of your invoices, purchase bills and <a href="products.html#manufacturing">production entries</a>. Negative stock shows in red.</td></tr>
+  <tr><td><b>Closing qty</b></td><td>Worked back from today's stock, using the dates of your invoices, purchase bills, <a href="products.html#manufacturing">production entries</a> and <a href="products.html#stock-adjust">stock adjustments</a>. Negative stock shows in red.</td></tr>
   <tr><td><b>Rate</b></td><td>The purchase price. A product with no purchase price is valued at its selling price, marked with *.</td></tr>
   <tr><td><b>Value</b></td><td>Quantity × rate. A dash for zero or negative stock.</td></tr>
   <tr><td><b>Total stock value</b></td><td>The bottom row: all the values added up. Negative stock is not added in.</td></tr>
 </table></div>
-<p>Stock you typed in by hand on the Products screen has no date, so it counts as if it changed today. Products are shared by all your businesses, so this report covers every business. ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} export it, "valued at purchase price".</p>
+<p>Under the table, <b>Stock adjustments this month</b> lists the month's adjustments with their reason and note; the bin deletes one and puts its stock back. Stock you typed in by hand on the Products screen has no date, so it counts as if it changed today. Products are shared by all your businesses, so this report covers every business. ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} export it, "valued at purchase price".</p>
 <figure><img src="${img('app-stock-report.png')}" alt="Reports, Stock: closing quantity, rate and value of each product, with the total stock value." loading="lazy"><figcaption>Closing stock and its value at the end of a month.</figcaption></figure>
 <div class="note tip"><strong>Something wrong?</strong><p>A red (negative) quantity means more was sold than was bought: a purchase bill is missing, or opening stock was never entered. Add the purchase, or correct the stock on the <a href="products.html#stock">Products</a> screen. Values marked * use the selling price: add a purchase price to the product for a true value. "No products yet." means the product list is empty; stock is tracked only for items in it. See also <a href="limitations.html#stock-limits">what stock does not do</a>.</p></div>
 </section>

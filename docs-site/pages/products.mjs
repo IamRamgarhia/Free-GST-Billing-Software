@@ -133,6 +133,8 @@ export default [
   <li><strong>Buying</strong>: saving a <a href="purchases.html#stock">purchase bill</a> adds the quantity in, and adds any new item to your products.</li>
   <li><strong>Cancelling</strong> an invoice puts its stock back; un-cancelling takes it out again. Deleting an invoice puts its stock back too.</li>
   <li><strong>Making</strong>: a <a href="#make-production">production entry</a> uses up raw materials and adds the finished product.</li>
+  <li><strong>Adjusting</strong>: an <a href="#stock-adjust">Adjust stock</a> entry adds or removes goods damaged, lost, found or used in the shop.</li>
+  <li><strong>Boxes</strong>: a line in a product's <a href="#alternate-units">second unit</a> counts in its own unit: 2 boxes of 12 move 24 pieces.</li>
 </ul>
 <p><b>Out of Stock</b> shows in red at zero or below. Purchases and deletions never take stock below zero; selling more than you have does, so you notice.</p>
 <p>A <a href="#goods-or-service">service</a> is never counted. Goods whose stock box was left blank are not counted either until stock first moves: a purchase bill adds to them from zero, and a sale takes them below zero, so you notice.</p>
@@ -140,19 +142,40 @@ export default [
 </section>
 
 <section id="stock-adjust">
-<h3>Correcting stock by hand</h3>
-<p>There is no separate stock adjustment screen. After counting your shelves, or for breakage, a free sample or opening stock:</p>
+<h3>Adjusting stock (damaged, lost, found)</h3>
+<p>For goods that leave or come back without a bill, use the sliders button in a product's row (<b>Adjust stock</b>):</p>
 <ol class="steps">
-  <li><strong>One product</strong>Click its pencil, type the real count in <b>Stock Quantity</b>, and click ${ui('Update')}.</li>
-  <li><strong>Many products</strong>Click ${ui('Bulk edit')}, type the counts in the <b>Stock</b> column, and click ${ui('Save changes')}.</li>
+  <li><strong>Reason</strong>Choose <b>Damaged</b>, <b>Lost or stolen</b>, <b>Used in the shop</b> (these remove), <b>Found</b> (adds) or <b>Opening stock correction</b> (either).</li>
+  <li><strong>Quantity and date</strong>Type how many, in the product's own unit, and the date it happened. <b>Add or remove</b> follows the reason; change it if needed. A note is optional.</li>
+  <li><strong>Save</strong>Click ${ui('Save adjustment')}. The stock moves at once, and the window showed what it will be.</li>
 </ol>
-<p>Stock typed in by hand has no date, so the stock report counts it as if it changed today. Write the reason in the product's description if you want to remember it.</p>
-<div class="note info"><p>Stock is one count per product. There are no batches, expiry dates, serial numbers or godowns. See <a href="limitations.html#stock-limits">Limitations</a>.</p></div>
+<p>Each adjustment is kept with its date and reason, listed under the <a href="reports.html#stock">stock report</a> for its month, and counted when that report works out stock on an earlier date. The bin there deletes one and puts the stock back. With the books <a href="backup.html#close-books">closed</a> up to a date, an adjustment on or before it cannot be added or deleted.</p>
+<p>To set many counts at once after counting the shelves, ${ui('Bulk edit')} still works: type the counts in the <b>Stock</b> column. Stock typed in by hand has no date, so the stock report counts it as if it changed today.</p>
+<div class="note info"><p>Stock is one count per product. There are no batches, expiry dates or godowns. Serial numbers can be written on <a href="purchases.html">purchase bill</a> lines. See <a href="limitations.html#stock-limits">Limitations</a>.</p></div>
 </section>
 
 <section id="low-stock">
 <h2>Low-stock alerts</h2>
 <p>A product at or below your threshold shows its stock in amber here, is listed on the <a href="dashboard.html#low-stock">Dashboard</a>, and adds to the notification bell. The threshold is 5 to start; change it, or turn alerts off, in <a href="settings.html#stock">Settings</a>. It is one threshold for every product. With alerts off, stock is still counted and <b>Out of Stock</b> still shows in red.</p>
+<p><b>Low stock only</b> beside the search lists just those products. With <a href="purchases.html#purchase-orders">purchase orders</a> turned on, ${ui('Make purchase order')} then opens a new purchase order with them: enough of each to reach twice the threshold (threshold x 2 - stock, at least 1), at its purchase price. Choose the supplier, check the quantities and save; nothing is ordered until you do. The same button is on the Dashboard's low-stock strip.</p>
+</section>
+
+<section id="categories">
+<h2>Categories and brands</h2>
+<p>Group your products, such as <b>Garments &gt; Men &gt; Shirts &gt; Formal</b>: a main category and up to 3 levels under it, typed with <b>&gt;</b> between them in the product form's <b>Category</b> box (the ones already used are offered as you type). <b>Brand</b> is a box of its own. Both are optional, and they are the "stock groups" some programs have: one tree, not two.</p>
+<p>Once a product has one, the list shows them under its name, and filters appear beside the search: <b>All categories</b> and <b>All brands</b>. Choosing a category also shows everything under it (Garments shows Men, Shirts and Formal too). The same filters are on <a href="reports.html#product-filters">Product Performance</a> and the <a href="reports.html#stock">stock report</a>. The CSV export and import carry <code>Category</code> and <code>Brand</code> columns.</p>
+</section>
+
+<section id="alternate-units">
+<h2>Alternate units (Box = 12 Pcs)</h2>
+<p>For goods you sell or buy both loose and by the box: open the product, click <b>+ Also sold or bought in a second unit</b>, and fill in <b>1 Box = 12 Pcs</b> (the second unit from the list, and how many of the product's own unit are in it). Optionally type a price per box; left blank, a box costs 12 x the selling price.</p>
+<ul>
+  <li><strong>Invoice</strong>: after picking the product, choose <b>Box</b> in the line's Unit. The rate becomes the box price; back to Pcs, the piece price again.</li>
+  <li><strong>Purchase bill</strong>: a Unit box appears on the line of such a product: Pcs, or Box of 12 at 12 x the purchase price.</li>
+  <li><strong>Stock</strong> always counts the product's own unit: selling 2 boxes takes out 24 Pcs, buying 3 boxes adds 36. The purchase price saved from a bill is per piece.</li>
+  <li><strong>GSTR-1</strong>: the HSN summary reports pieces (PCS) and the quantity in pieces, as the portal expects one unit per HSN line.</li>
+</ul>
+<p>Invoices and bills made before keep their units as they were.</p>
 </section>
 
 <section id="import">
