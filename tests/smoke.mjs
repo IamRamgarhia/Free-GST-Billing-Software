@@ -2398,6 +2398,32 @@ try {
     }, dn85?.id || 'none');
   }
 
+  // ---- v1.10.85 (#171, #160): a discount and serial numbers on a purchase line
+  {
+    const prof85 = await page.evaluate(async () => (await fetch('/api/profile')).json());
+    await api('/api/purchases', { id: 'smoketest-pur171', date: today, supplierName: 'Smoke Discount Supplier', invoiceNumber: 'SMK-DISC-171',
+      paymentStatus: 'Unpaid', interstate: false, ownerGstin: prof85.gstin || '', ownerName: prof85.businessName || '',
+      items: [{ name: 'Smoke Phone', hsn: '8517', quantity: 2, rate: 1000, taxPercent: 18, cessPercent: 0, discount: 10, discountType: 'percent', serialNo: '356938035643809, 356938035643817' }],
+      totalAmount: 2124, totalTax: 324, taxableAmount: 1800 });
+    await reopenView('Purchases');
+    await page.locator('input[placeholder^="Search supplier"]').fill('643817');
+    await sleep(600);
+    const rowText = (await page.locator('tr', { hasText: 'SMK-DISC-171' }).first().innerText().catch(() => '')).replace(/\s+/g, ' ');
+    check('v85 #160 #171 the Purchases search finds a bill by an IMEI, and its total is after the 10% discount (2,124.00)',
+      /2,124\.00/.test(rowText) && (await page.locator('tbody tr', { hasText: 'SMK-' }).count()) === 1, rowText.slice(0, 160));
+    await page.locator('input[placeholder^="Search supplier"]').fill('');
+    await page.getByRole('button', { name: /add purchase/i }).first().click();
+    await sleep(800);
+    const before = await page.getByLabel('Discount on line 1').count();
+    await page.getByLabel('Discount column').check().catch(() => {});
+    await sleep(300);
+    const after = await page.getByLabel('Discount on line 1').count();
+    check('v85 #171 the Discount column is hidden until ticked', before === 0 && after === 1, `before=${before} after=${after}`);
+    await page.getByLabel('Discount column').uncheck().catch(() => {});
+    await page.getByRole('button', { name: /^Cancel$/ }).first().click().catch(() => {});
+    await page.evaluate(() => fetch('/api/purchases/smoketest-pur171', { method: 'DELETE' }));
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {
