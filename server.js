@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 import { redact } from './src/utils/errorReport.js';
 import { validateCashEntry, cleanCashEntry } from './src/utils/cashBook.js';
 import { validatePurchasePayments } from './src/utils/purchasePayments.js';
-import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES } from './src/utils.js';
+import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES, withNewActSections } from './src/utils.js';
 import { resolveAppHome } from './src/utils/appHome.js';
 import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
 import { lockProblem, bookedOn, isLockDate } from './src/utils/periodLock.js';
@@ -368,8 +368,12 @@ function deleteFile(filePath) {
 // number, its date and total before and after.
 const PERIOD_LOCK_KEY = 'periodLock';
 const HISTORY_DIR = path.join(DATA_DIR, 'edit-history');
-const DATED_ROUTE = /^\/api\/(bills|expenses|receipts|purchases|debit-notes|cash-book|stock-adjustments)(?:\/([^/]+))?$/;
-const TRASH_RESTORE_ROUTE = /^\/api\/trash\/([^/]+)\/restore$/;
+const DATED_ROUTE = /^\/api\/(bills|expenses|receipts|purchases|debit-notes|cash-book|stock-adjustments)(?:\/([^/]+))?$/i;
+const TRASH_RESTORE_ROUTE = /^\/api\/trash\/([^/]+)\/restore$/i;
+// The path as Express matches it: any case, %-decoded, no doubled or trailing slash.
+const routePath = (req) => {
+  try { return decodeURIComponent(String(req.path || '')).replace(/\/+/g, '/').replace(/(.)\/$/, '$1'); } catch { return ''; }
+};
 const lockedUpTo = () => {
   const v = readJSON(path.join(DATA_DIR, 'meta.json'), {})[PERIOD_LOCK_KEY];
   return isLockDate(v?.upTo) ? v.upTo : '';
@@ -380,7 +384,19 @@ const recordTotal = (kind, r) => {
   if (kind === 'purchases' || kind === 'debit-notes') return Number(r.total ?? r.totalAmount) || null;
   return Number(r.amount) || 0;
 };
-const recordNumber = (kind, r) => (r ? String(r.invoiceNumber || r.dnNumber || r.receiptNo || r.description || r.name || r.productName || r.id || '') : '');
+const recordNumber = (kind, r) => (r ? String(r.invoiceNumber || r.dnNumber || r.receiptNo || r.description || r.name || r.productName || r.id || '').slice(0, 80) : '');
+// The last 8 MB of a month's history at most (one entry is a few hundred bytes).
+const HISTORY_TAIL = 8 * 1024 * 1024;
+const readHistoryTail = (file) => {
+  const size = fs.statSync(file).size;
+  if (size <= HISTORY_TAIL) return fs.readFileSync(file, 'utf8');
+  const fd = fs.openSync(file, 'r');
+  try {
+    const buf = Buffer.alloc(HISTORY_TAIL);
+    fs.readSync(fd, buf, 0, HISTORY_TAIL, size - HISTORY_TAIL);
+    return buf.toString('utf8').replace(/^[^\n]*\n/, ''); // drop the cut first line
+  } finally { fs.closeSync(fd); }
+};
 const writeHistory = (entry) => {
   try {
     makeDir(HISTORY_DIR);
@@ -389,12 +405,13 @@ const writeHistory = (entry) => {
 };
 app.use((req, res, next) => {
   if (req.method !== 'POST' && req.method !== 'DELETE') return next();
-  const restore = req.method === 'POST' && TRASH_RESTORE_ROUTE.exec(req.path);
-  const m = restore ? ['', 'bills', restore[1]] : DATED_ROUTE.exec(req.path);
+  const p = routePath(req);
+  const restore = req.method === 'POST' && TRASH_RESTORE_ROUTE.exec(p);
+  const m = restore ? ['', 'bills', restore[1]] : DATED_ROUTE.exec(p);
   if (!m) return next();
-  const kind = m[1];
+  const kind = m[1].toLowerCase();
   if (req.method === 'POST' && m[2] && !restore) return next(); // no such save route
-  const id = req.method === 'DELETE' || restore ? decodeURIComponent(m[2]) : String(req.body?.id || '');
+  const id = req.method === 'DELETE' || restore ? m[2] : String(req.body?.id || ''); // p is decoded already
   const dir = path.join(DATA_DIR, kind);
   const onFile = id ? readJSON(path.join(dir, safeFileName(id) + '.json'), null) : null;
   const before = restore ? null : onFile;
@@ -403,14 +420,16 @@ app.use((req, res, next) => {
       : req.body;
   const upTo = lockedUpTo();
   const problem = lockProblem(kind, before, after, upTo);
-  if (problem) return res.status(409).json({ error: problem, code: 'period-locked', lockedUpTo: upTo });
+  // 423 Locked, never 409: a 409 means 'this number is taken' to the screens,
+  // which then try the next number (a back-dated invoice burned 1000 numbers).
+  if (problem) return res.status(423).json({ error: problem, code: 'period-locked', lockedUpTo: upTo });
   res.on('finish', () => {
     if (res.statusCode >= 400) return;
     writeHistory({
       at: new Date().toISOString(),
       kind,
       action: req.method === 'DELETE' ? 'deleted' : restore ? 'restored' : before ? 'changed' : 'added',
-      id,
+      id: String(id).slice(0, 120),
       number: recordNumber(kind, after || before),
       date: bookedOn(kind, after || before),
       ...(before ? { totalBefore: recordTotal(kind, before), dateBefore: bookedOn(kind, before) } : {}),
@@ -426,6 +445,9 @@ app.get('/api/period-lock', (req, res) => res.json({ upTo: lockedUpTo() }));
 app.post('/api/period-lock', (req, res) => {
   const upTo = String(req.body?.upTo ?? '');
   if (upTo && !isLockDate(upTo)) return errRes(res, 400, 'bad-request');
+  // With the app's PIN on, closing or opening the books needs it.
+  const appLock = currentLock();
+  if (appLock && !checkPin(res, appLock, req.body?.pin)) return undefined;
   const meta = readJSON(path.join(DATA_DIR, 'meta.json'), {});
   if (upTo) meta[PERIOD_LOCK_KEY] = { upTo, at: new Date().toISOString() };
   else delete meta[PERIOD_LOCK_KEY];
@@ -443,7 +465,7 @@ app.get('/api/edit-history', (req, res) => {
   const out = [];
   for (const f of files) {
     let lines = [];
-    try { lines = fs.readFileSync(path.join(HISTORY_DIR, f), 'utf8').split('\n').filter(Boolean); } catch { continue; }
+    try { lines = readHistoryTail(path.join(HISTORY_DIR, f)).split('\n').filter(Boolean); } catch { continue; }
     for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
       try { out.push(JSON.parse(lines[i])); } catch { /* a torn line */ }
     }
@@ -1022,8 +1044,9 @@ const publicProfile = (p) => {
   const { hideLock: _lock, ...rest } = p;
   return { ...rest, hidden: true };
 };
-const sameBusinessName = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
-const hiddenStub = (p, active) => ({ id: p.id, hidden: true, ...(sameBusinessName(p.businessName, active?.businessName) ? { isActive: true } : {}) });
+// The business open on screen, by GSTIN first (two branches may share a name).
+const sameBusiness = (a, b) => !!businessKeyOf(a) && businessKeyOf(a) === businessKeyOf(b);
+const hiddenStub = (p, active) => ({ id: p.id, hidden: true, ...(sameBusiness(p, active) ? { isActive: true } : {}) });
 // Wrong hide PINs count on their own (never the lock screen's counter), on
 // the PC and on the network apart.
 const hidePinTries = createTryLimiter();
@@ -1135,7 +1158,8 @@ app.post('/api/meta/:key', (req, res) => {
   // v1.10.85 (review) - the backup folder is set only through /api/backup-folder,
   // which checks it and is PC-only: through here a paired phone could point the
   // daily copy of every book at a share of its own.
-  if (req.params.key === LOCK_KEY || req.params.key.toLowerCase() === BACKUP_FOLDER_KEY.toLowerCase()) return errRes(res, 403, 'forbidden');
+  if (req.params.key === LOCK_KEY || req.params.key.toLowerCase() === BACKUP_FOLDER_KEY.toLowerCase()
+    || req.params.key.toLowerCase() === PERIOD_LOCK_KEY.toLowerCase()) return errRes(res, 403, 'forbidden'); // v1.10.85: /api/period-lock only
   if (!req.body || !('value' in req.body)) return errRes(res, 400, 'bad-request');
   const meta = readJSON(META_PATH, {});
   meta[req.params.key] = req.body.value;
@@ -1352,6 +1376,10 @@ function startPhoneListener() {
   try { tls = phoneCertificate(); } catch (err) { phone.error = `Could not make the HTTPS certificate (${err.code || err.message}).`; logFatal(err, 'phone'); return; }
   phone.fingerprint = tls.fingerprint256;
   const server = https.createServer({ key: tls.key, cert: tls.cert, minVersion: 'TLSv1.2' }, app);
+  // v1.10.85 (review) - a device on the Wi-Fi cannot hold sockets open.
+  server.headersTimeout = 20000;
+  server.requestTimeout = 120000;
+  server.maxConnections = 64;
   // Refused before the TLS handshake: anything not on the local network.
   server.on('connection', (socket) => {
     if (!isPrivateIp(socket.remoteAddress) && !isLoopbackIp(socket.remoteAddress)) { socket.destroy(); return; }
@@ -1543,9 +1571,11 @@ app.post('/api/import', (req, res) => {
     if (!entity?.id) return;
     const p = path.join(DATA_DIR, dirName, safeFileName(entity.id) + '.json');
     if (!overwrite && fs.existsSync(p)) { counts[skipKey]++; return; }
-    writeJSON(p, entity);
+    const keptLock = dirName === 'profiles' ? readJSON(p, null)?.hideLock : null;
+    writeJSON(p, keptLock ? { ...entity, hideLock: keptLock } : entity);
     counts[countKey]++;
   };
+  writeHistory({ at: new Date().toISOString(), kind: 'books', action: overwrite ? 'imported-replace' : 'imported', id: '', number: '', date: '', from: req.socket.encrypted ? 'phone' : 'pc' });
 
   // Profile is a singleton (single file); overwrite-gated same way.
   if (data.profile) {
@@ -1585,7 +1615,10 @@ app.post('/api/import', (req, res) => {
       // v1.10.85 - nor this PC's backup folder (as a restore keeps it).
       const here = readJSON(META_PATH, {});
       const { [BACKUP_FOLDER_KEY]: _folder, ...fromBackup } = withLock(withoutLock(data.meta), here[LOCK_KEY]);
-      writeJSON(META_PATH, here[BACKUP_FOLDER_KEY] ? { ...fromBackup, [BACKUP_FOLDER_KEY]: here[BACKUP_FOLDER_KEY] } : fromBackup);
+      const kept = here[BACKUP_FOLDER_KEY] ? { ...fromBackup, [BACKUP_FOLDER_KEY]: here[BACKUP_FOLDER_KEY] } : fromBackup;
+      // v1.10.85 - and the books stay closed (or open) as they are on this PC.
+      const { [PERIOD_LOCK_KEY]: _theirLock, ...noPeriod } = kept;
+      writeJSON(META_PATH, here[PERIOD_LOCK_KEY] ? { ...noPeriod, [PERIOD_LOCK_KEY]: here[PERIOD_LOCK_KEY] } : noPeriod);
     } else {
       // v1.10.79 (#95) - a merge keeps what is here and adds the backup's own
       // number series and the higher of each counter, so no number is reused.
@@ -2598,6 +2631,7 @@ app.post('/api/backups/:date/restore', (req, res) => {
     // backup folder setting (the backup may be older than it).
     const lockBefore = readJSON(META_PATH, {})[LOCK_KEY];
     const backupFolderBefore = readJSON(META_PATH, {})[BACKUP_FOLDER_KEY];
+    const periodLockBefore = readJSON(META_PATH, {})[PERIOD_LOCK_KEY]; // v1.10.85
 
     // Make a snapshot of live data before touching anything.
     snapshotDir = path.join(BACKUPS_DIR, `pre-restore-${Date.now()}`);
@@ -2619,6 +2653,8 @@ app.post('/api/backups/:date/restore', (req, res) => {
       const dst = path.join(DATA_DIR, entry.name);
       if (!isPathInside(dst, DATA_DIR)) continue;
       if (NOT_BACKED_UP.has(entry.name)) continue;
+      // v1.10.85 - this PC's edit history is never replaced by an older one.
+      if (entry.name === 'edit-history') continue;
       if (entry.isDirectory()) {
         if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
         copyDirRecursive(src, dst);
@@ -2631,8 +2667,11 @@ app.post('/api/backups/:date/restore', (req, res) => {
       const restoredMeta = withLock(readJSON(META_PATH, {}), lockBefore);
       if (backupFolderBefore) restoredMeta[BACKUP_FOLDER_KEY] = backupFolderBefore;
       else delete restoredMeta[BACKUP_FOLDER_KEY];
+      if (periodLockBefore) restoredMeta[PERIOD_LOCK_KEY] = periodLockBefore;
+      else delete restoredMeta[PERIOD_LOCK_KEY];
       writeJSON(META_PATH, restoredMeta);
     }
+    writeHistory({ at: new Date().toISOString(), kind: 'books', action: 'backup-restored', id: '', number: '', date: String(date).slice(0, 10), from: req.socket.encrypted ? 'phone' : 'pc' });
     for (const dir of DIRS) invalidateCache(dir);
 
     // Success. The pre-restore snapshot is KEPT: it is the only copy of the
@@ -3131,7 +3170,9 @@ function generateFromTemplate(tpl, today) {
       // Recurring screen, so the amount it shows is the amount billed.
       // The client's sales so far this year, for the ₹50L TCS/TDS threshold.
       const ytd = clientYearToDate(readAllFromDir('bills'), tpl.clientName, today);
-      const totals = templateTotals(tpl, profile, { tcsCumulativeThisYear: ytd, tdsCumulativeThisYear: ytd });
+      // v1.10.85 (#180) - a template made before 1 April 2026 bills under the 2025 Act's sections.
+      const opts = withNewActSections(tpl.invoiceOptions || {}, invoiceDate);
+      const totals = templateTotals({ ...tpl, invoiceOptions: opts }, profile, { tcsCumulativeThisYear: ytd, tdsCumulativeThisYear: ytd });
       const totalAmount = totals.total;
       const taxTotal = totals.totalTaxAmount;
       // Due date: the same number of days after the invoice date as on the
@@ -3177,7 +3218,7 @@ function generateFromTemplate(tpl, today) {
           customTerms: tpl.customTerms || '',
           customNotes: tpl.customNotes || '',
           extraSections: tpl.extraSections || [],
-          invoiceOptions: tpl.invoiceOptions || {},
+          invoiceOptions: opts,
           taxInclusive: !!tpl.taxInclusive,
         },
       };

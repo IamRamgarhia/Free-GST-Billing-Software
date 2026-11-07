@@ -118,16 +118,24 @@ export const cleanDeviceName = (name, ua) => String(name || '').replace(/[\x00-\
 // ---- wrong tries --------------------------------------------------------------
 // Five wrong PINs in a row -> wait 30 seconds before the next try (the PC's
 // lock screen and pairing share one counter, so a phone cannot get more tries).
-export function createTryLimiter({ max = 5, waitMs = 30000, now = Date.now } = {}) {
-  let wrong = 0, until = 0;
+// v1.10.85 (review) - each lockout in a row waits twice as long as the one
+// before (30 s, 1 min, 2 min ... at most 15 min), so guessing a 6-digit PIN
+// cannot go on at ten tries a minute. A right PIN starts again from 30 s.
+export function createTryLimiter({ max = 5, waitMs = 30000, maxWaitMs = 15 * 60 * 1000, now = Date.now } = {}) {
+  let wrong = 0, until = 0, lockouts = 0;
   return {
     wait: () => Math.max(0, Math.ceil((until - now()) / 1000)),
     fail() {
       wrong += 1;
-      if (wrong >= max) { wrong = 0; until = now() + waitMs; return 0; }
+      if (wrong >= max) {
+        wrong = 0;
+        until = now() + Math.min(maxWaitMs, waitMs * 2 ** lockouts);
+        lockouts += 1;
+        return 0;
+      }
       return max - wrong;
     },
-    reset() { wrong = 0; },
+    reset() { wrong = 0; lockouts = 0; },
   };
 }
 
@@ -178,6 +186,13 @@ export function isPcOnly(req, { headless = false } = {}) {
   // Changing or removing the PIN locks the PC's owner out / turns phone access
   // off: on the PC (on a server with no screen, the only way is a paired device).
   if (p === '/api/lock/set') return !headless;
+  // v1.10.85 (review) - whole-books actions stay on the PC: a backup out or in,
+  // restoring or deleting a daily backup, closing / opening the books, and
+  // hiding a company (on a NAS with no screen a paired device is the only way).
+  if (p === '/api/export' || p === '/api/import') return !headless;
+  if (p.startsWith('/api/backups/') && req.method !== 'GET') return !headless;
+  if (p === '/api/period-lock' && req.method !== 'GET') return !headless;
+  if (/^\/api\/profiles\/[^/]+\/hide-pin$/.test(p)) return !headless;
   if (p.startsWith('/api/phone-access')) return !headless;
   return false;
 }

@@ -66,6 +66,17 @@ ok(cleanDeviceName('<b>Shop\nphone</b>', '') === 'bShopphone/b' && cleanDeviceNa
   t += 1000; ok(lim.wait() === 0 && lim.fail() === 4, 'after 30 s: tries again, counter started over');
   lim.reset(); ok(lim.fail() === 4, 'right PIN resets the counter');
 }
+{
+  // v1.10.85 (review): each lockout in a row waits twice as long, at most 15 min.
+  let t = 0;
+  const lim = createTryLimiter({ now: () => t });
+  const lockout = () => { for (let i = 0; i < 5; i++) lim.fail(); const w = lim.wait(); t += w * 1000; return w; };
+  ok([lockout(), lockout(), lockout(), lockout()].join() === '30,60,120,240', 'lockouts in a row: 30 s, 1 min, 2 min, 4 min');
+  for (let i = 0; i < 6; i++) lockout();
+  ok(lockout() === 900, 'never more than 15 minutes');
+  lim.reset();
+  ok(lockout() === 30, 'a right PIN starts again from 30 s');
+}
 
 // ---- pairing codes ----
 {
@@ -96,6 +107,11 @@ ok(isPcOnly(r('POST', '/api/phone-access')) && isPcOnly(r('POST', '/api/phone-ac
 ok(isPcOnly(r('GET', '/api/phone-access')) && !isPcOnly(r('GET', '/api/phone-access'), { headless: true }), 'status / devices: PC-only, except on a server with no screen');
 ok(isPcOnly(r('DELETE', '/api/phone-access/devices/x')) && !isPcOnly(r('DELETE', '/api/phone-access/devices/x'), { headless: true }), 'remove device: PC, or a paired device when headless');
 ok(!isPcOnly(r('GET', '/api/bills')) && !isPcOnly(r('POST', '/api/bills')), 'invoices are not PC-only');
+// v1.10.85 (review): whole-books actions stay on the PC (a paired device when headless).
+ok(['/api/export', '/api/import', '/API/Import/'].every((p) => isPcOnly(r(p === '/api/export' ? 'GET' : 'POST', p))) && !isPcOnly(r('GET', '/api/export'), { headless: true }), 'backup out / in: PC-only');
+ok(isPcOnly(r('POST', '/api/backups/2026-11-07/restore')) && isPcOnly(r('DELETE', '/api/backups/2026-11-07')) && !isPcOnly(r('GET', '/api/backups')), 'restoring or deleting a daily backup: PC-only; the list is not');
+ok(isPcOnly(r('POST', '/api/period-lock')) && !isPcOnly(r('GET', '/api/period-lock')), 'closing or opening the books: PC-only');
+ok(isPcOnly(r('POST', '/api/profiles/biz_1/hide-pin')) && !isPcOnly(r('POST', '/api/profiles/unlock')) && !isPcOnly(r('POST', '/api/profiles')), 'hiding a company: PC-only; opening one with its PIN is not');
 ok(isPcOnly(r('POST', '/api/lock/set')) && !isPcOnly(r('POST', '/api/lock/set'), { headless: true }) && !isPcOnly(r('POST', '/api/lock/verify')), 'changing the PIN is PC-only (a phone may unlock its own screen)');
 // Express routes ignore case and a trailing slash: so must this check.
 ok(isPcOnly(r('POST', '/API/Control-Panel/restart')) && isPcOnly(r('POST', '/api/backup-folder/')) && isPcOnly(r('POST', '/api//control-panel/restart'))
