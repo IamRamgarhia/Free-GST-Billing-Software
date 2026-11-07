@@ -72,6 +72,17 @@ a backup is made first.
   first one, and the PIN from `FGSB_PIN`), over HTTPS on port 47443. Nothing
   on the network gets in without pairing.
   Guide: [On a NAS: Docker](https://dicecodes.com/free-gst-software-documentation/install-linux.html#nas-docker).
+- **Import Flipkart orders** (#172, #179): choose Flipkart Seller Hub's orders
+  report in *CSV import / export* on the Dashboard, as it is. Each order becomes
+  a tax invoice with Flipkart's invoice number and date, the buyer, HSN,
+  quantity, GST and the amount billed; the **order ID** and the **tracking ID
+  (AWB)** go into the order details, so the Invoices search finds them. Returned
+  orders are counted so you can record each as a Credit Note. Any sales CSV now
+  also reads *Order ID*, *AWB* and *Courier* columns.
+- **Paid, Unpaid or Partly paid expenses** (#165): a bill you still owe (rent
+  due, a repair not yet paid) shows as **Outstanding**; click it to list only
+  those, and *Mark as paid* when you pay. The Cash book counts only what was
+  paid in cash. Expenses entered before are Paid, as they were.
 
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
