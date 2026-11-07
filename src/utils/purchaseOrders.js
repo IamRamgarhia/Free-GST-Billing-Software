@@ -116,6 +116,8 @@ export function billFormFromPo(po, purchases) {
       name: it.name || '', hsn: it.hsn || '', quantity: it.quantity, unit: it.unit || '',
       rate: Number(it.rate) || 0, taxPercent: Number(it.taxPercent) || 0, cessPercent: Number(it.cessPercent) || 0,
       ...lineDiscountFields(it),
+      // v1.10.85 (#148) - a line ordered in boxes is billed in boxes.
+      ...(Number(it.unitFactor) > 0 ? { unitFactor: Number(it.unitFactor), baseUnit: it.baseUnit || '' } : {}),
     })),
     fromPo: po.id,
     // v1.10.83 (#112) - the bill belongs to the same cost centre as its order.

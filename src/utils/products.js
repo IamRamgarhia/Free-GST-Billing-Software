@@ -1,5 +1,5 @@
 // v1.10.77 (#85) - product helpers for bulk edit and the stock report.
-import { appliedStock, isCancelledBill, isServiceProduct, salesSign } from '../utils.js';
+import { appliedStock, isCancelledBill, isServiceProduct, salesSign, baseQty } from '../utils.js';
 
 const num = (v) => (v === '' || v === null || v === undefined ? 0 : Number(v));
 
@@ -44,15 +44,18 @@ export const bulkRowToProduct = (product, edits) => {
 // v1.10.83 (#121) - services have no stock and are left out.
 // v1.10.85 (#168) - purchase returns (debit notes) dated after it are undone
 // from their own stock record too (the goods sent back come back).
+// v1.10.85 (#148) - quantities in the base unit (2 boxes of 12 = 24 Pcs).
+// v1.10.85 - stock adjustments (damaged, found, ...) dated after it are undone
+// from their own stock record, like production entries.
 // Returns Map(productId -> quantity).
-export const closingStock = (products, bills, purchases, asOf, productions = [], debitNotes = []) => {
+export const closingStock = (products, bills, purchases, asOf, productions = [], debitNotes = [], adjustments = []) => {
   const qty = new Map((products || []).filter((p) => !isServiceProduct(p)).map((p) => [p.id, Number(p.stock) || 0]));
   const byName = new Map((products || []).map((p) => [String(p.name || '').trim().toLowerCase(), p.id]));
   for (const pur of purchases || []) {
     if (!pur?.date || pur.date <= asOf) continue;
     for (const it of pur.items || []) {
       const id = it.productId || byName.get(String(it.name || '').trim().toLowerCase());
-      if (id && qty.has(id)) qty.set(id, qty.get(id) - (Number(it.quantity) || 0));
+      if (id && qty.has(id)) qty.set(id, qty.get(id) - baseQty(it));
     }
   }
   for (const b of bills || []) {
@@ -61,7 +64,7 @@ export const closingStock = (products, bills, purchases, asOf, productions = [],
       if (qty.has(id)) qty.set(id, qty.get(id) - change);
     }
   }
-  for (const pr of [...(productions || []), ...(debitNotes || [])]) {
+  for (const pr of [...(productions || []), ...(debitNotes || []), ...(adjustments || [])]) {
     if (!pr?.date || pr.date <= asOf) continue;
     for (const [id, change] of Object.entries(pr.stockApplied || {})) {
       if (qty.has(id)) qty.set(id, qty.get(id) - (Number(change) || 0));
@@ -96,7 +99,7 @@ export const costOfGoodsSold = (bills, products) => {
     const sign = salesSign(bill);
     if (!sign) continue;
     for (const it of bill.data?.items || []) {
-      const qty = Number(it.quantity) || 0;
+      const qty = baseQty(it); // #148 - the purchase price is per base unit
       if (!qty || it.isCharge || /^99/.test(String(it.hsn || '').trim())) continue;
       const p = (it.productId && byId.get(it.productId)) || byName.get(String(it.name || '').trim().toLowerCase());
       if (isServiceProduct(p)) continue;

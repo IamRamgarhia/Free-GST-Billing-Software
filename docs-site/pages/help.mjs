@@ -699,7 +699,7 @@ export default [
 
 <section id="stock-limits">
 <h2>Stock</h2>
-<p>Stock is one count per product. There are no batches, expiry dates, serial numbers or warehouses. Stock is valued at purchase price in <a href="reports.html#stock">Reports, Stock</a>.</p>
+<p>Stock is one count per product, in its own unit (a <a href="products.html#alternate-units">second unit</a> such as a box is counted in it). There are no batches, expiry dates or warehouses; serial numbers are written on purchase bill lines and can be looked up in <a href="reports.html#product-filters">Product Performance</a>, but stock is not counted per serial. Stock is valued at purchase price in <a href="reports.html#stock">Reports, Stock</a>.</p>
 </section>
 `,
 },

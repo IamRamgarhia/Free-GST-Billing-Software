@@ -23,6 +23,8 @@ import { CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
 import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../utils/salesOrders';
 import { periodRange, inPeriod } from '../utils/period';
+import { reorderLines } from '../utils/stock';
+import { putReorderDraft } from '../utils/reorderDraft';
 
 // v1.10.85 (#135) - the dispatch status badge of a sales order.
 const SO_STATUS_COLORS = {
@@ -239,7 +241,7 @@ const foreignReceiptFields = (input) => {
   };
 };
 
-export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConvert, onOpenProducts, onOpenSettings, onOpenGuide, onOpenSupport, activeProfile }) {
+export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConvert, onOpenProducts, onOpenPurchases, onOpenSettings, onOpenGuide, onOpenSupport, activeProfile }) {
   // v1.10.64 — requested (#55, @sangwanmail-eng): "An invoice belonging to one
   // company should not appear under the other."
   //
@@ -390,6 +392,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     try { return localStorage.getItem('freegstbill_startedDismissed') === '1'; } catch { return false; }
   });
   const [lowStockProducts, setLowStockProducts] = useState([]);
+  const [lowStockLevel, setLowStockLevel] = useState(5);
 
   // v1.10.4 — audit M14. getFYOptions is date-based (only changes across
   // April-1 boundary); memoize with an empty dep so we run it once per
@@ -521,6 +524,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       setProductCount(prods.length);
       if (cfg?.enabled === false) { setLowStockProducts([]); return; }
       const threshold = Number(cfg?.threshold ?? 5);
+      setLowStockLevel(threshold);
       setLowStockProducts(findLowStock(prods, threshold)); // services and uncounted left out (#121)
     });
   }, []);
@@ -1706,7 +1710,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       {/* Low stock: one line, moving only when it does not fit (LowStockTicker, below). */}
       {lowStockProducts.length > 0 && (
-        <LowStockTicker products={lowStockProducts} onOpenProducts={onOpenProducts} />
+        <LowStockTicker products={lowStockProducts} onOpenProducts={onOpenProducts}
+          // v1.10.85 - with purchase orders on: the low items as a draft PO on Purchases.
+          onReorder={onOpenPurchases && isModuleEnabled('purchaseOrders', getEnabledModules())
+            ? () => { putReorderDraft(reorderLines(lowStockProducts, lowStockLevel)); onOpenPurchases(); } : null} />
       )}
 
       <div className="glass-panel">
@@ -2314,7 +2321,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 // two products no longer show up as four. Pauses while pointed at; with
 // reduced motion it is a plain row that scrolls sideways. Each name opens
 // Products (#44).
-function LowStockTicker({ products, onOpenProducts }) {
+function LowStockTicker({ products, onOpenProducts, onReorder }) {
   const windowRef = useRef(null);
   const trackRef = useRef(null);
   const [scrolls, setScrolls] = useState(false);
@@ -2335,6 +2342,12 @@ function LowStockTicker({ products, onOpenProducts }) {
     <div className="glass-panel low-stock-ticker" style={{ marginBottom: '1rem', padding: '0.55rem 1rem' }}>
       <span className="low-stock-ticker-label">
         <Package size={16} /> Low stock ({products.length}) <HelpButton title="Low stock" doc="dashboard#low-stock" size={14} />
+        {onReorder && (
+          <button type="button" className="btn btn-secondary" onClick={onReorder} style={{ padding: '0.2rem 0.55rem', fontSize: '0.75rem', marginLeft: 6 }}
+            title="A purchase order for these products, enough to reach twice the low-stock level; you check it before saving">
+            <ClipboardList size={13} /> Make purchase order
+          </button>
+        )}
       </span>
       <div ref={windowRef} className={`low-stock-ticker-window${scrolls ? ' is-scrolling' : ''}`}>
         <div ref={trackRef} data-copies={copies.length} className="low-stock-ticker-track"

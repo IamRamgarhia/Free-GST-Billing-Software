@@ -183,7 +183,7 @@ app.use((req, res, next) => {
 });
 
 // Ensure data directory and sub-directories exist
-const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases', 'productions', 'purchase-orders', 'cash-book', 'debit-notes', 'bank-statements'];
+const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases', 'productions', 'purchase-orders', 'cash-book', 'debit-notes', 'bank-statements', 'stock-adjustments'];
 // v1.10.83 - a data folder the app may not write to (inside Program Files, a
 // read-only drive, antivirus "controlled folder access") or a full disk used
 // to crash here with a raw stack trace the launcher never showed. Say it in
@@ -368,7 +368,7 @@ function deleteFile(filePath) {
 // number, its date and total before and after.
 const PERIOD_LOCK_KEY = 'periodLock';
 const HISTORY_DIR = path.join(DATA_DIR, 'edit-history');
-const DATED_ROUTE = /^\/api\/(bills|expenses|receipts|purchases|debit-notes|cash-book)(?:\/([^/]+))?$/;
+const DATED_ROUTE = /^\/api\/(bills|expenses|receipts|purchases|debit-notes|cash-book|stock-adjustments)(?:\/([^/]+))?$/;
 const TRASH_RESTORE_ROUTE = /^\/api\/trash\/([^/]+)\/restore$/;
 const lockedUpTo = () => {
   const v = readJSON(path.join(DATA_DIR, 'meta.json'), {})[PERIOD_LOCK_KEY];
@@ -380,7 +380,7 @@ const recordTotal = (kind, r) => {
   if (kind === 'purchases' || kind === 'debit-notes') return Number(r.total ?? r.totalAmount) || null;
   return Number(r.amount) || 0;
 };
-const recordNumber = (kind, r) => (r ? String(r.invoiceNumber || r.dnNumber || r.receiptNo || r.description || r.name || r.id || '') : '');
+const recordNumber = (kind, r) => (r ? String(r.invoiceNumber || r.dnNumber || r.receiptNo || r.description || r.name || r.productName || r.id || '') : '');
 const writeHistory = (entry) => {
   try {
     makeDir(HISTORY_DIR);
@@ -886,6 +886,36 @@ app.delete('/api/debit-notes/:id', (req, res) => {
   const dir = path.join(DATA_DIR, 'debit-notes');
   const filePath = path.join(dir, safeFileName(req.params.id) + '.json');
   if (!isPathInside(filePath, dir)) return errRes(res, 400, 'invalid-path');
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
+// v1.10.85 - stock adjustments: stock damaged, lost, found, used in the shop
+// or an opening correction, one file each (data/stock-adjustments). The page
+// moves the product's stock (and back on delete), as for a debit note; the
+// entry keeps what it moved (stockApplied) for the stock report's earlier dates.
+const ADJ_DIR = path.join(DATA_DIR, 'stock-adjustments');
+app.get('/api/stock-adjustments', (req, res) => {
+  const list = readAllFromDir('stock-adjustments');
+  list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  res.json(list);
+});
+app.post('/api/stock-adjustments', (req, res) => {
+  const a = req.body;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return errRes(res, 400, 'bad-request');
+  if (a.id !== undefined && (typeof a.id !== 'string' || !a.id.trim())) return errRes(res, 400, 'bad-request');
+  if (typeof a.productId !== 'string' || !a.productId || !Number.isFinite(a.quantity) || !a.quantity || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.date || ''))) {
+    return res.status(400).json({ error: 'A stock adjustment needs a product, a quantity and a date', code: 'bad-request' });
+  }
+  if (!a.id) a.id = 'adj_' + Date.now() + crypto.randomBytes(3).toString('hex');
+  const filePath = path.join(ADJ_DIR, safeFileName(a.id) + '.json');
+  if (!isPathInside(filePath, ADJ_DIR)) return errRes(res, 400, 'invalid-path');
+  writeJSON(filePath, a);
+  res.json({ success: true, id: a.id });
+});
+app.delete('/api/stock-adjustments/:id', (req, res) => {
+  const filePath = path.join(ADJ_DIR, safeFileName(req.params.id) + '.json');
+  if (!isPathInside(filePath, ADJ_DIR)) return errRes(res, 400, 'invalid-path');
   deleteFile(filePath);
   res.json({ success: true });
 });
@@ -1466,6 +1496,7 @@ app.get('/api/export', (req, res) => {
     productions: readAllFromDir('productions'), // v1.10.83 (#115)
     purchaseOrders: readAllFromDir('purchase-orders'),
     debitNotes: readAllFromDir('debit-notes'), // v1.10.85 (#168)
+    stockAdjustments: readAllFromDir('stock-adjustments'), // v1.10.85
     cashBook: readAllFromDir('cash-book'),
     bankStatements: readAllFromDir('bank-statements'), // v1.10.85 (#175)
     // v1.10.77 - never the PIN hash: a backup file can travel (email, Drive).
@@ -1502,6 +1533,7 @@ app.post('/api/import', (req, res) => {
     productionCount: 0, productionSkipped: 0,
     purchaseOrderCount: 0, purchaseOrderSkipped: 0,
     debitNoteCount: 0, debitNoteSkipped: 0,
+    stockAdjustmentCount: 0, stockAdjustmentSkipped: 0,
     cashBookCount: 0, cashBookSkipped: 0,
     bankStatementCount: 0, bankStatementSkipped: 0,
   };
@@ -1537,6 +1569,8 @@ app.post('/api/import', (req, res) => {
   // v1.10.85 (#168) - saved as they are: the products in the same backup
   // already hold the stock these returns moved.
   (data.debitNotes || []).forEach(p => upsertOne('debit-notes', p, 'debitNoteCount', 'debitNoteSkipped'));
+  // v1.10.85 - stock adjustments, saved as they are (the products hold their stock).
+  (data.stockAdjustments || []).forEach(a => upsertOne('stock-adjustments', a, 'stockAdjustmentCount', 'stockAdjustmentSkipped'));
   // v1.10.83 - a cash entry that fails the form's checks is skipped, not saved.
   (data.cashBook || []).forEach(c => { if (validateCashEntry(c)) counts.cashBookSkipped++; else upsertOne('cash-book', cleanCashEntry(c), 'cashBookCount', 'cashBookSkipped'); });
   // v1.10.85 (#175) - bank statements and their matches; one that fails the checks is skipped.

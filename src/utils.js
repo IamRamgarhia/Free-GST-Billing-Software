@@ -733,13 +733,19 @@ const STOCK_SIGN = {
   'tax-invoice': -1, 'bill-of-supply': -1, composition: -1, 'delivery-challan': -1,
   'credit-note': 1, quotation: 0, proforma: 0, 'sales-order': 0,
 };
+// v1.10.85 (#148) - alternate units. A line billed in a product's second unit
+// (Box = 12 Pcs) keeps unitFactor 12 and baseUnit 'Pcs': stock, cost and the
+// GSTR-1 HSN summary count it in the base unit (2 boxes = 24 Pcs). Lines
+// without unitFactor (every line saved before) count as they always did.
+export const lineFactor = (it) => (Number(it?.unitFactor) > 0 ? Number(it.unitFactor) : 1);
+export const baseQty = (it) => Math.round((Number(it?.quantity) || 0) * lineFactor(it) * 1000) / 1000;
 // What a bill of this type and status should have done to stock.
 export const stockEffect = (items, invoiceType, status) => {
   const sign = status === 'cancelled' ? 0 : (STOCK_SIGN[invoiceType || 'tax-invoice'] ?? -1);
   const out = {};
   if (!sign) return out;
   for (const it of items || []) {
-    const q = Number(it?.quantity) || 0;
+    const q = baseQty(it); // #148 - in the product's base unit
     if (!it?.productId || !q) continue;
     out[it.productId] = Math.round(((out[it.productId] || 0) + sign * q) * 1000) / 1000;
   }
@@ -1799,7 +1805,9 @@ export const getUnitUQC = (label) => {
 };
 // v1.10.77 - GSTR-1 HSN summary: a service (SAC 99xxxx) has no unit; the
 // portal expects UQC "NA" and quantity 0 for it (delivery charges, setup fees).
-export const hsnUqc = (item) => (/^99/.test(String(item?.hsn || '').trim()) ? 'NA' : getUnitUQC(item?.unit));
+// v1.10.85 (#148) - a line in an alternate unit reports its base unit.
+export const hsnUqc = (item) => (/^99/.test(String(item?.hsn || '').trim()) ? 'NA'
+  : getUnitUQC(lineFactor(item) !== 1 && item?.baseUnit ? item.baseUnit : item?.unit));
 
 // ========== Tax ID validation ==========
 // Returns { ok: boolean, message: string }. Empty value is treated as ok (field is optional).

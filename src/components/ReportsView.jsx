@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Clock, Search, X, Users, Package, Boxes, Building2, Percent } from 'lucide-react';
-import { getAllBills, getAllExpenses, getAllProducts, getProfile } from '../store';
+import { getAllBills, getAllExpenses, getAllProducts, getProfile, getAllPurchases } from '../store';
 import { costOfGoodsSold, costOfGoodsSoldIn } from '../utils/products';
-import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, calculateLineItemTax, roundQty, parseLocalDate, amountDue } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, parseLocalDate, amountDue } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import PartyOutstandingReport from './PartyOutstandingReport';
@@ -13,6 +13,7 @@ import { billsInInr, baseCurrencyOf, billRate } from '../utils/fx';
 import CostCentreReport from './CostCentreReport';
 import { costCentresOn } from './useCostCentres';
 import TdsTcsReport from './TdsTcsReport';
+import { productSales, categoryOptions, brandOptions, serialTrail } from '../utils/stock';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -54,6 +55,10 @@ export default function ReportsView() {
   // v1.10.83 (#112) - the By cost centre tab needs the business itself.
   const [ownerProfile, setOwnerProfile] = useState(null);
   const [ccOn] = useState(costCentresOn);
+  // v1.10.85 (#142) - Product Performance filters, and the purchases a serial
+  // number is looked up in (every business's: products are shared).
+  const [prodFilter, setProdFilter] = useState({ item: '', category: '', brand: '', serial: '' });
+  const [purchases, setPurchases] = useState([]);
 
   const fyOptions = getFYOptions();
   const currentYear = new Date().getFullYear();
@@ -66,6 +71,7 @@ export default function ReportsView() {
         getAllBills(), getAllExpenses(), getProfile().catch(() => null), getAllProducts().catch(() => []),
       ]);
       setProducts(productData || []);
+      getAllPurchases().then((p) => setPurchases(p || [])).catch(() => {});
       // v1.10.64 (#55) — reports are per business. Mixing two companies'
       // turnover into one profit figure is simply a wrong number.
       // v1.10.67 (#66 item 12) — cancelled invoices earned nothing.
@@ -718,35 +724,48 @@ export default function ReportsView() {
       {/* v1.9.5 — PRODUCT PERFORMANCE (best sellers, revenue per SKU) */}
       {/* ============================================================ */}
       {activeTab === 'products' && (() => {
-        const filteredBills = billsShown;
-        // Aggregate quantity + revenue + last-sold per unique item name
-        const byProduct = {};
-        filteredBills.forEach(b => {
-          (b.data?.items || []).forEach(item => {
-            if (item.isCharge) return; // v1.10.77 (#87) - delivery charges are not a product
-            const name = (item.name || item.description || 'Unnamed').trim();
-            if (!name || name === 'Unnamed') return;
-            if (!byProduct[name]) byProduct[name] = { name, hsn: item.hsn || '', qty: 0, revenue: 0, txns: 0, lastSold: '' };
-            // A credit note takes returned quantities back off.
-            const qty = salesSign(b) * (Number(item.quantity) || 0);
-            // v1.10.74 - revenue is the line's taxable value (after discount,
-            // tax backed out of tax-inclusive prices) so it matches the invoices.
-            // totals.taxInclusive is set only when GST was charged: a bill of
-            // supply's prices have no tax in them to back out.
-            const { afterDiscount } = calculateLineItemTax(item, !!(b.data?.totals?.taxInclusive ?? b.data?.taxInclusive));
-            byProduct[name].qty += qty;
-            byProduct[name].revenue += salesSign(b) * afterDiscount;
-            byProduct[name].txns += 1;
-            if (!byProduct[name].lastSold || b.invoiceDate > byProduct[name].lastSold) byProduct[name].lastSold = b.invoiceDate;
-            if (item.hsn && !byProduct[name].hsn) byProduct[name].hsn = item.hsn;
-          });
-        });
-        // #96 - quantities rounded once, after adding up (6356.959999 -> 6356.96).
-        const productArr = Object.values(byProduct).map((p) => ({ ...p, qty: roundQty(p.qty) }));
+        // v1.10.85 (#142) - worked out in utils/stock.js productSales: quantity
+        // (in the base unit, #148), revenue before tax (credit notes take off),
+        // filtered by item, category (with its sub-levels) and brand.
+        const productArr = productSales(billsShown, products, prodFilter);
+        const cats = categoryOptions(products);
+        const brands = brandOptions(products);
+        const setPF = (k, v) => setProdFilter((prev) => ({ ...prev, [k]: v }));
+        const trail = serialTrail(prodFilter.serial, purchases, bills);
+        const day = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '-');
         const bestSellers = [...productArr].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
         const mostSoldByUnits = [...productArr].sort((a, b) => b.qty - a.qty).slice(0, 10);
         return (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1rem' }}>
+            <div className="glass-panel" style={{ padding: '0.75rem 1rem', gridColumn: '1 / -1', display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input type="text" className="form-input" style={{ width: 200 }} aria-label="Item" placeholder="Item name..." value={prodFilter.item} onChange={(e) => setPF('item', e.target.value)} />
+              {cats.length > 0 && (
+                <select className="form-input" style={{ width: 'auto', maxWidth: 260 }} aria-label="Category" value={prodFilter.category} onChange={(e) => setPF('category', e.target.value)}>
+                  <option value="">All categories</option>
+                  {cats.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
+              {brands.length > 0 && (
+                <select className="form-input" style={{ width: 'auto' }} aria-label="Brand" value={prodFilter.brand} onChange={(e) => setPF('brand', e.target.value)}>
+                  <option value="">All brands</option>
+                  {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              )}
+              <input type="text" className="form-input" style={{ width: 210 }} aria-label="Serial number" placeholder="Serial no. / IMEI..." value={prodFilter.serial} onChange={(e) => setPF('serial', e.target.value)} />
+              <HelpButton title="Filtering the product report" doc="reports#product-filters" size={16} />
+            </div>
+            {prodFilter.serial.trim().length >= 3 && (
+              <div className="glass-panel" style={{ padding: '1rem 1.25rem', gridColumn: '1 / -1' }} aria-label="Serial number trail">
+                <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Serial number {prodFilter.serial.trim()}</h3>
+                {!trail.bought.length && !trail.sold.length ? <p className="text-muted" style={{ margin: 0 }}>Not found on any purchase bill or invoice.</p> : (
+                  <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.88rem' }}>
+                    {trail.bought.map((t, i) => <li key={`b${i}`}>Bought {day(t.date)} from <strong>{t.supplierName || '-'}</strong>, bill {t.invoiceNumber || '-'} ({t.name}; S/N {t.serialNo})</li>)}
+                    {trail.sold.map((t, i) => <li key={`s${i}`}>{t.creditNote ? 'Returned on credit note' : 'Sold'} {day(t.date)} to <strong>{t.clientName || '-'}</strong>, {t.invoiceNumber} ({t.name})</li>)}
+                    {!trail.sold.length && <li className="text-muted">No invoice line names it yet.</li>}
+                  </ul>
+                )}
+              </div>
+            )}
             <div className="glass-panel" style={{ padding: '1.25rem' }}>
               <h3 style={{ marginTop: 0, fontSize: '1rem' }}>💰 Top revenue producers<HelpButton title="Top revenue producers" doc="reports#top-products" size={16} /></h3>
               {bestSellers.length === 0 ? <p className="text-muted">No product data for this period.</p> : (

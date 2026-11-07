@@ -74,6 +74,13 @@ try {
   ok((await call('DELETE', '/bills/DC-0901')).status === 409, 'deleting it: refused');
   ok((await call('POST', '/bills', bill('DC-1005', '2026-10-05'))).status === 200, 'an invoice dated 5 Oct (after the lock): saves');
   ok((await call('POST', '/expenses', { id: 'exp_aug', date: '2026-08-10', amount: 500, description: 'Tea' })).status === 409, 'an expense dated in the closed period: refused');
+  // v1.10.85 - stock adjustments are dated records too.
+  const adj = (id, date) => ({ id, date, productId: 'p1', productName: 'DiceCodes Pen', quantity: -2, reason: 'damaged', stockApplied: { p1: -2 } });
+  ok((await call('POST', '/stock-adjustments', adj('adj_sep', '2026-09-20'))).status === 409, 'a stock adjustment dated in the closed period: refused');
+  ok((await call('POST', '/stock-adjustments', adj('adj_oct', '2026-10-20'))).status === 200, 'one dated after it: saves');
+  ok((await call('POST', '/stock-adjustments', { ...adj('adj_bad', '2026-10-21'), quantity: 'x' })).status === 400, 'one without a number quantity: refused');
+  ok((await call('GET', '/stock-adjustments')).json?.map((a) => a.id).join() === 'adj_oct', 'the list has the saved one only');
+  ok((await call('DELETE', '/stock-adjustments/adj_oct')).status === 200 && !(await call('GET', '/stock-adjustments')).json?.length, 'an open-period adjustment deletes');
 
   ok((await call('POST', '/period-lock', { upTo: '' })).json?.upTo === '', 'open the books again');
   ok((await call('DELETE', '/bills/DC-0901')).status === 200, 'now it can be deleted (to the Trash)');

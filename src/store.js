@@ -479,6 +479,20 @@ export const getNextPoNumber = async ({ peek = false, businessKey = '', date = '
   return formatPoNumber(next, date);
 };
 
+// ---- v1.10.85 Stock adjustments (damaged, lost, found, ...) ----
+// Saving one moves the product's stock by its quantity; deleting puts it back
+// (applyStockChanges, as invoices and debit notes do).
+export const getAllStockAdjustments = async () => apiFetch(`${API}/stock-adjustments`);
+export const saveStockAdjustment = async (adj) => {
+  const res = await apiFetch(`${API}/stock-adjustments`, { method: 'POST', body: JSON.stringify(adj) });
+  await applyStockChanges(adj.stockApplied);
+  return res.id ? { ...adj, id: res.id } : adj;
+};
+export const deleteStockAdjustment = async (adj) => {
+  await apiFetch(`${API}/stock-adjustments/${encodeURIComponent(adj.id)}`, { method: 'DELETE' });
+  await applyStockChanges(Object.fromEntries(Object.entries(adj.stockApplied || {}).map(([id, q]) => [id, -q])));
+};
+
 // ---- v1.10.85 (#168) Debit notes (purchase returns) ----
 export const getAllDebitNotes = async () => apiFetch(`${API}/debit-notes`);
 export const saveDebitNote = async (note) => {
@@ -784,6 +798,7 @@ export const exportAllData = async (selection) => {
   if (sel.products)       data.products = all.products;
   // v1.10.83 (#115) - production entries travel with products: stock is the result of both.
   if (sel.products && all.productions) data.productions = all.productions;
+  if (sel.products && all.stockAdjustments) data.stockAdjustments = all.stockAdjustments; // v1.10.85 - so do stock adjustments
   if (sel.expenses)       data.expenses = all.expenses;
   if (sel.expenses)       data.cashBook = all.cashBook; // v1.10.83 - the cash book travels with expenses
   if (sel.expenses)       data.bankStatements = all.bankStatements; // v1.10.85 (#175) - so do bank statements
@@ -841,6 +856,7 @@ export const importData = async (jsonString, selection) => {
   if (sel.termsTemplates && data.termsTemplates) payload.termsTemplates = data.termsTemplates;
   if (sel.products && data.products)             payload.products = data.products;
   if (sel.products && data.productions)          payload.productions = data.productions;
+  if (sel.products && data.stockAdjustments)     payload.stockAdjustments = data.stockAdjustments;
   if (sel.expenses && data.expenses)             payload.expenses = data.expenses;
   if (sel.expenses && data.cashBook)             payload.cashBook = data.cashBook;
   if (sel.expenses && data.bankStatements)       payload.bankStatements = data.bankStatements;
