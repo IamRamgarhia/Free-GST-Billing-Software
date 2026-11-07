@@ -15,7 +15,7 @@ export default [
   <tr><td>${ui('Company')}</td><td>Business type, Company details (with payment accounts), Business profiles, Terms</td></tr>
   <tr><td>${ui('Print &amp; PDF')}</td><td>Print and PDF settings, Region</td></tr>
   <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
-  <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), Privacy &amp; internet</td></tr>
+  <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), <a href="phone.html">Use on phone or tablet</a>, Privacy &amp; internet</td></tr>
   <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, Google Drive, Import/Export</td></tr>
   <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
 </table></div>
@@ -436,6 +436,7 @@ export default [
   <li>After five wrong tries in a row, wait 30 seconds before the next.</li>
 </ul>
 <p>It locks the screen only; it does not encrypt your files. Keep your backups safe as before. Backup files never contain the PIN, and restoring a backup keeps the PIN you have now.</p>
+<p>The PIN is also what a phone or tablet must type to pair with the app (<a href="phone.html">Use on phone or tablet</a>). Turning the PIN off turns phone access off too.</p>
 <h3>Something wrong?</h3>
 <ul>
   <li><b>"The two PINs do not match"</b> or <b>"The PIN must be 6 digits"</b>: type the same PIN, of the length you chose, in both boxes.</li>

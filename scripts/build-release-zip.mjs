@@ -159,7 +159,7 @@ copyFileSync(join(REPO_ROOT, 'src', 'utils', 'expensePayment.js'), join(SYSTEM, 
 // purchaseOrders.js, which imports ../utils.js only.
 // v1.10.84 - the books folder (home.txt), the one-server-per-books lock, and
 // makeDir (folders one level at a time, ERR-083).
-for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js', 'makeDir.js']) {
+for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js', 'makeDir.js', 'phoneAccess.js', 'selfSignedCert.js', 'pairPage.js']) {
   copyFileSync(join(REPO_ROOT, 'src', 'utils', f), join(SYSTEM, 'src', 'utils', f));
 }
 
