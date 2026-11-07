@@ -2272,7 +2272,7 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await sleep(2500);
     await dismissFirstRun(page);
-    await page.locator('input[placeholder="Search by name or HSN..."]').fill('Smoke Tick');
+    await page.locator('input[placeholder^="Search by name"]').fill('Smoke Tick');
     await page.locator('input[aria-label="Select Smoke Tick 2"]').waitFor({ timeout: 10000 });
     // The search has filtered the list: the product it hides is gone from it.
     await page.locator('input[aria-label="Select Smoke Keep Me"]').waitFor({ state: 'detached', timeout: 10000 });
@@ -2410,6 +2410,81 @@ try {
       await fetch(`/api/debit-notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
       await fetch('/api/purchases/smoketest-pur85', { method: 'DELETE' });
     }, dn85?.id || 'none');
+  }
+
+  // ---- v1.10.85 (#137, #158): barcodes - a USB scanner on New Invoice (the
+  // same code twice = qty 2), and labels from Products and from a purchase.
+  {
+    const modules137 = await page.evaluate(() => localStorage.getItem('gst_enabledModules'));
+    await page.evaluate(() => {
+      const m = JSON.parse(localStorage.getItem('gst_enabledModules') || '{}');
+      localStorage.setItem('gst_enabledModules', JSON.stringify({ ...m, barcodes: true }));
+    });
+    const code137 = `SMK137-${Date.now().toString().slice(-6)}`;
+    await api('/api/products', { id: 'smoketest-bc137', name: 'Smoke Barcode Pen', hsn: '9608', sellingPrice: 25, rate: 25, taxPercent: 18, unit: 'Pcs', stock: 20, barcode: code137 });
+    const toView137 = async (view) => {
+      await page.evaluate((v) => { sessionStorage.removeItem('gst_editingBill'); sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.setItem('gst_currentView', v); }, view);
+      await page.reload({ waitUntil: 'networkidle' });
+      await sleep(2500);
+      await dismissFirstRun(page);
+    };
+    await toView137('new');
+    const lines = () => page.evaluate(() => [...document.querySelectorAll('.line-item-row')].map((r) => ({
+      name: r.querySelector('.line-item-name')?.value, qty: r.querySelector('input[type="number"]')?.value, rate: r.querySelector('.line-item-rate')?.value })));
+    const scan = page.getByLabel('Scan barcode');
+    const scanIt = async (code) => { await scan.fill(code); await scan.press('Enter'); await sleep(400); };
+    await scanIt(code137);
+    const once = await lines();
+    await scanIt(code137);
+    const twice = await lines();
+    await scanIt('SMK-NO-SUCH-CODE');
+    const unknownToast = (await page.getByText('No product has the barcode SMK-NO-SUCH-CODE').count()) > 0;
+    check('v85 #137 scanning a barcode on New Invoice adds the product as a line, with its rate',
+      once.length === 1 && once[0].name === 'Smoke Barcode Pen' && Number(once[0].rate) === 25, JSON.stringify(once));
+    check('v85 #137 scanning it again makes qty 2 on the same line; an unknown code says so',
+      twice.length === 1 && Number(twice[0].qty) === 2 && unknownToast, `${JSON.stringify(twice)} toast=${unknownToast}`);
+    // The code typed into an Item box + Enter picks the product too.
+    await page.getByRole('button', { name: 'Add Item' }).click();
+    await sleep(300);
+    const nameBox = page.locator('.line-item-row').nth(1).locator('textarea.line-item-name');
+    await nameBox.fill(code137);
+    await sleep(300);
+    await nameBox.press('Enter');
+    await sleep(400);
+    const typed = await lines();
+    check('v85 #137 a barcode typed in the Item box + Enter fills that line with the product', typed[1]?.name === 'Smoke Barcode Pen', JSON.stringify(typed));
+
+    // Labels from Products: the search finds the barcode; tick, Print labels, 7 of it.
+    await toView137('inventory');
+    await page.locator('input[placeholder^="Search by name"]').fill(code137);
+    await page.locator('input[aria-label="Select Smoke Barcode Pen"]').check();
+    await page.getByRole('button', { name: /Print labels/ }).click();
+    await page.getByLabel('Labels for Smoke Barcode Pen').fill('7');
+    await sleep(1000);
+    const frame = page.frameLocator('iframe.label-preview');
+    const n7 = await frame.locator('.label').count();
+    const digits = await frame.locator('.label .digits').first().innerText().catch(() => '');
+    const bars = await frame.locator('.label .bars svg path').count();
+    check('v85 #158 Products: the search finds the barcode, and Print labels draws 7 labels (bars, digits under them)',
+      n7 === 7 && digits === code137 && bars === 7, `labels=${n7} digits=${digits} bars=${bars}`);
+    await page.getByRole('button', { name: 'Close' }).last().click();
+
+    // Labels for a purchase bill: 4 bought = 4 labels (matched by name).
+    const prof137 = await page.evaluate(async () => (await fetch('/api/profile')).json());
+    await api('/api/purchases', { id: 'smoketest-pur137', date: today, supplierName: 'Smoke Label Supplier', invoiceNumber: 'SMK-LBL-137',
+      paymentStatus: 'Unpaid', interstate: false, ownerGstin: prof137.gstin || '', ownerName: prof137.businessName || '',
+      items: [{ name: 'Smoke Barcode Pen', hsn: '9608', quantity: 4, rate: 20, taxPercent: 18, cessPercent: 0 }], totalAmount: 94.4, totalTax: 14.4, taxableAmount: 80 });
+    await reopenView('Purchases');
+    await page.locator('tr', { hasText: 'SMK-LBL-137' }).first().getByTitle('View details (no download)').click();
+    await page.getByRole('button', { name: /Print labels for this purchase/ }).click();
+    await sleep(1500);
+    const n4 = await page.frameLocator('iframe.label-preview').locator('.label').count();
+    check('v85 #158 a purchase bill: Print labels for this purchase gives one label per piece bought', n4 === 4, `labels=${n4}`);
+    await page.getByRole('button', { name: 'Close' }).last().click();
+    await page.evaluate((m) => {
+      if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m);
+      sessionStorage.removeItem('gst_invoiceDraft');
+    }, modules137);
   }
 
   // Put the real business details back.
