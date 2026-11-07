@@ -2078,6 +2078,8 @@ try {
     await dismissFirstRun(page);
     await page.locator('input[placeholder="Search by name or HSN..."]').fill('Smoke Bulk');
     await page.locator('input[aria-label="Select Smoke Bulk 2"]').waitFor({ timeout: 10000 });
+    // The search has filtered the list: the product it hides is gone from it.
+    await page.locator('input[aria-label="Select Smoke Keep Me"]').waitFor({ state: 'detached', timeout: 10000 });
     await page.getByLabel('Select all products shown').check();
     const barText = await page.getByText(/^\d+ selected$/).first().innerText({ timeout: 5000 }).catch(() => '');
     await page.getByRole('button', { name: /Delete selected/ }).click();
