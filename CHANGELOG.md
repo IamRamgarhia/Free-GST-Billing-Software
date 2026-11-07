@@ -232,7 +232,9 @@ a backup is made first.
   1%). A new invoice moves an old section to its new place by itself;
   invoices you saved keep theirs. The invoice prints the short form, for
   example *TDS (393(1) Sl. 6(iii) @ 10%)*. The quick-start Terms templates
-  quote the new sections and Form 131 (was 16A). Part 2 (working TDS out from
+  quote the new sections and Form 131 (was 16A). TDS on a purchase bill and
+  recurring invoices follow the same date rule, and a rate you typed (a
+  lower-deduction certificate) is kept. Part 2 (working TDS out from
   the payee and the thresholds, and the return exports) comes later.
 
 - **Close the books** (Settings -> Data & Backups): after filing a month's GST

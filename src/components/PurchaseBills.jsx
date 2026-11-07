@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee, RotateCcw } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes, saveDebitNote } from '../store';
-import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS_2025, tdsSectionsFor, movedSection, sectionOptionLabel, sectionShort } from '../utils';
 import { purchaseTdsAmount } from '../utils/tdsTcs';
 import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial } from '../utils/purchaseOrders';
 import PurchaseOrders from './PurchaseOrders';
@@ -624,7 +624,7 @@ export default function PurchaseBills() {
       doc.text('TOTAL', marginL + 100, y); doc.text(fmt(t.finalTotal), marginR, y, { align: 'right' });
       if ((Number(purchase.tdsAmount) || 0) > 0) {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9); y += 6;
-        doc.text(`Less: TDS (${String(purchase.tdsSection || '').replace(/-(co|tech|pm)$/, '')})`, marginL + 100, y); doc.text('-' + fmt(purchase.tdsAmount), marginR, y, { align: 'right' }); y += 5;
+        doc.text(`Less: TDS (${sectionShort(purchase.tdsSection) || 'TDS'})`, marginL + 100, y); doc.text('-' + fmt(purchase.tdsAmount), marginR, y, { align: 'right' }); y += 5;
         doc.setFont('helvetica', 'bold');
         doc.text('Paid to supplier', marginL + 100, y); doc.text(fmt(t.finalTotal - purchase.tdsAmount), marginR, y, { align: 'right' });
       }
@@ -1344,7 +1344,7 @@ export default function PurchaseBills() {
                 <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, textAlign: 'right', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)' }}>{formatCurrency(t.finalTotal)}</span>
                 {(Number(p.tdsAmount) || 0) > 0 && (
                   <>
-                    <span style={{ color: 'var(--text-muted)' }}>Less: TDS ({String(p.tdsSection || '').replace(/-(co|tech|pm)$/, '')}{p.tdsRate ? ` @ ${p.tdsRate}%` : ''})</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Less: TDS ({sectionShort(p.tdsSection)}{p.tdsRate ? ` @ ${p.tdsRate}%` : ''})</span>
                     <span style={{ textAlign: 'right' }}>-{formatCurrency(p.tdsAmount)}</span>
                     <span style={{ fontWeight: 600 }}>Paid to supplier</span>
                     <span style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(t.finalTotal - p.tdsAmount)}</span>
@@ -1776,7 +1776,12 @@ export default function PurchaseBills() {
               {!isPo && (
                 <div style={{ marginTop: '0.6rem' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={!!form.tdsOn} onChange={e => updateField('tdsOn', e.target.checked)}
+                    {/* v1.10.85 (#180) - ticking TDS on a bill dated from 1 April 2026 moves an old section to its 2025 place. */}
+                    <input type="checkbox" checked={!!form.tdsOn} onChange={e => {
+                      const on = e.target.checked;
+                      const moved = on && tdsSectionsFor(form.date) === TDS_SECTIONS_2025 ? movedSection(form.tdsSection, form.tdsRate, 'tds') : null;
+                      setForm(prev => ({ ...prev, tdsOn: on, ...(moved ? { tdsSection: moved.section, tdsRate: moved.rate } : {}) }));
+                    }}
                       style={{ width: 14, height: 14, accentColor: 'var(--primary)' }} />
                     <span><strong>TDS deducted</strong> — you keep back income-tax TDS from this supplier's payment and deposit it yourself</span>
                     <HelpButton title="TDS on a purchase bill" doc="purchases#purchase-tds" size={14} />
@@ -1786,10 +1791,13 @@ export default function PurchaseBills() {
                       <select className="form-input" aria-label="TDS section" value={form.tdsSection}
                         onChange={e => {
                           const code = e.target.value;
-                          const sec = TDS_SECTIONS.find(x => x.code === code);
+                          const sec = tdsSectionsFor(form.date).find(x => x.code === code);
                           setForm(prev => ({ ...prev, tdsSection: code, tdsRate: code === 'custom' ? prev.tdsRate : (sec?.rate ?? prev.tdsRate), tdsAmountManual: '' }));
                         }}>
-                        {TDS_SECTIONS.map(x => <option key={x.code} value={x.code}>{x.label}</option>)}
+                        {form.tdsSection && !tdsSectionsFor(form.date).some(x => x.code === form.tdsSection) && (
+                          <option value={form.tdsSection} disabled>{sectionOptionLabel(form.tdsSection)}</option>
+                        )}
+                        {tdsSectionsFor(form.date).map(x => <option key={x.code} value={x.code}>{x.label}</option>)}
                       </select>
                       <input type="number" step="any" min="0" max="100" className="form-input" aria-label="TDS rate %" placeholder="Rate %"
                         value={form.tdsRate} onChange={e => setForm(prev => ({ ...prev, tdsRate: e.target.value, tdsAmountManual: '' }))} />
