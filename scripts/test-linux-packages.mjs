@@ -12,11 +12,13 @@
 //   leaves the books.
 // AppImage: runs without FUSE (extract-and-run), FGSB_HOME used, same checks.
 // Docker: the docker-compose.yml (on a test port), non-root, books in the
-//   volume, hardening, time zone; without FGSB_ALLOW_UNSAFE_LAN nothing
-//   outside the container reaches it.
+//   volume, hardening, time zone; v1.10.85: from outside only over HTTPS with
+//   pairing (unpaired = 401, the log's code + FGSB_PIN pairs), and the plain
+//   HTTP port is never reachable from outside, even with FGSB_ALLOW_UNSAFE_LAN.
 // Never uses ports 47371-47373 on this PC: Docker tests publish 47581.
 
 import { spawnSync } from 'node:child_process';
+import { request as httpsRequest } from 'node:https';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -158,14 +160,32 @@ async function dockerTest() {
   try {
     // 1. The real docker-compose.yml, only its host port changed for this PC.
     const yml = readFileSync(join(OUT, 'docker-compose.yml'), 'utf8');
-    if (!yml.includes('"127.0.0.1:47371:47371"')) throw new Error('compose does not publish to 127.0.0.1 only');
-    writeFileSync(compose, yml.replace('"127.0.0.1:47371:47371"', `"127.0.0.1:${HOST_PORT}:47371"`).replace('container_name: free-gst-billing', 'container_name: fgsbtest-app'));
+    if (!yml.includes('"47443:47443"') || !yml.includes('FGSB_PHONE_ACCESS: "1"') || !yml.includes('FGSB_PIN: "CHANGE-ME"')) throw new Error('compose does not publish the paired HTTPS port with a PIN to change');
+    writeFileSync(compose, yml.replace('"47443:47443"', `"127.0.0.1:${HOST_PORT}:47443"`).replace('FGSB_PIN: "CHANGE-ME"', 'FGSB_PIN: "13572468"')
+      .replace('container_name: free-gst-billing', 'container_name: fgsbtest-app'));
     record('docker compose config is valid', docker(['compose', '-p', project, '-f', compose, 'config', '-q']).status === 0);
     const up = docker(['compose', '-p', project, '-f', compose, 'up', '-d']);
     if (up.status !== 0) throw new Error(up.stderr);
     const c = 'fgsbtest-app';
     record('compose: the app answers inside the container', await waitUp(c));
-    record('compose: answers on the host at 127.0.0.1 (published to this machine only)', await hostFetch(HOST_PORT));
+    // v1.10.85 - from outside: HTTPS, and nothing without pairing.
+    const tlsFetch = (path, opts = {}) => new Promise((resolve) => {
+      const rq = httpsRequest({ host: '127.0.0.1', port: HOST_PORT, path, method: opts.method || 'GET', rejectUnauthorized: false, headers: opts.headers || {} }, (res) => {
+        let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
+      });
+      rq.on('error', (e) => resolve({ error: e.code || e.message }));
+      if (opts.body) rq.write(opts.body);
+      rq.end();
+    });
+    let unpaired = {};
+    for (let i = 0; i < 30 && unpaired.status !== 401; i += 1) { unpaired = await tlsFetch('/api/health'); if (unpaired.status !== 401) await new Promise((r) => setTimeout(r, 1000)); }
+    record('compose: from outside, HTTPS only, and an unpaired device gets nothing (401)', unpaired.status === 401, JSON.stringify(unpaired));
+    const code = /pair\?code=([A-Z2-9]{8})/.exec(docker(['logs', c]).stdout)?.[1];
+    const origin = `https://127.0.0.1:${HOST_PORT}`;
+    const paired = await tlsFetch('/api/pair', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ code, pin: '13572468', name: 'Docker test' }) });
+    const cookie = String(paired.headers?.['set-cookie'] || '').split(';')[0];
+    record('compose: the log shows a pairing code; with FGSB_PIN it pairs', !!code && paired.status === 200 && /^__Host-fgsb_device=/.test(cookie), JSON.stringify({ code, status: paired.status }));
+    record('compose: a paired device gets in', (await tlsFetch('/api/health', { headers: { Cookie: cookie } })).status === 200);
     const uid = ex(c, ['sh', '-c', "awk '/^Uid:/{print $2}' /proc/1/status /proc/[0-9]*/status 2>/dev/null | sort -u | tr '\\n' ' '"]);
     record('compose: every process runs as a non-root user', uid.trim() !== '' && !uid.split(' ').includes('0'), `uids: ${uid}`);
     const status = JSON.parse(ex(c, ['node', '-e', "fetch('http://127.0.0.1:47371/api/control-panel/status').then(r=>r.text()).then(console.log)"]));
@@ -187,11 +207,11 @@ async function dockerTest() {
     record('compose down keeps the books in the volume', kept.includes('DiceCodes'));
     docker(['volume', 'rm', vol]);
 
-    // 2. Without FGSB_ALLOW_UNSAFE_LAN: nothing outside the container reaches it,
-    //    even with the port published.
+    // 2. The plain-HTTP port: nothing outside the container reaches it, even
+    //    published and with the old FGSB_ALLOW_UNSAFE_LAN=1 (no longer used).
     const c2 = 'fgsbtest-safe';
     docker(['rm', '-f', c2]);
-    const r2 = docker(['run', '-d', '--name', c2, '-p', `127.0.0.1:${HOST_PORT}:47371`, '-v', 'fgsbtest-safe:/data', IMAGE]);
+    const r2 = docker(['run', '-d', '--name', c2, '-e', 'FGSB_ALLOW_UNSAFE_LAN=1', '-p', `127.0.0.1:${HOST_PORT}:47371`, '-v', 'fgsbtest-safe:/data', IMAGE]);
     if (r2.status !== 0) throw new Error(r2.stderr);
     record('default: the app answers inside the container', await waitUp(c2));
     record('default: NOT reachable from the host, even with the port published', !(await hostFetch(HOST_PORT)));

@@ -2,9 +2,10 @@
 # (scripts/build-linux.mjs), whose build context holds the staged app in app/.
 #
 # Books: the /data volume (FGSB_HOME=/data). Runs as the unprivileged "node"
-# user. The server answers 127.0.0.1 inside the container unless
-# FGSB_ALLOW_UNSAFE_LAN=1; docker-compose.yml sets that AND publishes the port
-# to the host's 127.0.0.1 only, because the app has no login yet.
+# user. Plain HTTP answers 127.0.0.1 inside the container only (the health
+# check). From outside, v1.10.85: docker-compose.yml sets FGSB_PHONE_ACCESS=1,
+# so port 47443 answers over HTTPS, and only devices paired with a one-time
+# code and the PIN (FGSB_PIN) get in. See server.js PHONE / TABLET ACCESS.
 FROM node:20.19.0-bookworm-slim
 
 ENV NODE_ENV=production \
@@ -20,7 +21,7 @@ RUN echo docker > /app/install-kind.txt \
 USER node
 WORKDIR /data
 VOLUME /data
-EXPOSE 47371
+EXPOSE 47443
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:47371/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]

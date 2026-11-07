@@ -1,17 +1,26 @@
 # Free GST Billing on a NAS or home server, with Docker.
-#   Start:  docker compose up -d
-#   Open:   http://localhost:47371  (on the NAS itself, or through the tunnel below)
-#   Stop:   docker compose down     (your books stay in the volume)
+#   1. Put your own PIN below (6 or 8 digits), and your NAS's address.
+#   2. Start:  docker compose up -d
+#   3. Pair:   docker logs free-gst-billing   shows a link with a pairing code.
+#      Open it on your phone, tablet or PC (same network), accept the
+#      certificate warning once (see below) and type the PIN.
+#   Stop:      docker compose down     (your books stay in the volume)
 #
 # Your books are in the "fgsb-data" volume (/data in the container).
 #
-# SAFETY - READ THIS: the app has no login yet. The port is published to THIS
-# machine only (127.0.0.1). Do NOT change it to "47371:47371": every phone and
-# PC on your network could then open and change your books without a password.
-# Opening it from other PCs, with pairing + PIN + HTTPS, comes with the
-# 14 November update. Until then, from another PC use an SSH tunnel:
-#   ssh -L 47371:127.0.0.1:47371 you@your-nas
-# and open http://localhost:47371 on that PC.
+# SAFETY: every device must be paired (a one-time code + the PIN) before it can
+# open anything; the connection is encrypted (HTTPS, with a certificate the
+# app makes for itself); only addresses on your local network are answered.
+# NEVER forward port 47443 on your router: the app is for your own network.
+# More devices: on a paired one, Settings -> Privacy & Security -> Use on phone
+# or tablet -> Pair a phone or tablet. Remove a device there too.
+#
+# The first time, the browser says "Your connection is not private": the
+# certificate is the app's own, not from a company browsers know. The sure
+# check: tap the warning next to the address -> certificate; its SHA-256
+# fingerprint must be the same on every device you pair (the pairing page shows
+# its start too, but a fake page could copy that).
+# Then: Advanced -> Proceed (Chrome) or Show Details -> visit this website (Safari).
 services:
   free-gst-billing:
     image: free-gst-billing:__VERSION__
@@ -19,12 +28,19 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      # Listen inside the container so the port below can reach it. The
-      # "127.0.0.1:" in front of the port keeps it on this machine only.
-      FGSB_ALLOW_UNSAFE_LAN: "1"
+      # Phone / tablet / other-PC access with pairing. Always on in Docker:
+      # it is the only way in. Every device must pair first.
+      FGSB_PHONE_ACCESS: "1"
+      # The app's PIN, used only when the books have none yet. After the first
+      # start you can delete this line: the PIN is kept with the books (change
+      # it in Settings -> Privacy & Security -> App lock).
+      FGSB_PIN: "CHANGE-ME"
+      # Your NAS's address or name as you type it in the browser (for the
+      # pairing link in the log, and the certificate). Example: 192.168.1.50
+      FGSB_PHONE_HOSTS: ""
       TZ: Asia/Kolkata
     ports:
-      - "127.0.0.1:47371:47371"
+      - "47443:47443"
     volumes:
       - fgsb-data:/data
     read_only: true
