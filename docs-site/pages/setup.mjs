@@ -673,11 +673,12 @@ export default [
 <h2>Close the books</h2>
 <p>After you file a month's GST returns, close the books up to its last day, so nothing in a filed month changes by mistake. In Settings, on the ${ui('Data & Backups')} tab, under <b>Close the books</b>, pick the last day (for example 31 October 2026) and click ${ui('Close the books')}.</p>
 <ul>
-  <li>Invoices, purchase bills, expenses, receipts, debit notes and cash book entries dated on or before that day can no longer be <b>added</b>, <b>deleted</b>, or <b>changed</b> in their date, number, items, amounts, GST or cancellation. The message says why, for example <i>the books are closed up to 2026-10-31</i>.</li>
-  <li>What does not change the accounts still works: recording a <b>payment</b> against an old invoice or purchase bill, printing, sharing and notes.</li>
+  <li>Invoices, purchase bills, expenses, debit notes, stock adjustments and cash book entries dated on or before that day can no longer be <b>added</b>, <b>deleted</b>, or <b>changed</b> in their date, number, items, amounts, GST (including SEZ, export and reverse charge) or cancellation. The message says why, for example <i>the books are closed up to 2026-10-31</i>.</li>
+  <li>What does not change the accounts still works: recording a <b>payment</b> or a <b>receipt</b> against an old invoice or purchase bill, printing, sharing and notes.</li>
+  <li>With the <a href="#lock">App lock</a> on, closing or opening the books asks for its PIN. It is done on the PC itself, not from a paired phone.</li>
   <li>A deleted invoice dated in a closed month cannot be restored from the Trash until the books are opened.</li>
   <li>To correct a filed month, ${ui('Open the books')}, make the change (your GST return may need an amendment: ask your CA), and close them again. Closing and opening are written in the edit history.</li>
-  <li>The server checks every save, so a phone or tablet cannot change a closed month either. A restore from a backup brings back the books as they were in the backup.</li>
+  <li>The server checks every save, so a phone or tablet cannot change a closed month either. A restore from a backup or an import keeps the books closed (or open) as they are now, and keeps this PC's edit history; the restore itself is written in it.</li>
 </ul>
 </section>
 

@@ -3,7 +3,7 @@ import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Setting
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, newActCode, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -1001,6 +1001,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [showEinvoice, setShowEinvoice] = useState(null); // { saved } while open
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
   const autoSaveTimer = useRef(null);
+  // v1.10.85 - the books are closed for this invoice's date (423): auto-save
+  // stops instead of asking again every 2 s; Save still says why.
+  const autoSaveLocked = useRef(false);
   // v1.10.22 — reported: "if user click back without even changing anything
   // it always ask to save and close". Cause: handleBack checked
   // `autoSaveStatus !== 'saved'`, and autoSaveStatus started at 'idle' on
@@ -1247,6 +1250,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // Duplicates and conversions too (v1.10.79): nothing is stored, and no
     // number is taken, until the first Save.
     if ((!editingBill || editingBill._isDuplicate) && !hasBeenSaved.current) return;
+    if (autoSaveLocked.current) return;
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
@@ -1257,6 +1261,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         isDirty.current = false; // successful save clears dirty
         setTimeout(() => setAutoSaveStatus(s => s === 'saved' ? 'idle' : s), 2000);
       } catch (err) {
+        if (err?.status === 423) autoSaveLocked.current = true;
         console.error('Auto-save failed:', err);
         setAutoSaveStatus('idle');
       }
@@ -1633,11 +1638,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   useEffect(() => {
     if (savedInvoice || tdsList !== TDS_SECTIONS_2025) return;
     setInvoiceOptions((prev) => {
-      const tds = prev.tdsSection ? newActCode(prev.tdsSection, 'tds') : null;
-      const tcs = prev.tcsSection ? newActCode(prev.tcsSection, 'tcs') : null;
+      // A typed rate (a lower-deduction certificate) is kept (movedSection).
+      const tds = movedSection(prev.tdsSection, prev.tdsRate, 'tds');
+      const tcs = movedSection(prev.tcsSection, prev.tcsRate, 'tcs');
       const patch = {};
-      if (tds && tds !== prev.tdsSection) Object.assign(patch, { tdsSection: tds, tdsRate: TDS_SECTIONS_2025.find((x) => x.code === tds).rate });
-      if (tcs && tcs !== prev.tcsSection) Object.assign(patch, { tcsSection: tcs, tcsRate: TCS_SECTIONS_2025.find((x) => x.code === tcs).rate });
+      if (tds) Object.assign(patch, { tdsSection: tds.section, tdsRate: tds.rate });
+      if (tcs) Object.assign(patch, { tcsSection: tcs.section, tcsRate: tcs.rate });
       return Object.keys(patch).length ? { ...prev, ...patch } : prev;
     });
     // Also after the options load or change (a draft, the saved display options).

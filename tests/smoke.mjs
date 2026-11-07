@@ -2501,7 +2501,7 @@ try {
     await sleep(1200);
     const historyText = await page.locator('.edit-history-table').innerText().catch(() => '');
     check('v85 closing the books refuses an invoice dated in the closed period, and the history lists it',
-      refused === 409 && /Closed up to/.test(historyText) && /2025-01-31/.test(historyText), `status=${refused} history=${historyText.slice(0, 120)}`);
+      refused === 423 && /Closed up to/.test(historyText) && /2025-01-31/.test(historyText), `status=${refused} history=${historyText.slice(0, 120)}`);
     await page.getByRole('button', { name: 'Open the books' }).click();
     await sleep(400);
     await page.locator('.confirm-modal-primary').click();
