@@ -1261,7 +1261,7 @@ try {
   // v1.10.84 (maintainer): Delete in the same menu, also on a cancelled
   // invoice, moves it to the Trash (30 days) - off the list, in /api/trash.
   await page.locator('tr', { hasText: 'SMOKE-CANCEL/9' }).locator('button[aria-label^="More actions"]').click();
-  await page.locator('[role=menu] [role=menuitem]', { hasText: /^Delete$/ }).click();
+  await page.locator('[role=menu] [role=menuitem]', { hasText: /^\s*Delete\s*$/ }).click();
   await sleep(700);
   await page.getByRole('button', { name: /^Delete$/ }).last().click();
   await sleep(2500);
