@@ -2030,9 +2030,17 @@ try {
     const toNew79 = async () => {
       await page.evaluate(() => { sessionStorage.removeItem('gst_editingBill'); sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.setItem('gst_currentView', 'new'); });
       await page.reload({ waitUntil: 'networkidle' });
-      await sleep(3000);
+      await sleep(1500);
       await dismissFirstRun(page);
-      return page.locator('#invoice-preview').innerText().catch(() => '');
+      // 7 Nov: up to 10 s for the number (a fixed 3 s read it too early on a
+      // fresh install once); the number shown is reported if the check fails.
+      let text = '';
+      for (let i = 0; i < 20; i++) {
+        text = await page.locator('#invoice-preview').innerText().catch(() => '');
+        if (/[A-Z][A-Z-]*\/[\d-]+\/\d+/.test(text)) break;
+        await sleep(500);
+      }
+      return text;
     };
     const profile79 = await get79('/api/profile');
     const shared79 = (await get79('/api/meta/invoiceNumberSettings')).value;
