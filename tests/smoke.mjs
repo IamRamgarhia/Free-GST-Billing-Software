@@ -2084,16 +2084,16 @@ try {
     // Two products the search shows, one it hides: only the shown ones go.
     await page.evaluate(async () => {
       const add = (id, name) => fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, rate: 10, taxPercent: 18, unit: 'Nos' }) });
-      await add('smoketest-bulk-1', 'Smoke Bulk 1');
-      await add('smoketest-bulk-2', 'Smoke Bulk 2');
-      await add('smoketest-bulk-keep', 'Smoke Keep Me');
+      await add('smoketest-tick-1', 'Smoke Tick 1');
+      await add('smoketest-tick-2', 'Smoke Tick 2');
+      await add('smoketest-tick-keep', 'Smoke Keep Me');
       sessionStorage.setItem('gst_currentView', 'inventory');
     });
     await page.reload({ waitUntil: 'networkidle' });
     await sleep(2500);
     await dismissFirstRun(page);
-    await page.locator('input[placeholder="Search by name or HSN..."]').fill('Smoke Bulk');
-    await page.locator('input[aria-label="Select Smoke Bulk 2"]').waitFor({ timeout: 10000 });
+    await page.locator('input[placeholder="Search by name or HSN..."]').fill('Smoke Tick');
+    await page.locator('input[aria-label="Select Smoke Tick 2"]').waitFor({ timeout: 10000 });
     // The search has filtered the list: the product it hides is gone from it.
     await page.locator('input[aria-label="Select Smoke Keep Me"]').waitFor({ state: 'detached', timeout: 10000 });
     await page.getByLabel('Select all products shown').check();
@@ -2102,8 +2102,8 @@ try {
     await sleep(500);
     await page.getByRole('button', { name: /^Delete$/ }).last().click();
     await sleep(1500);
-    const ids = await page.evaluate(async () => (await (await fetch('/api/products')).json()).map((p) => String(p.id)).filter((id) => id.startsWith('smoketest-bulk-')));
-    check('#177 select all + Delete selected removes the products the list shows, and only those', barText === '2 selected' && ids.join() === 'smoketest-bulk-keep', `bar="${barText}" left=${ids.join() || 'none'}`);
+    const ids = await page.evaluate(async () => (await (await fetch('/api/products')).json()).map((p) => String(p.id)).filter((id) => id.startsWith('smoketest-tick-')));
+    check('#177 select all + Delete selected removes the products the list shows, and only those', barText === '2 selected' && ids.join() === 'smoketest-tick-keep', `bar="${barText}" left=${ids.join() || 'none'}`);
   }
 
   // Put the real business details back.
