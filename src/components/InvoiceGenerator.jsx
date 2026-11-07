@@ -1639,8 +1639,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       if (tcs && tcs !== prev.tcsSection) Object.assign(patch, { tcsSection: tcs, tcsRate: TCS_SECTIONS_2025.find((x) => x.code === tcs).rate });
       return Object.keys(patch).length ? { ...prev, ...patch } : prev;
     });
+    // Also after the options load or change (a draft, the saved display options).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tdsList, savedInvoice]);
+  }, [tdsList, savedInvoice, invoiceOptions.tdsSection, invoiceOptions.tcsSection]);
 
   const setExchangeRate = (v) => setInvoiceOptions(prev => ({
     ...prev, exchangeRate: v,
