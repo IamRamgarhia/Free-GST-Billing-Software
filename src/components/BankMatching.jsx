@@ -13,10 +13,11 @@ import { formatCurrency, belongsToProfile, parseLocalDate } from '../utils';
 import { parseBankRows, BANK_NAMES } from '../utils/itr';
 import { fileToSheets } from '../utils/importFile';
 import { withReturns } from '../utils/debitNotes';
-import { withPurchasePayments, newPurchasePaymentId } from '../utils/purchasePayments';
+import { newPurchasePaymentId } from '../utils/purchasePayments';
 import {
   toBankLines, freshLines, bookEntries, usedKeys, suggestFor, pickList, entryLabel, matchedLine, ignoredLine, expenseLine, openLine,
-  bankPayment, newInvoicePaymentId, invoiceWithPayment, invoiceWithoutPayment, receiptForPayment, expenseFromLine, bankSummary, ROUND_OFF,
+  bankPayment, newInvoicePaymentId, invoiceWithPayment, receiptForPayment, expenseFromLine, bankSummary,
+  purchaseWithPayments, payStateOf, withoutBankPayment,
 } from '../utils/bankMatch';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
@@ -25,6 +26,12 @@ import HelpButton from './HelpButton';
 const FILTERS = [['open', 'To match'], ['all', 'All lines'], ['done', 'Matched'], ['ignored', 'Ignored']];
 const SHOW_MAX = 300; // ponytail: a plain list; search or pick a statement to see older lines.
 const EXPENSE_PAY_KEYS = ['paymentStatus', 'paidAmount', 'paymentMode'];
+const PART_LINES = 1000; // the server takes up to 2,000 lines in one statement
+// A payment's receipt is deleted before the payment, so a receipt left behind
+// can never bring the payment back. Gone already (404) is fine.
+const removeReceipt = async (id) => {
+  try { await deleteReceipt(id); } catch (err) { if (err?.status !== 404) throw err; }
+};
 const showDate = (d) => (d ? parseLocalDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 const amountOf = (l) => (l.credit > 0 ? l.credit : l.debit);
 const keep = (obj, keys) => Object.fromEntries(Object.entries(obj).filter(([k]) => keys.includes(k)));
@@ -86,12 +93,21 @@ export default function BankMatching({ tabs }) {
       if (!incoming.length) { toast('No transactions found. Use the CSV or Excel statement your bank lets you download.', 'warning'); return; }
       const fresh = freshLines(lines, incoming);
       if (!fresh.length) { toast(`All ${incoming.length} lines of this statement are already here. Nothing was added.`, 'info', 5000); return; }
-      const statement = {
-        id, bankName: parsed.bankName, fileName: String(file.name || '').slice(0, 120), importedAt: new Date().toISOString(),
-        ownerGstin: profile?.gstin || '', ownerName: profile?.businessName || '', lines: fresh,
-      };
-      await saveBankStatement(statement);
-      setStatements((prev) => [statement, ...prev]);
+      // A long statement is kept in parts of PART_LINES lines, so saving one
+      // matched line never sends a huge file.
+      const parts = Math.ceil(fresh.length / PART_LINES);
+      const added = [];
+      for (let i = 0; i < parts; i++) {
+        const name = String(file.name || '').slice(0, 100);
+        const statement = {
+          id: i ? `${id}p${i + 1}` : id, bankName: parsed.bankName, fileName: parts > 1 ? `${name} (part ${i + 1} of ${parts})` : name,
+          importedAt: new Date().toISOString(), ownerGstin: profile?.gstin || '', ownerName: profile?.businessName || '',
+          lines: fresh.slice(i * PART_LINES, (i + 1) * PART_LINES),
+        };
+        await saveBankStatement(statement);
+        added.push(statement);
+      }
+      setStatements((prev) => [...added, ...prev]);
       setFilter('open');
       const skipped = incoming.length - fresh.length;
       toast(`${fresh.length} lines read (${parsed.bankName})${skipped ? `; ${skipped} already here, skipped` : ''}`, 'success', 5000);
@@ -110,7 +126,8 @@ export default function BankMatching({ tabs }) {
     await saveBankStatement(updated);
     setStatements((prev) => prev.map((s) => (s.id === st.id ? updated : s)));
   };
-  const rawPurchase = (id) => { const p = books.purchases.find((x) => x.id === id); return p ? drop(p, ['_returned']) : null; };
+  // The bill with its returns (_returned), so its status counts them; never saved with them.
+  const purchaseOf = (id) => (books.returned || books.purchases).find((x) => x.id === id) || null;
 
   // Run one action; reload the books after, so balances and suggestions follow.
   const act = async (fn) => {
@@ -121,18 +138,38 @@ export default function BankMatching({ tabs }) {
       setPicking(null);
       await load();
     } catch (err) {
-      toast(err?.status === 400 && err.message ? err.message : 'Could not save. Try again.', 'error');
+      toast(err?.status >= 400 && err.status < 500 && err.message ? err.message : 'Could not save. Try again.', 'error', 6000);
     } finally {
       setBusy(false);
     }
   };
 
+  // Saves the line once its invoice, bill or expense has changed. If the
+  // line cannot be saved, the change is taken back, so the books never
+  // carry a payment no line accounts for.
+  const saveLineOrRollBack = async (next, rollBack, label) => {
+    try {
+      await saveLine(next);
+      return true;
+    } catch {
+      try {
+        await rollBack();
+        toast(`Could not save the match, so ${label} was taken back. Try again.`, 'error', 7000);
+      } catch {
+        toast(`Could not save the match, and ${label} could not be taken back. Check it before trying again.`, 'error', 9000);
+      }
+      return false;
+    }
+  };
+
   const confirmMatch = (line, entry) => act(async () => {
     const extra = {};
+    let rollBack = async () => {};
     if (entry.record && entry.kind === 'invoice') {
       const bill = books.bills.find((b) => b.id === entry.id);
       if (!bill) throw new Error('missing');
-      if (amountOf(line) > entry.amount + ROUND_OFF + 0.005) {
+      // As on the Dashboard: more than the balance becomes client credit.
+      if (amountOf(line) > entry.amount + 0.01) {
         const ok = await confirmAction({
           title: 'Record as overpayment?',
           message: `This payment (${formatCurrency(amountOf(line))}) is more than the balance of ${entry.number} (${formatCurrency(entry.amount)}).\n\nThe extra will be saved as client credit and can be applied to future invoices.`,
@@ -142,22 +179,27 @@ export default function BankMatching({ tabs }) {
       }
       const payment = bankPayment(line, newInvoicePaymentId());
       const updated = invoiceWithPayment(bill, payment);
+      extra.before = payStateOf(bill);
       await saveBill(updated, { overwrite: true });
       try { await saveReceipt(receiptForPayment(updated, payment)); } catch { /* as on the Dashboard: the payment is on the invoice */ }
       extra.paymentId = payment.id;
+      rollBack = async () => { await removeReceipt(payment.id); await saveBill(bill, { overwrite: true }); };
     } else if (entry.record && entry.kind === 'purchase') {
-      const p = rawPurchase(entry.id);
+      const p = purchaseOf(entry.id);
       if (!p) throw new Error('missing');
       const payment = bankPayment(line, newPurchasePaymentId());
-      await savePurchase(withPurchasePayments(p, [...(p.payments || []), payment]));
+      extra.before = payStateOf(p);
+      await savePurchase(purchaseWithPayments(p, [...(p.payments || []), payment]));
       extra.paymentId = payment.id;
+      rollBack = () => savePurchase(drop(p, ['_returned']));
     } else if (entry.record && entry.kind === 'expense') {
       const e = books.expenses.find((x) => x.id === entry.id);
       if (!e) throw new Error('missing');
       extra.before = keep(e, EXPENSE_PAY_KEYS);
       await saveExpense({ ...e, paymentStatus: 'paid', paidAmount: Number(e.amount) || 0, paymentMode: 'Bank Transfer' });
+      rollBack = () => saveExpense(e);
     }
-    await saveLine(matchedLine(line, entry, extra));
+    if (!await saveLineOrRollBack(matchedLine(line, entry, extra), rollBack, entry.kind === 'expense' ? 'the expense' : 'the payment')) return;
     toast(entry.record ? `Matched; the payment is recorded on ${entryLabel(entry)}` : `Matched to ${entryLabel(entry)}`, 'success');
   });
 
@@ -165,7 +207,7 @@ export default function BankMatching({ tabs }) {
 
   const addExpense = (line) => act(async () => {
     const saved = await saveExpense(expenseFromLine(line, profile, category));
-    await saveLine(expenseLine(line, saved));
+    if (!await saveLineOrRollBack(expenseLine(line, saved), () => deleteExpense(saved.id), 'the new expense')) return;
     toast(`Added as an expense (${saved.category}) of ${formatCurrency(saved.amount)}`, 'success');
   });
 
@@ -186,12 +228,13 @@ export default function BankMatching({ tabs }) {
       if (line.status === 'matched' && m.recorded && m.kind === 'invoice') {
         const bill = books.bills.find((b) => b.id === m.id);
         if (bill) {
-          await saveBill(invoiceWithoutPayment(bill, m.paymentId), { overwrite: true });
-          await deleteReceipt(m.paymentId).catch(() => {});
+          // The receipt first: if it cannot be deleted, the payment stays too.
+          await removeReceipt(m.paymentId);
+          await saveBill(withoutBankPayment('invoice', bill, m.paymentId, m.before), { overwrite: true });
         }
       } else if (line.status === 'matched' && m.recorded && m.kind === 'purchase') {
-        const p = rawPurchase(m.id);
-        if (p) await savePurchase(withPurchasePayments(p, (p.payments || []).filter((x) => x.id !== m.paymentId)));
+        const p = purchaseOf(m.id);
+        if (p) await savePurchase(withoutBankPayment('purchase', p, m.paymentId, m.before));
       } else if (line.status === 'matched' && m.recorded && m.kind === 'expense') {
         const e = books.expenses.find((x) => x.id === m.id);
         if (e && m.before) await saveExpense({ ...drop(e, EXPENSE_PAY_KEYS), ...m.before });

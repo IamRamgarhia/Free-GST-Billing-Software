@@ -966,7 +966,7 @@ const BANK_LINE_STATES = ['open', 'matched', 'ignored', 'expense'];
 const badBankStatement = (st) => {
   if (!st || typeof st !== 'object' || Array.isArray(st)) return 'Invalid statement';
   if (st.id !== undefined && (typeof st.id !== 'string' || !st.id.trim())) return 'Invalid statement';
-  if (!Array.isArray(st.lines) || st.lines.length > 20000) return 'A statement needs its lines (20,000 at most)';
+  if (!Array.isArray(st.lines) || st.lines.length > 2000) return 'A statement needs its lines (2,000 at most; the app saves a longer one in parts)';
   const bad = st.lines.find((l) => !l || typeof l !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(l.date || ''))
     || !(Number(l.credit) >= 0) || !(Number(l.debit) >= 0) || !BANK_LINE_STATES.includes(l.status));
   return bad ? 'A line of the statement is not valid' : '';
