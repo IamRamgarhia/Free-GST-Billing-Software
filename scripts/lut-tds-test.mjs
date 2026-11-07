@@ -3,7 +3,7 @@
 //
 // Run: `node scripts/lut-tds-test.mjs`
 
-import { computeInvoiceTotals, generateEWayBillJSON, amountDue, paymentStatusFor, TCS_SECTIONS, TDS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, newActCode, sectionShort, sectionPrint, sectionOptionLabel } from '../src/utils.js';
+import { computeInvoiceTotals, generateEWayBillJSON, amountDue, paymentStatusFor, TCS_SECTIONS, TDS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, newActCode, sectionShort, sectionPrint, sectionOptionLabel, movedSection, withNewActSections } from '../src/utils.js';
 import { fyOf, isLikelyLutArn, normaliseLutArn, lutCoversDate, isExportOrSez, exportDeclaration, lutFyOptions, LUT_DECLARATION, IGST_PAID_DECLARATION } from '../src/utils/lut.js';
 import { quarterOf, fyQuarterRange, inRange, panFromGstin, salesTaxRows, purchaseTdsAmount, paidToSupplier, purchaseTdsRows, totalsBy, withClientTds } from '../src/utils/tdsTcs.js';
 
@@ -149,6 +149,12 @@ console.log('\n[#180] TDS / TCS under the Income-tax Act, 2025 (from 1 April 202
     ['393-6i-ind', '393-6i-oth', '393-6iii-prof', '393-8ii', null, '52', 'custom'], 'a 1961 section moves to its 2025 place (206C(1) "varies": not guessed)');
   eq([sectionShort('393-6i-oth'), sectionShort('394-4'), sectionShort('194C-co'), sectionShort('52')], ['393(1) Sl. 6(i)', '394(1) Sl. 4', '194C', 'CGST 52'], 'what is printed for a section');
   eq([sectionPrint('393-6iii-prof', 10), sectionPrint('custom', 3), sectionPrint('', 1)], [' (393(1) Sl. 6(iii) @ 10%)', ' (@ 3%)', ''], 'TDS / TCS line on the invoice');
+  // (review) a typed rate, e.g. a lower-deduction certificate, is kept.
+  eq([movedSection('194J', 10), movedSection('194J', 5), movedSection('194H', 5), movedSection('194H', 3.5), movedSection('393-8ii', 0.1), movedSection('206C(1)', 1, 'tcs')],
+    [{ section: '393-6iii-prof', rate: 10 }, { section: '393-6iii-prof', rate: 5 }, { section: '393-1ii', rate: 2 }, { section: '393-1ii', rate: 3.5 }, null, null],
+    'moving a section: the usual rate follows it (194H old 5% too), a typed 5% or 3.5% stays');
+  eq([withNewActSections({ showTDS: true, tdsSection: '194C', tdsRate: 1 }, '2026-11-07').tdsSection, withNewActSections({ tdsSection: '194C', tdsRate: 1 }, '2026-03-31').tdsSection],
+    ['393-6i-ind', '194C'], 'a recurring invoice from an old template: the 2025 section from 1 April 2026, the old one before');
   eq(sectionOptionLabel('194J'), '194J — Professional / technical services (Income-tax Act, 1961)', 'a saved 1961 section is named as such');
   // The ₹50 lakh threshold of 194Q holds for its 2025 place, Sl. 8(ii).
   const goods = (section, cum) => computeInvoiceTotals({ items: [{ name: 'Steel', hsn: '7208', quantity: 1, rate: 1000000, taxPercent: 18 }], profile, client: { name: 'Buyer', state: 'Karnataka', country: 'India' }, details: { invoiceDate: '2026-11-07' }, showGST: true,

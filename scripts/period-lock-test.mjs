@@ -32,6 +32,8 @@ ok(lockProblem('purchases', purchase, { ...purchase, paymentStatus: 'Paid', paym
 ok(!!lockProblem('purchases', purchase, { ...purchase, items: [{ ...purchase.items[0], quantity: 12 }] }, UP_TO), 'changing an old purchase\'s items: refused');
 ok(!!lockProblem('expenses', { id: 'e1', date: '2026-08-01', amount: 500, gstAmount: 0 }, { id: 'e1', date: '2026-08-01', amount: 600, gstAmount: 0 }, UP_TO), 'changing an old expense\'s amount: refused');
 ok(lockProblem('expenses', { id: 'e1', date: '2026-08-01', amount: 500, paymentStatus: 'unpaid' }, { id: 'e1', date: '2026-08-01', amount: 500, paymentStatus: 'paid' }, UP_TO) === null, 'marking an old expense paid: allowed');
+ok(!!lockProblem('bills', bill(), bill({ data: { ...bill().data, client: { ...bill().data.client, isSEZ: true } } }), UP_TO), 'ticking SEZ on an old invoice (same total, another GSTR-1 table): refused');
+ok(lockProblem('receipts', null, { id: 'r1', date: '2026-09-10', amount: 500 }, UP_TO) === null, 'a receipt dated in the closed period: allowed (it is a payment)');
 ok(lockProblem('profiles', null, { id: 'p' }, UP_TO) === null, 'records without a date (profiles, products) are never locked');
 ok(bookedOn('bills', { invoiceDate: '2026-09-15T00:00:00' }) === '2026-09-15' && bookedOn('expenses', { date: '2026-08-01' }) === '2026-08-01', 'booked-on date');
 ok(isLockDate('2026-09-30') && !isLockDate('30/09/2026') && !isLockDate(''), 'a lock date is YYYY-MM-DD');
