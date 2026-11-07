@@ -35,21 +35,22 @@ const SELLING = ['receipts', 'cashBook', 'reports', 'gstReturns', 'incomeTax', '
 const GOODS = ['inventory', 'purchases', 'expenses'];
 // v1.10.85 (#135) - sales orders go with purchase orders: wholesale and manufacturing.
 const TRADING = [...GOODS, 'purchaseOrders', 'salesOrders', 'gstr2b', 'ewayBill', 'tdsTcs'];
+// v1.10.85 (#137) - 'barcodes' is on for retail, wholesale and manufacturing (and Everything).
 
 // `on` lists what the type turns on; every other switchable module goes off.
 // Ids match BUSINESS_PRESETS in printSettings.js, so the wizard can apply
 // the invoice style and the features from one choice.
 export const BUSINESS_TYPES = [
   { id: 'retail_shop', label: 'Retail shop / kirana', hint: 'Sell from a counter, keep stock, buy from suppliers.',
-    on: [...GOODS, 'gstr2b', 'phoneFirst', ...SELLING] },
+    on: [...GOODS, 'gstr2b', 'phoneFirst', 'barcodes', ...SELLING] },
   { id: 'freelancer', label: 'Freelancer / consultant', hint: 'Bill for your time or services; no stock.',
     on: ['expenses', 'recurring', 'tdsTcs', ...SELLING] },
   { id: 'restaurant', label: 'Restaurant / cafe', hint: 'Quick bills, UPI payments, buy supplies.',
     on: [...GOODS, 'phoneFirst', ...SELLING] },
   { id: 'wholesale', label: 'Wholesale / trading', hint: 'Buy and sell goods in bulk, send them with e-way bills.',
-    on: [...TRADING, ...SELLING] },
+    on: [...TRADING, 'barcodes', ...SELLING] },
   { id: 'manufacturer', label: 'Manufacturing', hint: 'Make products from raw material, maybe in more than one unit.',
-    on: [...TRADING, 'manufacturing', 'costCentres', ...SELLING] },
+    on: [...TRADING, 'manufacturing', 'costCentres', 'barcodes', ...SELLING] },
   { id: 'service', label: 'Service / repair shop', hint: 'Repairs and services, spare parts in stock, yearly contracts.',
     on: [...GOODS, 'recurring', 'phoneFirst', ...SELLING] },
   { id: 'everything', label: 'Everything', hint: 'Show every feature the app has.',

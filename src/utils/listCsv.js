@@ -5,6 +5,7 @@
 // loosely (case, spaces, %, / ignored), so the Products export imports back.
 import { toCsvLine } from '../utils.js';
 import { rowsToRecords, toNum, percentPart } from './bulkCsv.js';
+import { barcodeProblem, normaliseBarcode } from './barcode.js';
 
 const PRODUCT_FIELDS = {
   name: ['name', 'product', 'product name', 'item', 'item name'],
@@ -18,6 +19,8 @@ const PRODUCT_FIELDS = {
   description: ['description'],
   // v1.10.84 (#130) - Vyapar's item file says whether its prices hold the tax.
   taxInclusive: ['tax inclusive', 'tax inclusive (y/n)', 'inclusive of tax'],
+  // v1.10.85 (#137) - the product's barcode (optional, one per product).
+  barcode: ['barcode', 'bar code', 'barcode no', 'ean', 'upc'],
 };
 
 const CLIENT_FIELDS = {
@@ -46,7 +49,7 @@ const dedupe = (existing) => {
 // import that read only the name; an exempt item with its HSN keeps its 0%).
 const blank = (v) => v === undefined || v === null || String(v).trim() === '';
 const FILL = {
-  hsn: blank, unit: blank, description: blank, stock: blank,
+  hsn: blank, unit: blank, description: blank, stock: blank, barcode: blank,
   purchasePrice: (v) => blank(v) || Number(v) === 0,
   sellingPrice: (v) => blank(v) || Number(v) === 0,
   taxPercent: (v, p) => blank(v) || (Number(v) === 0 && blank(p.hsn)),
@@ -70,6 +73,8 @@ export function productsCsvToList(text, existing = []) {
   const saved = new Map((existing || []).map((p) => [key(p.name), p]));
   const seen = new Set();
   const out = { products: [], updates: [], skipped: 0, errors: [] };
+  // #137 - barcodes already taken: saved products, then rows added from this file.
+  const codes = (existing || []).filter((p) => p.barcode).map((p) => ({ id: p.id, name: p.name, barcode: p.barcode }));
   for (const r of records) {
     const name = r.name || '';
     if (!name) continue;
@@ -81,6 +86,16 @@ export function productsCsvToList(text, existing = []) {
     if (bad) { out.errors.push(`Row ${r._line} (${name}): ${bad[0] === 'stock' ? 'stock' : bad[0] === 'taxPercent' ? 'GST %' : 'price'} must be a number`); continue; }
     if (nums.taxPercent < 0 || nums.taxPercent > 100) { out.errors.push(`Row ${r._line} (${name}): GST % must be 0 to 100`); continue; }
     if (seen.has(key(name))) { out.skipped++; continue; }
+    // A barcode is used only for a new product, or a saved one without one;
+    // one that another product has (saved, or higher up in the file) is refused.
+    const old = saved.get(key(name));
+    const code = normaliseBarcode(r.barcode);
+    const ownId = old ? old.id : `_row${r._line}`;
+    if (code && !(old && old.barcode)) {
+      const problem = barcodeProblem(code, codes, ownId);
+      if (problem) { out.errors.push(`Row ${r._line} (${name}): ${problem}`); continue; }
+      codes.push({ id: ownId, name, barcode: code });
+    }
     seen.add(key(name));
     // Our product prices are before tax: take the tax out of an inclusive one.
     if (/^(y|yes|true|1)$/i.test(String(r.taxInclusive || '').trim()) && nums.taxPercent > 0) {
@@ -98,8 +113,8 @@ export function productsCsvToList(text, existing = []) {
       // A service has no stock; goods with a blank stock are "not tracked yet".
       ...(!service && nums.stock !== null ? { stock: nums.stock } : {}),
       description: r.description || '',
+      ...(code ? { barcode: code } : {}),
     };
-    const old = saved.get(key(name));
     if (!old) { out.products.push(product); continue; }
     const filled = fillBlanks(old, product);
     if (filled) out.updates.push(filled); else out.skipped++;
@@ -122,9 +137,9 @@ export function clientsCsvToList(text, existing = []) {
 
 // Sample files (demo data, not real businesses) for "Download sample file".
 export const PRODUCTS_SAMPLE = [
-  toCsvLine(['Name', 'Type', 'HSN/SAC', 'Unit', 'Purchase Price', 'Selling Price', 'GST %', 'Stock', 'Description']),
-  toCsvLine(['Demo A4 Paper Ream 75 GSM', 'Goods', '4802', 'Nos', 220, 280, 18, 50, 'Sample goods row - replace with your own']),
-  toCsvLine(['Demo Printing service', 'Service', '998912', 'Page', '', 5, 18, '', 'Sample service row - a service has no stock']),
+  toCsvLine(['Name', 'Type', 'HSN/SAC', 'Unit', 'Purchase Price', 'Selling Price', 'GST %', 'Stock', 'Description', 'Barcode']),
+  toCsvLine(['Demo A4 Paper Ream 75 GSM', 'Goods', '4802', 'Nos', 220, 280, 18, 50, 'Sample goods row - replace with your own', '']),
+  toCsvLine(['Demo Printing service', 'Service', '998912', 'Page', '', 5, 18, '', 'Sample service row - a service has no stock', '']),
 ].join('\n');
 
 export const CLIENTS_SAMPLE = [
