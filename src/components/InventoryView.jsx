@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, Table2, Factory, Barcode } from 'lucide-react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, Table2, Factory, Barcode, SlidersHorizontal, ClipboardList } from 'lucide-react';
 import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings, getEnabledModules, activePriceLevels } from '../store';
 import { cleanLevelPrices, levelCsvHeaders, levelCsvCells } from '../utils/priceLevels';
 import { PriceLevelPrices } from './PriceLevelFields';
@@ -15,6 +15,9 @@ import ProductBulkEdit from './ProductBulkEdit';
 import TableExport from './TableExport';
 import BarcodeLabels from './BarcodeLabels';
 import { barcodeProblem, normaliseBarcode, nextInternalCode } from '../utils/barcode';
+import { normaliseCategory, categoryProblem, altUnitProblem, altUnitText, hasAltUnit, productMatches, reorderLines } from '../utils/stock';
+import { putReorderDraft } from '../utils/reorderDraft';
+import { CategoryBrandFields, AltUnitFields, ProductFilters, StockAdjustModal } from './StockFields';
 
 // v1.10.29 — reported: "here purchase price and selling price need".
 // Product now carries BOTH: `purchasePrice` (what we paid the supplier) and
@@ -28,9 +31,11 @@ const emptyForm = {
   madeHere: false, bom: [],
   barcode: '', // v1.10.85 (#137) - optional, one per product
   levelPrices: {}, // v1.10.85 - price per level, { '1': 90 } (Price levels on)
+  // v1.10.85 (#142, #148) - category path, brand, and a second unit (Box = 12 Pcs).
+  category: '', brand: '', altUnit: '', altFactor: '', altPrice: '',
 };
 
-export default function InventoryView() {
+export default function InventoryView({ onOpenPurchases }) {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
   // v1.10.77 (#85) - edit many products at once (see ProductBulkEdit).
@@ -61,6 +66,10 @@ export default function InventoryView() {
   // form, list and selection bar show nothing about them.
   const barcodesOn = isModuleEnabled('barcodes', getEnabledModules());
   const [labelIds, setLabelIds] = useState(null);
+  // v1.10.85 (#142, #148) - list filters, and the product whose stock is being adjusted.
+  const [filters, setFilters] = useState({ category: '', brand: '', lowStock: false });
+  const [adjusting, setAdjusting] = useState(null);
+  const poOn = isModuleEnabled('purchaseOrders', getEnabledModules());
 
   const loadProducts = async () => {
     try {
@@ -78,13 +87,23 @@ export default function InventoryView() {
     getStockAlertSettings().then(setStockAlerts).catch(() => {});
   }, []);
 
-  const filtered = search.trim()
+  const isLow = (p) => trackedStock(p) !== null && trackedStock(p) <= Number(stockAlerts.threshold ?? 5);
+  const filtered = (search.trim()
     ? products.filter(p =>
         (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
         (p.hsn || '').toLowerCase().includes(search.toLowerCase()) ||
         (barcodesOn && (p.barcode || '').toLowerCase().includes(search.trim().toLowerCase())) // #137
       )
-    : products;
+    : products)
+    // #142 - category (with its sub-levels) and brand; low stock at the alert level.
+    .filter((p) => productMatches(p, filters) && (!filters.lowStock || isLow(p)));
+  // Low stock -> a purchase order for what the list shows, opened on Purchases.
+  const makeReorderPo = () => {
+    const lines = reorderLines(filtered.filter(isLow), stockAlerts.threshold ?? 5);
+    if (!lines.length) { toast('No low-stock goods in the list', 'info'); return; }
+    putReorderDraft(lines);
+    onOpenPurchases?.();
+  };
   const pickedShown = filtered.filter((p) => picked.has(p.id));
 
   const openAdd = () => {
@@ -112,6 +131,11 @@ export default function InventoryView() {
       bom: (product.bom || []).map((l) => ({ productId: l.productId, qty: String(l.qty ?? '') })),
       barcode: product.barcode || '',
       levelPrices: product.levelPrices || {},
+      category: product.category || '',
+      brand: product.brand || '',
+      altUnit: product.altUnit || '',
+      altFactor: product.altFactor ?? '',
+      altPrice: product.altPrice ?? '',
     });
     setEditingId(product.id);
     setShowForm(true);
@@ -147,6 +171,12 @@ export default function InventoryView() {
       const problem = barcodeProblem(barcode, products, editingId);
       if (problem) { toast(problem, 'warning'); return; }
     }
+    // v1.10.85 (#142, #148) - category levels and the second unit.
+    const catProblem = categoryProblem(form.category);
+    if (catProblem) { toast(catProblem, 'warning'); return; }
+    const altProblem = form.kind === 'service' ? '' : altUnitProblem(form);
+    if (altProblem) { toast(altProblem, 'warning'); return; }
+    const alt = form.kind !== 'service' && String(form.altUnit || '').trim();
     try {
       // v1.10.29 — Persist both prices. `rate` mirrors sellingPrice so any
       // old caller reading .rate still gets the right number.
@@ -177,6 +207,12 @@ export default function InventoryView() {
         // Same rule: written only while Barcodes is on.
         ...(barcodesOn ? { barcode } : {}),
         ...(levels.length ? { levelPrices: cleanLevelPrices(form.levelPrices) } : {}),
+        category: normaliseCategory(form.category),
+        brand: String(form.brand || '').trim(),
+        // Blank second unit: the fields go (undefined is not saved).
+        altUnit: alt || undefined,
+        altFactor: alt ? Number(form.altFactor) : undefined,
+        altPrice: alt && String(form.altPrice ?? '').trim() !== '' ? Number(form.altPrice) : undefined,
       };
       await saveProduct(product);
       toast(editingId ? 'Product updated' : 'Product added', 'success');
@@ -275,18 +311,26 @@ export default function InventoryView() {
           parse={(rows) => { const r = productsCsvToList(rows, products, levels); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
           save={saveProduct} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); loadProducts(); }} />
       )}
+      {adjusting && <StockAdjustModal product={adjusting} onClose={() => setAdjusting(null)} onSaved={() => { setAdjusting(null); loadProducts(); }} />}
       {labelIds && <BarcodeLabels productIds={labelIds} onClose={() => setLabelIds(null)} onSaved={loadProducts} />}
       {showMake && <MakeModal products={products} currency={profileCurrency} onClose={() => setShowMake(false)} onSaved={afterProduction} />}
 
-      {/* Search */}
-      <div className="glass-panel p-4 mb-6">
-        <div className="search-box" style={{ maxWidth: '400px' }}>
+      {/* Search, and the filters (#142) */}
+      <div className="glass-panel p-4 mb-6" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="search-box" style={{ maxWidth: '400px', flex: '1 1 260px' }}>
           <Search size={16} className="search-icon" />
           <input type="text" placeholder={barcodesOn ? 'Search by name, HSN or barcode...' : 'Search by name or HSN...'} value={search}
             onChange={e => setSearch(e.target.value)} className="search-input" disabled={bulkEdit}
             title={bulkEdit ? 'Save or cancel the bulk edit first' : undefined} />
           {search && <button className="icon-btn" onClick={() => setSearch('')} title="Clear search" aria-label="Clear search"><X size={14} /></button>}
         </div>
+        {!bulkEdit && <ProductFilters products={products} value={filters} onChange={setFilters} />}
+        {filters.lowStock && poOn && !bulkEdit && filtered.some(isLow) && (
+          <button type="button" className="btn btn-secondary" onClick={makeReorderPo}
+            title="A purchase order for these products, enough to reach twice the low-stock level; you check it before saving">
+            <ClipboardList size={15} /> Make purchase order
+          </button>
+        )}
       </div>
 
       {/* Add/Edit Modal */}
@@ -384,6 +428,8 @@ export default function InventoryView() {
                   </div>
                 </div>
               )}
+              <CategoryBrandFields form={form} products={products} onChange={updateField} />
+              {form.kind !== 'service' && <AltUnitFields form={form} units={units} onChange={updateField} />}
               <PriceLevelPrices levels={levels} prices={form.levelPrices} onChange={(v) => updateField('levelPrices', v)} />
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Description (optional)</label>
@@ -411,8 +457,8 @@ export default function InventoryView() {
           <h3>Products & Services <HelpButton title="The product list" doc="products#product-list" size={16} /></h3>
           {!bulkEdit && (
             <TableExport title="Products" filename="Products"
-              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', 'Barcode', ...levelCsvHeaders(levels)]}
-              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', p.barcode || '', ...levelCsvCells(p, levels)])} />
+              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', 'Barcode', 'Category', 'Brand', ...levelCsvHeaders(levels)]}
+              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', p.barcode || '', p.category || '', p.brand || '', ...levelCsvCells(p, levels)])} />
           )}
         </div>
         {bulkEdit && filtered.length > 0 ? (
@@ -420,7 +466,7 @@ export default function InventoryView() {
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <Package size={48} />
-            <p>{products.length === 0 ? 'No products yet. Add your first product.' : 'No products match your search.'}</p>
+            <p>{products.length === 0 ? 'No products yet. Add your first product.' : 'No products match your search or filters.'}</p>
             {products.length === 0 && (
               <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Product</button>
             )}
@@ -468,6 +514,9 @@ export default function InventoryView() {
                     </td>
                     <td className="font-medium" title={product.description || ''}>
                       {product.name}
+                      {(product.category || product.brand) && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{[product.category, product.brand].filter(Boolean).join(' · ')}</div>
+                      )}
                       {barcodesOn && product.barcode && (
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{product.barcode}</div>
                       )}
@@ -480,7 +529,10 @@ export default function InventoryView() {
                     <td className="text-muted">{product.hsn || '-'}</td>
                     <td className="font-bold">{product.rate ? formatCurrency(product.rate, profileCurrency) : '-'}</td>
                     <td>{product.taxPercent ? `${product.taxPercent}%` : '-'}</td>
-                    <td className="text-muted">{product.unit || 'Nos'}</td>
+                    <td className="text-muted">
+                      {product.unit || 'Nos'}
+                      {hasAltUnit(product) && <div style={{ fontSize: '0.72rem' }}>{altUnitText(product)}</div>}
+                    </td>
                     <td>
                       {/* #121 - a service, or stock never entered, is not counted: never "Out of Stock". */}
                       {isServiceProduct(product) ? (
@@ -500,6 +552,11 @@ export default function InventoryView() {
                         <button className="icon-btn icon-btn-blue" onClick={() => openEdit(product)} title="Edit">
                           <Edit3 size={15} />
                         </button>
+                        {!isServiceProduct(product) && (
+                          <button className="icon-btn" onClick={() => setAdjusting(product)} title="Adjust stock (damaged, lost, found...)" aria-label={`Adjust stock of ${product.name}`}>
+                            <SlidersHorizontal size={15} />
+                          </button>
+                        )}
                         <button className="icon-btn icon-btn-red" onClick={() => handleDelete(product.id)} title="Delete">
                           <Trash2 size={15} />
                         </button>

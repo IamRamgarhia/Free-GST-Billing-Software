@@ -13,6 +13,7 @@ import { hsnSummary } from '../src/utils/gstr1Json.js';
 import { debitNoteStock, returnableLines } from '../src/utils/debitNotes.js';
 import { billFormFromPo } from '../src/utils/purchaseOrders.js';
 import { lockProblem } from '../src/utils/periodLock.js';
+import { productsCsvToList } from '../src/utils/listCsv.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -77,6 +78,10 @@ eq(products.filter((p) => inCategory(p, 'Garments > Me')).map((p) => p.id), [], 
 eq(brandOptions(products), ['DiceCodes', 'DiceWear'], 'brands, once each');
 eq(products.filter((p) => productMatches(p, { brand: 'dicewear', category: 'Garments > Men' })).map((p) => p.id), ['shirt', 'tee'], 'brand and category together');
 eq(products.filter((p) => productMatches(p, { item: 'tee' })).map((p) => p.id), ['tee'], 'by item name');
+
+const csv = productsCsvToList('Name,Category,Brand\nDiceCodes Cap,Garments>Men> Caps>Summer>Kids,DiceWear\nDiceCodes Formal Shirt,Garments > Men,DiceWear\n', [{ ...shirt, category: '', brand: '' }]);
+eq([csv.products[0]?.category, csv.products[0]?.brand], ['Garments > Men > Caps > Summer', 'DiceWear'], 'CSV import: category (a 5th level dropped) and brand');
+eq([csv.updates[0]?.category, csv.updates[0]?.brand], ['Garments > Men', 'DiceWear'], 'CSV import: a saved product without them gets them filled in');
 
 console.log('\nStock adjustments');
 eq(adjustmentProblem({ product: pen, quantity: 2, direction: 'remove', reason: 'damaged', date: '2026-11-07' }), '', '2 damaged pens can be written off');

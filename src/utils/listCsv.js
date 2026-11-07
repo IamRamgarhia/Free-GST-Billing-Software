@@ -6,6 +6,7 @@
 import { toCsvLine } from '../utils.js';
 import { rowsToRecords, toNum, percentPart } from './bulkCsv.js';
 import { barcodeProblem, normaliseBarcode } from './barcode.js';
+import { normaliseCategory, CATEGORY_LEVELS } from './stock.js';
 import { levelCsvFields, levelPricesFromRecord } from './priceLevels.js';
 
 const PRODUCT_FIELDS = {
@@ -22,6 +23,9 @@ const PRODUCT_FIELDS = {
   taxInclusive: ['tax inclusive', 'tax inclusive (y/n)', 'inclusive of tax'],
   // v1.10.85 (#137) - the product's barcode (optional, one per product).
   barcode: ['barcode', 'bar code', 'barcode no', 'ean', 'upc'],
+  // v1.10.85 (#142, #148) - category (levels joined by >) and brand, optional.
+  category: ['category', 'item category', 'group', 'stock group', 'item group'],
+  brand: ['brand', 'make', 'brand name'],
 };
 
 const CLIENT_FIELDS = {
@@ -50,7 +54,7 @@ const dedupe = (existing) => {
 // import that read only the name; an exempt item with its HSN keeps its 0%).
 const blank = (v) => v === undefined || v === null || String(v).trim() === '';
 const FILL = {
-  hsn: blank, unit: blank, description: blank, stock: blank, barcode: blank,
+  hsn: blank, unit: blank, description: blank, stock: blank, barcode: blank, category: blank, brand: blank,
   purchasePrice: (v) => blank(v) || Number(v) === 0,
   sellingPrice: (v) => blank(v) || Number(v) === 0,
   taxPercent: (v, p) => blank(v) || (Number(v) === 0 && blank(p.hsn)),
@@ -122,6 +126,9 @@ export function productsCsvToList(text, existing = [], levels = []) {
       ...(!service && nums.stock !== null ? { stock: nums.stock } : {}),
       description: r.description || '',
       ...(code ? { barcode: code } : {}),
+      // A category deeper than 4 levels keeps its first 4.
+      ...(r.category ? { category: normaliseCategory(r.category).split(' > ').slice(0, CATEGORY_LEVELS).join(' > ') } : {}),
+      ...(String(r.brand || '').trim() ? { brand: String(r.brand).trim() } : {}),
       ...(Object.keys(lv.prices).length ? { levelPrices: lv.prices } : {}),
     };
     if (!old) { out.products.push(product); continue; }
