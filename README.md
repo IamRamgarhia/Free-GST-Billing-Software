@@ -649,11 +649,11 @@ One update every Saturday. Dates are plans: if a week fills up, the least-used i
 ### :rocket: Next update: Saturday 14 November 2026
 
 - [ ] **Phone and tablet on the same Wi-Fi**: pair with a QR code and a PIN, encrypted ([#142](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/142), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115), [#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), and a Docker image for a NAS
-- [ ] **Sales orders → invoice** ([#135](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/135), [#112](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/112))
-- [ ] **Barcode**: a barcode on each product, scan with a USB scanner on New Invoice, print labels ([#137](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/137), [#158](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/158))
+- [ ] **Sales orders → invoice**, with a dispatch status on each order: open, partly dispatched, dispatched, invoiced ([#135](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/135), [#112](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/112))
+- [ ] **Barcode**: a barcode on each product, scan with a USB scanner on New Invoice, print labels, and print labels for a whole purchase (one per unit bought) ([#137](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/137), [#158](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/158))
 - [ ] **Running-feet (RFT) lines** taken from the glass lines on the same invoice ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140))
 - [ ] **Discount on purchase bills** ([#171](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/171)) and an optional **serial number on each purchase line** ([#160](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/160))
-- [ ] **TDS / TCS under the Income-tax Act, 2025**: new section and table numbers and rates ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180))
+- [ ] **TDS / TCS under the Income-tax Act, 2025, part 1**: new section and table numbers, rates and thresholds ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180))
 - [ ] **Dashboard totals for a chosen month or year**
 
 ### :calendar: Later in November
