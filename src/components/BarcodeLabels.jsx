@@ -1,12 +1,13 @@
 // v1.10.85 (#137, #158) - print barcode labels, from Products (the ticked
 // products, 1 label each to start) or from a purchase bill (one label per
-// piece bought). The preview is the very page that prints: labelSheetHtml in
-// an iframe, and Print prints that iframe through the browser's print window.
-import { useEffect, useMemo, useRef, useState } from 'react';
+// piece bought). The preview is the first sheet of the very page that prints
+// (labelSheetHtml in an iframe); Print builds every sheet in a hidden frame
+// and opens the browser's print window.
+import { useEffect, useMemo, useState } from 'react';
 import { Printer, X, Wand2 } from 'lucide-react';
 import { getAllProducts, getProfile, saveProduct } from '../store';
 import { formatCurrency, getCountryConfig } from '../utils';
-import { LABEL_LAYOUTS, labelQtysFromBill, labelSheetHtml, layoutById, mrpOf, nextInternalCode } from '../utils/barcode';
+import { LABEL_LAYOUTS, labelQtysFromBill, labelSheetHtml, layoutById, mrpOf, nextInternalCode, codeFitsLabel } from '../utils/barcode';
 import HelpButton from './HelpButton';
 import { toast } from './Toast';
 
@@ -17,16 +18,17 @@ const readPrefs = () => {
 };
 const savePrefs = (p) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* private window: not remembered */ } };
 
-// productIds: the ticked products (Products screen). billItems: the lines of
+// productIds: the ticked products (Products screen). bill (+ its debitNotes):
 // a purchase bill. onSaved: products changed here (codes made).
-export default function BarcodeLabels({ productIds, billItems, title = 'Print barcode labels', onClose, onSaved }) {
+export default function BarcodeLabels({ productIds, bill, debitNotes = [], title = 'Print barcode labels', onClose, onSaved }) {
   const [products, setProducts] = useState(null);
+  // What is typed in the count boxes, and (a moment later) what the sheets use.
+  const [draft, setDraft] = useState({});
   const [qty, setQty] = useState({});
   const [unmatched, setUnmatched] = useState([]);
   const [profile, setProfile] = useState({});
   const [prefs, setPrefs] = useState(() => ({ layout: LABEL_LAYOUTS[0].id, price: 'selling', business: true, ...readPrefs() }));
   const [making, setMaking] = useState(false);
-  const frameRef = useRef(null);
 
   useEffect(() => {
     let live = true;
@@ -34,43 +36,61 @@ export default function BarcodeLabels({ productIds, billItems, title = 'Print ba
       if (!live) return;
       setProducts(all || []);
       setProfile(prof || {});
-      if (billItems) {
-        const r = labelQtysFromBill(billItems, all);
-        setQty(Object.fromEntries(r.rows.map((x) => [x.product.id, String(x.qty)])));
-        setUnmatched(r.unmatched);
-      } else {
-        setQty(Object.fromEntries((productIds || []).map((id) => [id, '1'])));
-      }
+      const start = bill
+        ? Object.fromEntries(labelQtysFromBill(bill, all, debitNotes).rows.map((x) => [x.product.id, String(x.qty)]))
+        : Object.fromEntries((productIds || []).map((id) => [id, '1']));
+      if (bill) setUnmatched(labelQtysFromBill(bill, all, debitNotes).unmatched);
+      setDraft(start);
+      setQty(start);
     }).catch(() => toast('Could not load the products', 'error'));
     return () => { live = false; };
     // Filled once, when the window opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Counts are taken 300 ms after the last key, so typing 250 does not draw
+  // 2, 25 and 250 sheets. Over 999 of one product is cut to 999, and said so.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (Object.values(draft).some((v) => Number(v) > MAX_PER_ITEM)) toast(`At most ${MAX_PER_ITEM} labels of one product at a time`, 'warning');
+      setQty(draft);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [draft]);
+
   const setPref = (k, v) => setPrefs((prev) => { const next = { ...prev, [k]: v }; savePrefs(next); return next; });
-  const rows = useMemo(() => (products || []).filter((p) => p.id in qty), [products, qty]);
+  const rows = useMemo(() => (products || []).filter((p) => p.id in draft), [products, draft]);
   const noCode = rows.filter((p) => !p.barcode);
+  const tooLong = rows.filter((p) => p.barcode && !codeFitsLabel(p.barcode, prefs.layout));
   const currency = getCountryConfig(profile.country || 'India').currency;
-  const priceText = (p) => (prefs.price === 'mrp' ? `MRP ${formatCurrency(mrpOf(p), currency)}`
-    : prefs.price === 'selling' ? formatCurrency(Number(p.sellingPrice ?? p.rate) || 0, currency) : '');
 
   // One entry per label to print (up to 999 of each product).
-  const labels = rows.filter((p) => p.barcode).flatMap((p) => {
-    const n = Math.min(MAX_PER_ITEM, Math.max(0, Math.floor(Number(qty[p.id]) || 0)));
-    const one = { name: p.name, code: p.barcode, price: priceText(p), business: prefs.business ? profile.businessName : '' };
-    return Array.from({ length: n }, () => one);
-  });
-  const html = labelSheetHtml(labels, prefs.layout);
+  const labels = useMemo(() => {
+    const priceText = (p) => (prefs.price === 'mrp' ? `MRP ${formatCurrency(mrpOf(p), currency)}`
+      : prefs.price === 'selling' ? formatCurrency(Number(p.sellingPrice ?? p.rate) || 0, currency) : '');
+    return (products || []).filter((p) => p.id in qty && p.barcode).flatMap((p) => {
+      const n = Math.min(MAX_PER_ITEM, Math.max(0, Math.floor(Number(qty[p.id]) || 0)));
+      const one = { name: p.name, code: p.barcode, price: priceText(p), business: prefs.business ? profile.businessName : '' };
+      return Array.from({ length: n }, () => one);
+    });
+  }, [products, qty, prefs.price, prefs.business, profile.businessName, currency]);
   const layout = layoutById(prefs.layout);
-  const sheets = Math.ceil(labels.length / (layout.cols * layout.rows));
+  const perSheet = layout.cols * layout.rows;
+  const sheets = Math.ceil(labels.length / perSheet);
+  // The preview is the first sheet only (a roll: the first few labels).
+  const previewHtml = useMemo(() => labelSheetHtml(labels.slice(0, layout.roll ? 6 : perSheet), prefs.layout),
+    [labels, prefs.layout, layout.roll, perSheet]);
 
   // "Give them a code": the next internal code for each product without one.
   const makeCodes = async () => {
     setMaking(true);
     try {
-      let all = products;
+      // The latest list, so a code made on another device meanwhile is not repeated.
+      let all = await getAllProducts();
       for (const p of noCode) {
-        const saved = { ...p, barcode: nextInternalCode(all) };
+        const cur = all.find((x) => x.id === p.id) || p;
+        if (cur.barcode) continue; // given one meanwhile, elsewhere
+        const saved = { ...cur, barcode: nextInternalCode(all) };
         await saveProduct(saved);
         all = all.map((x) => (x.id === p.id ? saved : x));
       }
@@ -84,15 +104,18 @@ export default function BarcodeLabels({ productIds, billItems, title = 'Print ba
     }
   };
 
+  // Every sheet, in a hidden frame of its own, then the print window.
   const print = () => {
     if (!labels.length) { toast('No labels to print', 'warning'); return; }
-    try {
-      const w = frameRef.current?.contentWindow;
-      w.focus();
-      w.print();
-    } catch {
-      toast('Printing failed - try again', 'error');
-    }
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;left:-99999px;top:0;width:0;height:0;border:0;';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.onload = () => {
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch { toast('Printing failed - try again', 'error'); }
+      setTimeout(() => frame.remove(), 60000);
+    };
+    frame.srcdoc = labelSheetHtml(labels, prefs.layout);
+    document.body.appendChild(frame);
   };
 
   return (
@@ -134,9 +157,9 @@ export default function BarcodeLabels({ productIds, billItems, title = 'Print ba
                       <td className="text-muted">{p.barcode || 'No barcode'}</td>
                       <td>
                         <input type="number" className="form-input" min="0" max={MAX_PER_ITEM} step="1" style={{ width: 90 }}
-                          aria-label={`Labels for ${p.name}`} value={qty[p.id] ?? ''} disabled={!p.barcode}
+                          aria-label={`Labels for ${p.name}`} value={draft[p.id] ?? ''} disabled={!p.barcode}
                           onFocus={(e) => e.target.select()}
-                          onChange={(e) => setQty((prev) => ({ ...prev, [p.id]: e.target.value }))} />
+                          onChange={(e) => setDraft((prev) => ({ ...prev, [p.id]: e.target.value }))} />
                       </td>
                     </tr>
                   ))}
@@ -152,16 +175,21 @@ export default function BarcodeLabels({ productIds, billItems, title = 'Print ba
                 </button>
               </p>
             )}
+            {tooLong.length > 0 && (
+              <p style={{ fontSize: '0.8rem', margin: '0 0 0.5rem', color: 'var(--warn-text, #b45309)' }} role="alert">
+                Too long to scan reliably on this label: {tooLong.map((p) => p.barcode).join(', ')}. Choose a bigger label, or give the product a shorter code.
+              </p>
+            )}
             {unmatched.length > 0 && (
               <p className="text-muted" style={{ fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
                 Not in Products, so no label: {unmatched.join(', ')}
               </p>
             )}
-            <iframe ref={frameRef} className="label-preview" title="Label preview" srcDoc={html}
+            <iframe className="label-preview" title="Label preview" srcDoc={previewHtml}
               style={{ width: '100%', height: 400, border: '1px solid var(--border)', borderRadius: 6, background: '#e5e7eb' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {labels.length} label{labels.length === 1 ? '' : 's'}{layout.roll ? '' : ` on ${sheets} sheet${sheets === 1 ? '' : 's'}`}.
+                {labels.length} label{labels.length === 1 ? '' : 's'}{layout.roll ? '' : ` on ${sheets} sheet${sheets === 1 ? '' : 's'}`}{labels.length > (layout.roll ? 6 : perSheet) ? ' (the preview shows the first)' : ''}.
                 {' '}In the print window choose {layout.roll ? 'your label printer, ' : ''}scale 100% (Actual size) and margins None.
               </span>
               <div style={{ display: 'flex', gap: '0.5rem' }}>

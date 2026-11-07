@@ -1,6 +1,6 @@
 // v1.10.83 (#112) - purchase orders: the pure parts (totals, status, numbering,
 // the bill a PO turns into), kept out of the components so they can be tested.
-import { calculateRoundOff, formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, resolveLineDiscount } from '../utils.js';
+import { calculateRoundOff, formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, resolveLineDiscount, baseQty, lineFactor, altLineFields } from '../utils.js';
 
 // Line and document totals for purchase bills and purchase orders alike.
 // Moved here from PurchaseBills.jsx unchanged, so both use the same sums.
@@ -82,14 +82,16 @@ export function poRemainingItems(po, purchases) {
   const got = new Map();
   for (const b of purchases || []) {
     if (!po?.id || b?.fromPo !== po.id) continue;
-    for (const it of b.items || []) got.set(nameKey(it), (got.get(nameKey(it)) || 0) + (Number(it.quantity) || 0));
+    // v1.10.85 (#148) - counted in the base unit: a PO of 2 boxes of 12 and a
+    // bill of 12 pieces leave 1 box to come.
+    for (const it of b.items || []) got.set(nameKey(it), (got.get(nameKey(it)) || 0) + baseQty(it));
   }
   const out = [];
   for (const it of po?.items || []) {
-    const qty = Number(it.quantity) || 0;
+    const qty = baseQty(it);
     const take = Math.min(qty, got.get(nameKey(it)) || 0);
     got.set(nameKey(it), (got.get(nameKey(it)) || 0) - take);
-    const left = roundQty(qty - take);
+    const left = roundQty((qty - take) / lineFactor(it));
     if (left > 0) out.push(lineWithQuantity(it, left));
   }
   return out;
@@ -117,7 +119,7 @@ export function billFormFromPo(po, purchases) {
       rate: Number(it.rate) || 0, taxPercent: Number(it.taxPercent) || 0, cessPercent: Number(it.cessPercent) || 0,
       ...lineDiscountFields(it),
       // v1.10.85 (#148) - a line ordered in boxes is billed in boxes.
-      ...(Number(it.unitFactor) > 0 ? { unitFactor: Number(it.unitFactor), baseUnit: it.baseUnit || '' } : {}),
+      ...altLineFields(it),
     })),
     fromPo: po.id,
     // v1.10.83 (#112) - the bill belongs to the same cost centre as its order.

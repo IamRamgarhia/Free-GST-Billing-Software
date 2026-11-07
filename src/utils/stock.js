@@ -89,18 +89,23 @@ const plainLine = (line) => {
 // The line when its unit is changed to `unit`. The product's second unit
 // bills by it: unitFactor and baseUnit are kept (stock counts factor x qty)
 // and the rate is the box price, else factor x the base price. Back to the
-// base unit: the base price. Any other unit: only the unit changes.
-// `kind` 'purchase' starts from the purchase price instead of the selling price.
-export function lineInUnit(line, product, unit, kind = 'sale') {
+// base unit: the base price. Any other unit: the unit changes, and a line that
+// was in boxes goes back to the base price (a box price per Kg would be wrong).
+// Options: kind 'purchase' starts from the purchase price instead of the
+// selling price; levelPrice (a number) is the client's price level, which
+// then wins over the box price (factor x the level price).
+export function lineInUnit(line, product, unit, { kind = 'sale', levelPrice = null } = {}) {
+  const wasBox = Number(line?.unitFactor) > 0 && Number(line.unitFactor) !== 1;
   const next = { ...plainLine(line), unit };
   if (!hasAltUnit(product)) return next;
-  const base = kind === 'purchase' ? Number(product.purchasePrice) || 0 : Number(product.sellingPrice ?? product.rate) || 0;
+  const level = kind === 'sale' && Number(levelPrice) > 0 ? Number(levelPrice) : null;
+  const base = kind === 'purchase' ? Number(product.purchasePrice) || 0 : (level ?? (Number(product.sellingPrice ?? product.rate) || 0));
   if (unit === product.altUnit) {
     const factor = Number(product.altFactor);
-    const own = kind === 'sale' && String(product.altPrice ?? '').trim() !== '' && Number(product.altPrice) > 0;
+    const own = kind === 'sale' && level === null && String(product.altPrice ?? '').trim() !== '' && Number(product.altPrice) > 0;
     return { ...next, unitFactor: factor, baseUnit: product.unit || 'Nos', rate: own ? Number(product.altPrice) : r2(base * factor) };
   }
-  return unit === (product.unit || 'Nos') ? { ...next, rate: base } : next;
+  return unit === (product.unit || 'Nos') || wasBox ? { ...next, rate: base } : next;
 }
 
 // ---- Stock adjustments ----

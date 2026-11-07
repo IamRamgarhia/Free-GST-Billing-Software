@@ -16,7 +16,7 @@
 //
 // Status: Open -> Partly dispatched -> Dispatched -> Invoiced, or Cancelled.
 // Pure: no React, no storage (tested in scripts/sales-order-test.mjs).
-import { isCancelledBill, SALES_INVOICE_TYPES, roundQty, formatShortDate, appliedStock, stockEffect, stockDelta } from '../utils.js';
+import { isCancelledBill, SALES_INVOICE_TYPES, roundQty, formatShortDate, appliedStock, stockEffect, stockDelta, baseQty, lineFactor } from '../utils.js';
 
 export const SO_TYPE = 'sales-order';
 export const SO_STATUS_LABELS = {
@@ -59,13 +59,15 @@ export function orderProgress(order, bills) {
   const docs = orderDocs(order, bills);
   const invoiceIds = new Set(docs.filter(isSale).map((b) => b.id));
   const openChallans = docs.filter((b) => isChallan(b) && !invoiceIds.has(b.convertedTo));
-  const lines = items.map((it) => ({ ordered: Number(it?.quantity) || 0, dispatched: 0, invoiced: 0, onChallan: 0 }));
+  // v1.10.85 (#148) - every count in the base unit (2 boxes of 12 = 24), so a
+  // challan in pieces against an order in boxes adds up.
+  const lines = items.map((it) => ({ ordered: baseQty(it), dispatched: 0, invoiced: 0, onChallan: 0 }));
   for (const d of [...docs.filter(isSale), ...openChallans]) {
     const sale = isSale(d);
     for (const it of d.data?.items || []) {
       const i = lineIndex(items, it);
       if (i < 0) continue;
-      const q = Number(it?.quantity) || 0;
+      const q = baseQty(it);
       lines[i].dispatched = roundQty(lines[i].dispatched + q);
       if (sale) lines[i].invoiced = roundQty(lines[i].invoiced + q);
       else lines[i].onChallan = roundQty(lines[i].onChallan + q);
@@ -89,7 +91,7 @@ export function orderStatus(order, bills) {
 export function orderRemainingItems(order, bills) {
   const { lines } = orderProgress(order, bills);
   return (order?.data?.items || [])
-    .map((it, i) => ({ ...it, quantity: roundQty(Math.max(0, lines[i].ordered - lines[i].dispatched)) }))
+    .map((it, i) => ({ ...it, quantity: roundQty(Math.max(0, lines[i].ordered - lines[i].dispatched) / lineFactor(it)) }))
     .filter((it) => it.quantity > 0);
 }
 
@@ -101,7 +103,7 @@ export function orderToInvoice(order, bills) {
   const { lines, openChallans } = orderProgress(order, bills);
   const items = order?.data?.items || [];
   const fromOrder = items
-    .map((it, i) => ({ ...it, quantity: roundQty(Math.max(lines[i].ordered - lines[i].invoiced, lines[i].onChallan)) }))
+    .map((it, i) => ({ ...it, quantity: roundQty(Math.max(lines[i].ordered - lines[i].invoiced, lines[i].onChallan) / lineFactor(it)) }))
     .filter((it) => it.quantity > 0);
   const extra = openChallans.flatMap((c) => (c.data?.items || []).filter((it) => lineIndex(items, it) < 0).map((it) => ({ ...it })));
   const stock = {};

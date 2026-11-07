@@ -25,6 +25,9 @@ import { CategoryBrandFields, AltUnitFields, ProductFilters, StockAdjustModal } 
 // still written on save (mirrors sellingPrice) so any pre-v1.10.29 reader
 // still gets a valid number, but the form no longer edits it directly —
 // dead state removed for clarity.
+// The Barcode column of the export: only while Barcodes is on.
+const barcodeCols = (on) => (on ? ['Barcode'] : []);
+
 const emptyForm = {
   // kind: v1.10.83 (#121) - 'goods' or 'service' (a service has no stock).
   kind: 'goods', name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', gstTreatment: '', unit: 'Pcs', stock: '', description: '',
@@ -168,7 +171,10 @@ export default function InventoryView({ onOpenPurchases }) {
     // find one product).
     const barcode = normaliseBarcode(form.barcode);
     if (barcodesOn) {
-      const problem = barcodeProblem(barcode, products, editingId);
+      // Checked against the latest list too: two devices pressing Make one at
+      // the same moment would otherwise both get the same code.
+      const latest = barcode ? await getAllProducts().catch(() => products) : products;
+      const problem = barcodeProblem(barcode, latest, editingId);
       if (problem) { toast(problem, 'warning'); return; }
     }
     // v1.10.85 (#142, #148) - category levels and the second unit.
@@ -308,7 +314,7 @@ export default function InventoryView({ onOpenPurchases }) {
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
           intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST %, Stock (leave Stock blank for a service) and Barcode (optional).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}
-          parse={(rows) => { const r = productsCsvToList(rows, products, levels); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
+          parse={(rows) => { const r = productsCsvToList(rows, products, levels, { barcodes: barcodesOn }); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
           save={saveProduct} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); loadProducts(); }} />
       )}
       {adjusting && <StockAdjustModal product={adjusting} onClose={() => setAdjusting(null)} onSaved={() => { setAdjusting(null); loadProducts(); }} />}
@@ -457,8 +463,8 @@ export default function InventoryView({ onOpenPurchases }) {
           <h3>Products & Services <HelpButton title="The product list" doc="products#product-list" size={16} /></h3>
           {!bulkEdit && (
             <TableExport title="Products" filename="Products"
-              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', 'Barcode', 'Category', 'Brand', ...levelCsvHeaders(levels)]}
-              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', p.barcode || '', p.category || '', p.brand || '', ...levelCsvCells(p, levels)])} />
+              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', ...barcodeCols(barcodesOn), 'Category', 'Brand', ...levelCsvHeaders(levels)]}
+              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', ...(barcodesOn ? [p.barcode || ''] : []), p.category || '', p.brand || '', ...levelCsvCells(p, levels)])} />
           )}
         </div>
         {bulkEdit && filtered.length > 0 ? (

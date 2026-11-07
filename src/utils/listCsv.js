@@ -77,7 +77,8 @@ export function fillBlanks(saved, fresh) {
 // with a problem is left out and named in errors. A name already saved is not
 // added again (importing twice is safe): its empty details are filled in
 // (updates), or it is skipped when there is nothing to fill.
-export function productsCsvToList(text, existing = [], levels = []) {
+// v1.10.85 - with Barcodes off (barcodes: false) the Barcode column is ignored.
+export function productsCsvToList(text, existing = [], levels = [], { barcodes = true } = {}) {
   const fields = { ...PRODUCT_FIELDS, ...levelCsvFields(levels) };
   let { records, unknown } = rowsToRecords(text, fields);
   // With price levels on, a "... price" column that is not one of them (a
@@ -109,7 +110,12 @@ export function productsCsvToList(text, existing = [], levels = []) {
     // A barcode is used only for a new product, or a saved one without one;
     // one that another product has (saved, or higher up in the file) is refused.
     const old = saved.get(key(name));
-    const code = normaliseBarcode(r.barcode);
+    const code = barcodes ? normaliseBarcode(r.barcode) : '';
+    // Excel shows a long number code as 8.90123E+12 and saves it so: the digits are lost.
+    if (/^\d+(\.\d+)?e\+\d+$/i.test(code)) {
+      out.errors.push(`Row ${r._line} (${name}): the barcode ${code} was turned into a number by Excel and its digits are lost. In Excel, set the Barcode column to Text, type the codes again and save`);
+      continue;
+    }
     const ownId = old ? old.id : `_row${r._line}`;
     if (code && !(old && old.barcode)) {
       const problem = barcodeProblem(code, codes, ownId);

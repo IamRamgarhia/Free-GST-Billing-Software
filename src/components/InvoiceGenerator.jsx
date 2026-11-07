@@ -22,6 +22,7 @@ import InvoicePreview from './InvoicePreview';
 import ScanBarcodeBox from './ScanBarcodeBox';
 import { addScannedLine, findByBarcode } from '../utils/barcode';
 import { hasAltUnit, lineInUnit } from '../utils/stock';
+import { lineFactor } from '../utils';
 import { suggestGstRate, autoFillRate, rateText } from '../utils/hsnRates';
 import HelpButton from './HelpButton';
 import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
@@ -313,9 +314,11 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
   const handleKey = (e) => {
     // v1.10.85 (#137) - a barcode typed (or scanned) into the Item box, then
     // Enter: its product is picked, as if its suggestion were clicked.
-    if (e.key === 'Enter' && !e.shiftKey && activeIdx < 0) {
-      const hit = suggestions.indexOf(findByBarcode(suggestions, item.name));
-      if (hit >= 0) { e.preventDefault(); e.stopPropagation(); commit(hit); return; }
+    // The barcode match is always first (see getProductSuggestions, which
+    // leaves it out with Barcodes off or when a product has that exact name).
+    if (e.key === 'Enter' && !e.shiftKey && activeIdx < 0 && suggestions[0]
+      && findByBarcode([suggestions[0]], item.name) && isModuleEnabled('barcodes', getEnabledModules())) {
+      e.preventDefault(); e.stopPropagation(); commit(0); return;
     }
     // A name is one line: Enter never breaks it (the row's Enter-adds-a-row still runs).
     if (e.key === 'Enter' && !e.shiftKey && activeIdx < 0) e.preventDefault();
@@ -1783,11 +1786,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // v1.10.85 (#148) - on a product with a second unit, picking Box bills by
     // the box (stock counts 12 per box) at the box price; back to Pcs, the piece
     // price. Any unit change drops the box factor first (lineInUnit).
+    // A new name typed on a box line drops the box factor (it is another item).
     const change = (item) => {
+      if (field === 'name' && lineFactor(item) !== 1) return { ...lineInUnit(item, null, item.unit), name: value };
       if (field !== 'unit') return { ...item, [field]: value };
       const p = item.productId && products.find((x) => x.id === item.productId);
-      const priced = p && hasAltUnit(p) ? { ...p, sellingPrice: priceForLevel(p, clientLevel) } : null;
-      return itemWithUnit(lineInUnit(item, priced, value), value, { sizeOn: sizeBillingOn(), step: lastSizeStep() });
+      // The client's level price, when the product has one for that level.
+      const levelPrice = p && clientLevel ? Number(p.levelPrices?.[clientLevel]) || null : null;
+      return itemWithUnit(lineInUnit(item, p && hasAltUnit(p) ? p : null, value, { levelPrice }), value, { sizeOn: sizeBillingOn(), step: lastSizeStep() });
     };
     setItems(prev => prev.map(item => item.id === id ? change(item) : item));
     if (field === 'name') {
@@ -1819,8 +1825,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const getProductSuggestions = useCallback((itemId) => {
     if (productSearch.itemId !== itemId || !productSearch.query.trim()) return [];
     const q = productSearch.query.toLowerCase();
-    // #137 - the product whose barcode this is comes first (Enter picks it).
-    const hit = findByBarcode(products, productSearch.query);
+    // #137 - the product whose barcode this is comes first (Enter picks it):
+    // only with Barcodes on, and not when a product is called exactly that.
+    const exactName = products.some(p => (p.name || '').trim().toLowerCase() === q.trim());
+    const hit = isModuleEnabled('barcodes', getEnabledModules()) && !exactName ? findByBarcode(products, productSearch.query) : null;
     const list = products.filter(p => p !== hit && (
       p.name?.toLowerCase().includes(q) || p.hsn?.toLowerCase().includes(q)
     ));
