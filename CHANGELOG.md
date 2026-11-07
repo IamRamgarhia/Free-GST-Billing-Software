@@ -198,13 +198,14 @@ a backup is made first.
   (Windows Setup).
 - **Bank matching** (#175): **Cash book → Bank matching**. Import your bank
   statement (CSV or Excel .xlsx from SBI, HDFC, ICICI, Axis, Kotak, PNB or
-  Yes Bank; the bank is found from the file, or choose it) and each line is
+  Yes Bank, or any statement with Debit and Credit columns or one Amount
+  column; the bank is found from the file, or choose it) and each line is
   matched to your books: money in to a payment already recorded on an invoice
   or to an unpaid invoice of that amount; money out to a supplier payment, an
-  unpaid purchase bill or an expense. A suggestion needs the same amount (or
-  within ₹1 of round-off) and a close date, and comes first when the client or
-  supplier name or the invoice number is in the bank's description; each one
-  says why. **Confirm** marks the line matched, and for an unpaid invoice or
+  unpaid purchase bill or an expense (never one paid in cash). A suggestion
+  needs the same amount (or within ₹1 of round-off) and a close date, and
+  comes first when the client or supplier name or the invoice number is in
+  the bank's description; each one says why. **Confirm** marks the line matched, and for an unpaid invoice or
   bill also records the payment (bank date, Bank transfer, the bank's
   reference), so the balance and status follow. Pick a different match by
   hand, **Ignore** a line (bank charges, your own transfers) or add it as an
