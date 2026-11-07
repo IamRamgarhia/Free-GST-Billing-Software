@@ -182,7 +182,7 @@ app.use((req, res, next) => {
 });
 
 // Ensure data directory and sub-directories exist
-const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases', 'productions', 'purchase-orders', 'cash-book', 'debit-notes'];
+const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases', 'productions', 'purchase-orders', 'cash-book', 'debit-notes', 'bank-statements'];
 // v1.10.83 - a data folder the app may not write to (inside Program Files, a
 // read-only drive, antivirus "controlled folder access") or a full disk used
 // to crash here with a raw stack trace the launcher never showed. Say it in
@@ -831,6 +831,54 @@ app.delete('/api/cash-book/:id', (req, res) => {
   }
 });
 
+// v1.10.85 (#175) - Bank matching: each imported bank statement, with what
+// each of its lines was matched to, ignored or added as. One file per
+// statement, kept per business (ownerGstin / ownerName, as expenses are).
+// The payments it records go on the invoices and bills themselves.
+const BANK_LINE_STATES = ['open', 'matched', 'ignored', 'expense'];
+const badBankStatement = (st) => {
+  if (!st || typeof st !== 'object' || Array.isArray(st)) return 'Invalid statement';
+  if (st.id !== undefined && (typeof st.id !== 'string' || !st.id.trim())) return 'Invalid statement';
+  if (!Array.isArray(st.lines) || st.lines.length > 20000) return 'A statement needs its lines (20,000 at most)';
+  const bad = st.lines.find((l) => !l || typeof l !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(l.date || ''))
+    || !(Number(l.credit) >= 0) || !(Number(l.debit) >= 0) || !BANK_LINE_STATES.includes(l.status));
+  return bad ? 'A line of the statement is not valid' : '';
+};
+
+app.get('/api/bank-statements', (req, res) => {
+  const statements = readAllFromDir('bank-statements');
+  statements.sort((a, b) => String(b.importedAt || '').localeCompare(String(a.importedAt || '')));
+  res.json(statements);
+});
+
+app.post('/api/bank-statements', (req, res) => {
+  const statement = req.body;
+  const problem = badBankStatement(statement);
+  if (problem) return res.status(400).json({ error: problem, code: 'bad-request' });
+  if (!statement.id) statement.id = 'bst_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex');
+  const dir = path.join(DATA_DIR, 'bank-statements');
+  const filePath = path.join(dir, safeFileName(statement.id) + '.json');
+  if (!isPathInside(filePath, dir)) return errRes(res, 400, 'invalid-path');
+  try {
+    writeJSON(filePath, statement);
+    res.json({ success: true, id: statement.id });
+  } catch (err) {
+    errRes(res, 500, 'server-error', err);
+  }
+});
+
+app.delete('/api/bank-statements/:id', (req, res) => {
+  const dir = path.join(DATA_DIR, 'bank-statements');
+  const filePath = path.join(dir, safeFileName(req.params.id) + '.json');
+  if (!isPathInside(filePath, dir)) return errRes(res, 400, 'invalid-path');
+  try {
+    deleteFile(filePath);
+    res.json({ success: true });
+  } catch (err) {
+    errRes(res, 500, 'server-error', err);
+  }
+});
+
 // ========================
 // BUSINESS PROFILES (multi-business)
 // ========================
@@ -1237,6 +1285,7 @@ app.get('/api/export', (req, res) => {
     purchaseOrders: readAllFromDir('purchase-orders'),
     debitNotes: readAllFromDir('debit-notes'), // v1.10.85 (#168)
     cashBook: readAllFromDir('cash-book'),
+    bankStatements: readAllFromDir('bank-statements'), // v1.10.85 (#175)
     // v1.10.77 - never the PIN hash: a backup file can travel (email, Drive).
     meta: withoutLock(readJSON(META_PATH, {})),
     exportedAt: new Date().toISOString(),
@@ -1272,6 +1321,7 @@ app.post('/api/import', (req, res) => {
     purchaseOrderCount: 0, purchaseOrderSkipped: 0,
     debitNoteCount: 0, debitNoteSkipped: 0,
     cashBookCount: 0, cashBookSkipped: 0,
+    bankStatementCount: 0, bankStatementSkipped: 0,
   };
 
   // Helper: upsert one entity to a directory, honouring the overwrite flag.
@@ -1307,6 +1357,8 @@ app.post('/api/import', (req, res) => {
   (data.debitNotes || []).forEach(p => upsertOne('debit-notes', p, 'debitNoteCount', 'debitNoteSkipped'));
   // v1.10.83 - a cash entry that fails the form's checks is skipped, not saved.
   (data.cashBook || []).forEach(c => { if (validateCashEntry(c)) counts.cashBookSkipped++; else upsertOne('cash-book', cleanCashEntry(c), 'cashBookCount', 'cashBookSkipped'); });
+  // v1.10.85 (#175) - bank statements and their matches; one that fails the checks is skipped.
+  (data.bankStatements || []).forEach(b => { if (badBankStatement(b) || !b.id) counts.bankStatementSkipped++; else upsertOne('bank-statements', b, 'bankStatementCount', 'bankStatementSkipped'); });
 
   // meta.json — same gating. Previously always overwrote → counters could
   // regress below existing bill numbers → collision loop on next save.
