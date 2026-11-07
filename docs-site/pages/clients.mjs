@@ -21,7 +21,7 @@ export default [
   <tr><td>${ui('New Invoice')}</td><td>Opens a blank invoice.</td></tr>
 </table></div>
 <p><b>Search clients...</b> finds a client by any part of the name, in small or capital letters. The cross clears the search. If nothing matches, or you have no clients yet, you see <b>No clients found.</b> and a ${ui('Add Your First Client')} button.</p>
-<p>Your client list is shared by all your businesses, since the same customer may buy from each.</p>
+<p>Your client list is shared by all your businesses, since the same customer may buy from each. The figures on the cards, their invoices, statements and payment history are for the business you are working in; switch business to see another's.</p>
 </section>
 
 <section id="client-card">
@@ -33,7 +33,7 @@ export default [
   <tr><td><b>N invoices</b> | state | GSTIN</td><td>How many sales and credit notes they have, then the state and GSTIN of a saved client.</td></tr>
   <tr><td><b>Total</b></td><td>Everything you have billed them, less credit notes.</td></tr>
   <tr><td><b>Paid</b> (green)</td><td>What they have paid you on those invoices.</td></tr>
-  <tr><td><b>Outstanding</b> (red)</td><td>What they still owe. TDS that the client deducted is not counted as owed, since they pay it to the government for you. Green ₹0 means all settled.</td></tr>
+  <tr><td><b>Outstanding</b> (red)</td><td>What they still owe, less any advance or overpayment they have with you. An invoice in another currency counts at the exchange rate saved on it. TDS that the client deducted is not counted as owed, since they pay it to the government for you. Green ₹0 means all settled.</td></tr>
   <tr><td><b>Overpaid</b> (blue)</td><td>Shown instead of Outstanding when they paid more than they were billed. The extra can be used on <a href="invoices.html#client-credit">their next invoice</a>.</td></tr>
   <tr><td><b>Over credit limit</b> (red, next to the name)</td><td>They owe your business more than the <a href="#credit-limit">credit limit</a> you gave them.</td></tr>
   <tr><td>${ui('View')} / ${ui('Hide')}</td><td>Click anywhere on the card to open or close the client's account.</td></tr>
@@ -125,7 +125,7 @@ export default [
   <li>On <a href="invoices.html#credit-limit">New Invoice</a>, when what they already owe plus the new invoice goes over the limit, a warning shows under the items: <b>Over the credit limit by ₹…</b>, with what they owe and the limit. It never stops you saving.</li>
   <li>On the client list, their card shows <b>Over credit limit</b> next to the name while they owe more than the limit.</li>
 </ul>
-<p>What they owe is counted for the business you are working in: unpaid tax invoices, bills of supply and composition bills, less payments, TDS they deducted and credit notes. Quotations, proformas, challans and cancelled invoices are not counted.</p>
+<p>What they owe is counted for the business you are working in: unpaid tax invoices, bills of supply and composition bills, less payments, TDS they deducted and credit notes. Quotations, proformas, challans and cancelled invoices are not counted. An invoice in another currency counts at the exchange rate saved on it; one without a rate is left out, and the warning says so ("1 invoice in USD without an exchange rate left out"). On New Invoice, <i>this invoice</i> is what is still due on it: less a payment already recorded on it and any client credit you apply. The card's mark also takes off an advance or overpayment they have with you.</p>
 </section>
 
 <section id="client-print-prefs">
