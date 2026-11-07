@@ -109,6 +109,17 @@ a backup is made first.
   **Cancel debit note** (or Delete) undoes all of it. GSTR-2B matching is
   unchanged.
 
+- **Rft lines for glass shops** (#140): polish, aluminium channel and other
+  work charged on the glass already on the bill. With **Size billing** on,
+  pick the unit **Rft** on a line and choose what it counts: the **sq.ft** of
+  the glass lines, or their **edges** in running feet (2 x (length + width)
+  / 12 x pieces, after rounding), for all glass lines, the lines you tick, or
+  a value you type. The quantity follows the glass lines as you change them,
+  and prints as *19.5 sqft* or *27 rft*.
+- **Dashboard totals for a chosen period**: **Totals for** above the four
+  cards shows them for this month, last month, any month you pick, or a
+  financial year. All time is still the default.
+
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
   inside the container; other devices use the paired HTTPS connection.

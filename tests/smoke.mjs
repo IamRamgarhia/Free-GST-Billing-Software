@@ -733,6 +733,20 @@ try {
     close(dash2.total, dash0.total + 1111) && dash2.count === dash0.count + 1,
     `total ${dash0.total} -> ${dash2.total}, count ${dash0.count} -> ${dash2.count}`);
 
+  // v1.10.85 - the cards for a chosen period: today's invoices are in "This
+  // month" and not in "Last month"; "All time" again afterwards.
+  const cardsFor = async (period) => {
+    await page.selectOption('#card-period', period);
+    await sleep(600);
+    return { total: rupees(await cardValues('Total Invoiced')), count: money((await cardValues('Invoices'))?.[0]) };
+  };
+  const dashThis = await cardsFor('this-month');
+  const dashLast = await cardsFor('last-month');
+  await cardsFor('all');
+  check('v85 dashboard totals for a period: this month counts today\'s invoices, last month does not',
+    dashThis.count >= 1 && dashThis.total >= 1111 && dashThis.count + dashLast.count <= dash2.count,
+    JSON.stringify({ all: dash2, thisMonth: dashThis, lastMonth: dashLast }));
+
   // ---- #64 item 2: Reports counted every company's expenses ----------------
   const expenseCard = async () => { await reopenView('Reports'); return rupees(await cardValues('Expenses (ex. GST)')); };
   const expense = (id, description, amount, gstin, name) => ({ id, date: today, description, category: 'Other',

@@ -22,6 +22,7 @@ import { useCostCentres } from './useCostCentres';
 import { CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
 import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../utils/salesOrders';
+import { periodRange, inPeriod } from '../utils/period';
 
 // v1.10.85 (#135) - the dispatch status badge of a sales order.
 const SO_STATUS_COLORS = {
@@ -98,6 +99,12 @@ const PAYMENT_MODES = [
   ['cheque', 'Cheque'], ['card', 'Card'], ['other', 'Other'],
 ];
 const paymentModeName = (mode) => (PAYMENT_MODES.find(([v]) => v === mode) || [])[1] || mode;
+
+// v1.10.85 - the period the cards show, kept in this browser.
+const CARD_PERIOD_KEY = 'gst_dashboardPeriod';
+const CARD_MONTH_KEY = 'gst_dashboardMonth';
+const readPref = (key, fallback) => { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } };
+const writePref = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private mode */ } };
 
 // v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
 // from ../utils so a bugfix touches one file, not five.
@@ -271,6 +278,12 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // Outstanding and the invoice count added up EVERY company's invoices while
   // the table underneath showed only one.
   const baseCur = baseCurrencyOf(profile);
+  // v1.10.85 - the cards for a chosen period (by invoice date); remembered.
+  const [cardPeriod, setCardPeriodState] = useState(() => readPref(CARD_PERIOD_KEY, 'all'));
+  const [cardMonth, setCardMonthState] = useState(() => readPref(CARD_MONTH_KEY, ''));
+  const setCardPeriod = (v) => { setCardPeriodState(v); writePref(CARD_PERIOD_KEY, v); };
+  const setCardMonth = (v) => { setCardMonthState(v); writePref(CARD_MONTH_KEY, v); };
+  const cardRange = useMemo(() => periodRange(cardPeriod, cardMonth), [cardPeriod, cardMonth]);
   const stats = useMemo(() => {
     // v1.10.67 (#66 item 7, @sangwanmail-eng) — these cards are turnover, so
     // only real sales count. A proforma is a quote, a delivery challan moves
@@ -278,7 +291,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     // cancelled document counts for nothing.
     const byCurrency = {};
     let count = 0;
-    for (const b of bills) {
+    const periodBills = bills.filter((b) => inPeriod(b.invoiceDate, cardRange));
+    for (const b of periodBills) {
       const sign = salesSign(b);
       if (sign === 0) continue;
       count += 1;
@@ -292,7 +306,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     // invoice at its own exchange rate (one without a rate is counted apart).
     let inBase = 0, noRate = 0;
     if (Object.keys(byCurrency).length > 1) {
-      for (const b of bills) {
+      for (const b of periodBills) {
         const sign = salesSign(b);
         if (sign === 0) continue;
         const c = billInInr(b, baseCur);
@@ -300,7 +314,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       }
     }
     return { byCurrency, count, inBase, noRate };
-  }, [bills, baseCur]);
+  }, [bills, baseCur, cardRange]);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -1609,6 +1623,19 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         </div>
       )}
 
+      <div className="card-period" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        <label htmlFor="card-period" className="text-muted" style={{ fontSize: '0.8rem' }}>Totals for</label>
+        <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
+          <option value="all">All time</option>
+          <option value="this-month">This month</option>
+          <option value="last-month">Last month</option>
+          <option value="month">Choose a month…</option>
+          {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+        {cardPeriod === 'month' && (
+          <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
+        )}
+      </div>
       <div className="stats-grid stats-grid-4">
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue"><IndianRupee size={22} /></div>

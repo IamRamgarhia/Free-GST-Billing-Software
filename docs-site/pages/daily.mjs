@@ -111,7 +111,7 @@ export default [
   <li>Quotations, proforma estimates and delivery challans are <b>left out</b>: they are not sales yet.</li>
   <li>Cancelled invoices are <b>left out</b>.</li>
 </ul>
-<p>The totals are for <b>all years</b> together and do not follow the filters on the invoice list. For one month, quarter or year, use <a href="reports.html">Reports</a> or <a href="gst-returns.html">GST Returns</a>. Sales in a foreign currency get a line of their own on each card (for example ₹4,25,000 and \$1,200), never added to rupees. A card shows <b>—</b> when there are no sales yet.</p>
+<p>The totals are for <b>all years</b> together until you choose a period in <b>Totals for</b> above the cards: <b>This month</b>, <b>Last month</b>, <b>Choose a month…</b> (pick any month), or a financial year (April to March). An invoice counts in the period of its invoice date, and the choice is remembered in this browser. The cards do not follow the filters on the invoice list. For a quarter, or the full figures, use <a href="reports.html">Reports</a> or <a href="gst-returns.html">GST Returns</a>. Sales in a foreign currency get a line of their own on each card (for example ₹4,25,000 and \$1,200), never added to rupees. A card shows <b>—</b> when there are no sales yet.</p>
 </section>
 
 <section id="total-invoiced">
