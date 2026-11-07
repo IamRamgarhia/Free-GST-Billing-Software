@@ -2,7 +2,7 @@
 // hand, and the book for a period with its running balance. Cash recorded on
 // invoices, receipts and expenses shows here read-only (see utils/cashBook.js).
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Banknote, ArrowDownLeft, ArrowUpRight, Edit3, Trash2, Search, X, Save, ExternalLink } from 'lucide-react';
+import { Banknote, Landmark, ArrowDownLeft, ArrowUpRight, Edit3, Trash2, Search, X, Save, ExternalLink } from 'lucide-react';
 import { getAllCashEntries, saveCashEntry, deleteCashEntry, getAllBills, getAllReceipts, getAllExpenses, getAllPurchases, getAllClients, getProfile } from '../store';
 import { formatCurrency, belongsToProfile, localToday, parseLocalDate } from '../utils';
 import { CASH_CATEGORIES, validateCashEntry, linkedCashLines, ownCashLines, cashBookView, cashSummary, periodRange } from '../utils/cashBook';
@@ -10,6 +10,7 @@ import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import TableExport from './TableExport';
+import BankMatching from './BankMatching';
 
 const PERIODS = [['month', 'This month'], ['lastMonth', 'Last month'], ['fy', 'This financial year'], ['all', 'All dates'], ['custom', 'Choose dates']];
 const SOURCE_SCREEN = { receipts: 'Receipts', dashboard: 'the Dashboard', expenses: 'Expenses', purchases: 'Purchases' };
@@ -20,7 +21,23 @@ const inOut = (type, on) => ({
   ...(on ? { background: type === 'in' ? 'var(--success)' : 'var(--danger)', color: '#fff', borderColor: 'transparent' } : {}),
 });
 
+// v1.10.85 (#175) - two tabs: the cash book, and Bank matching for the bank
+// statement (money in and out of the bank, next to the cash).
 export default function CashBook({ onOpenView }) {
+  const [tab, setTab] = useState('cash');
+  const tabs = (
+    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }} role="group" aria-label="Cash or bank">
+      {[['cash', 'Cash', <Banknote size={16} />], ['bank', 'Bank matching', <Landmark size={16} />]].map(([id, label, icon]) => (
+        <button key={id} type="button" className={`btn ${tab === id ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={tab === id} onClick={() => setTab(id)}>
+          {icon} {label}
+        </button>
+      ))}
+    </div>
+  );
+  return tab === 'bank' ? <BankMatching tabs={tabs} /> : <CashBookMain tabs={tabs} onOpenView={onOpenView} />;
+}
+
+function CashBookMain({ tabs, onOpenView }) {
   const [entries, setEntries] = useState([]);
   const [linked, setLinked] = useState([]);
   const [names, setNames] = useState([]);
@@ -136,6 +153,7 @@ export default function CashBook({ onOpenView }) {
             <p className="page-subtitle">Cash in and out, with the cash in hand</p>
           </div>
         </div>
+        {tabs}
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>

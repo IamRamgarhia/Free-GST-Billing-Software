@@ -504,6 +504,14 @@ export const getAllCashEntries = () => apiFetch(`${API}/cash-book`);
 export const saveCashEntry = async (entry) => (await apiFetch(`${API}/cash-book`, { method: 'POST', body: JSON.stringify(entry) })).entry;
 export const deleteCashEntry = (id) => apiFetch(`${API}/cash-book/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
+// ---- v1.10.85 (#175) Bank matching: imported statements and their matches ----
+export const getAllBankStatements = () => apiFetch(`${API}/bank-statements`);
+export const saveBankStatement = async (statement) => {
+  const res = await apiFetch(`${API}/bank-statements`, { method: 'POST', body: JSON.stringify(statement) });
+  return res.id ? { ...statement, id: res.id } : statement;
+};
+export const deleteBankStatement = (id) => apiFetch(`${API}/bank-statements/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
 // ---- Receipts / Payment Vouchers ----
 export const getAllReceipts = async () => {
   return apiFetch(`${API}/receipts`);
@@ -760,6 +768,7 @@ export const exportAllData = async (selection) => {
   if (sel.products && all.productions) data.productions = all.productions;
   if (sel.expenses)       data.expenses = all.expenses;
   if (sel.expenses)       data.cashBook = all.cashBook; // v1.10.83 - the cash book travels with expenses
+  if (sel.expenses)       data.bankStatements = all.bankStatements; // v1.10.85 (#175) - so do bank statements
   if (sel.recurring)      data.recurring = all.recurring;
   if (sel.receipts)       data.receipts = all.receipts;
   if (sel.purchases)      data.purchases = all.purchases;
@@ -816,6 +825,7 @@ export const importData = async (jsonString, selection) => {
   if (sel.products && data.productions)          payload.productions = data.productions;
   if (sel.expenses && data.expenses)             payload.expenses = data.expenses;
   if (sel.expenses && data.cashBook)             payload.cashBook = data.cashBook;
+  if (sel.expenses && data.bankStatements)       payload.bankStatements = data.bankStatements;
   if (sel.recurring && data.recurring)           payload.recurring = data.recurring;
   if (sel.receipts && data.receipts)             payload.receipts = data.receipts;
   if (sel.purchases && data.purchases)           payload.purchases = data.purchases;

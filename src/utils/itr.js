@@ -796,13 +796,22 @@ const BANK_FORMATS = [
 
 /**
  * Parse a bank-statement CSV string. Returns:
- *   { bankName, transactions: [{ date, description, debit, credit, balance, category }] }
+ *   { bankName, transactions: [{ date, description, debit, credit, balance, reference, category }] }
  *
  * The `category` field is auto-populated by `autoCategorize`. Users override
  * in the UI review grid.
  */
-export function parseBankStatement(csvText) {
-  const rows = parseCSV(csvText);
+export function parseBankStatement(csvText, bankName = '') {
+  return parseBankRows(parseCSV(csvText), bankName);
+}
+
+// v1.10.85 (#175) - the bank names a person can choose instead of auto-detect
+// (Bank matching), and the parser for rows already split into cells (an
+// Excel .xlsx statement read by utils/xlsxRead.js).
+export const BANK_NAMES = BANK_FORMATS.map(f => f.name).filter(n => n !== 'Generic');
+
+export function parseBankRows(input, bankName = '') {
+  const rows = (input || []).map(r => (r || []).map(c => (c === null || c === undefined ? '' : String(c))));
   if (rows.length < 2) throw new Error('CSV must have a header row + at least one transaction');
   // Find the actual header row — some banks prepend account-info lines
   let headerRowIdx = 0;
@@ -816,15 +825,17 @@ export function parseBankStatement(csvText) {
   const headers = rows[headerRowIdx];
   const dataRows = rows.slice(headerRowIdx + 1);
 
-  const format = BANK_FORMATS.find(f => f.match(headers));
+  const format = BANK_FORMATS.find(f => bankName && f.name === bankName) || BANK_FORMATS.find(f => f.match(headers));
   const hIdx = format.headerMap(headers);
+  // v1.10.85 (#175) - the cheque / reference / UTR number, when the bank gives one.
+  const refIdx = findCol(headers, /Ref|Chq|Cheque|Instrument|UTR/i);
 
   const transactions = dataRows
     .filter(r => r.length >= 3 && r.some(c => c && String(c).trim())) // skip blank / footer rows
     .map(r => {
       const parsed = format.map(r, hIdx);
       if (!parsed.date) return null;
-      return { ...parsed, category: autoCategorize(parsed.description) };
+      return { ...parsed, reference: refIdx >= 0 ? String(r[refIdx] || '').trim() : '', category: autoCategorize(parsed.description) };
     })
     .filter(Boolean);
 
