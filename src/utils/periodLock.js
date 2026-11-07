@@ -25,7 +25,7 @@ const ACCOUNT_FIELDS = {
   'debit-notes': (d) => [d.date, d.dnNumber, d.items, d.status, d.billId, d.ownerGstin],
   'cash-book': (c) => [c.date, c.amount, c.type, c.ownerGstin],
   // v1.10.85 - stock written off or found moves the closing stock of that date.
-  'stock-adjustments': (a) => [a.date, a.productId, a.quantity, a.reason],
+  'stock-adjustments': (a) => [a.date, a.productId, a.quantity, a.reason, a.stockApplied],
 };
 
 const isCancelled = (b) => b?.status === 'cancelled' || !!b?.cancelled || !!b?.data?.cancelled;

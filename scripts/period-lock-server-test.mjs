@@ -77,10 +77,19 @@ try {
   // v1.10.85 - stock adjustments are dated records too.
   const adj = (id, date) => ({ id, date, productId: 'p1', productName: 'DiceCodes Pen', quantity: -2, reason: 'damaged', stockApplied: { p1: -2 } });
   ok((await call('POST', '/stock-adjustments', adj('adj_sep', '2026-09-20'))).status === 409, 'a stock adjustment dated in the closed period: refused');
-  ok((await call('POST', '/stock-adjustments', adj('adj_oct', '2026-10-20'))).status === 200, 'one dated after it: saves');
+  const saved = await call('POST', '/stock-adjustments', { ...adj('adj_oct', '2026-10-20'), stockApplied: { p1: -999, other: 5 }, extra: 'dropped' });
+  ok(saved.status === 200, 'one dated after it: saves');
+  ok(JSON.stringify(saved.json?.record?.stockApplied) === '{"p1":-2}' && saved.json?.record?.extra === undefined,
+    'the server works out the stock it moves from product and quantity, and keeps only known fields', JSON.stringify(saved.json?.record));
+  ok((await call('POST', '/stock-adjustments', adj('adj_oct', '2026-10-20'))).status === 409, 'the same id again: refused (never changed, only deleted)');
   ok((await call('POST', '/stock-adjustments', { ...adj('adj_bad', '2026-10-21'), quantity: 'x' })).status === 400, 'one without a number quantity: refused');
+  ok((await call('POST', '/stock-adjustments', adj('adj_nov', '2026-11-31'))).status === 400 && (await call('POST', '/stock-adjustments', adj('adj_m13', '2026-13-01'))).status === 400,
+    'a date that does not exist (31 Nov, month 13): refused');
   ok((await call('GET', '/stock-adjustments')).json?.map((a) => a.id).join() === 'adj_oct', 'the list has the saved one only');
-  ok((await call('DELETE', '/stock-adjustments/adj_oct')).status === 200 && !(await call('GET', '/stock-adjustments')).json?.length, 'an open-period adjustment deletes');
+  const removed = await call('DELETE', '/stock-adjustments/adj_oct');
+  ok(removed.status === 200 && JSON.stringify(removed.json?.record?.stockApplied) === '{"p1":-2}' && !(await call('GET', '/stock-adjustments')).json?.length,
+    'an open-period adjustment deletes, answering with what it moved');
+  ok((await call('DELETE', '/stock-adjustments/adj_oct')).status === 404, 'deleting it again: 404 (so no stock is put back twice)');
 
   ok((await call('POST', '/period-lock', { upTo: '' })).json?.upTo === '', 'open the books again');
   ok((await call('DELETE', '/bills/DC-0901')).status === 200, 'now it can be deleted (to the Trash)');

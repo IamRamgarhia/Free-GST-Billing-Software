@@ -900,24 +900,41 @@ app.get('/api/stock-adjustments', (req, res) => {
   list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   res.json(list);
 });
+// Only the known fields are kept, and the stock it moves is worked out here
+// from its product and quantity (never taken from the request). An id already
+// on file is refused: an adjustment is never changed, only deleted.
+const realDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`))
+  && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
 app.post('/api/stock-adjustments', (req, res) => {
   const a = req.body;
   if (!a || typeof a !== 'object' || Array.isArray(a)) return errRes(res, 400, 'bad-request');
   if (a.id !== undefined && (typeof a.id !== 'string' || !a.id.trim())) return errRes(res, 400, 'bad-request');
-  if (typeof a.productId !== 'string' || !a.productId || !Number.isFinite(a.quantity) || !a.quantity || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.date || ''))) {
+  if (typeof a.productId !== 'string' || !a.productId || !Number.isFinite(a.quantity) || !a.quantity || !realDay(a.date)) {
     return res.status(400).json({ error: 'A stock adjustment needs a product, a quantity and a date', code: 'bad-request' });
   }
-  if (!a.id) a.id = 'adj_' + Date.now() + crypto.randomBytes(3).toString('hex');
-  const filePath = path.join(ADJ_DIR, safeFileName(a.id) + '.json');
+  const id = a.id || 'adj_' + Date.now() + crypto.randomBytes(3).toString('hex');
+  const filePath = path.join(ADJ_DIR, safeFileName(id) + '.json');
   if (!isPathInside(filePath, ADJ_DIR)) return errRes(res, 400, 'invalid-path');
-  writeJSON(filePath, a);
-  res.json({ success: true, id: a.id });
+  if (fs.existsSync(filePath)) return res.status(409).json({ error: 'This stock adjustment is already saved', code: 'exists' });
+  const text = (v, n) => String(v ?? '').slice(0, n);
+  const record = {
+    id, date: a.date, productId: a.productId, productName: text(a.productName, 200), unit: text(a.unit, 20),
+    quantity: a.quantity, reason: text(a.reason, 20), note: text(a.note, 500),
+    stockApplied: { [a.productId]: a.quantity },
+    createdAt: new Date().toISOString(),
+  };
+  writeJSON(filePath, record);
+  res.json({ success: true, id, record });
 });
+// Answers with the record it removed, so the page puts back exactly the stock
+// it moved; one not on file is 404 and nothing is put back.
 app.delete('/api/stock-adjustments/:id', (req, res) => {
   const filePath = path.join(ADJ_DIR, safeFileName(req.params.id) + '.json');
   if (!isPathInside(filePath, ADJ_DIR)) return errRes(res, 400, 'invalid-path');
+  const record = readJSON(filePath, null);
+  if (!record) return errRes(res, 404, 'not-found');
   deleteFile(filePath);
-  res.json({ success: true });
+  res.json({ success: true, record });
 });
 
 // v1.10.83 - the cash book's own entries (cash recorded on invoices, receipts

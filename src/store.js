@@ -481,16 +481,20 @@ export const getNextPoNumber = async ({ peek = false, businessKey = '', date = '
 
 // ---- v1.10.85 Stock adjustments (damaged, lost, found, ...) ----
 // Saving one moves the product's stock by its quantity; deleting puts it back
-// (applyStockChanges, as invoices and debit notes do).
+// (applyStockChanges, as invoices and debit notes do). Both use the record the
+// server keeps (it works out stockApplied), so what is put back is exactly
+// what was moved; a delete of one no longer on file fails and moves nothing.
 export const getAllStockAdjustments = async () => apiFetch(`${API}/stock-adjustments`);
 export const saveStockAdjustment = async (adj) => {
   const res = await apiFetch(`${API}/stock-adjustments`, { method: 'POST', body: JSON.stringify(adj) });
-  await applyStockChanges(adj.stockApplied);
-  return res.id ? { ...adj, id: res.id } : adj;
+  const saved = res.record || { ...adj, id: res.id };
+  await applyStockChanges(saved.stockApplied);
+  return saved;
 };
 export const deleteStockAdjustment = async (adj) => {
-  await apiFetch(`${API}/stock-adjustments/${encodeURIComponent(adj.id)}`, { method: 'DELETE' });
-  await applyStockChanges(Object.fromEntries(Object.entries(adj.stockApplied || {}).map(([id, q]) => [id, -q])));
+  const res = await apiFetch(`${API}/stock-adjustments/${encodeURIComponent(adj.id)}`, { method: 'DELETE' });
+  const moved = res?.record?.stockApplied || {};
+  await applyStockChanges(Object.fromEntries(Object.entries(moved).map(([id, q]) => [id, -q])));
 };
 
 // ---- v1.10.85 (#168) Debit notes (purchase returns) ----
