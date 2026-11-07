@@ -845,13 +845,19 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     const payments = (bill.payments || []).filter((_, i) => i !== idx);
     const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     const updated = { ...bill, payments, paidAmount: totalPaid, status: paymentStatusFor(bill, totalPaid) };
-    await saveBill(updated, { overwrite: true });
     // v1.10.10 — Also remove the linked Receipt record so the Receipts
-    // page stays in sync. Silently skips if this was a legacy payment
-    // that never had a receipt written (pre-v1.10.10 recordings).
+    // page stays in sync. A legacy payment with no receipt is fine.
+    // v1.10.85 (#175) - the receipt goes first: if it cannot be deleted, the
+    // payment stays (a receipt left behind would bring the payment back).
     if (target?.id) {
-      try { await deleteReceipt(target.id); } catch { /* ignore */ }
+      try { await deleteReceipt(target.id); } catch (err) {
+        if (err?.status !== 404) {
+          toast(err?.status >= 400 && err.status < 500 && err.message ? err.message : 'Could not delete the payment\'s receipt, so the payment was kept. Try again.', 'error');
+          return;
+        }
+      }
     }
+    await saveBill(updated, { overwrite: true });
     toast('Payment deleted', 'success');
     setPaymentModal(updated);
     loadBills();
