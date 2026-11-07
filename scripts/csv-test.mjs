@@ -11,7 +11,7 @@
 // the fix breaks every sum a user runs over an exported column.
 
 import { toCsvCell, toCsvLine } from '../src/utils.js';
-import { dateOrderNote, parseCsv, toIsoDate, toNum, salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice, newProductsFromBills } from '../src/utils/bulkCsv.js';
+import { dateOrderNote, parseCsv, toIsoDate, toNum, salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice, newProductsFromBills, marketplaceOrdersTable } from '../src/utils/bulkCsv.js';
 import { productsCsvToList, clientsCsvToList } from '../src/utils/listCsv.js';
 import { readFileSync } from 'fs';
 
@@ -237,6 +237,25 @@ console.log('\n[#130] Files exported from Vyapar (layouts seen in real exports)'
   eq(parties.clients.map((c) => `${c.name}|${c.phone}|${c.address}`).join(), 'Riya Sharma|9876543210|4 Mall Road, Ludhiana', 'Vyapar party columns map onto clients');
   eq(toIsoDate('45383'), '2024-04-01', 'a date number in a CSV too');
   eq(toIsoDate('2026'), '', 'a plain year is not a date');
+}
+
+// #172 / #179 (v1.10.85): a Flipkart orders report (made-up rows) becomes tax
+// invoices: GST-inclusive Invoice Amount, tax RATES in IGST/CGST/SGST ("NA"),
+// mm/dd/yy dates, order ID + tracking ID in the order details; returns noted.
+{
+  const head = 'Ordered On,Shipment ID,ORDER ITEM ID,Order Id,HSN CODE,Order State,Order Type,FSN,SKU,Product,Invoice No.,CGST,IGST,SGST,Invoice Date (mm/dd/yy),Invoice Amount,Selling Price Per Item,Shipping and Handling Charges,Quantity,Price inc. FKMP Contribution & Subsidy,Buyer name,Ship to name,Address Line 1,Address Line 2,City,State,PIN Code,Dispatch After date,Dispatch by date,Form requirement,Tracking ID';
+  const rows = [
+    'Oct 26 2026,S1,I1,OD100001,7323,Delivered,NON_FBF,F1,SKU1,Steel Tiffin,FKTEST0001,NA,5,NA,10/26/26,210,180,0,2,210,Asha Test,Asha Test,Line 1,,Pune,Maharashtra,411001,,,,FMPC0000001',
+    'Oct 27 2026,S2,I2,OD100002,3923,Returned,NON_FBF,F2,SKU2,Plastic Box,FKTEST0002,9,NA,9,10/27/26,118,100,0,1,118,Ravi Test,Ravi Test,Line 2,,Jaipur,Rajasthan,302001,,,,FMPC0000002',
+  ];
+  const r = salesCsvToBills([head, ...rows].join('\n'), { profile: { businessName: 'DiceCodes', state: 'Rajasthan', gstin: '08ABCDE1234F1Z5' } });
+  const [a, b] = r.bills;
+  eq(r.bills.length, 2, '#172 a Flipkart orders report imports one invoice per order');
+  eq(`${a.invoiceNumber}|${a.invoiceDate}|${a.totalAmount}|${a.data.items[0].rate}|${a.data.items[0].taxPercent}`, 'FKTEST0001|2026-10-26|210|105|5', '#172 GST-inclusive amount, rate = amount / qty, IGST rate, mm/dd/yy date');
+  eq(`${a.data.details.buyerOrderNo}|${a.data.details.dispatchDocNo}|${a.data.details.dispatchedThrough}`, 'OD100001|FMPC0000001|Flipkart', '#172 order ID and AWB land in the order details');
+  eq(`${b.data.items[0].taxPercent}|${b.totalAmount}`, '18|118', '#172 CGST + SGST rates add up (9 + 9)');
+  eq(r.warnings.some((w) => /1 order was returned/.test(w)), true, '#172 returned orders are counted in a note');
+  eq(marketplaceOrdersTable('Invoice Number,Client Name\n1,X'), null, '#172 an ordinary CSV is not taken for a Flipkart file');
 }
 
 // #170: an invoice import adds new items to Products, never changes saved ones.
