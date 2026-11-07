@@ -21,6 +21,14 @@ import { resolveAppHome } from './src/utils/appHome.js';
 import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
 import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './src/utils/serverLock.js';
 import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
+// v1.10.85 - phone / tablet access on the same Wi-Fi (off by default).
+import https from 'https';
+import {
+  DEFAULT_PHONE_PORT, DEVICE_COOKIE, createPhoneGate, createPairing, createTryLimiter, hashToken, newToken, readCookie,
+  deviceCookie, cleanDeviceName, deviceLabel, lanAddresses, isPrivateIp, isLoopbackIp, shortFingerprint,
+} from './src/utils/phoneAccess.js';
+import { makeSelfSignedCert, certStillGood } from './src/utils/selfSignedCert.js';
+import { pairPageHtml, pairPageCsp } from './src/utils/pairPage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // v1.10.84 - data/, Saved Invoices/ and Trash/ live in APP_HOME: the folder
@@ -100,6 +108,19 @@ const STARTING_PORT = persistedPort || DEFAULT_PORT;
 const MAX_PORT_SCAN = 50; // 47371 → 47420 is enough headroom for any conceivable collision
 
 const app = express();
+const PHONE_HEADLESS = process.env.FGSB_PHONE_ACCESS === '1';
+
+// v1.10.85 - the first check of every request. On the 127.0.0.1 listener it
+// changes nothing; on the phone listener (HTTPS, only while "Use on phone or
+// tablet" is on) a request passes only from the local network, naming this
+// PC, from the app's own page, with a paired device's cookie
+// (src/utils/phoneAccess.js). Its state lives in PHONE ACCESS below.
+app.use(createPhoneGate({
+  isOn: () => !!phone.server,
+  deviceFor: (token) => deviceForToken(token),
+  names: () => phoneHostNames(),
+  headless: PHONE_HEADLESS,
+}));
 
 // v1.10.0 — CORS lockdown. Previously `app.use(cors())` echoed
 // Access-Control-Allow-Origin: *, which meant any site the user visited
@@ -117,11 +138,13 @@ const app = express();
 // answered. (Phone access, when it comes, checks its own listener's Host.)
 const LOCAL_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 app.use((req, res, next) => {
-  if (LOCAL_HOST_RE.test(String(req.headers.host || ''))) return next();
+  // The phone listener checked its own Host and Origin in the gate above.
+  if (req.socket.encrypted || LOCAL_HOST_RE.test(String(req.headers.host || ''))) return next();
   return res.status(403).json({ error: 'This app only answers http://localhost' });
 });
 
 app.use((req, res, next) => {
+  if (req.socket.encrypted) return next(); // same-origin only, checked in the gate
   const origin = req.headers.origin;
   const allow =
     !origin ||
@@ -817,7 +840,10 @@ app.get('/api/meta/:key', (req, res) => {
 });
 
 app.post('/api/meta/:key', (req, res) => {
-  if (req.params.key === LOCK_KEY) return errRes(res, 403, 'forbidden');
+  // v1.10.85 (review) - the backup folder is set only through /api/backup-folder,
+  // which checks it and is PC-only: through here a paired phone could point the
+  // daily copy of every book at a share of its own.
+  if (req.params.key === LOCK_KEY || req.params.key.toLowerCase() === BACKUP_FOLDER_KEY.toLowerCase()) return errRes(res, 403, 'forbidden');
   if (!req.body || !('value' in req.body)) return errRes(res, 400, 'bad-request');
   const meta = readJSON(META_PATH, {});
   meta[req.params.key] = req.body.value;
@@ -844,7 +870,7 @@ app.post('/api/meta/:key/raise', (req, res) => {
 // race-free across concurrent HTTP requests. Closes the
 // "two saves both reading 5, both writing 6" duplicate-invoice-number bug.
 app.post('/api/meta/:key/increment', (req, res) => {
-  if (req.params.key === LOCK_KEY) return errRes(res, 403, 'forbidden');
+  if (!/^counter_/.test(req.params.key)) return errRes(res, 403, 'forbidden');
   const meta = readJSON(META_PATH, {});
   // v1.10.78 (#93) - a tax invoice sends its start ("Start numbering from");
   // see nextCounterValue. Nothing else jumps.
@@ -897,8 +923,13 @@ const pinMatches = (lock, pin) => {
   const b = Buffer.from(lock.hash, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
-// Five wrong PINs in a row -> wait 30 seconds before the next try.
-const pinTries = { wrong: 0, until: 0 };
+// Five wrong PINs in a row -> wait 30 seconds before the next try. One counter
+// for this PC's lock screen and for pairing a phone (v1.10.85).
+const pinTries = createTryLimiter();
+// v1.10.85 (review) - PINs typed on the network (pairing, a phone's lock
+// screen) count on their own, so a phone cannot keep this PC's lock screen
+// waiting.
+const networkPinTries = createTryLimiter();
 const currentLock = () => {
   const meta = readJSON(META_PATH, {});
   const reset = RESET_PIN_FILES.filter((f) => fs.existsSync(f));
@@ -906,6 +937,8 @@ const currentLock = () => {
     if (meta[LOCK_KEY]) { delete meta[LOCK_KEY]; writeJSON(META_PATH, meta); }
     for (const f of reset) { try { fs.unlinkSync(f); } catch { /* removed already */ } }
     console.log('[lock] RESET-PIN file found: PIN lock removed');
+    // v1.10.85 - no PIN, no phone access (as when the PIN is turned off).
+    if (phoneState.enabled) { savePhoneState({ ...phoneState, enabled: false }); stopPhoneListener(); }
     return null;
   }
   return meta[LOCK_KEY] || null;
@@ -913,12 +946,12 @@ const currentLock = () => {
 // Checks a PIN; answers the response itself (and returns false) when it is
 // wrong or the user must wait.
 const checkPin = (res, lock, pin) => {
-  const wait = Math.ceil((pinTries.until - Date.now()) / 1000);
-  if (wait > 0) { res.status(429).json({ ok: false, wait }); return false; }
-  if (pinMatches(lock, pin)) { pinTries.wrong = 0; return true; }
-  pinTries.wrong += 1;
-  if (pinTries.wrong >= 5) { pinTries.wrong = 0; pinTries.until = Date.now() + 30000; }
-  res.status(401).json({ ok: false, error: 'wrong-pin' });
+  const tries = res.req?.socket.encrypted ? networkPinTries : pinTries;
+  const wait = tries.wait();
+  if (wait > 0) { res.status(429).json({ ok: false, error: 'Too many wrong tries', code: 'wait', wait }); return false; }
+  if (pinMatches(lock, pin)) { tries.reset(); return true; }
+  const triesLeft = tries.fail();
+  res.status(401).json({ ok: false, error: 'wrong-pin', code: 'wrong-pin', triesLeft });
   return false;
 };
 
@@ -947,7 +980,210 @@ app.post('/api/lock/set', (req, res) => {
     meta[LOCK_KEY] = { salt, hash: pinHash(pin, salt), length: String(pin).length };
   }
   writeJSON(META_PATH, meta);
+  // v1.10.85 - no PIN, no pairing: phone access goes off with the PIN (paired
+  // devices are kept for when both are turned on again).
+  if (pin === null && phoneState.enabled) { savePhoneState({ ...phoneState, enabled: false }); stopPhoneListener(); }
   return res.json({ ok: true, enabled: pin !== null });
+});
+
+// ========================
+// PHONE / TABLET ACCESS (v1.10.85)
+// ========================
+// "Use on phone or tablet" (Settings -> Privacy & Security). Off: nothing
+// listens on the network, exactly as before. On: a second listener, HTTPS
+// with this PC's own certificate, on port 47443 of every network address
+// (src/utils/phoneAccess.js has the checks every request there must pass).
+// Pairing: the PC shows a QR code holding a one-time code (10 minutes), the
+// phone types the app's PIN and gets a long random token as an HttpOnly
+// cookie. Only the token's hash is kept, in data/phone-access/ with the
+// certificate and its private key; that folder is never put in a backup.
+//
+// A server with no screen (the NAS Docker image) sets FGSB_PHONE_ACCESS=1:
+// always on (it is the only way in), the PIN from FGSB_PIN if none is set, and
+// the pairing code for the first device is printed in its log.
+const PHONE_DIR = path.join(DATA_DIR, 'phone-access');
+const PHONE_FILE = path.join(PHONE_DIR, 'settings.json');
+const PHONE_KEY = path.join(PHONE_DIR, 'key.pem');
+const PHONE_CERT = path.join(PHONE_DIR, 'cert.pem');
+// (PHONE_HEADLESS, FGSB_PHONE_ACCESS=1, is read at the top: the gate needs it.)
+const PHONE_PORT = (() => { const n = Number(process.env.FGSB_PHONE_PORT); return Number.isInteger(n) && n >= 1024 && n <= 65535 ? n : DEFAULT_PHONE_PORT; })();
+// The tests listen on 127.0.0.1 only (no firewall question); never set otherwise.
+const PHONE_LISTEN = process.env.FGSB_PHONE_LISTEN === '127.0.0.1' ? '127.0.0.1' : '0.0.0.0';
+const PHONE_EXTRA_HOSTS = String(process.env.FGSB_PHONE_HOSTS || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
+const phoneHostNames = () => [os.hostname(), `${os.hostname()}.local`, ...PHONE_EXTRA_HOSTS];
+const phone = { server: null, sockets: new Set(), error: '', fingerprint: '' };
+const pairing = createPairing();
+
+const readPhoneState = () => {
+  const s = readJSON(PHONE_FILE, null) || {};
+  return { enabled: s.enabled === true, devices: Array.isArray(s.devices) ? s.devices.filter((d) => d && d.id && /^[0-9a-f]{64}$/.test(d.hash)) : [] };
+};
+let phoneState = readPhoneState();
+function savePhoneState(next) {
+  makeDir(PHONE_DIR);
+  writeFileAtomic(PHONE_FILE, JSON.stringify(next, null, 2));
+  phoneState = next;
+}
+function deviceForToken(token) {
+  if (!token) return null;
+  const hash = hashToken(token);
+  const device = phoneState.devices.find((d) => d.hash === hash);
+  if (!device) return null;
+  // Last seen, written at most once a minute per device.
+  if (Date.now() - (device.lastSeen || 0) > 60000) {
+    try { savePhoneState({ ...phoneState, devices: phoneState.devices.map((d) => (d.id === device.id ? { ...d, lastSeen: Date.now() } : d)) }); } catch { /* best effort */ }
+  }
+  return device;
+}
+
+// Made once, renewed only when damaged or near its end: a new certificate is a
+// new fingerprint and one more browser warning on every phone.
+function phoneCertificate() {
+  try {
+    const key = fs.readFileSync(PHONE_KEY, 'utf8');
+    const cert = fs.readFileSync(PHONE_CERT, 'utf8');
+    if (certStillGood(cert, key)) return { key, cert, fingerprint256: new crypto.X509Certificate(cert).fingerprint256 };
+  } catch { /* none yet */ }
+  const isIp = (h) => /^\d+\.\d+\.\d+\.\d+$/.test(h);
+  const made = makeSelfSignedCert({ names: phoneHostNames().filter((h) => !isIp(h)), ips: [...lanAddresses(), ...PHONE_EXTRA_HOSTS.filter(isIp)], commonName: `Free GST Billing on ${os.hostname()}` });
+  makeDir(PHONE_DIR);
+  fs.writeFileSync(PHONE_KEY, made.key, { mode: 0o600 });
+  fs.writeFileSync(PHONE_CERT, made.cert);
+  console.log("[phone] Made this PC's own HTTPS certificate");
+  return made;
+}
+
+function startPhoneListener() {
+  if (phone.server) return;
+  if (!currentLock()) { phone.error = 'Set a PIN first: a phone must type it to pair.'; console.warn(`[phone] ${phone.error}`); return; }
+  let tls;
+  try { tls = phoneCertificate(); } catch (err) { phone.error = `Could not make the HTTPS certificate (${err.code || err.message}).`; logFatal(err, 'phone'); return; }
+  phone.fingerprint = tls.fingerprint256;
+  const server = https.createServer({ key: tls.key, cert: tls.cert, minVersion: 'TLSv1.2' }, app);
+  // Refused before the TLS handshake: anything not on the local network.
+  server.on('connection', (socket) => {
+    if (!isPrivateIp(socket.remoteAddress) && !isLoopbackIp(socket.remoteAddress)) { socket.destroy(); return; }
+    phone.sockets.add(socket);
+    socket.on('close', () => phone.sockets.delete(socket));
+  });
+  server.on('error', (err) => {
+    phone.error = err.code === 'EADDRINUSE' || err.code === 'EACCES'
+      ? `Port ${PHONE_PORT} is used by another program, so phones cannot connect. Close that program, then turn this off and on again.`
+      : `Could not open the network connection (${err.code || err.message}).`;
+    console.warn(`[phone] ${phone.error}`);
+    if (phone.server === server) phone.server = null;
+  });
+  server.listen(PHONE_PORT, PHONE_LISTEN, () => {
+    phone.error = '';
+    console.log(`  Phone / tablet access is on: ${phoneUrls()[0] || `https://<this-pc-address>:${PHONE_PORT}`}`);
+    announceFirstPairing();
+  });
+  phone.server = server;
+}
+
+// Off means off at once: open connections are cut, not left to finish.
+function stopPhoneListener() {
+  const server = phone.server;
+  if (!server) return;
+  phone.server = null;
+  pairing.clear();
+  server.close();
+  for (const socket of phone.sockets) socket.destroy();
+  phone.sockets.clear();
+  console.log('  Phone / tablet access is off.');
+}
+
+// Headless: while no device is paired, the log shows a pairing code, and a
+// fresh one once the last has run out (docker logs free-gst-billing).
+function announceFirstPairing() {
+  if (!PHONE_HEADLESS || !phone.server || phoneState.devices.length || pairing.active()) return;
+  const { code } = pairing.issue();
+  const where = PHONE_EXTRA_HOSTS[0] || '<your-NAS-address>';
+  console.log(`\n  Pair your first phone, tablet or PC: open https://${where}:${PHONE_PORT}/pair?code=${code}`);
+  console.log(`  (or open https://${where}:${PHONE_PORT}/pair and type the code ${code}). It works for 10 minutes; a new one is printed here after that.\n`);
+}
+if (PHONE_HEADLESS) setInterval(announceFirstPairing, 30 * 1000).unref();
+
+// The addresses a phone types. In a container its own addresses mean nothing
+// outside: there, the address a paired device came in by, or FGSB_PHONE_HOSTS.
+const phoneUrls = (req) => {
+  if (!PHONE_HEADLESS) return lanAddresses().map((ip) => `https://${ip}:${PHONE_PORT}`);
+  if (req?.socket.encrypted) return [`https://${req.headers.host}`]; // checked by the gate
+  return PHONE_EXTRA_HOSTS.map((h) => `https://${h}:${PHONE_PORT}`);
+};
+const phoneStatus = (req) => ({
+  enabled: PHONE_HEADLESS || phoneState.enabled,
+  headless: PHONE_HEADLESS,
+  listening: !!phone.server?.listening,
+  error: phone.error,
+  port: PHONE_PORT,
+  urls: phoneUrls(req),
+  fingerprint: phone.fingerprint,
+  shortFingerprint: shortFingerprint(phone.fingerprint),
+  pinSet: !!currentLock(),
+  devices: phoneState.devices.map(({ id, name, pairedAt, lastSeen }) => ({ id, name, pairedAt, lastSeen, thisDevice: req.device?.id === id })),
+});
+
+app.get('/api/phone-access', (req, res) => res.json(phoneStatus(req)));
+
+// { enabled: true | false }. On needs a PIN; off closes the listener at once.
+app.post('/api/phone-access', (req, res) => {
+  if (PHONE_HEADLESS) return res.status(409).json({ error: 'Set by FGSB_PHONE_ACCESS on this server', code: 'headless' });
+  const enabled = req.body?.enabled === true;
+  if (enabled && !currentLock()) return res.status(409).json({ error: 'Set a PIN first', code: 'pin-needed' });
+  savePhoneState({ ...phoneState, enabled });
+  if (enabled) startPhoneListener(); else stopPhoneListener();
+  // Listening finishes a moment later; the screen asks again for the result.
+  return res.json(phoneStatus(req));
+});
+
+app.post('/api/phone-access/pairing-code', (req, res) => {
+  if (!phone.server) return res.status(409).json({ error: 'Phone access is off', code: 'off' });
+  const { code, expiresAt } = pairing.issue();
+  return res.json({ code, expiresAt, urls: phoneUrls(req).map((u) => `${u}/pair?code=${code}`), shortFingerprint: shortFingerprint(phone.fingerprint) });
+});
+
+app.delete('/api/phone-access/devices/:id', (req, res) => {
+  const devices = phoneState.devices.filter((d) => d.id !== req.params.id);
+  if (devices.length === phoneState.devices.length) return errRes(res, 404, 'not-found');
+  savePhoneState({ ...phoneState, devices });
+  return res.json({ ok: true });
+});
+
+// ---- the phone's side (network listener only) ----
+app.get('/pair', (req, res) => {
+  if (!req.socket.encrypted) return res.redirect('/');
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader('Content-Security-Policy', pairPageCsp(nonce));
+  res.setHeader('Cache-Control', 'no-store');
+  return res.type('html').send(pairPageHtml({ fingerprint: shortFingerprint(phone.fingerprint), nonce }));
+});
+
+app.get('/api/pair/info', (req, res) => {
+  if (!req.socket.encrypted) return errRes(res, 404, 'not-found');
+  return res.json({ paired: !!deviceForToken(readCookie(req.headers.cookie, DEVICE_COOKIE)), name: deviceLabel(req.headers['user-agent']), shortFingerprint: shortFingerprint(phone.fingerprint) });
+});
+
+// { code, pin, name }: the one-time code first (no code, no PIN check), then
+// the PIN, on the lock screen's wrong-try counter.
+app.post('/api/pair', (req, res) => {
+  if (!req.socket.encrypted) return errRes(res, 404, 'not-found');
+  const lock = currentLock();
+  if (!lock) return res.status(409).json({ error: 'There is no PIN on the PC, so pairing is turned off.', code: 'pin-needed' });
+  const codeState = pairing.check(req.body?.code);
+  if (codeState !== 'ok') {
+    return res.status(403).json({ code: 'pairing-code', error: codeState === 'expired'
+      ? 'This pairing code has run out (10 minutes). On the PC, show a new QR code and scan it again.'
+      : 'This pairing link is not valid any more. On the PC, show a new QR code and scan it again.' });
+  }
+  if (!checkPin(res, lock, req.body?.pin)) { if (res.statusCode === 401) pairing.wrongPin(); return undefined; }
+  pairing.consume();
+  const token = newToken();
+  const device = { id: crypto.randomUUID(), name: cleanDeviceName(req.body?.name, req.headers['user-agent']), hash: hashToken(token), pairedAt: Date.now(), lastSeen: Date.now() };
+  savePhoneState({ ...phoneState, devices: [...phoneState.devices, device] });
+  console.log(`[phone] Paired: ${device.name}`);
+  res.setHeader('Set-Cookie', deviceCookie(token));
+  return res.json({ ok: true });
 });
 
 // ========================
@@ -1041,7 +1277,10 @@ app.post('/api/import', (req, res) => {
     if (overwrite || !fs.existsSync(META_PATH)) {
       // The PIN on this PC stays as it is: a backup never sets, removes or
       // brings back an old PIN.
-      writeJSON(META_PATH, withLock(withoutLock(data.meta), readJSON(META_PATH, {})[LOCK_KEY]));
+      // v1.10.85 - nor this PC's backup folder (as a restore keeps it).
+      const here = readJSON(META_PATH, {});
+      const { [BACKUP_FOLDER_KEY]: _folder, ...fromBackup } = withLock(withoutLock(data.meta), here[LOCK_KEY]);
+      writeJSON(META_PATH, here[BACKUP_FOLDER_KEY] ? { ...fromBackup, [BACKUP_FOLDER_KEY]: here[BACKUP_FOLDER_KEY] } : fromBackup);
     } else {
       // v1.10.79 (#95) - a merge keeps what is here and adds the backup's own
       // number series and the higher of each counter, so no number is reused.
@@ -1355,7 +1594,8 @@ const updateHint = (latest) => ({
 // folder (the Windows launcher opens a running server only if it serves ITS
 // books, not an old copy's on the same port).
 app.get('/api/version', (req, res) => {
-  res.json({ current: pkg.version, pid: process.pid, lockId: LOCK_ID, books: APP_HOME });
+  // Not the folder to a phone (it names the Windows user).
+  res.json({ current: pkg.version, pid: process.pid, lockId: LOCK_ID, books: req.socket.encrypted ? undefined : APP_HOME });
 });
 
 // v1.10.83 - the browser's Problem log copies each entry here, so errors.log
@@ -1809,6 +2049,17 @@ app.post('/api/control-panel/uninstall', async (req, res) => {
 // flips to serving the app the moment dist/ appears.
 const distPath = path.join(__dirname, 'dist');
 const indexPath = path.join(distPath, 'index.html');
+// v1.10.85 - on a phone the page's address is https://<this PC>:47443, so the
+// page's CSP names it next to localhost (ERR-007: 'self' does not reach the
+// copy html2canvas makes, and Firefox made PDFs without their styles). The
+// gate lets only an IP address or this PC's name through as the Host.
+function sendPhoneIndex(req, res) {
+  const html = fs.readFileSync(indexPath, 'utf8').replace(/http:\/\/localhost:\*/g, (m) => `${m} https://${req.headers.host}`);
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.type('html').send(html);
+}
+app.use((req, res, next) => (req.socket.encrypted && req.method === 'GET' && (req.path === '/' || req.path === '/index.html') && fs.existsSync(indexPath)
+  ? sendPhoneIndex(req, res) : next()));
 app.use(express.static(distPath, { fallthrough: true })); // fallthrough = ok if dist doesn't exist
 
 // ============================================================
@@ -1819,6 +2070,10 @@ app.use(express.static(distPath, { fallthrough: true })); // fallthrough = ok if
 // ============================================================
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 const BILL_TRASH_DIR = path.join(DATA_DIR, 'trash');
+// Never copied into a backup (or the pre-restore snapshot), so a restore never
+// touches them either. v1.10.85 - phone-access: the HTTPS private key and the
+// paired devices stay on this PC (a backup can travel: a USB drive, Drive).
+const NOT_BACKED_UP = new Set(['backups', 'errors.log', 'port.txt', LOCK_NAME, 'phone-access']);
 function ensureDir(p) { if (!fs.existsSync(p)) makeDir(p); }
 
 function copyDirRecursive(src, dst) {
@@ -1944,7 +2199,7 @@ function runDailyBackup() {
       // Previously excluded → users restoring last week's backup lost every
       // bill they'd trashed since, breaking the 30-day soft-delete promise.
       // We still skip `backups` (no recursion) and log files.
-      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt' || entry.name === LOCK_NAME) continue;
+      if (NOT_BACKED_UP.has(entry.name)) continue;
       const src = path.join(DATA_DIR, entry.name);
       const dst = path.join(target, entry.name);
       if (entry.isDirectory()) copyDirRecursive(src, dst);
@@ -2044,7 +2299,7 @@ app.post('/api/backups/:date/restore', (req, res) => {
     ensureDir(snapshotDir);
     const liveEntries = fs.readdirSync(DATA_DIR, { withFileTypes: true });
     for (const entry of liveEntries) {
-      if (entry.name === 'backups' || entry.name === 'errors.log' || entry.name === 'port.txt' || entry.name === LOCK_NAME) continue;
+      if (NOT_BACKED_UP.has(entry.name)) continue;
       const src = path.join(DATA_DIR, entry.name);
       const dst = path.join(snapshotDir, entry.name);
       if (entry.isDirectory()) copyDirRecursive(src, dst);
@@ -2058,6 +2313,7 @@ app.post('/api/backups/:date/restore', (req, res) => {
       const src = path.join(backupDir, entry.name);
       const dst = path.join(DATA_DIR, entry.name);
       if (!isPathInside(dst, DATA_DIR)) continue;
+      if (NOT_BACKED_UP.has(entry.name)) continue;
       if (entry.isDirectory()) {
         if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
         copyDirRecursive(src, dst);
@@ -2256,7 +2512,7 @@ app.get('{*path}', (req, res) => {
     return res.status(404).type('text/plain').send('Not found');
   }
   if (fs.existsSync(indexPath)) {
-    return res.sendFile(indexPath);
+    return req.socket.encrypted ? sendPhoneIndex(req, res) : res.sendFile(indexPath);
   }
   // Build not ready yet — serve friendly waiting page (auto-refreshes every 3s).
   return servePlaceholder(req, res);
@@ -2367,11 +2623,22 @@ process.on('unhandledRejection', (err) => { console.error(`  Unexpected error (t
 // Try ports starting from STARTING_PORT (persisted preference) until one is available.
 // Bound to 127.0.0.1 explicitly so the server can NEVER be reached from the LAN —
 // every byte stays on the user's machine, which the privacy promise depends on.
-// FGSB_ALLOW_UNSAFE_LAN=1 is for the Docker image only: a container's
-// 127.0.0.1 cannot be reached through a port mapping, so it listens on every
-// address INSIDE the container, and docker-compose.yml publishes the port to
-// the NAS's own 127.0.0.1. There is no login yet, so never set it elsewhere.
-const LISTEN_HOST = process.env.FGSB_ALLOW_UNSAFE_LAN === '1' ? '0.0.0.0' : '127.0.0.1';
+// v1.10.85 - always, Docker too: FGSB_ALLOW_UNSAFE_LAN (every address, no
+// login) is gone. Other devices reach the app only through phone access
+// (PHONE / TABLET ACCESS above: HTTPS, pairing, PIN).
+const LISTEN_HOST = '127.0.0.1';
+if (process.env.FGSB_ALLOW_UNSAFE_LAN) {
+  console.warn('  FGSB_ALLOW_UNSAFE_LAN is no longer used: the app answers 127.0.0.1 only. For phones and other PCs set FGSB_PHONE_ACCESS=1 and FGSB_PIN (see docker-compose.yml).');
+}
+// FGSB_PIN (a server with no screen): the app's PIN, used only while none is set.
+if (PHONE_HEADLESS && process.env.FGSB_PIN && !currentLock()) {
+  const pin = String(process.env.FGSB_PIN).trim();
+  if (PIN_RE.test(pin)) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    writeJSON(META_PATH, { ...readJSON(META_PATH, {}), [LOCK_KEY]: { salt, hash: pinHash(pin, salt), length: pin.length } });
+    console.log('  PIN set from FGSB_PIN. You can now delete that line: the PIN is kept with the books.');
+  } else console.warn('  FGSB_PIN must be 6 or 8 digits; no PIN was set.');
+}
 let activeServer = null;
 function startServer(port) {
   // v1.10.84 - Express 5 calls this callback with the error too (a busy
@@ -2389,6 +2656,8 @@ function startServer(port) {
     writeLock(LOCK_FILE, { pid: process.pid, port: server.address().port, at: Date.now(), host: LOCK_HOST, id: LOCK_ID });
     console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
+    // v1.10.85 - and the phone listener, when it was left on.
+    if (PHONE_HEADLESS || phoneState.enabled) startPhoneListener();
   });
   server.on('error', (err) => {
     // v1.10.83 - EACCES too: Windows reserves port ranges for Hyper-V / WSL
@@ -2417,6 +2686,7 @@ function startServer(port) {
 // (clean kill) get a 3-second window to flush.
 function gracefulShutdown(signal) {
   console.log(`\n  Received ${signal}, closing connections...`);
+  stopPhoneListener();
   if (!activeServer) { process.exit(0); return; }
   const force = setTimeout(() => {
     console.warn('  Force-exiting after 3s grace period');
