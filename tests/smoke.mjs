@@ -2412,6 +2412,50 @@ try {
     }, dn85?.id || 'none');
   }
 
+  // ---- v1.10.85 (#175): Bank matching - a made-up DiceCodes statement is
+  // imported, its credit is suggested for the unpaid invoice of that amount,
+  // and Confirm records the payment (bank date, Bank transfer, reference):
+  // the invoice is Paid. The same file again adds nothing.
+  {
+    const get85 = (url) => page.evaluate(async (url) => (await fetch(url)).json(), url);
+    const prof85 = await get85('/api/profile');
+    await api('/api/bills', { id: 'smoketest-bank85', invoiceNumber: 'SMK-BANK-85', invoiceType: 'tax-invoice', clientName: 'DiceCodes Smoke Client',
+      status: 'unpaid', totalAmount: 4720, paidAmount: 0, invoiceDate: today, payments: [], items: [],
+      data: { profile: { gstin: prof85.gstin || '', businessName: prof85.businessName || '' }, client: { name: 'DiceCodes Smoke Client' }, details: {}, totals: { total: 4720 } } });
+    const [y, m, d] = today.split('-');
+    const csv = ['Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance',
+      `${d}/${m}/${y.slice(2)},NEFT CR-DICECODES SMOKE CLIENT-SMK-BANK-85,SMKREF85,${d}/${m}/${y.slice(2)},,"4,720.00","14,720.00"`].join('\n');
+    const importCsv = async () => {
+      await page.locator('input[aria-label="Bank statement file"]').setInputFiles({ name: 'dicecodes-smoke.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+      await sleep(2000);
+    };
+    await reopenView('Cash book');
+    await page.getByRole('button', { name: 'Bank matching' }).click();
+    await sleep(1500);
+    await importCsv();
+    const row = page.locator('tr', { hasText: 'SMKREF85' }).first();
+    const rowText = (await row.innerText()).replace(/\s+/g, ' ');
+    check('v85 #175 the imported credit is suggested for the unpaid invoice, saying why (same amount, number in the description)',
+      /SMK-BANK-85/.test(rowText) && /Same amount/.test(rowText) && /SMK-BANK-85 is in the description/.test(rowText), rowText.slice(0, 220));
+    await row.getByRole('button', { name: /^Confirm match for/ }).click();
+    await sleep(2500);
+    const bill85 = (await get85('/api/bills')).find((b) => b.id === 'smoketest-bank85');
+    const pay85 = bill85?.payments?.[0];
+    check('v85 #175 Confirm records the payment on the invoice (bank date, Bank transfer, reference) and the invoice is Paid',
+      bill85?.status === 'paid' && pay85?.amount === 4720 && pay85?.date === today && pay85?.mode === 'bank-transfer' && pay85?.reference === 'SMKREF85',
+      `status=${bill85?.status} payment=${JSON.stringify(pay85 || {}).slice(0, 160)}`);
+    await importCsv();
+    const statements85 = (await get85('/api/bank-statements')).filter((s) => (s.lines || []).some((l) => l.reference === 'SMKREF85'));
+    const line85 = statements85[0]?.lines?.find((l) => l.reference === 'SMKREF85');
+    check('v85 #175 importing the same statement again adds nothing; the line stays matched',
+      statements85.length === 1 && line85?.status === 'matched' && line85?.match?.paymentId === pay85?.id, `statements=${statements85.length} status=${line85?.status}`);
+    await page.evaluate(async ({ ids, receipt }) => {
+      for (const id of ids) await fetch(`/api/bank-statements/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (receipt) await fetch(`/api/receipts/${encodeURIComponent(receipt)}`, { method: 'DELETE' });
+      await fetch('/api/bills/smoketest-bank85?permanent=1', { method: 'DELETE' });
+    }, { ids: statements85.map((s) => s.id), receipt: pay85?.id || '' });
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {
