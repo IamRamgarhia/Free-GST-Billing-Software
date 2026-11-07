@@ -2834,11 +2834,11 @@ try {
     await toView148('reports');
     await page.getByRole('button', { name: /Product Performance/ }).click();
     await sleep(800);
-    await page.getByLabel('Serial number').fill('SMKSER148');
+    await page.getByLabel('Serial number', { exact: true }).fill('SMKSER148');
     await sleep(800);
     const trailText = await page.getByLabel('Serial number trail').innerText().catch(() => '');
     check('v85 #142 Reports: a serial number shows the bill it was bought on', /Smoke Serial Supplier/.test(trailText) && /SMK-SER-148/.test(trailText), trailText.replace(/\s+/g, ' ').slice(0, 200));
-    await page.getByLabel('Serial number').fill('');
+    await page.getByLabel('Serial number', { exact: true }).fill('');
     await page.getByLabel('Category', { exact: true }).selectOption('Smoke Stationery');
     await sleep(600);
     const perf = (await page.locator('.glass-panel', { hasText: 'All products' }).last().innerText().catch(() => '')).replace(/\s+/g, ' ');
