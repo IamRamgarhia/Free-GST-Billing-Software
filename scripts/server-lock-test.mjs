@@ -22,6 +22,18 @@ let passed = 0, failed = 0;
 const ok = (cond, label, extra = '') => { if (cond) { passed++; console.log(`  ok ${label}`); } else { failed++; console.log(`  FAIL ${label} ${extra}`); } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Review H1 (7 Nov): a BUSY server (its process alive, no answer, its port
+// still taking connections, the lock older than the start grace) is running,
+// never taken over; nothing on its port = stale; answering as another = stale.
+{
+  const { lockIsLive } = await import('../src/utils/serverLock.js');
+  const lock = { pid: 4242, port: 50000, at: Date.now() - 120000, host: os.hostname(), id: 'x' };
+  const base = { selfPid: 1, selfHost: os.hostname(), isAlive: () => true };
+  ok(await lockIsLive(lock, { ...base, identify: async () => null, isListening: async () => true }) === 'running', 'H1: a busy server (alive, no answer, port open) is running - never taken over');
+  ok(await lockIsLive(lock, { ...base, identify: async () => null, isListening: async () => false }) === false, 'H1: alive process id but nothing on its port (a reused id) is stale');
+  ok(await lockIsLive(lock, { ...base, identify: async () => ({ pid: 99, lockId: 'y' }), isListening: async () => true }) === false, 'H1: a port answering as ANOTHER server is stale');
+}
+
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'fgsb-lock-test-'));
 const APP = path.join(T, 'app');
 const BOOKS = path.join(T, 'books');

@@ -39,7 +39,19 @@ old one on a Mac**: Finder's Replace swaps the whole folder, including
 
 #### Linux / NAS
 Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
-the old folder. Restart the app afterwards.
+the old folder. Restart the app afterwards. New on Linux: the `.deb` and the
+AppImage (see *Added*).
+
+#### New: install it like other Windows programs (optional)
+You do not need this to update - the steps above are enough. If you want the
+app as a normal program with its own window: download
+`Free-GST-Billing-Windows-Setup.exe` from the
+[Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest)
+and run it (Windows may say "Windows protected your PC": click **More info**,
+then **Run anyway**). It finds your current copy and asks: keep using your
+books where they are, or copy them to `C:\Users\<your name>\Free GST Billing`.
+Your current folder is never changed or deleted. Later updates come from the
+app's **Update Now**, with no download by hand.
 
 Your invoices, clients, products and settings are never touched by an update;
 a backup is made first.
@@ -105,6 +117,8 @@ a backup is made first.
 - **Profit & Loss counts the cost of the goods sold** (#146): quantity sold ×
   the product's purchase price, as its own line, then Gross Profit. Items with
   no purchase price are named so you can fill it in.
+- **Delete many products at once** (#177): tick products in the list (or the
+  box in the header for all shown) and click *Delete selected*.
 - **Search invoices by order ID, AWB, phone or GSTIN** (#172): the Invoices
   search also looks in the order, dispatch and reference details (Buyer's Order
   No, Dispatch Doc No, courier, your own fields) and the client's phone and GSTIN.

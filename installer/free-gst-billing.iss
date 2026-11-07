@@ -1141,7 +1141,11 @@ begin
     MoveOldShortcutsIn(IconDir('startup'), 'Startup', False);
     MoveOldShortcutsIn(IconDir('taskbar'), 'Taskbar', False);
   end;
-  EnsureWebView2;
+  { Review M1: never on an update - the app is stopped until Setup ends, and a
+    slow WebView2 download would keep it down for minutes. A PC without
+    WebView2 keeps using the Edge window; a new install offers it again. }
+  if IsUpgrade then AddLog('An update: the WebView2 check is left to a new install.')
+  else EnsureWebView2;
   InstallDone := True;
   AddLog('Installed version {#AppVersion} in ' + ExpandConstant('{app}') + '; books folder: ' + Home);
   SaveLog;

@@ -23,6 +23,7 @@ export default [
   <tr><td>${ui('Add Product')}</td><td>Opens the product form. See <a href="#add-product">Adding a product or service</a>.</td></tr>
 </table></div>
 <p><b>Search by name or HSN...</b> narrows the list as you type. The cross clears it.</p>
+<p><b>Deleting many products at once:</b> tick the box at the start of each row (the box in the header ticks every product the list shows), then click ${ui('Delete selected')} and confirm. Only ticked products the list shows are deleted; invoices that used them keep their lines. ${ui('Clear')} unticks them all.</p>
 <p>The <b>Products &amp; Services</b> table:</p>
 <div class="table-wrap"><table>
   <tr><th>Column</th><th>Shows</th></tr>

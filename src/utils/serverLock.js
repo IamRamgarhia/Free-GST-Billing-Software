@@ -12,6 +12,7 @@
 // Standalone on purpose (Node built-ins only): server.js imports it and the
 // release ZIP ships it (build-release-zip.mjs).
 import fs from 'fs';
+import net from 'net';
 
 export const LOCK_NAME = 'server.lock';
 // A server takes the lock before it listens; until its port answers, a lock
@@ -37,15 +38,34 @@ const sameHost = (a, b) => !a || !b || String(a).toLowerCase() === String(b).toL
 // 'running' (its port answers AS that server: same process id or lock id),
 // 'starting' (took the lock moments ago) - or false: free to take over (its
 // process is gone, or a reused process id / hung server never answers).
-export async function lockIsLive(lock, { selfPid, selfHost, isAlive = pidAlive, identify, now = Date.now() }) {
+export async function lockIsLive(lock, { selfPid, selfHost, isAlive = pidAlive, identify, isListening = portOpen, now = Date.now() }) {
   if (!lock) return false;
   if (!sameHost(lock.host, selfHost)) return 'other-host';
   if (lock.pid === selfPid || !isAlive(lock.pid)) return false;
   if (lock.port) {
     const who = await identify(lock.port);
     if (who && (who.pid === lock.pid || (lock.id && who.lockId === lock.id))) return 'running';
+    // Review H1 (7 Nov): a BUSY server (a big backup or restore blocks its one
+    // thread) does not answer /api/version, but its port still takes the
+    // connection. Its process is alive, so it is running - never taken over
+    // (two servers on one books folder). Answering as another server = stale.
+    // ponytail: a dead server whose pid AND port were both reused by other
+    // programs would read as running; the user restarts the PC.
+    if (!who && await isListening(lock.port)) return 'running';
   }
   return now - (Number(lock.at) || 0) < STARTING_GRACE_MS ? 'starting' : false;
+}
+
+// Does something accept a connection on this PC's port? (No HTTP: a server
+// whose thread is blocked still accepts.)
+export function portOpen(port, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const s = net.connect({ host: '127.0.0.1', port });
+    const done = (v) => { s.destroy(); resolve(v); };
+    s.setTimeout(timeoutMs, () => done(false));
+    s.once('connect', () => done(true));
+    s.once('error', () => done(false));
+  });
 }
 
 // { ok: true } = this server holds the lock now; { ok: false, held, reason }

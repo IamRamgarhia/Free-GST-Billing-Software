@@ -620,7 +620,7 @@ export const billMatchesSearch = (bill, query) => {
   if (!q) return true;
   const c = bill?.data?.client || {};
   return [bill?.clientName, bill?.invoiceNumber, c.phone, c.gstin,
-    ...filledOrderDetails(bill?.data?.details).map((f) => f.value)]
+    ...filledOrderDetails(bill?.data?.details || {}).map((f) => f.value)]
     .some((v) => String(v || '').toLowerCase().includes(q));
 };
 export const customFieldsOf = (details = {}) => (Array.isArray(details?.customFields) ? details.customFields : [])

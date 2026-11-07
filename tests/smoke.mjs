@@ -311,11 +311,26 @@ try {
   const inQty = await page.evaluate(() => document.activeElement === document.querySelector('.line-item-row input[type="number"]'));
   check('#167 Enter moves Item -> HSN -> Qty', /line-item-hsn/.test(afterItem) && inQty, `after Item: "${afterItem}", in Qty: ${inQty}`);
 
-  // ERR-078 (#151): Enter on the last row adds a row and puts the cursor in
-  // its Item box (it went to HSN once the box became a textarea). The new
-  // row is removed again so the rest of the run sees one line.
-  await rowNums.nth(1).press('Enter');
-  await sleep(400);
+  // #167 (reported again 6 Nov from 1.10.83): ...and on in the SAME row,
+  // Qty -> Unit -> Rate; Enter in Rate finishes the row. ERR-078 (#151): on
+  // the last row that adds a row with the cursor in its Item box (it went to
+  // the next row's HSN once the box became a textarea). The new row is
+  // removed again so the rest of the run sees one line.
+  const walk = [];
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press('Enter');
+    await sleep(300);
+    const at = await page.evaluate(() => {
+      const a = document.activeElement;
+      const r = [...document.querySelectorAll('.line-item-row')].findIndex((x) => x.contains(a)) + 1;
+      const kind = a?.classList.contains('line-item-name') ? 'Item' : a?.classList.contains('line-item-rate') ? 'Rate'
+        : a?.classList.contains('line-item-hsn') ? 'HSN' : a?.tagName === 'SELECT' ? 'Unit' : a?.type === 'number' ? 'Qty' : a?.tagName || '?';
+      return `${r}:${kind}`;
+    });
+    walk.push(at);
+    if (at.startsWith('2:')) break;
+  }
+  check('#167 Enter goes on Qty -> Unit -> Rate in the same row, then the next row\'s Item', walk.join(' ') === '1:Unit 1:Rate 2:Item', walk.join(' '));
   const enterFocus = await page.evaluate(() => {
     const names = [...document.querySelectorAll('.line-item-row .line-item-name')];
     return { rows: names.length, inNewItem: document.activeElement === names[names.length - 1] };
@@ -2046,6 +2061,31 @@ try {
     const noteText = await page.getByText(/^Payment note:/).first().innerText().catch(() => '');
     const expected = ('Free GST Billing support - ' + String(prof80.businessName || '').replace(/[^A-Za-z0-9 .-]+/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 50).trim();
     check('v80 the UPI payment note names the business', !!prof80.businessName && noteText.includes(expected), noteText);
+  }
+
+  // ---- v1.10.84 (#177): tick products and delete them in one go -----------
+  {
+    // Two products the search shows, one it hides: only the shown ones go.
+    await page.evaluate(async () => {
+      const add = (id, name) => fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, rate: 10, taxPercent: 18, unit: 'Nos' }) });
+      await add('smoketest-bulk-1', 'Smoke Bulk 1');
+      await add('smoketest-bulk-2', 'Smoke Bulk 2');
+      await add('smoketest-bulk-keep', 'Smoke Keep Me');
+      sessionStorage.setItem('gst_currentView', 'inventory');
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await dismissFirstRun(page);
+    await page.locator('input[placeholder="Search by name or HSN..."]').fill('Smoke Bulk');
+    await page.locator('input[aria-label="Select Smoke Bulk 2"]').waitFor({ timeout: 10000 });
+    await page.getByLabel('Select all products shown').check();
+    const barText = await page.getByText(/^\d+ selected$/).first().innerText({ timeout: 5000 }).catch(() => '');
+    await page.getByRole('button', { name: /Delete selected/ }).click();
+    await sleep(500);
+    await page.getByRole('button', { name: /^Delete$/ }).last().click();
+    await sleep(1500);
+    const ids = await page.evaluate(async () => (await (await fetch('/api/products')).json()).map((p) => String(p.id)).filter((id) => id.startsWith('smoketest-bulk-')));
+    check('#177 select all + Delete selected removes the products the list shows, and only those', barText === '2 selected' && ids.join() === 'smoketest-bulk-keep', `bar="${barText}" left=${ids.join() || 'none'}`);
   }
 
   // Put the real business details back.

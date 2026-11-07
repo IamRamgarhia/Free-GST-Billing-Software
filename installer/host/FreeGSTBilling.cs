@@ -352,8 +352,10 @@ class MainForm : Form
     bool reallyClose, problem;
     // Self-repair: a light check of the server every 12 s (window open or in the tray).
     readonly System.Windows.Forms.Timer health = new System.Windows.Forms.Timer();
-    int healthMisses, serverPid;
+    int healthMisses, serverPid, renderCrashes;
     bool repairing, checking, pageFailed;
+    DateTime busySince = DateTime.MinValue, lastRenderCrash = DateTime.MinValue;
+    Task starting; // a server start still running (Quit waits for it, review L1)
     CoreWebView2Notification lastNote;
     public string PendingView; // the screen to open first ("/view=", the jump list)
     string pendingJs; // for the page once it is there (a tray action before the window was ever open)
@@ -418,7 +420,7 @@ class MainForm : Form
     {
         IntPtr made = Handle; // the events need a window handle to post to
         Program.Trace("start-tray handle=" + (made != IntPtr.Zero ? "1" : "0"));
-        Task.Run(() =>
+        starting = Task.Run(() =>
         {
             string[] r = Program.StartServer();
             Program.Trace("server url=" + (r[0] ?? "none"));
@@ -504,6 +506,9 @@ class MainForm : Form
         if (Visible) SavePlace();
         Hide();
         Program.Trace("quit");
+        // Review L1: a start still running would leave a server with no window.
+        Task s = starting;
+        if (s != null) { try { await s; } catch (Exception) { } }
         await Task.Run(() => Program.StopServer());
         Program.Trace("server stopped");
         ExitNow();
@@ -599,6 +604,7 @@ class MainForm : Form
         if (pid != 0)
         {
             healthMisses = 0;
+            busySince = DateTime.MinValue;
             serverPid = pid;
             // Back after an update or a repair while the page showed an error: reload it.
             if (pageFailed && web.CoreWebView2 != null) { pageFailed = false; web.CoreWebView2.Navigate(origin + "/"); }
@@ -615,6 +621,20 @@ class MainForm : Form
     {
         if (repairing || reallyClose || problem || origin.Length == 0) return;
         if (Program.SetupRunning()) { Program.Trace("repair skipped: Setup is running"); return; }
+        // Review H1: a server that is BUSY (a big backup blocks its one thread)
+        // does not answer but is still running: never start another on the
+        // same books. Wait (the start screen stays if the page failed); after
+        // 3 minutes, say so in words.
+        if (ServerProcessAlive())
+        {
+            if (busySince == DateTime.MinValue) busySince = DateTime.Now;
+            healthMisses = 0;
+            Program.Trace("repair skipped: the server is busy, not stopped");
+            if ((DateTime.Now - busySince).TotalMinutes >= 3)
+                Problem("Free GST Billing is not answering. Wait a minute, or right-click its icon near the clock, choose Quit, and open it again. Your books are safe.");
+            return;
+        }
+        busySince = DateTime.MinValue;
         repairing = true;
         Program.Trace("repair: " + why);
         Cover();
@@ -622,7 +642,9 @@ class MainForm : Form
         for (int t = 1; t <= 3 && !reallyClose; t++)
         {
             Program.Trace("repair try=" + t);
-            r = await Task.Run(() => Program.StartServer());
+            Task<string[]> attempt = Task.Run(() => Program.StartServer());
+            starting = attempt;
+            r = await attempt;
             if (r[0] != null || reallyClose || Program.SetupRunning()) break;
             await Task.Delay(3000);
         }
@@ -646,14 +668,22 @@ class MainForm : Form
             // The same server, only slow (a busy PC): the page is kept as it
             // was - nothing typed in it is lost.
             Program.Trace("repair: the server was only slow, the page is kept");
-            if (web.CoreWebView2 != null) Uncover();
+            if (web.CoreWebView2 != null) Uncover(); else health.Interval = 12000;
             return;
         }
         serverPid = pidNow;
         Program.Trace("repaired url=" + r[0]);
         pageFailed = false;
         if (web.CoreWebView2 != null) web.CoreWebView2.Navigate(r[0]);
-        else status.Visible = false; // never shown yet ("/tray"): it navigates when opened
+        else { status.Visible = false; health.Interval = 12000; } // never shown yet ("/tray"): it navigates when opened
+    }
+
+    // The last server this window saw (its /api/version pid) still runs.
+    bool ServerProcessAlive()
+    {
+        if (serverPid <= 0) return false;
+        try { using (Process p = Process.GetProcessById(serverPid)) return !p.HasExited && p.ProcessName.Equals("node", StringComparison.OrdinalIgnoreCase); }
+        catch (Exception) { return false; }
     }
 
     // The start screen over the page; while it is up the server is checked every 2 s.
@@ -685,6 +715,7 @@ class MainForm : Form
     {
         base.OnShown(e);
         Task<string[]> server = Task.Run(() => Program.StartServer());
+        starting = server;
         try
         {
             Directory.CreateDirectory(Program.DataDir);
@@ -757,7 +788,14 @@ class MainForm : Form
         core.ProcessFailed += delegate (object o, CoreWebView2ProcessFailedEventArgs a)
         {
             if (a.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited) Problem("The window's web engine stopped. Close this window and open Free GST Billing again.");
-            else if (a.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited) core.Reload();
+            else if (a.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited)
+            {
+                // Review L2: a page that crashes every time is not reloaded for ever.
+                if ((DateTime.Now - lastRenderCrash).TotalMinutes > 5) renderCrashes = 0;
+                lastRenderCrash = DateTime.Now;
+                if (++renderCrashes > 3) Problem("The app's page keeps stopping. Close this window and open Free GST Billing again.");
+                else core.Reload();
+            }
         };
         web.NavigationCompleted += OnNavigated;
     }
@@ -789,6 +827,14 @@ class MainForm : Form
             pageFailed = true;
             Cover();
             Repair("the page could not load (" + a.WebErrorStatus + ")");
+            return;
+        }
+        // Review L3: another failure (an HTTP error page): show it rather than
+        // a start screen that never goes away. A navigation replaced by the
+        // next one (OperationCanceled) is left to that one.
+        if (!a.IsSuccess && a.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled && !web.Visible && !repairing)
+        {
+            Uncover();
             return;
         }
         if (a.IsSuccess && !repairing && origin.Length > 0)

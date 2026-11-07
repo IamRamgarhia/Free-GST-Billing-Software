@@ -29,6 +29,8 @@ export default function InventoryView() {
   const [search, setSearch] = useState('');
   // v1.10.77 (#85) - edit many products at once (see ProductBulkEdit).
   const [bulkEdit, setBulkEdit] = useState(false);
+  // v1.10.84 (#177) - tick products, then delete them in one go.
+  const [picked, setPicked] = useState(() => new Set());
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -70,6 +72,7 @@ export default function InventoryView() {
         (p.hsn || '').toLowerCase().includes(search.toLowerCase())
       )
     : products;
+  const pickedShown = filtered.filter((p) => picked.has(p.id));
 
   const openAdd = () => {
     setForm({ ...emptyForm });
@@ -177,6 +180,28 @@ export default function InventoryView() {
         toast('Failed to delete', 'error');
       }
     }
+  };
+
+  // #177 - only ticked products the list shows now (the search) are deleted.
+  const deletePicked = async (list) => {
+    if (!list.length) return;
+    const ids = new Set(list.map((p) => p.id));
+    const usedIn = mfgOn ? products.filter((p) => p.madeHere && !ids.has(p.id) && (p.bom || []).some((l) => ids.has(l.productId))).map((p) => p.name) : [];
+    if (!(await confirmAction({
+      title: `Delete ${list.length} product${list.length === 1 ? '' : 's'}?`,
+      message: `${list.slice(0, 5).map((p) => p.name).join(', ')}${list.length > 5 ? ` and ${list.length - 5} more` : ''}. `
+        + 'Existing invoices that used them keep their line items unchanged. This just removes them from your catalog.'
+        + (usedIn.length ? ` Some are raw materials of ${usedIn.join(', ')}: remove them from their raw materials list too.` : ''),
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    }))) return;
+    let done = 0;
+    for (const p of list) {
+      try { await deleteProduct(p.id); done += 1; } catch { /* counted below */ }
+    }
+    toast(done === list.length ? `${done} product${done === 1 ? '' : 's'} deleted` : `${done} of ${list.length} deleted; the rest could not be deleted`, done === list.length ? 'success' : 'error');
+    setPicked(new Set());
+    loadProducts();
   };
 
   const updateField = (field, value) => {
@@ -357,9 +382,23 @@ export default function InventoryView() {
           </div>
         ) : (
           <div className="table-scroll">
+            {pickedShown.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '0.5rem 0.75rem', margin: '0 0 0.5rem', background: 'var(--primary-light)', borderRadius: 8 }}>
+                <strong style={{ fontSize: '0.88rem' }}>{pickedShown.length} selected</strong>
+                <button type="button" className="btn btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={() => deletePicked(pickedShown)}>
+                  <Trash2 size={14} /> Delete selected
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setPicked(new Set())}>Clear</button>
+              </div>
+            )}
             <table className="data-table">
               <thead>
                 <tr>
+                  <th style={{ width: 36 }}>
+                    <input type="checkbox" aria-label="Select all products shown"
+                      checked={pickedShown.length === filtered.length}
+                      onChange={(e) => setPicked(e.target.checked ? new Set(filtered.map((p) => p.id)) : new Set())} />
+                  </th>
                   <th>Name</th>
                   <th>HSN/SAC</th>
                   <th>Rate</th>
@@ -372,6 +411,10 @@ export default function InventoryView() {
               <tbody>
                 {filtered.map(product => (
                   <tr key={product.id}>
+                    <td>
+                      <input type="checkbox" aria-label={`Select ${product.name}`} checked={picked.has(product.id)}
+                        onChange={(e) => setPicked((prev) => { const next = new Set(prev); if (e.target.checked) next.add(product.id); else next.delete(product.id); return next; })} />
+                    </td>
                     <td className="font-medium" title={product.description || ''}>
                       {product.name}
                       {mfgOn && product.madeHere && (

@@ -115,8 +115,15 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
         } finally {
           if (Object.keys(stock).length) await applyStockChanges(stock);
           // #170: new items of the saved invoices go into Products too.
+          // Review M2: the product list must be read, or every item would look new
+          // (duplicates); then products are left as they are, and the user is told.
           if (addProducts && savedBills.length) {
-            for (const p of newProductsFromBills(savedBills, await getAllProducts().catch(() => []))) await saveProduct(p);
+            const have = await getAllProducts().catch(() => null);
+            if (have) {
+              for (const p of newProductsFromBills(savedBills, have)) await saveProduct(p).catch(() => {});
+            } else {
+              toast('The invoices were imported, but the product list could not be read, so no new items were added to Products.', 'warning', 9000);
+            }
           }
         }
         if (addClients) for (const c of plan.result.newClients) await saveClient({ ...c }).catch(() => {});

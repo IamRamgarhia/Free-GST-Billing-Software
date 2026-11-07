@@ -36,7 +36,7 @@ if ($CloseWindow) {
   $wins = @(Get-Process -Name 'Free GST Billing' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ((Split-Path -Parent $_.Path).TrimEnd('\') -eq $Sys) })
   # The window listens for this (installer\host\FreeGSTBilling.cs: the same name rule).
   # Closing it by message would only hide it near the clock.
-  $h = [Security.Cryptography.SHA1]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Sys.ToLower()))
+  $h = [Security.Cryptography.SHA1]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Sys.ToLowerInvariant()))
   $evName = 'Local\FreeGSTBillingHost-' + (($h[0..7] | ForEach-Object { $_.ToString('x2') }) -join '') + '-close'
   try { $ev = [System.Threading.EventWaitHandle]::OpenExisting($evName); [void]$ev.Set(); $ev.Dispose() } catch { }
   $deadline = (Get-Date).AddSeconds(5)
