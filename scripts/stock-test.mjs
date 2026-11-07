@@ -11,7 +11,8 @@ import { stockEffect, baseQty, hsnUqc } from '../src/utils.js';
 import { closingStock, costOfGoodsSold } from '../src/utils/products.js';
 import { hsnSummary } from '../src/utils/gstr1Json.js';
 import { debitNoteStock, returnableLines } from '../src/utils/debitNotes.js';
-import { billFormFromPo } from '../src/utils/purchaseOrders.js';
+import { billFormFromPo, poRemainingItems } from '../src/utils/purchaseOrders.js';
+import { orderProgress, orderRemainingItems, orderToInvoice } from '../src/utils/salesOrders.js';
 import { lockProblem } from '../src/utils/periodLock.js';
 import { productsCsvToList } from '../src/utils/listCsv.js';
 
@@ -41,16 +42,21 @@ const line = { id: 'l1', name: pen.name, productId: 'pen', unit: 'Pcs', quantity
 const box = lineInUnit(line, pen, 'Box');
 eq([box.unit, box.unitFactor, box.baseUnit, box.rate], ['Box', 12, 'Pcs', 120], 'Box: factor 12, rate 12 x 10');
 eq(lineInUnit(line, { ...pen, altPrice: 110 }, 'Box').rate, 110, 'the box price saved on the product wins');
-eq(lineInUnit(line, pen, 'Box', 'purchase').rate, 72, 'on a purchase: 12 x the purchase price');
+eq(lineInUnit(line, pen, 'Box', { kind: 'purchase' }).rate, 72, 'on a purchase: 12 x the purchase price');
+eq(lineInUnit(line, { ...pen, altPrice: 110 }, 'Box', { levelPrice: 8 }).rate, 96, "a client on a price level: 12 x the level price (8), not the box price");
+eq(lineInUnit(box, { ...pen, altPrice: 110 }, 'Pcs', { levelPrice: 8 }).rate, 8, '...and back to Pcs, the level price');
 const back = lineInUnit(box, pen, 'Pcs');
 eq([back.unit, back.rate, 'unitFactor' in back, 'baseUnit' in back], ['Pcs', 10, false, false], 'back to Pcs: the piece price, no factor left');
 const other = lineInUnit(box, pen, 'Kg');
-eq([other.unit, other.rate, 'unitFactor' in other], ['Kg', 120, false], 'another unit: only the unit changes, and stock no longer multiplies');
+eq([other.unit, other.rate, 'unitFactor' in other], ['Kg', 10, false], 'a box line moved to a third unit: back to the piece price, and stock no longer multiplies');
+eq(lineInUnit({ ...line, rate: 15 }, pen, 'Kg').rate, 15, 'a piece line moved to another unit keeps its rate');
 eq(line.unit, 'Pcs', 'the line it was given is not changed');
 
 console.log('\n[#148] Stock and GSTR-1 count the base unit');
 eq(baseQty({ quantity: 2, unitFactor: 12 }), 24, '2 boxes = 24');
 eq(baseQty({ quantity: 2.5 }), 2.5, 'a line with no factor: its quantity');
+eq(baseQty({ quantity: 0.1 + 0.2 }), 0.1 + 0.2, 'a line with no factor: exactly as before, not rounded');
+eq(hsnUqc({ hsn: '9608', unit: 'Box', unitFactor: 12, baseUnit: '' }), 'NOS', 'a box line with a blank base unit reports NOS, never BOX');
 eq(stockEffect([box, { productId: 'shirt', quantity: 1 }], 'tax-invoice', 'unpaid'), { pen: -24, shirt: -1 }, 'invoice: 2 boxes take 24 pens out');
 eq(stockEffect([box], 'credit-note', 'unpaid'), { pen: 24 }, 'credit note: 24 back');
 eq(hsnUqc(box), 'PCS', 'HSN summary unit: PCS (the base unit), not BOX');
@@ -65,6 +71,16 @@ const lines = returnableLines({ id: 'b1', items: purchase.items }, []);
 eq([lines[0].unitFactor, lines[0].left], [12, 3], 'a purchase return line keeps the box (3 boxes can go back)');
 eq(debitNoteStock({ items: [{ name: pen.name, quantity: 1, unitFactor: 12 }] }, products), { pen: -12 }, 'returning 1 box takes 12 out of stock');
 eq(billFormFromPo({ id: 'po1', items: [{ name: pen.name, quantity: 2, unit: 'Box', unitFactor: 12, baseUnit: 'Pcs', rate: 72 }] }, []).items[0].unitFactor, 12, 'a PO in boxes becomes a bill in boxes');
+const po = { id: 'po2', items: [{ name: pen.name, quantity: 2, unit: 'Box', unitFactor: 12, baseUnit: 'Pcs', rate: 72 }] };
+eq(poRemainingItems(po, [{ fromPo: 'po2', items: [{ name: pen.name, quantity: 12, unit: 'Pcs' }] }]).map((it) => [it.quantity, it.unit, it.unitFactor]), [[1, 'Box', 12]],
+  'PO of 2 boxes, a bill of 12 pieces: 1 box still to come');
+const so = { id: 'so1', invoiceNumber: 'SO/1', invoiceType: 'sales-order', data: { items: [{ id: 's1', name: pen.name, productId: 'pen', quantity: 2, unit: 'Box', unitFactor: 12, baseUnit: 'Pcs' }] } };
+const ch = { id: 'dc1', invoiceType: 'delivery-challan', status: 'unpaid', data: { details: { salesOrderNo: 'SO/1' }, items: [{ id: 's1', name: pen.name, productId: 'pen', quantity: 6, unit: 'Pcs' }] } };
+const prog = orderProgress(so, [so, ch]);
+const rest = orderRemainingItems(so, [so, ch]);
+eq([prog.lines[0]?.ordered, prog.lines[0]?.dispatched, rest[0]?.quantity, rest[0]?.unit], [24, 6, 1.5, 'Box'],
+  'a sales order of 2 boxes counts 24 pieces; a challan of 6 pieces leaves 1.5 boxes, in boxes');
+eq(orderToInvoice(so, [so]).items[0]?.quantity, 2, 'invoicing an untouched order of 2 boxes: 2 boxes');
 
 console.log('\n[#148, #142] Categories (one tree, up to 4 levels) and brands');
 eq(normaliseCategory(' Garments >Men>  Shirts  > Formal '), 'Garments > Men > Shirts > Formal', 'levels tidied');

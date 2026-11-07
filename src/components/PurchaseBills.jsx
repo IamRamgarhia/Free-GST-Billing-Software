@@ -27,7 +27,7 @@ import BarcodeLabels from './BarcodeLabels';
 import { findByBarcode } from '../utils/barcode';
 // v1.10.85 (#148) - alternate units on a purchase line, and the low-stock PO
 // handed over from Products or the Dashboard.
-import { baseQty, lineFactor } from '../utils';
+import { baseQty, lineFactor, altLineFields } from '../utils';
 import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { takeReorderDraft } from '../utils/reorderDraft';
 
@@ -466,6 +466,7 @@ export default function PurchaseBills() {
         taxPercent: parseFloat(i.taxPercent) || 0,
         cessPercent: parseFloat(i.cessPercent) || 0,
         ...lineDiscountFields(i), // v1.10.85 (#171)
+        ...altLineFields(i), // v1.10.85 (#148) - ordered in boxes: billed in boxes
       }));
     if (!items.length) { toast('Add at least one item with a quantity', 'warning'); return; }
     const existing = editingId ? orders.find(o => o.id === editingId) : null;
@@ -717,7 +718,7 @@ export default function PurchaseBills() {
           ...lineDiscountFields(i),
           ...(String(i.serialNo || '').trim() ? { serialNo: String(i.serialNo).trim() } : {}),
           // v1.10.85 (#148) - bought in the product's second unit (Box = 12).
-          ...(Number(i.unitFactor) > 0 ? { unitFactor: Number(i.unitFactor), baseUnit: i.baseUnit || '' } : {}),
+          ...altLineFields(i),
         })),
         // v1.10.85 (#168) - what its debit notes took off (never saved), so
         // Paid below records the balance less the returns.
@@ -910,7 +911,7 @@ export default function PurchaseBills() {
   // Take a deleted bill's quantities back out of product stock.
   // Matches products the same way saving does: productId, then name.
   const revertPurchaseStock = async (bill) => {
-    const lines = (bill?.items || []).filter(it => it.name && Number(it.quantity) > 0);
+    const lines = (bill?.items || []).filter(it => it.name && baseQty(it) > 0);
     if (!lines.length) return;
     const products = await getAllProducts();
     const byName = new Map(products.map(p => [(p.name || '').trim().toLowerCase(), p]));
@@ -918,7 +919,7 @@ export default function PurchaseBills() {
     const minus = new Map();
     for (const it of lines) {
       const prod = (it.productId && byId.get(it.productId)) || byName.get(it.name.trim().toLowerCase());
-      if (prod) minus.set(prod.id, (minus.get(prod.id) || 0) + Number(it.quantity));
+      if (prod) minus.set(prod.id, (minus.get(prod.id) || 0) + baseQty(it)); // #148 - 3 boxes take back 36
     }
     await Promise.all([...minus].map(([pid, qty]) => {
       const prod = byId.get(pid);
@@ -1265,7 +1266,7 @@ export default function PurchaseBills() {
 
       {/* v1.10.30 — Purchase view modal (quick check, no download). */}
       {/* #137 barcodes */}
-      {labelBill && <BarcodeLabels billItems={labelBill.items || []} title="Print labels for this purchase" onClose={() => setLabelBill(null)} />}
+      {labelBill && <BarcodeLabels bill={labelBill} debitNotes={debitNotes} title="Print labels for this purchase" onClose={() => setLabelBill(null)} />}
       {viewPurchase && (() => {
         const p = viewPurchase;
         const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
@@ -1613,7 +1614,13 @@ export default function PurchaseBills() {
                     list="fgsb-item-history" autoComplete="off"
                     onChange={e => updateItemName(idx, e.target.value)}
                     // #137 barcodes - a scanned (or typed) barcode + Enter puts in its product.
-                    onKeyDown={e => { const hit = e.key === 'Enter' && findByBarcode(products, item.name); if (hit) { e.preventDefault(); updateItemName(idx, hit.name); } }}
+                    // Only with Barcodes on, and not when a product is called exactly what was typed.
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter' || !isModuleEnabled('barcodes', getEnabledModules())) return;
+                      const typed = (item.name || '').trim().toLowerCase();
+                      const hit = !products.some(pr => (pr.name || '').trim().toLowerCase() === typed) && findByBarcode(products, item.name);
+                      if (hit) { e.preventDefault(); updateItemName(idx, hit.name); }
+                    }}
                     placeholder={itemHistory.length ? 'Type or pick a previous item' : 'Item name'} />
                 </div>
                 <div className="form-group" style={{ flex: isPo ? 0.8 : 1, margin: 0 }}>
@@ -1639,8 +1646,8 @@ export default function PurchaseBills() {
                     return (
                       <div className="form-group" style={{ flex: 0.8, margin: 0 }}>
                         {idx === 0 && <label className="form-label">Unit</label>}
-                        <select className="form-input" aria-label={`Unit of ${item.name}`} value={item.unitFactor ? altProduct.altUnit : (altProduct.unit || 'Nos')}
-                          onChange={e => { const unit = e.target.value; setForm(prev => ({ ...prev, items: prev.items.map((x, i) => (i === idx ? lineInUnit(x, altProduct, unit, 'purchase') : x)) })); }}>
+                        <select className="form-input" aria-label={`Unit of ${item.name}`} value={lineFactor(item) !== 1 ? altProduct.altUnit : (altProduct.unit || 'Nos')}
+                          onChange={e => { const unit = e.target.value; setForm(prev => ({ ...prev, items: prev.items.map((x, i) => (i === idx ? lineInUnit(x, altProduct, unit, { kind: 'purchase' }) : x)) })); }}>
                           <option value={altProduct.unit || 'Nos'}>{altProduct.unit || 'Nos'}</option>
                           <option value={altProduct.altUnit}>{altProduct.altUnit} of {Number(altProduct.altFactor)}</option>
                         </select>

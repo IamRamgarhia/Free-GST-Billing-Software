@@ -17,7 +17,7 @@
 // and the income tax trading figures.
 //
 // Pure: no React, no storage (tested in scripts/debit-note-test.mjs).
-import { formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, splitPurchaseTax, baseQty } from '../utils.js';
+import { formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, splitPurchaseTax, baseQty, altLineFields } from '../utils.js';
 import { purchaseTotals, lineDiscountFields, lineWithQuantity } from './purchaseOrders.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -47,7 +47,7 @@ export function returnableLines(bill, debitNotes) {
       taxPercent: Number(it.taxPercent) || 0, cessPercent: Number(it.cessPercent) || 0,
       ...(it.productId ? { productId: it.productId } : {}), ...lineDiscountFields(it),
       // #148 - a line bought in boxes goes back in boxes.
-      ...(Number(it.unitFactor) > 0 ? { unitFactor: Number(it.unitFactor), baseUnit: it.baseUnit || '' } : {}),
+      ...altLineFields(it),
       bought, returned: back[i], left: roundQty(Math.max(0, bought - back[i])) };
   });
 }
@@ -76,7 +76,7 @@ export function debitNoteFromBill(bill, debitNotes, qtyByLine, { date = '', reas
     .filter((l) => (Number(qtyByLine?.[l.line]) || 0) > 0)
     .map((l) => lineWithQuantity({ line: l.line, name: l.name, hsn: l.hsn, ...(l.unit ? { unit: l.unit } : {}), ...(l.productId ? { productId: l.productId } : {}),
       quantity: l.bought, rate: l.rate, taxPercent: l.taxPercent, cessPercent: l.cessPercent, ...lineDiscountFields(l),
-      ...(l.unitFactor ? { unitFactor: l.unitFactor, baseUnit: l.baseUnit } : {}) },
+      ...altLineFields(l) },
     roundQty(Number(qtyByLine[l.line]))));
   const hasOwner = !!(bill.ownerGstin || bill.ownerName);
   return {

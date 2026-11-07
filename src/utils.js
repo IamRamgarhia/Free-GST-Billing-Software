@@ -738,7 +738,13 @@ const STOCK_SIGN = {
 // GSTR-1 HSN summary count it in the base unit (2 boxes = 24 Pcs). Lines
 // without unitFactor (every line saved before) count as they always did.
 export const lineFactor = (it) => (Number(it?.unitFactor) > 0 ? Number(it.unitFactor) : 1);
-export const baseQty = (it) => Math.round((Number(it?.quantity) || 0) * lineFactor(it) * 1000) / 1000;
+// A line without a factor gives its quantity exactly as before (no rounding).
+export const baseQty = (it) => (lineFactor(it) === 1 ? (Number(it?.quantity) || 0)
+  : Math.round((Number(it?.quantity) || 0) * lineFactor(it) * 1000) / 1000);
+// The alternate-unit fields a copied line keeps (none for a plain line). The
+// base unit is never blank: GSTR-1 reads its UQC.
+export const altLineFields = (it) => (lineFactor(it) !== 1
+  ? { unitFactor: lineFactor(it), baseUnit: String(it?.baseUnit || '').trim() || 'Nos' } : {});
 // What a bill of this type and status should have done to stock.
 export const stockEffect = (items, invoiceType, status) => {
   const sign = status === 'cancelled' ? 0 : (STOCK_SIGN[invoiceType || 'tax-invoice'] ?? -1);
@@ -1807,7 +1813,7 @@ export const getUnitUQC = (label) => {
 // portal expects UQC "NA" and quantity 0 for it (delivery charges, setup fees).
 // v1.10.85 (#148) - a line in an alternate unit reports its base unit.
 export const hsnUqc = (item) => (/^99/.test(String(item?.hsn || '').trim()) ? 'NA'
-  : getUnitUQC(lineFactor(item) !== 1 && item?.baseUnit ? item.baseUnit : item?.unit));
+  : getUnitUQC(lineFactor(item) !== 1 ? (String(item?.baseUnit || '').trim() || 'Nos') : item?.unit));
 
 // ========== Tax ID validation ==========
 // Returns { ok: boolean, message: string }. Empty value is treated as ok (field is optional).
