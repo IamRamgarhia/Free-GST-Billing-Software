@@ -642,8 +642,9 @@ console.log("\n[V71] A client's sales so far this financial year");
     { id: 'f', clientName: 'Meera', invoiceDate: '2026-05-01', totalAmount: 3200, invoiceType: 'tax-invoice', currency: 'USD' },
     { id: 'g', clientName: 'Arjun', invoiceDate: '2026-05-01', totalAmount: 6400, invoiceType: 'tax-invoice' },
   ];
-  eq(clientYearToDate(bills, 'Meera', '2026-09-24'), 300, 'Same client, same FY, rupee sales only (quotes, cancelled, USD, last FY and other clients left out)');
-  eq(clientYearToDate(bills, 'Meera', '2026-09-24', 'a'), 200, 'The invoice being edited is not counted twice');
+  eq(clientYearToDate(bills, 'Meera', '2027-03-31'), 300, 'Same client, same FY, rupee sales only (quotes, cancelled, USD, last FY and other clients left out)');
+  eq(clientYearToDate(bills, 'Meera', '2027-03-31', 'a'), 200, 'The invoice being edited is not counted twice');
+  eq(clientYearToDate(bills, 'Meera', '2026-09-24'), 100, 'v1.10.85: only invoices up to this date (the one on 31 Mar 2027 is later)');
   eq(clientYearToDate(bills, '', '2026-09-24'), 0, 'No client name, nothing counted');
 }
 

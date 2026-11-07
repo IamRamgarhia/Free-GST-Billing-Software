@@ -20,4 +20,9 @@ export const periodRange = (period, month = '', today = new Date()) => {
   return fy ? { from: `${fy[1]}-04-01`, to: `${fy[2]}-03-31` } : null;
 };
 
-export const inPeriod = (date, range) => !range || (String(date || '') >= range.from && String(date || '') <= range.to);
+// The day only: a date saved with a time still counts on its last day.
+export const inPeriod = (date, range) => {
+  if (!range) return true;
+  const day = String(date || '').slice(0, 10);
+  return day >= range.from && day <= range.to;
+};

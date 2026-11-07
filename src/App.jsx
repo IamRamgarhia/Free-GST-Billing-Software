@@ -471,14 +471,17 @@ function App() {
   };
 
   // A restart while a hidden company was open must not reopen it: move to the
-  // first company that is not hidden (the same match as the switcher's).
+  // first company that is not hidden. Once, on the first list from the server
+  // (review: run on every switch, a stale `isActive` kept switching for ever).
+  const hiddenStartChecked = useRef(false);
   useEffect(() => {
-    const same = (p) => p.businessName?.trim().toLowerCase() === profile?.businessName?.trim().toLowerCase();
+    if (hiddenStartChecked.current || !allProfiles.length) return;
+    hiddenStartChecked.current = true;
     if (!allProfiles.some((p) => p.hidden && p.isActive && !isOpenedHidden(p.id))) return;
-    const fallback = shownProfiles.find((p) => !same(p));
+    const fallback = shownProfiles.find((p) => !p.hidden);
     if (fallback) handleSwitchProfile(fallback);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allProfiles, profile?.businessName]);
+  }, [allProfiles]);
 
   // v1.10.66 (#64 item 1) — identifies the active business for the screens
   // keyed on it below. GSTIN first, the same rule belongsToProfile() uses to
