@@ -10,6 +10,7 @@
 //
 // Pure functions only (no fetch / React), so scripts/csv-test.mjs can test them.
 import { excelSerialToIso } from './xlsxRead.js';
+import { purchaseTotals } from './purchaseOrders.js';
 import {
   computeInvoiceTotals, stockEffect, toCsvLine, INVOICE_TYPES, getStateCode,
   stateNameForCode, resolveLineDiscount,
@@ -460,13 +461,8 @@ export function purchaseCsvToRecords(text, { profile = {}, existing = [], inferI
       items.push({ name: r.itemName, hsn: r.hsn || '', quantity, rate, taxPercent, cessPercent });
     }
     if (bad) continue;
-    // Same arithmetic as the purchase form (PurchaseBills calcPurchaseTotal).
-    const t = items.reduce((acc, it) => {
-      const amount = it.quantity * it.rate;
-      const tax = amount * it.taxPercent / 100;
-      const cess = amount * it.cessPercent / 100;
-      return { taxable: acc.taxable + amount, tax: acc.tax + tax, cess: acc.cess + cess, total: acc.total + amount + tax + cess };
-    }, { taxable: 0, tax: 0, cess: 0, total: 0 });
+    // Same arithmetic as the purchase form (v1.10.85: the shared purchaseTotals).
+    const t = purchaseTotals(items);
     const gstin = (head.supplierGstin || '').toUpperCase();
     const inferred = head.interstate === '' && inferInterstate ? inferInterstate(gstin) : null;
     const status = PAYMENT_STATUSES.find((s) => s.toLowerCase() === String(head.paymentStatus || '').trim().toLowerCase()) || 'Unpaid';

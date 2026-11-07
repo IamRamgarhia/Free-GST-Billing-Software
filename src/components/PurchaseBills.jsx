@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee, RotateCcw } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes } from '../store';
+import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes, saveDebitNote } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS } from '../utils';
 import { purchaseTdsAmount } from '../utils/tdsTcs';
-import { purchaseTotals as calcPurchaseTotal, billFormFromPo } from '../utils/purchaseOrders';
+import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial } from '../utils/purchaseOrders';
 import PurchaseOrders from './PurchaseOrders';
 import TableExport from './TableExport';
 import BulkCsvImport from './BulkCsvImport';
@@ -18,7 +18,7 @@ import { matchesCentre, centreFields } from '../utils/costCentres';
 import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, purchasePaid, purchaseOwed, hasPurchasePayments, withPurchasePayments, markPurchasePaid, markPurchaseUnpaid, purchasePaymentModeName } from '../utils/purchasePayments';
 import PurchasePaymentModal from './PurchasePaymentModal';
 import DebitNotesList, { ReturnToSupplierModal } from './DebitNotes';
-import { withReturns, returnableLines, debitNoteTotals } from '../utils/debitNotes';
+import { withReturns, returnableLines, debitNoteTotals, editProblem, notesToRestamp } from '../utils/debitNotes';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -97,6 +97,17 @@ const emptyForm = {
 
 // v1.10.6 — audit L4: local copy removed, imported from utils above.
 
+// v1.10.85 (#171, #160) - the small print under a line's name: its discount
+// and its serial numbers / IMEI.
+const lineNote = (it) => [
+  (Number(it?.discount) || 0) > 0 ? `Discount ${it.discountType === 'percent' ? `${it.discount}%` : formatCurrency(it.discount)}` : '',
+  String(it?.serialNo || '').trim() ? `S/N: ${String(it.serialNo).trim()}` : '',
+].filter(Boolean).join(' · ');
+// v1.10.85 - the Discount and Serial No. columns of the form: shown when
+// switched on (remembered in this browser) or when a line already has one.
+const COLS_KEY = 'fgsb_purchaseLineCols';
+const savedCols = () => { try { return JSON.parse(localStorage.getItem(COLS_KEY) || '{}') || {}; } catch { return {}; } };
+
 // The TDS fields stored on a purchase bill (cleared when TDS is off).
 const purchaseTdsFields = (form, taxable) => {
   if (!form.tdsOn) return { tdsAmount: 0, tdsSection: '', tdsRate: 0, tdsManual: false };
@@ -123,6 +134,15 @@ export default function PurchaseBills() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ ...emptyForm, items: [{ ...emptyItem }] });
+  // v1.10.85 (#171, #160) - optional Discount and Serial No. columns.
+  const [lineCols, setLineCols] = useState(savedCols);
+  const toggleLineCol = (key) => setLineCols(prev => {
+    const next = { ...prev, [key]: !prev[key] };
+    try { localStorage.setItem(COLS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+    return next;
+  });
+  const showDiscountCol = !!lineCols.discount || form.items.some(i => (Number(i.discount) || 0) > 0);
+  const showSerialCol = !!lineCols.serial || form.items.some(i => String(i.serialNo || '').trim());
   // v1.10.22 — OCR modal state.
   const [showOCR, setShowOCR] = useState(false);
   // v1.10.30 — reported: "add a view only option modal type so can user
@@ -198,12 +218,23 @@ export default function PurchaseBills() {
   // record belonged to, so guessing would file it into the wrong books.
   const unassignedPurchases = purchases.filter(isUnassignedToBusiness);
   const assignUnassignedPurchases = async () => {
-    await Promise.all(unassignedPurchases.map(r => savePurchase({
+    const assigned = unassignedPurchases.map(r => ({
       ...r,
       ownerGstin: ownerProfile?.gstin || '',
       ownerName: ownerProfile?.businessName || '',
-    })));
+    }));
+    await Promise.all(assigned.map(r => savePurchase(r)));
+    await restampDebitNotes(assigned);
     loadPurchases();
+  };
+  // v1.10.85 (#168) - a bill's debit notes follow it to its business, so they
+  // never show under every company. Loads every note: one under another
+  // business (or none) is exactly the one to fix.
+  const restampDebitNotes = async (bills) => {
+    try {
+      const all = await getAllDebitNotes();
+      await Promise.all(notesToRestamp(bills, all).map(dn => saveDebitNote(dn)));
+    } catch { /* shown again next time; the bills are saved */ }
   };
 
   const loadPurchases = async () => {
@@ -256,9 +287,11 @@ export default function PurchaseBills() {
   const filtered = purchases.filter(p => {
     if (search.trim()) {
       const q = search.toLowerCase();
+      // v1.10.85 (#160) - also a serial number / IMEI on any line.
       if (!(p.supplierName || '').toLowerCase().includes(q) &&
           !(p.invoiceNumber || '').toLowerCase().includes(q) &&
-          !(p.supplierGstin || '').toLowerCase().includes(q)) return false;
+          !(p.supplierGstin || '').toLowerCase().includes(q) &&
+          !purchaseHasSerial(p, q)) return false;
     }
     if (fyFilter) {
       const fy = fyOptions.find(f => f.value === fyFilter);
@@ -402,6 +435,7 @@ export default function PurchaseBills() {
         rate: parseFloat(i.rate) || 0,
         taxPercent: parseFloat(i.taxPercent) || 0,
         cessPercent: parseFloat(i.cessPercent) || 0,
+        ...lineDiscountFields(i), // v1.10.85 (#171)
       }));
     if (!items.length) { toast('Add at least one item with a quantity', 'warning'); return; }
     const existing = editingId ? orders.find(o => o.id === editingId) : null;
@@ -509,7 +543,8 @@ export default function PurchaseBills() {
       doc.setFont('helvetica', 'normal');
       (purchase.items || []).forEach((item, idx) => {
         if (y > 265) { doc.addPage(); y = 20; }
-        const lineTotal = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+        // v1.10.85 (#171) - after its discount.
+        const lineTotal = purchaseLineTax({ ...item, quantity: Number(item.quantity) || 0, rate: Number(item.rate) || 0 }).amount;
         const withTax = lineTotal * (1 + (Number(item.taxPercent) || 0) / 100);
         // v1.10.30 — reported: "in purchase bill pdf long names got cut in
         // pdf fix". Prior code used `.slice(0, 40)` which mid-word truncated
@@ -518,7 +553,8 @@ export default function PurchaseBills() {
         // width). The row height grows to fit the wrapped text so nothing
         // clips into the next line.
         const nameCol = 70; // mm — width of description column
-        const nameLines = doc.splitTextToSize(String(item.name || '-'), nameCol);
+        // v1.10.85 (#171, #160) - its discount and serial numbers under the name.
+        const nameLines = [String(item.name || '-'), lineNote(item)].filter(Boolean).flatMap((s) => doc.splitTextToSize(s, nameCol));
         const rowH = Math.max(6, nameLines.length * 4.5);
         // Page break if this row won't fit.
         if (y + rowH > 275) { doc.addPage(); y = 20; }
@@ -620,6 +656,10 @@ export default function PurchaseBills() {
       toast('Add at least one item with a quantity and rate', 'warning');
       return;
     }
+    // v1.10.85 (#168) - goods already sent back on a debit note: their line
+    // cannot drop below what went back, nor be renamed or removed.
+    const returnsProblem = editingId ? editProblem(purchases.find(p => p.id === editingId), form.items, debitNotes) : '';
+    if (returnsProblem) { toast(returnsProblem, 'warning', 10000); return; }
     try {
       const totals = calcPurchaseTotal(form.items, form.applyRoundOff);
       const before = editingId ? purchases.find(p => p.id === editingId) : null;
@@ -643,7 +683,13 @@ export default function PurchaseBills() {
           cessPercent: parseFloat(i.cessPercent) || 0,
           // v1.10.83 (#112) - only lines from a purchase order carry a unit.
           ...(String(i.unit || '').trim() ? { unit: String(i.unit).trim() } : {}),
+          // v1.10.85 (#171, #160) - a discount and serial numbers only when given.
+          ...lineDiscountFields(i),
+          ...(String(i.serialNo || '').trim() ? { serialNo: String(i.serialNo).trim() } : {}),
         })),
+        // v1.10.85 (#168) - what its debit notes took off (never saved), so
+        // Paid below records the balance less the returns.
+        ...(before?._returned ? { _returned: before._returned } : {}),
         // The purchase order this bill was made from; its status follows the
         // quantities on the bills linked to it.
         ...(form.fromPo ? { fromPo: form.fromPo } : {}),
@@ -676,6 +722,7 @@ export default function PurchaseBills() {
         purchase = markPurchasePaid(purchaseFields, localToday());
       }
       await savePurchase(purchase);
+      if (editingId) await restampDebitNotes([purchase]);
 
       // v1.10.29 — reported: "items added in purchase bill also available
       // for sale means automatically added to the product page too".
@@ -736,7 +783,7 @@ export default function PurchaseBills() {
             stockDeltaById.set(existing.id, (stockDeltaById.get(existing.id) || 0) + delta);
             productsToUpsert.set(existing.id, {
               ...existing,
-              purchasePrice: it.rate,
+              purchasePrice: purchaseUnitCost(it), // v1.10.85 (#171) after its discount
               hsn: existing.hsn || it.hsn,
               taxPercent: existing.taxPercent || it.taxPercent,
               cessPercent: existing.cessPercent || it.cessPercent || 0,
@@ -751,7 +798,7 @@ export default function PurchaseBills() {
             productsToUpsert.set(newKey, {
               name: it.name.trim(),
               hsn: it.hsn || '',
-              purchasePrice: it.rate,
+              purchasePrice: purchaseUnitCost(it),
               sellingPrice: it.rate,
               rate: it.rate,
               taxPercent: it.taxPercent || 0,
@@ -1215,12 +1262,13 @@ export default function PurchaseBills() {
                   </thead>
                   <tbody>
                     {(p.items || []).map((it, idx) => {
-                      const line = (Number(it.quantity) || 0) * (Number(it.rate) || 0);
+                      const line = purchaseLineTax({ ...it, quantity: Number(it.quantity) || 0, rate: Number(it.rate) || 0 }).amount;
                       const withTax = line * (1 + (Number(it.taxPercent) || 0) / 100);
                       return (
                         <tr key={idx}>
                           <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
-                          <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{it.name || '—'}</td>
+                          <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{it.name || '—'}
+                            {lineNote(it) && <div className="text-muted" style={{ fontSize: '0.75rem' }}>{lineNote(it)}</div>}</td>
                           <td style={{ color: 'var(--text-muted)' }}>{it.hsn || '—'}</td>
                           <td style={{ textAlign: 'right' }}>{it.quantity || 0}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(it.rate || 0)}</td>
@@ -1484,7 +1532,20 @@ export default function PurchaseBills() {
             </div>
 
             {/* Items */}
-            <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>Items <HelpButton title="Items on the bill" doc="purchases#purchase-items" size={16} /></h4>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem', marginBottom: '0.5rem' }}>
+              <h4 style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Items <HelpButton title="Items on the bill" doc="purchases#purchase-items" size={16} /></h4>
+              {/* v1.10.85 (#171, #160) - extra columns, off until wanted. */}
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={showDiscountCol} disabled={showDiscountCol && !lineCols.discount}
+                  onChange={() => toggleLineCol('discount')} style={{ accentColor: 'var(--primary)' }} /> Discount column
+              </label>
+              {!isPo && (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                  <input type="checkbox" checked={showSerialCol} disabled={showSerialCol && !lineCols.serial}
+                    onChange={() => toggleLineCol('serial')} style={{ accentColor: 'var(--primary)' }} /> Serial No. column
+                </label>
+              )}
+            </div>
             {/* Rendered once for all rows — a <datalist> is referenced by id,
                 so duplicating it per row would only bloat the DOM. */}
             {/* Same rule as the supplier list above — value only. */}
@@ -1538,6 +1599,23 @@ export default function PurchaseBills() {
                     onFocus={e => e.target.select()}
                     onChange={e => updateItem(idx, 'rate', e.target.value)} />
                 </div>
+                {/* v1.10.85 (#171) - a discount off the line, % or an amount, before GST. */}
+                {showDiscountCol && (
+                  <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                    {idx === 0 && <label className="form-label">Discount</label>}
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <input type="number" className="form-input" value={item.discount ?? ''} min="0" step="any" placeholder="0"
+                        aria-label={`Discount on line ${idx + 1}`} style={{ minWidth: 0 }}
+                        onFocus={e => e.target.select()}
+                        onChange={e => updateItem(idx, 'discount', e.target.value)} />
+                      <select className="form-input" value={item.discountType === 'percent' ? 'percent' : 'fixed'} style={{ width: 52, padding: '0 0.2rem' }}
+                        aria-label={`Discount type on line ${idx + 1}`} onChange={e => updateItem(idx, 'discountType', e.target.value)}>
+                        <option value="percent">%</option>
+                        <option value="fixed">₹</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
                 <div className="form-group" style={{ flex: isPo ? 0.95 : 0.75, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Tax %</label>}
                   {/* v1.6.8 (P2 #29): "Other…" for jeweller 3% / diamond 0.25% /
@@ -1578,6 +1656,15 @@ export default function PurchaseBills() {
                     onFocus={e => e.target.select()}
                     onChange={e => updateItem(idx, 'cessPercent', e.target.value)} />
                 </div>
+                {/* v1.10.85 (#160) - the serial number / IMEI of each piece. */}
+                {showSerialCol && !isPo && (
+                  <div className="form-group" style={{ flex: '1 1 100%', margin: 0 }}>
+                    {idx === 0 && <label className="form-label">Serial No. / IMEI</label>}
+                    <input type="text" className="form-input" value={item.serialNo || ''} maxLength={2000}
+                      aria-label={`Serial numbers on line ${idx + 1}`} placeholder="One per piece, separated by commas"
+                      onChange={e => updateItem(idx, 'serialNo', e.target.value)} />
+                  </div>
+                )}
                 <div style={{ flex: '0 0 auto', marginBottom: idx === 0 ? 0 : 0 }}>
                   {form.items.length > 1 && (
                     <button className="icon-btn icon-btn-red" onClick={() => removeItem(idx)} title="Remove"><Trash2 size={15} /></button>

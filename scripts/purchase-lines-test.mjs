@@ -1,0 +1,172 @@
+// v1.10.85 - the review of #168 / #135, and #171 (discount on purchase lines),
+// #160 (serial numbers on purchase lines).
+//
+// Run: `node scripts/purchase-lines-test.mjs`
+
+import {
+  returnableLines, returnProblem, debitNoteFromBill, debitNoteTotals, returnedOnBill, withReturns, editProblem,
+  notesToRestamp, freeDnNumber, unmatchedLines, rcmNetOfReturns, purchaseReturnsTax, debitNoteStock,
+} from '../src/utils/debitNotes.js';
+import {
+  purchaseTotals, purchaseLineTax, purchaseUnitCost, lineDiscountFields, lineWithQuantity, purchaseHasSerial, billFormFromPo, poRemainingItems,
+} from '../src/utils/purchaseOrders.js';
+import { purchaseBalance, purchaseStatus, markPurchasePaid } from '../src/utils/purchasePayments.js';
+import { supplierOutstanding, periodMonths } from '../src/utils/partyOutstanding.js';
+import { releaseChallansPlan, reabsorbChallansPlan, orderStatus } from '../src/utils/salesOrders.js';
+import { ownPrefixProblem, prefixClashWarning, belongsToProfile } from '../src/utils.js';
+import { purchaseCsvToRecords } from '../src/utils/bulkCsv.js';
+
+let passed = 0, failed = 0;
+function eq(actual, expected, label) {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  if (a === e) { passed++; console.log(`  ✓ ${label}`); }
+  else { failed++; console.log(`  ✗ ${label}\n     expected: ${e}\n     actual:   ${a}`); }
+}
+const r2 = (n) => Math.round(n * 100) / 100;
+
+const bill = {
+  id: 'pur_1', invoiceNumber: 'DCP/118', date: '2026-11-02', supplierName: 'DiceCodes Paper Mart', interstate: false,
+  ownerGstin: '29ABCDE1234F1ZW', ownerName: 'DiceCodes',
+  items: [
+    { name: 'A4 Paper', quantity: 10, rate: 250, taxPercent: 12, cessPercent: 0 },
+    { name: 'Gel Pen', quantity: 100, rate: 10, taxPercent: 18, cessPercent: 0 },
+  ],
+};
+const dnOf = (b, qty, extra = {}) => ({ id: `dn_${Math.random()}`, ...debitNoteFromBill(b, [], qty, { date: '2026-11-14' }), ...extra });
+
+console.log('\n[review 1] Editing a bill that has returns');
+{
+  const dn = dnOf(bill, { 0: 2 });
+  eq(editProblem(bill, bill.items, [dn]), '', 'Unchanged lines: fine');
+  eq(editProblem(bill, [{ ...bill.items[0], quantity: 2 }, bill.items[1]], [dn]), '', 'Down to exactly what went back: fine');
+  eq(/cannot be less than 2/.test(editProblem(bill, [{ ...bill.items[0], quantity: 1 }, bill.items[1]], [dn])), true, 'Below what went back: refused');
+  eq(/cannot be removed or renamed/.test(editProblem(bill, [bill.items[1]], [dn])), true, 'The returned line removed: refused');
+  eq(/cannot be removed or renamed/.test(editProblem(bill, [{ ...bill.items[0], name: 'A3 Paper' }, bill.items[1]], [dn])), true, 'The returned line renamed: refused');
+  eq(editProblem(bill, [bill.items[0]], [dn]), '', 'A line with nothing returned can go');
+  eq(editProblem(bill, [bill.items[1], bill.items[0]], [dn]), '', 'Lines moved around: still found by name');
+  eq(editProblem(bill, [], [{ ...dn, cancelled: true }]), '', 'Only a cancelled debit note: anything goes');
+  const [b] = withReturns([bill], [dn]);
+  const paid = markPurchasePaid({ ...b }, '2026-11-20');
+  eq([paid.payments[0].amount, purchaseStatus(paid)], [r2(3980 - 560), 'Paid'], 'Paid on the edit form records the balance less the return (3980 - 560)');
+}
+
+console.log('\n[review 3] Debit notes of a bill with no business');
+{
+  const old = { ...bill, ownerGstin: '', ownerName: '' };
+  const dn = debitNoteFromBill(old, [], { 0: 1 }, { owner: { gstin: '27AAPFS9999Q1Z1', name: 'DiceCodes West' } });
+  eq([dn.ownerGstin, dn.ownerName], ['27AAPFS9999Q1Z1', 'DiceCodes West'], 'Takes the open business');
+  eq(belongsToProfile(dn, { gstin: '29ABCDE1234F1ZW', businessName: 'DiceCodes' }), false, 'So it does not show under another company');
+  eq(debitNoteFromBill(bill, [], { 0: 1 }, { owner: { gstin: 'X', name: 'Y' } }).ownerGstin, '29ABCDE1234F1ZW', 'A bill with a business keeps its own');
+  const stale = { id: 'dn_9', purchaseId: 'pur_1', ownerGstin: '', ownerName: '' };
+  eq(notesToRestamp([bill], [stale]).map((d) => [d.id, d.ownerGstin, d.ownerName]), [['dn_9', '29ABCDE1234F1ZW', 'DiceCodes']], 'A bill assigned (or edited) to a business: its debit notes follow');
+  eq(notesToRestamp([bill], [{ ...stale, ownerGstin: '29ABCDE1234F1ZW', ownerName: 'DiceCodes' }]), [], 'Already the same: nothing to save');
+  eq(notesToRestamp([{ ...bill, ownerGstin: '', ownerName: '' }], [stale]), [], 'A bill still without a business: left alone');
+}
+
+console.log('\n[review 4] Reverse charge: 3.1(d) less the returns');
+{
+  const rcm = { ...bill, reverseCharge: true };
+  const dn = dnOf(rcm, { 0: 2 });
+  eq(dn.reverseCharge, true, 'The debit note knows its bill was reverse charge');
+  const ret = purchaseReturnsTax([dn, dnOf(bill, { 0: 1 })].filter((d) => d.reverseCharge));
+  eq(rcmNetOfReturns({ txval: 3500, iamt: 0, camt: 240, samt: 240, csamt: 0 }, ret), { txval: 3000, iamt: 0, camt: 210, samt: 210, csamt: 0 }, '3500 taxable, 480 tax less 2 reams (500, 60): 3000 and 210 + 210');
+  eq(rcmNetOfReturns({ txval: 100, iamt: 0, camt: 5, samt: 5, csamt: 0 }, ret).camt, 0, 'Never below 0');
+}
+
+console.log('\n[review 5] A bill sent back in full owes nothing (round-off too)');
+{
+  const ro = { ...bill, items: [{ name: 'Rice', quantity: 3, rate: 33.3, taxPercent: 5 }], applyRoundOff: true };
+  const t = purchaseTotals(ro.items, true);
+  eq([r2(t.total), t.roundOff !== 0], [104.9, true], 'A bill of 104.90 rounded to 105');
+  const all = dnOf(ro, { 0: 3 });
+  eq(returnedOnBill(ro, [all]), r2(t.finalTotal), 'Everything returned: the whole bill, round-off too');
+  const [b] = withReturns([ro], [all]);
+  eq([purchaseBalance(b), purchaseStatus(b)], [0, 'Paid'], 'Balance 0');
+  eq(supplierOutstanding([b], periodMonths('fy', 2026)).length, 0, 'And it leaves Party Outstanding');
+  eq(returnedOnBill(ro, [dnOf(ro, { 0: 1 })]), r2(purchaseTotals([{ quantity: 1, rate: 33.3, taxPercent: 5 }]).total), 'Part returned: no round-off');
+}
+
+console.log('\n[review 6] Products found by id, and lines with no product');
+{
+  const withId = { ...bill, items: [{ ...bill.items[0], productId: 'p_x', name: 'Copier paper' }] };
+  const dn = dnOf(withId, { 0: 2 });
+  eq(dn.items[0].productId, 'p_x', 'The bill line\'s productId is kept');
+  eq(debitNoteStock(dn, [{ id: 'p_x', name: 'A4 Paper (renamed)' }]), { p_x: -2 }, 'Stock found by id although the name differs');
+  eq(unmatchedLines(dnOf(bill, { 0: 1, 1: 1 }), [{ id: 'p1', name: 'A4 Paper' }]), ['Gel Pen'], 'A returned line with no product is named (for the warning)');
+}
+
+console.log('\n[review 7] The debit note date');
+{
+  eq(returnProblem(bill, [], { 0: 1 }, '2026-11-01'), "The debit note date cannot be before the bill's date (2026-11-02)", 'Before the bill: refused');
+  eq(returnProblem(bill, [], { 0: 1 }, '2026-11-02'), '', 'The bill\'s own date: fine');
+}
+
+console.log('\n[review 8] An old own prefix SO / DN');
+{
+  const seriesMap = { '29ABCDE1234F1ZW': { brandPrefix: 'SO' } };
+  eq(ownPrefixProblem('SO', { seriesMap, businessKey: '29ABCDE1234F1ZW' }), '', 'A business already numbering with SO keeps saving its settings');
+  eq(/Sales Orders/.test(prefixClashWarning('so')), true, '...with a warning');
+  eq(ownPrefixProblem('SO', { seriesMap: {}, businessKey: '29ABCDE1234F1ZW' }), 'SO is used for every business by default. Choose another prefix.', 'A new SO prefix is refused');
+  eq(ownPrefixProblem('INV', { seriesMap: { k: { brandPrefix: 'INV' } }, businessKey: 'k' }) !== '', true, 'Old rules unchanged for the other prefixes');
+  eq(prefixClashWarning('ACME'), '', 'No warning for other prefixes');
+}
+
+console.log('\n[review 9] Cancelling an invoice that took over challans');
+{
+  const so = 'SO/26-27/0001';
+  const dc = { id: 'DC1', invoiceNumber: 'DC1', invoiceType: 'delivery-challan', status: 'unpaid', convertedTo: 'INV1',
+    data: { details: { salesOrderNo: so }, items: [{ id: 'l1', productId: 'p1', name: 'Chair', quantity: 4 }], stockApplied: {} } };
+  const inv = { id: 'INV1', invoiceNumber: 'INV1', invoiceType: 'tax-invoice', status: 'unpaid',
+    data: { details: { salesOrderNo: so }, items: [{ id: 'l1', productId: 'p1', name: 'Chair', quantity: 10 }], stockApplied: { p1: -10 } } };
+  const rel = releaseChallansPlan(inv, [dc, inv]);
+  eq([rel.patches.length, rel.patches[0].convertedTo, rel.patches[0].releasedFrom, rel.patches[0].data.stockApplied, rel.changes],
+    [1, undefined, 'INV1', { p1: -4 }, { p1: -4 }], 'Released: not converted any more, its 4 chairs out of stock again (the invoice put back 10)');
+  const order = { id: so, invoiceNumber: so, invoiceType: 'sales-order', data: { items: [{ id: 'l1', name: 'Chair', quantity: 10 }] } };
+  eq(orderStatus(order, [rel.patches[0], { ...inv, status: 'cancelled' }]), 'partly-dispatched', 'The order counts the challan again: Partly dispatched');
+  const back = reabsorbChallansPlan(inv, [rel.patches[0], inv]);
+  eq([back.patches[0].convertedTo, back.patches[0].releasedFrom, back.patches[0].data.stockApplied, back.changes],
+    ['INV1', undefined, {}, { p1: 4 }], 'Undo the cancel: taken in again, its 4 back (the invoice takes 10 out again)');
+  eq(reabsorbChallansPlan(inv, [{ ...rel.patches[0], convertedTo: 'INV2' }, inv]).patches.length, 0, 'Not if the challan was invoiced again meanwhile');
+  eq(releaseChallansPlan({ ...inv, data: { ...inv.data, details: {} } }, [dc]).patches.length, 0, 'An invoice from no order: nothing changes');
+}
+
+console.log('\n[review 10] A debit note number already in use is skipped');
+{
+  let n = 0;
+  const next = async () => `DN/26-27/000${++n}`;
+  eq(await freeDnNumber(next, [{ dnNumber: 'DN/26-27/0001' }, { dnNumber: 'dn/26-27/0002' }]), 'DN/26-27/0003', 'Counter put back by an old backup: the next free number');
+}
+
+console.log('\n[#171] Discount on purchase lines');
+{
+  const plain = { quantity: 10, rate: 250, taxPercent: 12, cessPercent: 0 };
+  eq(purchaseLineTax(plain), { gross: 2500, discount: 0, amount: 2500, tax: 300, cess: 0, total: 2800 }, 'No discount: exactly as before');
+  eq(purchaseLineTax({ ...plain, discount: 10, discountType: 'percent' }), { gross: 2500, discount: 250, amount: 2250, tax: 270, cess: 0, total: 2520 }, '10%: taxable 2250, GST on that');
+  eq(purchaseLineTax({ ...plain, discount: 100 }).amount, 2400, 'An amount (₹100) off the line');
+  eq(purchaseLineTax({ ...plain, discount: 9999 }).amount, 0, 'Never more than the line');
+  eq(purchaseLineTax({ quantity: '2', rate: '100', taxPercent: '28', cessPercent: '12', discount: '50', discountType: 'percent' }).cess, 12, 'Cess on the discounted value too (form strings)');
+  eq(purchaseTotals([plain, { ...plain, discount: 10, discountType: 'percent' }]).taxable, 4750, 'Bill totals');
+  eq([purchaseUnitCost(plain), purchaseUnitCost({ ...plain, discount: 10, discountType: 'percent' })], [250, 225], 'Cost price for Products: 225 after 10% off');
+  eq([lineDiscountFields(plain), lineDiscountFields({ discount: '5', discountType: 'percent' }), lineDiscountFields({ discount: 0, discountType: 'percent' })],
+    [{}, { discount: 5, discountType: 'percent' }, {}], 'Saved only when there is a discount');
+  eq(lineWithQuantity({ quantity: 10, discount: 100 }, 2).discount, 20, 'Part of a line: an amount off is shared out');
+  eq(lineWithQuantity({ quantity: 10, discount: 10, discountType: 'percent' }, 2).discount, 10, '...a percent stays');
+  const db = { ...bill, items: [{ name: 'A4 Paper', quantity: 10, rate: 250, taxPercent: 12, discount: 10, discountType: 'percent' }, { name: 'Gel Pen', quantity: 100, rate: 10, taxPercent: 18, discount: 100 }] };
+  const dn = dnOf(db, { 0: 2, 1: 10 });
+  eq(debitNoteTotals(dn).taxable, 450 + 90, 'A return of discounted lines returns the discounted value (2 x 225 + 10 x 9)');
+  eq(returnableLines(db, [])[0].discount, 10, 'The return window shows the discount');
+  const po = { id: 'po_1', items: [{ name: 'Ink', quantity: 10, rate: 50, taxPercent: 18, discount: 50 }] };
+  eq(billFormFromPo(po, []).items[0].discount, 50, 'A bill made from a PO keeps its discount');
+  eq(poRemainingItems(po, [{ fromPo: 'po_1', items: [{ name: 'Ink', quantity: 6 }] }])[0].discount, 20, '...shared out over what is still to come');
+  const csv = purchaseCsvToRecords('Date,Supplier Name,Invoice Number,Item Name,Quantity,Rate,GST %\n2026-11-02,DiceCodes Paper Mart,X1,Pen,2,10,18\n', {});
+  eq(csv.purchases?.[0]?.totalAmount, 23.6, 'CSV import totals unchanged (now through the shared maths)');
+}
+
+console.log('\n[#160] Serial numbers on purchase lines');
+{
+  const p = { items: [{ name: 'Phone', serialNo: '356938035643809, 356938035643817' }, { name: 'Case' }] };
+  eq([purchaseHasSerial(p, '356938035643817'), purchaseHasSerial(p, '43809'), purchaseHasSerial(p, '999'), purchaseHasSerial(p, '')], [true, true, false, false], 'Found by a whole or part serial / IMEI');
+}
+
+console.log(`\npurchase-lines-test: ${passed} passed, ${failed} failed`);
+if (failed) process.exit(1);

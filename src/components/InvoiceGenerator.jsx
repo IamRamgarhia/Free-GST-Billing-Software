@@ -2496,7 +2496,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             await saveBill({ ...source, convertedTo: savedNumber, ...(source.data ? { data: { ...source.data, stockApplied: {} } } : {}) }, { overwrite: true });
           }
         }
-      } catch { /* the invoice itself is saved */ }
+      } catch {
+        // The invoice itself is saved. A challan not marked would count (and
+        // hold its stock) as well: say so instead of leaving it silent.
+        toast(`${savedNumber} is saved, but ${markSources.length === 1 ? 'the source document' : 'its challans'} could not be marked as converted. Check ${markSources.join(', ')} on the Dashboard.`, 'warning', 12000);
+      }
     }
 
     // v1.10.76 (#80) - every save, auto-saves included, moves stock by the

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules, getAllDebitNotes } from '../store';
-import { purchaseReturnsTax, netItc } from '../utils/debitNotes';
+import { purchaseReturnsTax, netItc, rcmNetOfReturns } from '../utils/debitNotes';
+import { purchaseLineTax } from '../utils/purchaseOrders';
 import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, mergeHsnRows, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
@@ -99,10 +100,9 @@ function normInv(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g,
 // part of the invoice value the supplier reports in 2B (`val`); leaving it
 // out flagged every bill with cess as an amount mismatch.
 function purchaseBookTotals(p) {
+  // v1.10.85 (#171) - the shared line maths, so a line discount comes off.
   return (p?.items || []).reduce((acc, it) => {
-    const amount = (Number(it.quantity) || 0) * (Number(it.rate) || 0);
-    const tax = amount * (Number(it.taxPercent) || 0) / 100;
-    const cess = amount * (Number(it.cessPercent) || 0) / 100;
+    const { amount, tax, cess } = purchaseLineTax({ ...it, quantity: Number(it.quantity) || 0, rate: Number(it.rate) || 0, taxPercent: Number(it.taxPercent) || 0 });
     return { taxable: acc.taxable + amount, tax: acc.tax + tax, cess: acc.cess + cess, total: acc.total + amount + tax + cess };
   }, { taxable: 0, tax: 0, cess: 0, total: 0 });
 }
@@ -898,6 +898,7 @@ export default function GSTReturns() {
   // supplier's credit notes; a head whose returns are more than its ITC goes
   // to 4(B)(2) "ITC reversed - others", paid with the tax (utils/debitNotes.js).
   const returnsItc = purchaseReturnsTax(debitNotes, filterByPeriod);
+  const rcmReturns = purchaseReturnsTax(debitNotes.filter((dn) => dn.reverseCharge), filterByPeriod);
   const hasReturns = returnsItc.igst + returnsItc.cgst + returnsItc.sgst + returnsItc.cess > 0;
   const { avl: itcNet, rev: itcReversed } = netItc({ ...itcGross, cess: itcCessFromPurchases }, returnsItc);
   const hasReversal = itcReversed.igst + itcReversed.cgst + itcReversed.sgst + itcReversed.cess > 0;
@@ -1158,7 +1159,7 @@ export default function GSTReturns() {
         // v1.10.74 - only this return period's purchases; was every purchase ever
         // recorded, so past reverse-charge tax was declared again each period.
         const rcmPurchases = filteredPurchases.filter(p => !!p.reverseCharge);
-        if (rcmPurchases.length === 0) return { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
+        if (rcmPurchases.length === 0 && !rcmReturns.taxable) return { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
         const t = rcmPurchases.reduce((acc, p) => ({
           txval: acc.txval + (Number(p.taxableAmount) || 0),
           iamt: acc.iamt + (p.interstate ? (Number(p.totalTax) || 0) : 0),
@@ -1166,10 +1167,10 @@ export default function GSTReturns() {
           samt: acc.samt + (p.interstate ? 0 : (Number(p.totalTax) || 0) / 2),
           csamt: acc.csamt + (Number(p.totalCess) || purchaseBookTotals(p).cess),
         }), { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 });
-        return {
-          txval: round2(t.txval), iamt: round2(t.iamt),
-          camt: round2(t.camt), samt: round2(t.samt), csamt: round2(t.csamt),
-        };
+        // v1.10.85 (#168) - goods sent back on reverse-charge bills: the tax
+        // you owed on them comes off here too, in the debit note's month (the
+        // same rule as the ITC side, Table 4).
+        return rcmNetOfReturns(t, rcmReturns);
       })(),
       osup_nongst: { txval: round2(nilSum(r => r.treatment === 'nongst')) }, // v1.10.84 - 3.1(e)
     };

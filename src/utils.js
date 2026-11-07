@@ -2547,10 +2547,22 @@ export const numberFormatProblem = (settings, { nextInvoice = 1, own = false, cu
 };
 // Why a business's own prefix cannot be used, or '' when it can. Its numbers
 // must never look like another series' numbers.
+// v1.10.85 - SO (sales orders) and DN (debit notes) became document prefixes
+// in 1.10.85. A business that already numbered with one of them keeps it (its
+// settings save as before; prefixClashWarning says what to watch for).
+export const NEW_TYPE_PREFIXES = ['SO', 'DN'];
+const savedOwnPrefix = (seriesMap, businessKey) => String(seriesMap?.[businessKey]?.brandPrefix || '').trim().toUpperCase();
+export const prefixClashWarning = (prefix) => {
+  const p = String(prefix || '').trim().toUpperCase();
+  if (p === 'SO') return 'SO is also the prefix of Sales Orders: a sales order could get a number one of these invoices already has (the app then takes the next free number). Choose another prefix to keep them apart.';
+  if (p === 'DN') return 'DN is also the prefix of debit notes (purchase returns): a debit note can carry the same number as one of these invoices. Choose another prefix to keep them apart.';
+  return '';
+};
 export const ownPrefixProblem = (prefix, { shared, seriesMap, businessKey, customPrefixes } = {}) => {
   const p = String(prefix || '').trim().toUpperCase();
   if (!p) return 'A business with its own numbering needs its own prefix, such as its initials.';
-  if (DOC_TYPE_PREFIXES.includes(p)) return `${p} is used for every business by default. Choose another prefix.`;
+  const keptFromBefore = NEW_TYPE_PREFIXES.includes(p) && savedOwnPrefix(seriesMap, businessKey) === p;
+  if (DOC_TYPE_PREFIXES.includes(p) && !keptFromBefore) return `${p} is used for every business by default. Choose another prefix.`;
   if (p === String(shared?.brandPrefix || '').trim().toUpperCase()) return `${p} is the shared numbering's prefix. Choose another.`;
   const takenBy = Object.entries(seriesMap || {}).find(([k, v]) => k !== businessKey && String(v?.brandPrefix || '').trim().toUpperCase() === p);
   if (takenBy) return `Another business already numbers with ${p}. Choose another.`;

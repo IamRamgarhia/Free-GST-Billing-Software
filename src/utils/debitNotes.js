@@ -18,7 +18,7 @@
 //
 // Pure: no React, no storage (tested in scripts/debit-note-test.mjs).
 import { formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, splitPurchaseTax } from '../utils.js';
-import { purchaseTotals } from './purchaseOrders.js';
+import { purchaseTotals, lineDiscountFields, lineWithQuantity } from './purchaseOrders.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const nameKey = (it) => String(it?.name || '').trim().toLowerCase();
@@ -45,12 +45,14 @@ export function returnableLines(bill, debitNotes) {
     const bought = Number(it.quantity) || 0;
     return { line: i, name: it.name || '', hsn: it.hsn || '', unit: it.unit || '', rate: Number(it.rate) || 0,
       taxPercent: Number(it.taxPercent) || 0, cessPercent: Number(it.cessPercent) || 0,
+      ...(it.productId ? { productId: it.productId } : {}), ...lineDiscountFields(it),
       bought, returned: back[i], left: roundQty(Math.max(0, bought - back[i])) };
   });
 }
 
-// '' when these quantities ({ line: qty }) can go back, else what to fix.
-export function returnProblem(bill, debitNotes, qtyByLine) {
+// '' when these quantities ({ line: qty }) can go back on `date`, else what to fix.
+export function returnProblem(bill, debitNotes, qtyByLine, date = '') {
+  if (date && bill?.date && date < bill.date) return `The debit note date cannot be before the bill's date (${bill.date})`;
   const lines = returnableLines(bill, debitNotes);
   let any = false;
   for (const l of lines) {
@@ -64,17 +66,22 @@ export function returnProblem(bill, debitNotes, qtyByLine) {
 
 // The debit note for a return: the bill's supplier, number and date, and the
 // returned lines at the bill's rates and GST. Number, id and stock are added
-// when it is saved.
-export function debitNoteFromBill(bill, debitNotes, qtyByLine, { date = '', reason = '', note = '' } = {}) {
+// when it is saved. A discounted line goes back at its discounted value (an
+// amount off the line is shared out over the quantity). `owner` is the open
+// business ({ gstin, name }), for a bill saved before bills had one.
+export function debitNoteFromBill(bill, debitNotes, qtyByLine, { date = '', reason = '', note = '', owner = null } = {}) {
   const items = returnableLines(bill, debitNotes)
     .filter((l) => (Number(qtyByLine?.[l.line]) || 0) > 0)
-    .map((l) => ({ line: l.line, name: l.name, hsn: l.hsn, ...(l.unit ? { unit: l.unit } : {}), quantity: roundQty(Number(qtyByLine[l.line])),
-      rate: l.rate, taxPercent: l.taxPercent, cessPercent: l.cessPercent }));
+    .map((l) => lineWithQuantity({ line: l.line, name: l.name, hsn: l.hsn, ...(l.unit ? { unit: l.unit } : {}), ...(l.productId ? { productId: l.productId } : {}),
+      quantity: l.bought, rate: l.rate, taxPercent: l.taxPercent, cessPercent: l.cessPercent, ...lineDiscountFields(l) },
+    roundQty(Number(qtyByLine[l.line]))));
+  const hasOwner = !!(bill.ownerGstin || bill.ownerName);
   return {
     date, purchaseId: bill.id, billNumber: bill.invoiceNumber || '', billDate: bill.date || '',
     supplierName: bill.supplierName || '', supplierAddress: bill.supplierAddress || '', supplierGstin: bill.supplierGstin || '',
     interstate: !!bill.interstate, reverseCharge: !!bill.reverseCharge,
-    ownerGstin: bill.ownerGstin || '', ownerName: bill.ownerName || '',
+    ownerGstin: hasOwner ? (bill.ownerGstin || '') : (owner?.gstin || ''),
+    ownerName: hasOwner ? (bill.ownerName || '') : (owner?.name || ''),
     ...(bill.costCentre ? { costCentre: bill.costCentre, costCentreName: bill.costCentreName || '' } : {}),
     items, reason: String(reason || '').trim(), note: String(note || '').trim(),
   };
@@ -103,8 +110,58 @@ export function debitNoteStock(dn, products) {
   return out;
 }
 
-// What the debit notes against a bill take off it (with GST).
-export const returnedOnBill = (bill, debitNotes) => r2(notesFor(bill, debitNotes).reduce((s, dn) => s + debitNoteTotals(dn).total, 0));
+// Returned lines that match no product, so no stock moves for them (names).
+export const unmatchedLines = (dn, products) => {
+  const names = new Set((products || []).map((p) => nameKey(p)));
+  const ids = new Set((products || []).map((p) => p.id));
+  return (dn?.items || []).filter((it) => !(it.productId && ids.has(it.productId)) && !names.has(nameKey(it))).map((it) => it.name || '-');
+};
+
+// What the debit notes against a bill take off it (with GST). A bill sent
+// back in full also loses its round-off, so nothing at all is owed on it.
+export const returnedOnBill = (bill, debitNotes) => {
+  const notes = notesFor(bill, debitNotes);
+  const sum = notes.reduce((s, dn) => s + debitNoteTotals(dn).total, 0);
+  const all = notes.length && (bill?.items || []).length && returnableLines(bill, debitNotes).every((l) => l.left <= 0);
+  return r2(all ? purchaseTotals(bill.items, !!bill.applyRoundOff).finalTotal : sum);
+};
+
+// Editing a bill that has returns: a returned line cannot go below what went
+// back, nor be renamed or removed (its debit notes point at it). '' when the
+// new lines are fine, else what to fix.
+export function editProblem(bill, newItems, debitNotes) {
+  if (!notesFor(bill, debitNotes).length) return '';
+  const items = newItems || [];
+  for (const l of returnableLines(bill, debitNotes)) {
+    if (!(l.returned > 0)) continue;
+    const i = nameKey(items[l.line]) === nameKey(l) ? l.line : items.findIndex((x) => nameKey(x) === nameKey(l));
+    if (i < 0) return `${l.name}: ${l.returned} went back to the supplier on a debit note, so this line cannot be removed or renamed. Cancel or delete the debit note first (Returns tab).`;
+    if ((Number(items[i].quantity) || 0) < l.returned - 1e-9) return `${l.name}: ${l.returned} already went back on a debit note, so the quantity cannot be less than ${l.returned}.`;
+  }
+  return '';
+}
+
+// Debit notes whose business no longer matches their bill's (the bill was
+// assigned to a business, or saved under another one): the notes with the
+// bill's owner, ready to save.
+export const notesToRestamp = (bills, debitNotes) => (debitNotes || []).flatMap((dn) => {
+  const bill = (bills || []).find((b) => b.id === dn.purchaseId);
+  if (!bill || !(bill.ownerGstin || bill.ownerName)) return [];
+  if ((dn.ownerGstin || '') === (bill.ownerGstin || '') && (dn.ownerName || '') === (bill.ownerName || '')) return [];
+  return [{ ...dn, ownerGstin: bill.ownerGstin || '', ownerName: bill.ownerName || '' }];
+});
+
+// The first number from `next` on that no debit note already has (a restored
+// older backup can put the counter back behind numbers in use). `nextNumber`
+// gives the next number each call.
+export async function freeDnNumber(nextNumber, debitNotes, tries = 1000) {
+  const used = new Set((debitNotes || []).map((dn) => String(dn.dnNumber || '').trim().toLowerCase()));
+  for (let i = 0; i < tries; i++) {
+    const n = await nextNumber();
+    if (!used.has(String(n).trim().toLowerCase())) return n;
+  }
+  throw new Error('No free debit note number found');
+}
 
 // The bills with `_returned` set (in memory only; savePurchase drops it), so
 // purchaseBalance / purchaseStatus take returns off what is owed.
@@ -123,6 +180,15 @@ export function purchaseReturnsTax(debitNotes, inPeriod = () => true) {
     return { taxable: r2(acc.taxable + t.taxable), igst: r2(acc.igst + t.igst), cgst: r2(acc.cgst + t.cgst), sgst: r2(acc.sgst + t.sgst), cess: r2(acc.cess + t.cess) };
   }, { taxable: 0, igst: 0, cgst: 0, sgst: 0, cess: 0 });
 }
+
+// GSTR-3B 3.1(d), inward supplies on reverse charge ({ txval, iamt, camt,
+// samt, csamt } of the period's reverse-charge bills), less the period's
+// returns on such bills (purchaseReturnsTax of the reverse-charge debit
+// notes), never below 0, rounded to the paisa.
+export const rcmNetOfReturns = (t, ret) => {
+  const net = (a, b) => r2(Math.max(0, (Number(a) || 0) - (Number(b) || 0)));
+  return { txval: net(t.txval, ret.taxable), iamt: net(t.iamt, ret.igst), camt: net(t.camt, ret.cgst), samt: net(t.samt, ret.sgst), csamt: net(t.csamt, ret.cess) };
+};
 
 // GSTR-3B Table 4: ITC available (4(A)(5)) net of the returns, head by head;
 // a head whose returns are more than its ITC shows 0 there and the rest as

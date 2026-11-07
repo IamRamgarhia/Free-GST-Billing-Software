@@ -10,7 +10,7 @@ import { Hash, Save } from 'lucide-react';
 import { getInvoiceNumberSettings, saveInvoiceNumberSettings, getNumberSeriesMap, saveNumberSeriesMap } from '../store';
 import {
   getFinancialYearLabel, nextCounterValue, MAX_START_NUMBER, DEFAULT_NUMBER_SETTINGS,
-  formatDocNumber, counterKeyFor, ownPrefixProblem, numberFormatProblem,
+  formatDocNumber, counterKeyFor, ownPrefixProblem, prefixClashWarning, numberFormatProblem,
 } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
@@ -106,6 +106,9 @@ const InvoiceNumberSettings = forwardRef(function InvoiceNumberSettings(
       settings.brandPrefix = String(settings.brandPrefix || '').trim().toUpperCase();
       const problem = ownPrefixProblem(settings.brandPrefix, { shared, seriesMap, businessKey, customPrefixes: getPrintSettings().customPrefixes });
       if (problem) { toast(problem, 'warning'); return false; }
+      // v1.10.85 - an old SO / DN prefix still saves, with a word of warning.
+      const clash = prefixClashWarning(settings.brandPrefix);
+      if (clash) toast(clash, 'warning', 12000);
     } else {
       // The shared prefix may not be one a business numbers with on its own.
       const brand = String(settings.brandPrefix || '').trim().toUpperCase();
