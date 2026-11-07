@@ -17,7 +17,7 @@
 // and the income tax trading figures.
 //
 // Pure: no React, no storage (tested in scripts/debit-note-test.mjs).
-import { formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, splitPurchaseTax } from '../utils.js';
+import { formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, splitPurchaseTax, baseQty } from '../utils.js';
 import { purchaseTotals, lineDiscountFields, lineWithQuantity } from './purchaseOrders.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -46,6 +46,8 @@ export function returnableLines(bill, debitNotes) {
     return { line: i, name: it.name || '', hsn: it.hsn || '', unit: it.unit || '', rate: Number(it.rate) || 0,
       taxPercent: Number(it.taxPercent) || 0, cessPercent: Number(it.cessPercent) || 0,
       ...(it.productId ? { productId: it.productId } : {}), ...lineDiscountFields(it),
+      // #148 - a line bought in boxes goes back in boxes.
+      ...(Number(it.unitFactor) > 0 ? { unitFactor: Number(it.unitFactor), baseUnit: it.baseUnit || '' } : {}),
       bought, returned: back[i], left: roundQty(Math.max(0, bought - back[i])) };
   });
 }
@@ -73,7 +75,8 @@ export function debitNoteFromBill(bill, debitNotes, qtyByLine, { date = '', reas
   const items = returnableLines(bill, debitNotes)
     .filter((l) => (Number(qtyByLine?.[l.line]) || 0) > 0)
     .map((l) => lineWithQuantity({ line: l.line, name: l.name, hsn: l.hsn, ...(l.unit ? { unit: l.unit } : {}), ...(l.productId ? { productId: l.productId } : {}),
-      quantity: l.bought, rate: l.rate, taxPercent: l.taxPercent, cessPercent: l.cessPercent, ...lineDiscountFields(l) },
+      quantity: l.bought, rate: l.rate, taxPercent: l.taxPercent, cessPercent: l.cessPercent, ...lineDiscountFields(l),
+      ...(l.unitFactor ? { unitFactor: l.unitFactor, baseUnit: l.baseUnit } : {}) },
     roundQty(Number(qtyByLine[l.line]))));
   const hasOwner = !!(bill.ownerGstin || bill.ownerName);
   return {
@@ -104,7 +107,7 @@ export function debitNoteStock(dn, products) {
   const out = {};
   for (const it of dn.items || []) {
     const id = (it.productId && ids.has(it.productId)) ? it.productId : byName.get(nameKey(it));
-    const q = Number(it.quantity) || 0;
+    const q = baseQty(it); // #148 - in the base unit
     if (id && q) out[id] = roundQty((out[id] || 0) - q);
   }
   return out;

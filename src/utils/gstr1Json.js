@@ -7,7 +7,7 @@
 // and SEZ buyers in B2B, unregistered and overseas in B2C, descriptions cut to
 // 30 characters, blanks removed before the file is written.
 
-import { getStateCode, splitLineTax, hsnUqc, roundQty } from '../utils.js';
+import { getStateCode, splitLineTax, hsnUqc, roundQty, baseQty } from '../utils.js';
 
 export const HSN_DESC_MAX = 30;
 
@@ -273,7 +273,7 @@ export function hsnSummary(bills) {
       if (!map[key]) map[key] = { b2b, hsn_sc: hsn, desc: item.name || '', uqc, qty: 0, rt, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
       const r = map[key];
       const s = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, !!bill.data?.totals?.isIntraUT);
-      if (uqc !== 'NA') r.qty += sign * (Number(item.quantity) || 0);
+      if (uqc !== 'NA') r.qty += sign * baseQty(item); // #148 - boxes counted in the base unit
       r.txval += sign * s.taxable; r.iamt += sign * s.igst; r.camt += sign * s.cgst;
       r.samt += sign * (s.sgst + s.utgst); r.csamt += sign * s.cess;
     }

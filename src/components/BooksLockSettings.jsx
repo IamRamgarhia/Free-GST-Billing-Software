@@ -12,7 +12,7 @@ import { formatCurrency } from '../utils';
 // save and delete, kept in data/edit-history).
 const KIND_NAMES = {
   bills: 'Invoice', purchases: 'Purchase bill', expenses: 'Expense', receipts: 'Receipt',
-  'debit-notes': 'Debit note', 'cash-book': 'Cash book entry', books: 'Books',
+  'debit-notes': 'Debit note', 'cash-book': 'Cash book entry', 'stock-adjustments': 'Stock adjustment', books: 'Books',
 };
 const ACTION_NAMES = { added: 'Added', changed: 'Changed', deleted: 'Deleted', restored: 'Restored from Trash', closed: 'Closed up to', opened: 'Opened' };
 const when = (iso) => {
