@@ -117,11 +117,12 @@ a backup is made first.
 - **Profit & Loss counts the cost of the goods sold** (#146): quantity sold ×
   the product's purchase price, as its own line, then Gross Profit. Items with
   no purchase price are named so you can fill it in.
-- **Delete invoices from the Invoices list**: each invoice's actions menu has
-  *Delete* next to *Cancel invoice*, and the bar for ticked invoices has *Delete
-  invoices*. They go to the Trash for 30 days (restore them
-  from *Settings → Data & Backups → Trash bin*) and its stock goes back.
-  *Cancel invoice* still keeps the number in your records.
+- **Invoices, Cancelled and Trash tabs on the Invoices screen**: cancelled
+  invoices have their own tab (they keep their numbers; *Undo cancel* puts one
+  back). *Delete* (in each invoice's ⋯ menu, or *Delete invoices* for the ticked
+  ones) moves invoices to the *Trash* tab, which shows the days left; they are
+  removed for good after 30 days. *Restore* puts one back with its stock;
+  *Delete forever* removes it at once.
 - **Delete many products at once** (#177): tick products in the list (or the
   box in the header for all shown) and click *Delete selected*.
 - **Search invoices by order ID, AWB, phone or GSTIN** (#172): the Invoices

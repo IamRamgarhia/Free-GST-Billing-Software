@@ -148,6 +148,14 @@ export default [
 
 <section id="invoice-list">
 <h2>Finding an invoice</h2>
+<p><b>Three tabs at the top of the list:</b></p>
+<table>
+  <tr><th>Tab</th><th>Shows</th></tr>
+  <tr><td>${ui('Invoices')}</td><td>Your invoices, quotations and other documents, except cancelled ones.</td></tr>
+  <tr><td>${ui('Cancelled')}</td><td>Cancelled invoices. They keep their numbers and count for nothing in totals, reports and GST returns. ${ui('Undo cancel')} on a row puts it back in Invoices.</td></tr>
+  <tr><td>${ui('Trash')}</td><td>Deleted invoices, with the days left. Each waits 30 days, then it is removed for good. ${ui('Restore')} puts it back in your invoices (with its stock); ${ui('Delete forever')} removes it at once.</td></tr>
+</table>
+<p>To delete an invoice: ${ui('⋯')} on its row, then ${ui('Delete')}. For several: tick them, then ${ui('Delete invoices')} in the bar that appears. Cancel keeps the number in your records; Delete takes the invoice out.</p>
 <p>The <b>Invoices</b> card lists every document of the business, newest first. Above the list are the filters. They work together: for example "Overdue" and "FY 2026-27" shows only this year's overdue invoices.</p>
 <table>
   <tr><th>Filter</th><th>What it does</th></tr>

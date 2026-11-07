@@ -623,7 +623,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   const handleDeleteBill = async (id) => {
     if (await confirmAction({
       title: 'Delete this invoice?',
-      message: 'The invoice will be moved to Trash for 30 days. Restore it from Settings → Data & Backups → Trash bin.',
+      message: 'The invoice goes to the Trash for 30 days. Restore it from the Trash tab on the Invoices screen.',
       confirmLabel: 'Delete',
       tone: 'danger',
     })) {

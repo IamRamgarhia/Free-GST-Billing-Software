@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill } from '../store';
+import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock, billMatchesSearch } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
@@ -13,6 +13,7 @@ import LockButton from './LockButton';
 import ActionsMenu from './ActionsMenu';
 import BulkCsvImport from './BulkCsvImport';
 import PrintPreviewModal from './PrintPreviewModal';
+import InvoiceTrash from './InvoiceTrash';
 import SupportNudge from './SupportNudge';
 import WelcomeCard from './WelcomeCard';
 import { toast } from './Toast';
@@ -299,6 +300,12 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // v1.10.83 (#112) - '' = all; see utils/costCentres.js.
   const [centreFilter, setCentreFilter] = useState('');
   const { on: ccOn, centres } = useCostCentres(profile);
+  // v1.10.84 (maintainer, 7 Nov) - folder tabs on top of the list: Invoices
+  // (active), Cancelled, Trash (deleted, 30 days; InvoiceTrash).
+  const [folder, setFolder] = useState('invoices');
+  const [allTrash, setAllTrash] = useState([]);
+  const trash = useMemo(() => allTrash.filter((b) => belongsToProfile(b, profile)), [allTrash, profile]);
+  const cancelledCount = useMemo(() => bills.filter((b) => isCancelledBill(b)).length, [bills]);
   // Bulk-selection state. Stores a Set of bill IDs (not the bills themselves)
   // so we don't hold stale references when the underlying bill is edited
   // elsewhere. Cleared whenever filters change so the user doesn't accidentally
@@ -307,7 +314,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // v1.10.74 - the comment above was never wired up, so bulk actions could hit
   // ticked rows hidden by a filter. Reset during render (React's "adjust state
   // on prop change" pattern) when any filter changes.
-  const filterKey = [search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter].join('|');
+  const filterKey = [search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter, folder].join('|');
   const [selectionFilterKey, setSelectionFilterKey] = useState(filterKey);
   if (selectionFilterKey !== filterKey) {
     setSelectionFilterKey(filterKey);
@@ -359,6 +366,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   const fyOptions = useMemo(() => getFYOptions(), []);
 
   const loadBills = async () => {
+    // The Trash tab's list (and count), refreshed with the invoices.
+    getTrashedBills().then((t) => setAllTrash(Array.isArray(t) ? t : [])).catch(() => setAllTrash([]));
     try {
       const data = await getAllBills();
       // Local date (toISOString() is UTC: still yesterday in India until 05:30).
@@ -490,6 +499,9 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (search.trim()) result = result.filter((b) => billMatchesSearch(b, search));
     if (typeFilter !== 'all') result = result.filter(b => (b.invoiceType || 'tax-invoice') === typeFilter);
     if (statusFilter !== 'all') result = result.filter(b => (b.status || 'unpaid') === statusFilter);
+    // The folder tabs: Invoices = not cancelled, Cancelled = only cancelled.
+    if (folder === 'invoices') result = result.filter((b) => !isCancelledBill(b));
+    else if (folder === 'cancelled') result = result.filter((b) => isCancelledBill(b));
     if (fyFilter !== 'all') {
       const fy = fyOptions.find(f => f.value === fyFilter);
       if (fy) result = result.filter(b => b.invoiceDate >= fy.from && b.invoiceDate <= fy.to);
@@ -498,7 +510,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (dateTo) result = result.filter(b => b.invoiceDate <= dateTo);
     if (centreFilter) result = result.filter(b => matchesCentre(b, centreFilter));
     setFiltered(result);
-  }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter]);
+  }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter, folder]);
 
   // v1.10.67 (#66 item 12, @sangwanmail-eng) — an issued invoice is not
   // deleted: its number has to stay in the books, gapless, for GST. Cancelling
@@ -564,7 +576,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   const handleDeleteInvoice = async (bill) => {
     if (!(await confirmAction({
       title: 'Delete this invoice?',
-      message: `Invoice ${bill.invoiceNumber} for ${bill.clientName} is moved to Trash for 30 days. Restore it from Settings → Data & Backups → Trash bin. Its stock goes back. To keep its number in your records instead, use Cancel invoice.`,
+      message: `Invoice ${bill.invoiceNumber} for ${bill.clientName} goes to the Trash tab (above the invoice list) for 30 days; restore it from there. Its stock goes back. To keep its number in your records instead, use Cancel invoice.`,
       confirmLabel: 'Delete',
       tone: 'danger',
     }))) return;
@@ -574,6 +586,29 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       else toast('Invoice moved to Trash (30 days)', 'success');
       loadBills();
     } catch { toast('Failed to delete', 'error'); }
+  };
+
+  // The Trash tab: put an invoice back (stock taken out again), or delete it now.
+  const [trashBusy, setTrashBusy] = useState(false);
+  const restoreFromTrash = async (bill) => {
+    setTrashBusy(true);
+    try { await restoreBillFromTrash(bill); toast(`${bill.invoiceNumber || 'Invoice'} restored to your invoices`, 'success'); }
+    catch (err) { toast('Restore failed: ' + err.message, 'error'); }
+    setTrashBusy(false);
+    loadBills();
+  };
+  const purgeFromTrash = async (bill) => {
+    if (!await confirmAction({
+      title: 'Delete this invoice for good?',
+      message: `${bill.invoiceNumber || 'This invoice'} is removed now instead of after the 30 days. It cannot be brought back.`,
+      confirmLabel: 'Delete forever',
+      tone: 'danger',
+    })) return;
+    setTrashBusy(true);
+    try { await purgeTrashedBill(bill.id); toast('Invoice deleted for good', 'success'); }
+    catch (err) { toast('Could not delete it: ' + err.message, 'error'); }
+    setTrashBusy(false);
+    loadBills();
   };
 
   const handleView = (bill) => {
@@ -952,7 +987,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     const n = sel.length;
     if (!await confirmAction({
       title: `Delete ${n} invoice${n !== 1 ? 's' : ''}?`,
-      message: 'They are moved to the Trash for 30 days. Restore them from Settings → Data & Backups → Trash bin. Their stock goes back. To keep their numbers in your records instead, use Cancel invoices.',
+      message: 'They go to the Trash tab (above the invoice list) for 30 days; restore them from there. Their stock goes back. To keep their numbers in your records instead, use Cancel invoices.',
       confirmLabel: `Delete ${n}`,
       tone: 'danger',
     })) return;
@@ -1611,6 +1646,27 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       <div className="glass-panel">
         <div className="table-header"><h3>Invoices <HelpButton title="Finding an invoice" doc="dashboard#invoice-list" size={16} /></h3></div>
+        {/* v1.10.84 (maintainer) - folders on top: active invoices, cancelled ones, and the Trash. */}
+        <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0 0 0.75rem' }}>
+          {[
+            ['invoices', 'Invoices', bills.length - cancelledCount, <FileText size={14} />],
+            ['cancelled', 'Cancelled', cancelledCount, <Ban size={14} />],
+            ['trash', 'Trash', trash.length, <Trash2 size={14} />],
+          ].map(([id, label, count, icon]) => {
+            const active = folder === id;
+            return (
+              <button key={id} type="button" role="tab" aria-selected={active} onClick={() => setFolder(id)}
+                className="btn btn-secondary"
+                style={{
+                  fontSize: '0.8rem', padding: '0.35rem 0.8rem', fontWeight: active ? 700 : 600,
+                  background: active ? 'var(--primary)' : undefined, color: active ? '#fff' : undefined,
+                  borderColor: active ? 'var(--primary)' : undefined,
+                }}>
+                {icon} {label} <span style={{ opacity: 0.85 }}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
         <div className="filters-bar">
           <div className="search-box">
             <Search size={16} className="search-icon" />
@@ -1760,7 +1816,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
               <Ban size={13} /> Cancel invoices
             </button>
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkDelete}
-              title="Move the ticked invoices to the Trash for 30 days (Settings → Data & Backups → Trash bin restores them)"
+              title="Move the ticked invoices to the Trash tab for 30 days (Restore there puts them back)"
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
               <Trash2 size={13} /> Delete invoices
             </button>
@@ -1770,10 +1826,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           </div>
         )}
 
-        {filtered.length === 0 ? (
+        {folder === 'trash' ? (
+          <InvoiceTrash items={trash.filter((b) => billMatchesSearch(b, search))} busy={trashBusy}
+            onRestore={restoreFromTrash} onPurge={purgeFromTrash} />
+        ) : filtered.length === 0 ? (
           <div className="empty-state">
             <FileText size={48} />
-            <p>{bills.length === 0 ? 'No invoices yet.' : 'No invoices match your filters.'}</p>
+            <p>{bills.length === 0 ? 'No invoices yet.' : folder === 'cancelled' ? 'No cancelled invoices.' : 'No invoices match your filters.'}</p>
             {bills.length === 0 && <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> Create Invoice</button>}
           </div>
         ) : (
@@ -1901,7 +1960,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                               title: 'Cancel invoice — keeps the number; undo it with the Undo cancel arrow on the row' },
                             // Also on a cancelled invoice: cancel it, then delete it if it should go.
                             { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDeleteInvoice(bill),
-                              title: 'Move to Trash for 30 days (Settings → Data & Backups → Trash bin restores it)' },
+                              title: 'Move to the Trash tab for 30 days (Restore there puts it back)' },
                           ]} />
                         </div>
                       </td>}

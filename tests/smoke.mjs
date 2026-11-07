@@ -165,6 +165,8 @@ const page = await ctx.newPage();
 
 const cspViolations = [];
 page.on('console', (m) => { if (/Content-Security-Policy/i.test(m.text())) cspViolations.push(m.text()); });
+// v1.10.84 - the Invoices screen's folder tabs (Invoices | Cancelled | Trash).
+const openFolder = async (name) => { const b = page.locator('.invoice-folders button', { hasText: name }); if (await b.count()) { await b.first().click(); await sleep(500); } };
 
 try {
   await page.goto(APP, { waitUntil: 'networkidle' });
@@ -1241,6 +1243,7 @@ try {
   if (await confirmCancel.count()) await confirmCancel.first().click();
   await sleep(2500);
   const afterCancel = await salesCards();
+  await openFolder('Cancelled'); // v1.10.84: cancelled invoices have their own tab
   const cancelledRow = await page.evaluate(() => {
     const row = [...document.querySelectorAll('tr')].find((r) => r.innerText.includes('SMOKE-CANCEL/9'));
     if (!row) return null;
@@ -1291,6 +1294,7 @@ try {
     await sleep(2000);
     await dismissFirstRun(page);
     await openView('Dashboard');
+    await openFolder('Cancelled');
     await page.fill('input[placeholder^="Search client, invoice"]', 'SMOKE-BD/');
     await sleep(800);
     for (const n of [1, 2]) await page.locator('tr', { hasText: `SMOKE-BD/${n}` }).first().locator('input[type="checkbox"]').check();
@@ -1305,9 +1309,21 @@ try {
       const ids = ['smoketest-bd-1', 'smoketest-bd-2'];
       const bills = (await (await fetch('/api/bills')).json()).filter((b) => ids.includes(b.id)).length;
       const trash = (await (await fetch('/api/trash')).json()).filter((b) => ids.includes(b.id)).length;
-      for (const id of ids) await fetch(`/api/trash/${id}`, { method: 'DELETE' }).catch(() => {});
       return { bills, trash };
     });
+    // v1.10.84 - the Trash tab lists them with days left; Restore puts one back.
+    await openFolder('Trash');
+    const inTab = await page.locator('tr', { hasText: 'SMOKE-BD/1' }).count();
+    const left = await page.locator('tr', { hasText: 'SMOKE-BD/1' }).first().locator('td').nth(5).innerText().catch(() => '');
+    await page.locator('tr', { hasText: 'SMOKE-BD/1' }).first().getByRole('button', { name: /Restore/ }).click();
+    await sleep(2000);
+    const back = await page.evaluate(async () => (await (await fetch('/api/bills')).json()).some((b) => b.id === 'smoketest-bd-1'));
+    check('The Trash tab lists deleted invoices with 30 days left, and Restore puts one back', inTab === 1 && left.trim() === '30' && back, JSON.stringify({ inTab, left, back }));
+    await page.evaluate(async () => {
+      await fetch('/api/bills/smoketest-bd-1?permanent=1', { method: 'DELETE' }).catch(() => {});
+      for (const id of ['smoketest-bd-1', 'smoketest-bd-2']) await fetch(`/api/trash/${id}`, { method: 'DELETE' }).catch(() => {});
+    });
+    await openFolder('Invoices');
     check('Delete invoices in the bar moves the ticked invoices to the Trash', bd.bills === 0 && bd.trash === 2, JSON.stringify(bd));
     await page.fill('input[placeholder^="Search client, invoice"]', '');
   }
@@ -1989,6 +2005,7 @@ try {
         items: [{ id: 'l1', name: 'Smoke item', hsn: '9983', quantity: 1, rate: 1000, taxPercent: 18, discount: 0, unit: 'Nos' }] },
     });
     await toView78('dashboard');
+    await openFolder('Cancelled');
     const undoRow = page.locator('tr', { hasText: 'smoketest-undo78' }).first();
     await undoRow.locator('button[title="Undo cancel"]').click();
     await sleep(700);

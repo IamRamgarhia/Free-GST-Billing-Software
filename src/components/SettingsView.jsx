@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getRegionMode, setRegionMode, getStockAlertSettings, saveStockAlertSettings, renameNumberSeries, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getCostCentres, saveCostCentres } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
-import { getCountryConfig, getStatesForCountry, validateTaxId, getCountriesForRegion, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId, findSameBusiness, businessKeyOf, stockDelta, localToday } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, getCountriesForRegion, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId, findSameBusiness, businessKeyOf, localToday } from '../utils';
 import { normaliseLutArn, isLikelyLutArn, lutFyOptions, fyOf } from '../utils/lut';
 // v1.10.36 — lucide's `Image` icon was imported as `Image`, which
 // SHADOWED the browser's `HTMLImageElement` constructor. Reported:
@@ -24,7 +24,7 @@ import { rekeyCentres } from '../utils/costCentres';
 import InvoiceNumberSettings from './InvoiceNumberSettings';
 import SignatureImages, { SIGN_LAYOUTS } from './SignatureImages';
 import { PURPOSE_CODES } from '../utils/purposeCodes';
-import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreTrashedBill, purgeTrashedBill, runUpdateNow, saveBill, applyStockChanges, getBackupFolder, setBackupFolder } from '../store';
+import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, runUpdateNow, getBackupFolder, setBackupFolder } from '../store';
 
 // v1.10.36 — Section order for the jump-nav pill bar. Keeping this at
 // module scope so the scroll-spy effect below can reference it without
@@ -2022,17 +2022,8 @@ function BackupAndTrashPanel() {
 
   const handleRestoreTrash = async (id) => {
     try {
-      await restoreTrashedBill(id);
-      // Back in the books, so the stock its delete put back is taken out again.
-      // Only what that delete recorded (stockReturnedOnDelete): invoices
-      // deleted before it was recorded never had their stock put back.
-      const { _trashedAt, ...bill } = trash.find((b) => b.id === id) || {};
-      const back = bill.data?.stockReturnedOnDelete;
-      if (back && Object.keys(back).length) {
-        const { stockReturnedOnDelete: _gone, ...data } = bill.data;
-        await saveBill({ ...bill, data: { ...data, stockApplied: back } }, { overwrite: true });
-        await applyStockChanges(stockDelta({}, back)).catch(() => {});
-      }
+      // Shared with the Trash tab on the Invoices screen (stock taken out again).
+      await restoreBillFromTrash(trash.find((b) => b.id === id) || { id });
       toast('Invoice restored', 'success');
       loadAll();
     } catch (err) {

@@ -503,6 +503,22 @@ export const trashBill = async (bill) => {
   return { stockWarning };
 };
 
+// v1.10.84 - an invoice back from the Trash (the Trash tab on the Invoices
+// screen, and Settings -> Data & Backups -> Trash bin). Back in the books, so
+// the stock its delete put back is taken out again - only what that delete
+// recorded (stockReturnedOnDelete): invoices deleted before it was recorded
+// never had their stock put back. `bill` is the Trash list's entry.
+export const restoreBillFromTrash = async (bill) => {
+  await restoreTrashedBill(bill.id);
+  const { _trashedAt: _when, ...kept } = bill;
+  const back = kept.data?.stockReturnedOnDelete;
+  if (back && Object.keys(back).length) {
+    const { stockReturnedOnDelete: _gone, ...data } = kept.data;
+    await saveBill({ ...kept, data: { ...data, stockApplied: back } }, { overwrite: true });
+    await applyStockChanges(stockDelta({}, back)).catch(() => {});
+  }
+};
+
 export const deleteReceipt = async (id) => {
   return apiFetch(`${API}/receipts/${encodeURIComponent(id)}`, { method: 'DELETE' });
 };
