@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff, QrCode } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType } from '../store';
+import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels } from '../store';
 import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
@@ -28,6 +28,10 @@ import { toast } from './Toast';
 import { phoneDigits, findClientByPhone, newPhoneClient } from '../utils/phoneClients';
 import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS, withRftLines, rftSources, perimeterRft } from '../utils/glass';
 import { orderSummary, salesOrderOf, SO_STATUS_LABELS } from '../utils/salesOrders';
+// v1.10.85 - price levels and the credit-limit warning.
+import { priceForLevel } from '../utils/priceLevels';
+import { findSavedClient } from '../utils/clientLedger';
+import CreditLimitWarning from './CreditLimitWarning';
 
 // Rich text editor component that works with contentEditable properly
 function RichEditor({ value, onChange, placeholder, toolbar = false }) {
@@ -1744,10 +1748,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     label: `${i.name || `Line ${items.indexOf(i) + 1}`} (${sizeSqft(i.size)} sq.ft${perimeterRft(i.size) ? `, ${perimeterRft(i.size)} rft` : ''})`,
   })) : []), [items, hasRft]);
 
+  // v1.10.85 - the saved client this invoice is for (credit limit, price
+  // level); their level only counts while Price levels is switched on.
+  const savedClientNow = useMemo(() => findSavedClient(savedClients, selectedClientId, client.name), [savedClients, selectedClientId, client.name]);
+  const clientLevel = activePriceLevels().some((l) => l.id === savedClientNow?.priceLevel) ? savedClientNow.priceLevel : '';
+
   const selectProduct = useCallback((itemId, product) => {
     // v1.10.29 — Prefer sellingPrice for sales invoices (falls back to
     // legacy `rate` for pre-v1.10.29 products).
-    const salePrice = product.sellingPrice ?? product.rate ?? 0;
+    // v1.10.85 - or the client's level price, when the product has one.
+    const salePrice = priceForLevel(product, clientLevel);
     setItems(prev => prev.map(item => item.id === itemId ? {
       ...itemWithUnit(item, product.unit || item.unit || 'Nos', { sizeOn: sizeBillingOn(), step: lastSizeStep() }),
       name: product.name,
@@ -1760,7 +1770,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       isCharge: false, // a product picked on the delivery line makes it a product line
     } : item));
     setProductSearch({ itemId: null, query: '' });
-  }, [countryTaxRates]);
+  }, [countryTaxRates, clientLevel]);
 
   const getProductSuggestions = useCallback((itemId) => {
     if (productSearch.itemId !== itemId || !productSearch.query.trim()) return [];
@@ -5061,6 +5071,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               </span>
             </div>
             )}
+            <CreditLimitWarning savedClient={savedClientNow} bills={allBillsForCredit} profile={profile}
+              excludeId={editingBill && !editingBill._isDuplicate ? editingBill.id : null} invoiceType={invoiceType} totals={totals} />
           </div>
 
           {/* Terms */}
