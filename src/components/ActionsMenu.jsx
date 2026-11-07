@@ -5,7 +5,11 @@
 //
 // items: [{ label, icon: LucideIcon, onClick, title?, tone?: 'danger' | 'green', hidden? }]
 // The menu is position: fixed, so a table that scrolls sideways can't clip it.
+// v1.10.84 - and drawn at the top of the page (a portal into <body>): inside a
+// cell that is pinned (position: sticky) the next rows' cells painted over it
+// and took its clicks.
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreHorizontal } from 'lucide-react';
 
 // Below the button, or above it when there is no room below.
@@ -68,7 +72,7 @@ export default function ActionsMenu({ items, label = 'More actions' }) {
         aria-label={label} aria-haspopup="menu" aria-expanded={!!pos}>
         <MoreHorizontal size={15} />
       </button>
-      {pos && (
+      {pos && createPortal(
         <div ref={menu} role="menu" className="actions-menu" aria-label={label} onKeyDown={onMenuKey} style={{
           position: 'fixed', zIndex: 1000, ...pos, minWidth: 190,
           background: 'var(--card, #fff)', border: '1px solid var(--border)', borderRadius: 8,
@@ -93,7 +97,8 @@ export default function ActionsMenu({ items, label = 'More actions' }) {
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
