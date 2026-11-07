@@ -1349,6 +1349,17 @@ try {
     return n ? n.scrollWidth > n.clientWidth + 1 : null;
   });
   check('v75 the Settings section buttons never scroll sideways', jumpScrolls === false, String(jumpScrolls));
+  // v1.10.84 (maintainer): 6 tabs instead of 14; a tab shows all its cards.
+  const tabs84 = await page.evaluate(() => ({
+    names: [...document.querySelectorAll('.settings-jumpnav a')].map((a) => a.innerText.trim()),
+  }));
+  await page.locator('.settings-jumpnav a[href="#tab-data"]').click();
+  await sleep(500);
+  const dataCards = await page.evaluate(() => ['section-backups', 'section-cloud', 'section-data', 'section-company']
+    .map((id) => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; }));
+  check('v84 Settings has 6 tabs, and Data & Backups shows Backups, Google Drive and Import/Export (not Company)',
+    tabs84.names.join('|') === 'Company|Print & PDF|Features|Privacy & Security|Data & Backups|Updates' && dataCards.join() === 'true,true,true,false',
+    JSON.stringify({ ...tabs84, dataCards }));
 
   // One click saves two different sections.
   const getMeta = (key) => page.evaluate(async (k) => ((await (await fetch('/api/meta/' + k)).json()).value || {}), key);
