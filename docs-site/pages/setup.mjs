@@ -656,6 +656,23 @@ export default [
 <p>For an invoice already given to a client, <a href="dashboard.html#cancel">cancel it</a> instead of deleting it, so its number stays in your records.</p>
 </section>
 
+<section id="close-books">
+<h2>Close the books</h2>
+<p>After you file a month's GST returns, close the books up to its last day, so nothing in a filed month changes by mistake. In Settings, on the ${ui('Data & Backups')} tab, under <b>Close the books</b>, pick the last day (for example 31 October 2026) and click ${ui('Close the books')}.</p>
+<ul>
+  <li>Invoices, purchase bills, expenses, receipts, debit notes and cash book entries dated on or before that day can no longer be <b>added</b>, <b>deleted</b>, or <b>changed</b> in their date, number, items, amounts, GST or cancellation. The message says why, for example <i>the books are closed up to 2026-10-31</i>.</li>
+  <li>What does not change the accounts still works: recording a <b>payment</b> against an old invoice or purchase bill, printing, sharing and notes.</li>
+  <li>A deleted invoice dated in a closed month cannot be restored from the Trash until the books are opened.</li>
+  <li>To correct a filed month, ${ui('Open the books')}, make the change (your GST return may need an amendment: ask your CA), and close them again. Closing and opening are written in the edit history.</li>
+  <li>The server checks every save, so a phone or tablet cannot change a closed month either. A restore from a backup brings back the books as they were in the backup.</li>
+</ul>
+</section>
+
+<section id="edit-history">
+<h2>Edit history</h2>
+<p>Under <b>Close the books</b>, ${ui('Show the edit history')} lists the latest changes, newest first: when, what (an invoice added, a purchase bill changed, an expense deleted...), its number, its date, and the amount (before and after when it changed). A change made from a phone says <i>(phone)</i>. Pick one kind in the list to see only those. The history starts with this version: earlier changes are not in it. It is kept in your books folder (<code>data/edit-history</code>, one file a month) and copied with the automatic backups.</p>
+</section>
+
 <section id="move-pc">
 <h2>Moving to a new computer</h2>
 <ol class="steps">

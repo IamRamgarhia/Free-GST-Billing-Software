@@ -16,6 +16,7 @@ import { toast } from './Toast';
 import { confirmAction, promptAction } from './ConfirmModal';
 import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
+import BooksLockSettings from './BooksLockSettings';
 import AppLockSettings from './AppLockSettings';
 import PrivacyInternet from './PrivacyInternet';
 import PhoneAccessSettings from './PhoneAccessSettings';
@@ -42,7 +43,7 @@ const SETTINGS_TABS = [
   ['tab-print',    'Print & PDF',        ['section-print', 'section-region']],
   ['tab-features', 'Features',           ['section-modules', 'section-costcentres', 'section-stock']],
   ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-phone', 'section-privacy']],
-  ['tab-data',     'Data & Backups',     ['section-backups', 'section-cloud', 'section-data']],
+  ['tab-data',     'Data & Backups',     ['section-backups', 'section-books', 'section-cloud', 'section-data']],
   ['tab-updates',  'Updates',            ['section-updates']],
 ];
 const ALL_SECTIONS = SETTINGS_TABS.flatMap(([, , sections]) => sections);
@@ -57,7 +58,7 @@ const SETTINGS_TAB_DOCS = {
   'section-company': 'settings#company-details', 'section-profiles': 'settings#business-profiles',
   'section-terms': 'settings#terms', 'section-print': 'print-settings', 'section-modules': 'settings#features',
   'section-stock': 'settings#stock', 'section-region': 'settings#region', 'section-lock': 'settings#lock', 'section-phone': 'phone', 'section-privacy': 'security#offline-mode',
-  'section-backups': 'backup#automatic-backups', 'section-cloud': 'settings#google-drive', 'section-data': 'backup#export-import',
+  'section-backups': 'backup#automatic-backups', 'section-books': 'backup#close-books', 'section-cloud': 'settings#google-drive', 'section-data': 'backup#export-import',
   'section-updates': 'settings#updates',
 };
 
@@ -1060,6 +1061,8 @@ export default function SettingsView({ onSaved }) {
 
       {/* v1.9.5 — Backup Management + Trash Bin */}
       <div id="section-backups" style={{ order: 8 }}><BackupAndTrashPanel /></div>
+      {/* v1.10.85 - close the books up to a date; the edit history. */}
+      <div id="section-books" className="glass-panel p-6 mb-6" style={{ order: 8 }}><BooksLockSettings /></div>
 
       {/* v1.10.83 - Business type (first tab) and Features: FeatureSettings.jsx. */}
       <BusinessTypePanel features={features} />

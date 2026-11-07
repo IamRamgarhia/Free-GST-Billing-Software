@@ -78,6 +78,9 @@ async function cleanup(page) {
       if (/SMOKE-|smoketest-/.test(prefs.fgsb_dismissedNotifs || '')) {
         await fetch('/api/local-prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set: {}, remove: ['fgsb_dismissedNotifs'] }) });
       }
+      // v1.10.85 - books this suite closed (only its own date) open again.
+      const lock = await (await fetch('/api/period-lock')).json().catch(() => ({}));
+      if (lock?.upTo === '2025-01-31') await fetch('/api/period-lock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ upTo: '' }) });
       // v1.10.77 - a PIN this suite set must never stay on the user's app.
       await fetch('/api/lock/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: null, currentPin: '13572468' }) });
       // The expense added through the form gets a generated id.
@@ -2464,6 +2467,34 @@ try {
       await fetch(`/api/debit-notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
       await fetch('/api/purchases/smoketest-pur85', { method: 'DELETE' });
     }, dn85?.id || 'none');
+  }
+
+  // v1.10.85: Close the books (Settings -> Data) up to 31 Jan 2025: an invoice
+  // dated then is refused by the server; the edit history lists the closing;
+  // opening the books again frees it.
+  {
+    await page.evaluate(() => { sessionStorage.setItem('gst_settingsTab', 'tab-data'); sessionStorage.setItem('gst_currentView', 'settings'); sessionStorage.removeItem('gst_editingBill'); });
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2500);
+    await dismissFirstRun(page);
+    await page.locator('#books-upto').fill('2025-01-31');
+    await page.getByRole('button', { name: 'Close the books' }).click();
+    await sleep(400);
+    await page.locator('.confirm-modal-primary').click();
+    await sleep(1200);
+    const refused = await page.evaluate(async () => (await fetch('/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'smoketest-closed', invoiceNumber: 'SMOKE-CLOSED/1', invoiceType: 'tax-invoice', invoiceDate: '2025-01-15', totalAmount: 100, data: {} }) })).status);
+    await page.getByRole('button', { name: 'Show the edit history' }).click();
+    await sleep(1200);
+    const historyText = await page.locator('.edit-history-table').innerText().catch(() => '');
+    check('v85 closing the books refuses an invoice dated in the closed period, and the history lists it',
+      refused === 409 && /Closed up to/.test(historyText) && /2025-01-31/.test(historyText), `status=${refused} history=${historyText.slice(0, 120)}`);
+    await page.getByRole('button', { name: 'Open the books' }).click();
+    await sleep(400);
+    await page.locator('.confirm-modal-primary').click();
+    await sleep(1200);
+    const open = await page.evaluate(async () => (await (await fetch('/api/period-lock')).json()).upTo);
+    check('v85 opening the books again', open === '', `upTo="${open}"`);
   }
 
   // Put the real business details back.

@@ -40,6 +40,11 @@ async function apiFetch(url, options = {}) {
     const err = new Error(body?.error || `API error: ${res.status}`);
     err.status = res.status;
     err.body = body;
+    // v1.10.85 - the books are closed for that date: App.jsx says why, once
+    // for every screen (each screen's own 'Save failed' would not).
+    if (res.status === 409 && body?.code === 'period-locked' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('fgsb:period-locked', { detail: body }));
+    }
     if (res.status >= 500) {
       logApiProblem(options, url, res.status, err.message);
       err.problemLogged = true;
@@ -48,6 +53,11 @@ async function apiFetch(url, options = {}) {
   }
   return res.json();
 }
+
+// ---- Close the books + edit history (v1.10.85; checked by the server) ----
+export const getPeriodLock = () => apiFetch(`${API}/period-lock`);
+export const setPeriodLock = (upTo) => apiFetch(`${API}/period-lock`, { method: 'POST', body: JSON.stringify({ upTo }) });
+export const getEditHistory = (limit = 200) => apiFetch(`${API}/edit-history?limit=${encodeURIComponent(limit)}`);
 
 // ---- PIN lock (v1.10.77, #84; checked by the server, see AppLock.jsx) ----
 export const getLockStatus = () => apiFetch(`${API}/lock`);

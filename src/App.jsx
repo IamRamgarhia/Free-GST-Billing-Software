@@ -420,6 +420,14 @@ function App() {
     return () => window.removeEventListener('fgsb:profiles-changed', reload);
   }, [serverStatus]);
 
+  // v1.10.85 - a save refused because the books are closed for its date:
+  // the server's reason, once, whatever screen it came from.
+  useEffect(() => {
+    const say = (e) => toast(e.detail?.error || 'The books are closed for that date (Settings -> Data).', 'error');
+    window.addEventListener('fgsb:period-locked', say);
+    return () => window.removeEventListener('fgsb:period-locked', say);
+  }, []);
+
   // Close profile menu on outside click
   useEffect(() => {
     if (!showProfileMenu) return;

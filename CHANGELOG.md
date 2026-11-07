@@ -147,6 +147,18 @@ a backup is made first.
   quote the new sections and Form 131 (was 16A). Part 2 (working TDS out from
   the payee and the thresholds, and the return exports) comes later.
 
+- **Close the books** (Settings -> Data & Backups): after filing a month's GST
+  returns, close the books up to its last day. Invoices, purchases, expenses,
+  receipts, debit notes and cash book entries dated then can no longer be
+  added, deleted, or changed in their date, number, items, amounts, GST or
+  cancellation; recording a payment against them still works. The server
+  checks every save, so no screen or phone can get round it. **Open the
+  books** to correct a filed month.
+- **Edit history**: every invoice, purchase, expense, receipt, debit note and
+  cash book entry added, changed or deleted, with the time, its number, date
+  and amount before and after (Settings -> Data & Backups -> Show the edit
+  history). It starts with this version.
+
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
   inside the container; other devices use the paired HTTPS connection.

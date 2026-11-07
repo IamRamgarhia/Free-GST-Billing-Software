@@ -19,6 +19,7 @@ import { validatePurchasePayments } from './src/utils/purchasePayments.js';
 import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES } from './src/utils.js';
 import { resolveAppHome } from './src/utils/appHome.js';
 import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
+import { lockProblem, bookedOn, isLockDate } from './src/utils/periodLock.js';
 import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './src/utils/serverLock.js';
 import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
 // v1.10.85 - phone / tablet access on the same Wi-Fi (off by default).
@@ -354,6 +355,102 @@ function deleteFile(filePath) {
   const parentDir = path.basename(path.dirname(filePath));
   if (DIRS.includes(parentDir)) invalidateCache(parentDir);
 }
+
+// ========================
+// CLOSE THE BOOKS + EDIT HISTORY (v1.10.85)
+// ========================
+// Settings -> Data -> Close the books: nothing dated on or before that day may
+// be added, changed in a way that moves the accounts or the GST returns, or
+// deleted (src/utils/periodLock.js decides what counts; payments, prints and
+// notes stay allowed). Checked here, before every save and delete of a dated
+// record, so no screen can get round it. Every save and delete that goes
+// through is written to data/edit-history/<YYYY-MM>.jsonl: when, what, which
+// number, its date and total before and after.
+const PERIOD_LOCK_KEY = 'periodLock';
+const HISTORY_DIR = path.join(DATA_DIR, 'edit-history');
+const DATED_ROUTE = /^\/api\/(bills|expenses|receipts|purchases|debit-notes|cash-book)(?:\/([^/]+))?$/;
+const TRASH_RESTORE_ROUTE = /^\/api\/trash\/([^/]+)\/restore$/;
+const lockedUpTo = () => {
+  const v = readJSON(path.join(DATA_DIR, 'meta.json'), {})[PERIOD_LOCK_KEY];
+  return isLockDate(v?.upTo) ? v.upTo : '';
+};
+const recordTotal = (kind, r) => {
+  if (!r) return null;
+  if (kind === 'bills') return Number(r.totalAmount ?? r.data?.totals?.total) || 0;
+  if (kind === 'purchases' || kind === 'debit-notes') return Number(r.total ?? r.totalAmount) || null;
+  return Number(r.amount) || 0;
+};
+const recordNumber = (kind, r) => (r ? String(r.invoiceNumber || r.dnNumber || r.receiptNo || r.description || r.name || r.id || '') : '');
+const writeHistory = (entry) => {
+  try {
+    makeDir(HISTORY_DIR);
+    fs.appendFileSync(path.join(HISTORY_DIR, `${entry.at.slice(0, 7)}.jsonl`), JSON.stringify(entry) + '\n');
+  } catch (err) { console.warn('[history] could not write:', err.message); }
+};
+app.use((req, res, next) => {
+  if (req.method !== 'POST' && req.method !== 'DELETE') return next();
+  const restore = req.method === 'POST' && TRASH_RESTORE_ROUTE.exec(req.path);
+  const m = restore ? ['', 'bills', restore[1]] : DATED_ROUTE.exec(req.path);
+  if (!m) return next();
+  const kind = m[1];
+  if (req.method === 'POST' && m[2] && !restore) return next(); // no such save route
+  const id = req.method === 'DELETE' || restore ? decodeURIComponent(m[2]) : String(req.body?.id || '');
+  const dir = path.join(DATA_DIR, kind);
+  const onFile = id ? readJSON(path.join(dir, safeFileName(id) + '.json'), null) : null;
+  const before = restore ? null : onFile;
+  const after = req.method === 'DELETE' ? null
+    : restore ? readJSON(path.join(BILL_TRASH_DIR, safeFileName(id) + '.json'), null)
+      : req.body;
+  const upTo = lockedUpTo();
+  const problem = lockProblem(kind, before, after, upTo);
+  if (problem) return res.status(409).json({ error: problem, code: 'period-locked', lockedUpTo: upTo });
+  res.on('finish', () => {
+    if (res.statusCode >= 400) return;
+    writeHistory({
+      at: new Date().toISOString(),
+      kind,
+      action: req.method === 'DELETE' ? 'deleted' : restore ? 'restored' : before ? 'changed' : 'added',
+      id,
+      number: recordNumber(kind, after || before),
+      date: bookedOn(kind, after || before),
+      ...(before ? { totalBefore: recordTotal(kind, before), dateBefore: bookedOn(kind, before) } : {}),
+      ...(after ? { total: recordTotal(kind, after) } : {}),
+      from: req.socket.encrypted ? 'phone' : 'pc',
+    });
+  });
+  return next();
+});
+
+// The lock date ({ upTo: 'YYYY-MM-DD' } or { upTo: '' } to open the books).
+app.get('/api/period-lock', (req, res) => res.json({ upTo: lockedUpTo() }));
+app.post('/api/period-lock', (req, res) => {
+  const upTo = String(req.body?.upTo ?? '');
+  if (upTo && !isLockDate(upTo)) return errRes(res, 400, 'bad-request');
+  const meta = readJSON(path.join(DATA_DIR, 'meta.json'), {});
+  if (upTo) meta[PERIOD_LOCK_KEY] = { upTo, at: new Date().toISOString() };
+  else delete meta[PERIOD_LOCK_KEY];
+  writeJSON(path.join(DATA_DIR, 'meta.json'), meta);
+  writeHistory({ at: new Date().toISOString(), kind: 'books', action: upTo ? 'closed' : 'opened', id: '', number: '', date: upTo, from: req.socket.encrypted ? 'phone' : 'pc' });
+  res.json({ ok: true, upTo });
+});
+
+// The latest edits, newest first (?limit=, at most 1000; this month and the
+// months before until enough are found).
+app.get('/api/edit-history', (req, res) => {
+  const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 200));
+  let files = [];
+  try { files = fs.readdirSync(HISTORY_DIR).filter((f) => /^\d{4}-\d{2}\.jsonl$/.test(f)).sort().reverse(); } catch { /* none yet */ }
+  const out = [];
+  for (const f of files) {
+    let lines = [];
+    try { lines = fs.readFileSync(path.join(HISTORY_DIR, f), 'utf8').split('\n').filter(Boolean); } catch { continue; }
+    for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+      try { out.push(JSON.parse(lines[i])); } catch { /* a torn line */ }
+    }
+    if (out.length >= limit) break;
+  }
+  res.json(out);
+});
 
 // ========================
 // BILLS
