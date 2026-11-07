@@ -917,7 +917,12 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
   const bulkCancel = async () => {
     const sel = getSelectedBills().filter(b => !isCancelledBill(b));
-    if (sel.length === 0) return;
+    // 7 Nov (maintainer: "cancel button not working") - with only cancelled
+    // invoices ticked it did nothing, silently. Say so, and where Delete is.
+    if (sel.length === 0) {
+      if (selectedIds.size) toast('The ticked invoices are already cancelled. To remove them, use Delete invoices.', 'warning', 7000);
+      return;
+    }
     if (!await confirmAction({
       title: `Cancel ${sel.length} invoice${sel.length !== 1 ? 's' : ''}?`,
       message: 'They keep their numbers but stop counting in totals, reports and GST returns. Stock is restored for any products on them. To undo one, click the Undo cancel arrow among the actions on its row.',
@@ -935,6 +940,32 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       clearSelection();
       loadBills();
     } catch (err) { toast('Bulk cancel failed: ' + err.message, 'error'); }
+    setBulkBusy(false);
+  };
+
+  // 7 Nov (maintainer) - Delete in the bar too: the ticked invoices (cancelled
+  // ones as well) go to the Trash for 30 days, stock put back (trashBill).
+  // One at a time, so two stock updates never race.
+  const bulkDelete = async () => {
+    const sel = getSelectedBills();
+    if (sel.length === 0) return;
+    const n = sel.length;
+    if (!await confirmAction({
+      title: `Delete ${n} invoice${n !== 1 ? 's' : ''}?`,
+      message: 'They are moved to the Trash for 30 days. Restore them from Settings → Data & Backups → Trash bin. Their stock goes back. To keep their numbers in your records instead, use Cancel invoices.',
+      confirmLabel: `Delete ${n}`,
+      tone: 'danger',
+    })) return;
+    setBulkBusy(true);
+    let done = 0, stockWarn = 0;
+    for (const b of sel) {
+      try { const r = await trashBill(b); done += 1; if (r.stockWarning) stockWarn += 1; } catch { /* counted below */ }
+    }
+    if (done < n) toast(`${done} moved to Trash, ${n - done} could not be deleted`, 'warning');
+    else if (stockWarn) toast(`${done} moved to Trash, but the stock of ${stockWarn} could not be put back. Check Products.`, 'warning');
+    else toast(`${done} invoice${done !== 1 ? 's' : ''} moved to Trash (30 days)`, 'success');
+    clearSelection();
+    loadBills();
     setBulkBusy(false);
   };
 
@@ -1727,6 +1758,11 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkCancel}
               style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
               <Ban size={13} /> Cancel invoices
+            </button>
+            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={bulkDelete}
+              title="Move the ticked invoices to the Trash for 30 days (Settings → Data & Backups → Trash bin restores them)"
+              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+              <Trash2 size={13} /> Delete invoices
             </button>
             <button type="button" className="icon-btn" onClick={clearSelection} title="Clear selection" style={{ marginLeft: 'auto' }}>
               <X size={14} />

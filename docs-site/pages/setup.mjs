@@ -756,6 +756,7 @@ export default [
 <section id="move">
 <h3>Move to Another PC</h3>
 <p><b>What it does.</b> Saves your data as one ZIP on your Desktop named <code>MOVE-FreeGSTBill-<i>date_time</i>.zip</code>, ready to carry to a new computer.</p>
+<p><b>In the app installed with the Windows Setup:</b> this card is not there. Use ${ui('Backup Data')} on the old computer and ${ui('Restore Backup')} on the new one.</p>
 <p><b>When to use it.</b> When you buy a new computer, or want the same books on a second one.</p>
 <ol>
   <li><b>Windows:</b> click ${ui('Export for Move')}. A black window shows the progress and the size, then a folder window opens with the ZIP highlighted on your Desktop.</li>
@@ -782,6 +783,7 @@ export default [
 <section id="stop">
 <h3>Stop Server</h3>
 <p><b>What it does.</b> Turns the app off. The page stops answering until you open the app again.</p>
+<p><b>In the app installed with the Windows Setup:</b> this card is not there. Right-click the app's icon near the clock and choose ${ui('Quit (stop the app)')}: it closes the window and stops the app.</p>
 <p><b>When to use it.</b> After an update or restore, so the new version or data is loaded when you start it again. Also when the app seems stuck, or you want to shut it down cleanly.</p>
 <ol>
   <li>Finish and save any bill you are typing. Then click ${ui('Stop Server')}.</li>
@@ -796,6 +798,7 @@ export default [
 <section id="remove">
 <h3>Remove the App</h3>
 <p><b>What it does.</b> Uninstalls Free GST Billing from this computer in one go: the app, its Desktop and Start-menu icons (Mac: the app in Applications; Linux: the menu entry) and the start-with-computer entry. You choose what else goes.</p>
+<p><b>In the app installed with the Windows Setup:</b> the button is ${ui('Open Windows Apps')}. It opens Windows' <b>Settings → Apps → Installed apps</b>: find Free GST Billing, click the three dots, then <b>Uninstall</b>. It asks whether to delete your books too; the answer is No unless you choose Yes.</p>
 <ol>
   <li>Click ${ui('Remove…')}. A list opens below the cards. (On Windows the launcher window has the same: <b>More options</b> → ${ui('Remove the app...')}.)</li>
   <li>Tick what to delete as well. Nothing is ticked at first, so by default <b>only the program goes and your books stay</b>:

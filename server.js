@@ -1611,6 +1611,16 @@ app.post('/api/control-panel/backup', async (req, res) => {
   res.json(result);
 });
 
+// v1.10.84 - a Windows Setup copy is removed like other programs: this opens
+// Windows' Settings -> Apps -> Installed apps (the Control Panel's Remove card).
+app.post('/api/control-panel/open-apps-settings', (req, res) => {
+  if (!isWindows) return res.json({ ok: false, error: 'Only on Windows.' });
+  try {
+    spawn('explorer.exe', ['ms-settings:appsfeatures'], { detached: true }).unref();
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
 app.post('/api/control-panel/open-data-folder', (req, res) => {
   try {
     if (isWindows) spawn('explorer.exe', [DATA_DIR], { detached: true }).unref();

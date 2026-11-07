@@ -117,8 +117,9 @@ a backup is made first.
 - **Profit & Loss counts the cost of the goods sold** (#146): quantity sold ×
   the product's purchase price, as its own line, then Gross Profit. Items with
   no purchase price are named so you can fill it in.
-- **Delete an invoice from the Invoices list**: its actions menu has *Delete*
-  next to *Cancel invoice*. The invoice goes to the Trash for 30 days (restore it
+- **Delete invoices from the Invoices list**: each invoice's actions menu has
+  *Delete* next to *Cancel invoice*, and the bar for ticked invoices has *Delete
+  invoices*. They go to the Trash for 30 days (restore them
   from *Settings → Data & Backups → Trash bin*) and its stock goes back.
   *Cancel invoice* still keeps the number in your records.
 - **Delete many products at once** (#177): tick products in the list (or the
@@ -135,6 +136,10 @@ a backup is made first.
   Customize can hide the export / LUT declaration.
 
 ### Changed
+- **Control Panel in the installed Windows app**: *Stop Server* and *Move to
+  Another PC* are gone there (the icon near the clock has *Quit*; Backup and
+  Restore move your books), and *Remove the App* opens Windows' *Installed apps*.
+  The ZIP's Control Panel is unchanged.
 - **Settings has 6 tabs instead of 14**: *Company*, *Print & PDF*, *Features*,
   *Privacy & Security*, *Data & Backups* and *Updates*, each showing its cards
   one under the other. Nothing was removed; *Ctrl + K* finds any setting and
@@ -156,6 +161,8 @@ a backup is made first.
 - The window title reads like a desktop program: the page and your business name.
 
 ### Fixed
+- **Cancel invoices did nothing when the ticked invoices were already
+  cancelled**: it now says so and points to *Delete invoices*.
 - **A deleted invoice now really stays 30 days in the Trash** (ERR-084): an
   invoice not changed for over 30 days was removed from the Trash at the next
   start of the app, and the Trash bin showed its old date as the delete date.

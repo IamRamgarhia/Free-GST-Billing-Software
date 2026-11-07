@@ -1274,6 +1274,44 @@ try {
   // The Trash copy is the suite's own: removed for good.
   await page.evaluate(async () => fetch('/api/trash/smoketest-cancel?permanent=1', { method: 'DELETE' }).catch(() => {}));
 
+  // v1.10.84 (maintainer, 7 Nov: "cancel button not working"): with only
+  // cancelled invoices ticked, Cancel invoices says so; Delete invoices in the
+  // same bar moves the ticked ones to the Trash.
+  {
+    await page.evaluate(async () => {
+      const prof = await (await fetch('/api/profile')).json();
+      for (const n of [1, 2]) {
+        await fetch('/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          id: `smoketest-bd-${n}`, invoiceNumber: `SMOKE-BD/${n}`, clientName: 'Smoke Test Client', invoiceDate: '2026-11-07',
+          status: 'cancelled', totalAmount: 100, payments: [], items: [], profileId: prof.id,
+          data: { details: { invoiceNumber: `SMOKE-BD/${n}`, invoiceDate: '2026-11-07' }, client: { name: 'Smoke Test Client' }, profile: prof, totals: { total: 100 } } }) });
+      }
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(2000);
+    await dismissFirstRun(page);
+    await openView('Dashboard');
+    await page.fill('input[placeholder^="Search client, invoice"]', 'SMOKE-BD/');
+    await sleep(800);
+    for (const n of [1, 2]) await page.locator('tr', { hasText: `SMOKE-BD/${n}` }).first().locator('input[type="checkbox"]').check();
+    await page.locator('button', { hasText: 'Cancel invoices' }).first().click();
+    const said = await page.getByText(/already cancelled/i).first().isVisible({ timeout: 4000 }).catch(() => false);
+    check('Cancel invoices with only cancelled invoices ticked says so (it did nothing, silently)', said);
+    await page.locator('button', { hasText: 'Delete invoices' }).first().click();
+    await sleep(600);
+    await page.getByRole('button', { name: /^Delete 2$/ }).click();
+    await sleep(2500);
+    const bd = await page.evaluate(async () => {
+      const ids = ['smoketest-bd-1', 'smoketest-bd-2'];
+      const bills = (await (await fetch('/api/bills')).json()).filter((b) => ids.includes(b.id)).length;
+      const trash = (await (await fetch('/api/trash')).json()).filter((b) => ids.includes(b.id)).length;
+      for (const id of ids) await fetch(`/api/trash/${id}`, { method: 'DELETE' }).catch(() => {});
+      return { bills, trash };
+    });
+    check('Delete invoices in the bar moves the ticked invoices to the Trash', bd.bills === 0 && bd.trash === 2, JSON.stringify(bd));
+    await page.fill('input[placeholder^="Search client, invoice"]', '');
+  }
+
   // ---- #66 item 2: a new product starts in Pcs ---------------------------
   await reopenView('Products');
   await page.getByRole('button', { name: /Add Product/i }).first().click();

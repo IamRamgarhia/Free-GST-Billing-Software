@@ -158,7 +158,7 @@ export default function ControlPanel() {
   const prettyAction = (a) => ({
     backup: 'Backup', update: 'Update', restore: 'Restore', move: 'Move export',
     stop: 'Stop server', restart: 'Restart', 'open-data-folder': 'Open data folder',
-    'open-backups-folder': 'Open backups folder',
+    'open-backups-folder': 'Open backups folder', 'open-apps-settings': 'Open Windows Apps',
   })[a] || a;
 
   const formatSize = (bytes) => {
@@ -232,14 +232,18 @@ export default function ControlPanel() {
           disabled={!!busy || !can('restore')}
           onClick={() => launchScript('restore')}
         />
-        <ActionCard
-          icon={<Package size={22} />}
-          title="Move to Another PC" doc="control-panel#move"
-          body="Exports data + settings as one ZIP on your Desktop. Copy it to the new PC, install the app, then Restore."
-          buttonLabel={label('move', 'Export for Move', 'Exporting…')}
-          disabled={!!busy || !can('move')}
-          onClick={() => launchScript('move')}
-        />
+        {/* v1.10.84 (maintainer, 7 Nov) - not in the Windows Setup's app: it
+             only said "Not available here" there; Backup + Restore move PCs. */}
+        {!status?.installed && (
+          <ActionCard
+            icon={<Package size={22} />}
+            title="Move to Another PC" doc="control-panel#move"
+            body="Exports data + settings as one ZIP on your Desktop. Copy it to the new PC, install the app, then Restore."
+            buttonLabel={label('move', 'Export for Move', 'Exporting…')}
+            disabled={!!busy || !can('move')}
+            onClick={() => launchScript('move')}
+          />
+        )}
         <ActionCard
           icon={<FolderOpen size={22} />}
           title="Open Data Folder"
@@ -264,15 +268,32 @@ export default function ControlPanel() {
           disabled={!!busy}
           onClick={restartApp}
         />
-        <ActionCard
-          icon={<StopCircle size={22} />}
-          title="Stop Server" doc="control-panel#stop"
-          body="Shuts down the local Node server. The app will stop responding until you re-open it from the launcher / shortcut."
-          buttonLabel={label('stop', 'Stop Server', 'Stopping…')}
-          disabled={!!busy || !can('stop')}
-          onClick={() => launchScript('stop')}
-          variant="danger"
-        />
+        {/* v1.10.84 (maintainer) - not in the Windows Setup's app: its window's
+             tray icon has Quit (window AND server), and a server stopped from
+             inside the window is started again by the window's self-repair. */}
+        {!status?.installed && (
+          <ActionCard
+            icon={<StopCircle size={22} />}
+            title="Stop Server" doc="control-panel#stop"
+            body="Shuts down the local Node server. The app will stop responding until you re-open it from the launcher / shortcut."
+            buttonLabel={label('stop', 'Stop Server', 'Stopping…')}
+            disabled={!!busy || !can('stop')}
+            onClick={() => launchScript('stop')}
+            variant="danger"
+          />
+        )}
+        {status?.installed ? (
+          // The Setup's app is removed like other Windows programs.
+          <ActionCard
+            icon={<Trash2 size={22} />}
+            title="Remove the App" doc="control-panel#remove"
+            body="Remove it like other Windows programs: Settings → Apps → Installed apps → Free GST Billing → Uninstall. It asks before deleting your books; the answer is No unless you choose Yes."
+            buttonLabel="Open Windows Apps"
+            disabled={!!busy}
+            onClick={() => runAction('open-apps-settings')}
+            variant="danger"
+          />
+        ) : (
         <ActionCard
           icon={<Trash2 size={22} />}
           title="Remove the App" doc="control-panel#remove"
@@ -286,6 +307,7 @@ export default function ControlPanel() {
           }}
           variant="danger"
         />
+        )}
       </div>
 
       {removeOpen && status?.canRemove && (
