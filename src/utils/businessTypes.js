@@ -33,7 +33,8 @@ const APP_HELPERS = ['guide', 'notifications', 'darkMode', 'controlPanel', 'offl
 // Every type sells, and every business handles cash (the cash book).
 const SELLING = ['receipts', 'cashBook', 'reports', 'gstReturns', 'incomeTax', 'upiQr', 'googleDrive'];
 const GOODS = ['inventory', 'purchases', 'expenses'];
-const TRADING = [...GOODS, 'purchaseOrders', 'gstr2b', 'ewayBill', 'tdsTcs'];
+// v1.10.85 (#135) - sales orders go with purchase orders: wholesale and manufacturing.
+const TRADING = [...GOODS, 'purchaseOrders', 'salesOrders', 'gstr2b', 'ewayBill', 'tdsTcs'];
 
 // `on` lists what the type turns on; every other switchable module goes off.
 // Ids match BUSINESS_PRESETS in printSettings.js, so the wizard can apply

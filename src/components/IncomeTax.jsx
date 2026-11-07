@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Calculator, Landmark, FileText, TrendingUp, Upload, Info, Check, X, ChevronRight, Briefcase, Clock, Download } from 'lucide-react';
-import { getAllBills, getAllExpenses, getAllPurchases, getProfile } from '../store';
+import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getAllDebitNotes } from '../store';
+import { debitNoteTotals } from '../utils/debitNotes';
 import { formatCurrency } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import HelpButton from './HelpButton';
@@ -151,7 +152,8 @@ export default function IncomeTax() {
       getAllExpenses().catch(() => []),
       getAllPurchases().catch(() => []),
       getProfile().catch(() => ({})),
-    ]).then(([b, e, p, prof]) => {
+      getAllDebitNotes().catch(() => []),
+    ]).then(([b, e, p, prof, dns]) => {
       // v1.10.64 (#55) — income tax is filed per business, so only the active
       // business's invoices may contribute to its figures.
       // v1.10.67 (#66 item 12) — cancelled invoices are not income.
@@ -159,7 +161,12 @@ export default function IncomeTax() {
       // v1.10.66 (#64) — and only its own expenses and purchases. Left
       // unfiltered, one company's costs reduced another company's income.
       setExpenses((e || []).filter(r => belongsToProfile(r, prof)));
-      setPurchases((p || []).filter(r => belongsToProfile(r, prof)));
+      // v1.10.85 (#168) - goods returned to suppliers (debit notes) come off
+      // the trading purchases, in the year of the debit note: each one is
+      // listed here as a minus purchase of its taxable value.
+      const returns = (dns || []).filter(r => belongsToProfile(r, prof) && !r.cancelled)
+        .map(r => ({ id: r.id, date: r.date, taxableAmount: -debitNoteTotals(r).taxable }));
+      setPurchases([...(p || []).filter(r => belongsToProfile(r, prof)), ...returns]);
       setProfile(prof);
     });
   }, []);

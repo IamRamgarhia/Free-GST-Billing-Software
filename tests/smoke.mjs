@@ -2270,6 +2270,110 @@ try {
       seen.window?.starting && !seen.window?.quickStart && seen.browser?.quickStart && !seen.browser?.starting, JSON.stringify(seen));
   }
 
+  // ---- v1.10.85 (#135, #112, #115): a sales order, part of it sent on a
+  // delivery challan (Partly dispatched), the rest invoiced (Invoiced).
+  {
+    const get85 = (url) => page.evaluate(async (url) => (await fetch(url)).json(), url);
+    const stock85 = async (id) => (await get85('/api/products')).find((x) => x.id === id)?.stock;
+    const prof85 = await get85('/api/profile');
+    const soId = 'smoketest-SO-85';
+    const modules85 = await page.evaluate(() => localStorage.getItem('gst_enabledModules'));
+    await page.evaluate(() => {
+      const m = JSON.parse(localStorage.getItem('gst_enabledModules') || '{}');
+      localStorage.setItem('gst_enabledModules', JSON.stringify({ ...m, salesOrders: true }));
+    });
+    await api('/api/products', { id: 'smoketest-so-chair', name: 'Smoke Chair', hsn: '9401', rate: 1000, taxPercent: 18, unit: 'Nos', stock: 50 });
+    await api('/api/bills', {
+      id: soId, invoiceNumber: soId, clientName: 'Smoke Test Client', invoiceDate: today, invoiceType: 'sales-order', status: 'unpaid',
+      totalAmount: 11800, paidAmount: 0, payments: [],
+      data: { profile: prof85, client: { name: 'Smoke Test Client', state: prof85.state, country: 'India' },
+        details: { invoiceNumber: soId, invoiceDate: today }, invoiceType: 'sales-order', invoiceOptions: {}, totals: { total: 11800 },
+        items: [{ id: 'so85', productId: 'smoketest-so-chair', name: 'Smoke Chair', hsn: '9401', quantity: 10, rate: 1000, taxPercent: 18, discount: 0, unit: 'Nos' }],
+        stockApplied: {} },
+    });
+    const ordersTab85 = async () => {
+      await page.evaluate(() => { sessionStorage.removeItem('gst_editingBill'); sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.setItem('gst_currentView', 'dashboard'); });
+      await page.reload({ waitUntil: 'networkidle' });
+      await sleep(2500);
+      await dismissFirstRun(page);
+      await page.getByRole('tab', { name: /Sales orders/ }).click();
+      await sleep(800);
+      return page.locator('tr', { hasText: soId }).first();
+    };
+    const save85 = async () => { await page.getByRole('button', { name: /^Save$/ }).first().click(); await sleep(3500); };
+    const fromOrder85 = (type) => get85('/api/bills').then((all) => all.find((b) => b.invoiceType === type && b.data?.details?.salesOrderNo === soId));
+
+    let row = await ordersTab85();
+    check('v85 #135 a sales order is on the Sales orders tab as Open, and takes no stock',
+      /Open/.test(await row.textContent()) && (await stock85('smoketest-so-chair')) === 50, `${(await row.textContent()).replace(/\s+/g, ' ').slice(0, 120)} stock=${await stock85('smoketest-so-chair')}`);
+    await row.getByRole('button', { name: `Make delivery challan from ${soId}` }).click();
+    await page.waitForSelector('#invoice-preview', { timeout: 30000 });
+    await sleep(1500);
+    await page.locator('.line-item-field', { has: page.locator('label', { hasText: /^Qty$/ }) }).locator('input').first().fill('4');
+    await sleep(500);
+    await save85();
+    const dc85 = await fromOrder85('delivery-challan');
+    check('v85 #135 Make delivery challan: a challan for 4 of the 10, linked to the order, takes 4 out of stock',
+      dc85?.data?.items?.[0]?.quantity === 4 && (await stock85('smoketest-so-chair')) === 46, `challan=${dc85?.id} qty=${dc85?.data?.items?.[0]?.quantity} stock=${await stock85('smoketest-so-chair')}`);
+    row = await ordersTab85();
+    const partly = (await row.textContent()).replace(/\s+/g, ' ');
+    check('v85 #135 the order now shows Partly dispatched, 4 of 10 sent, and the challan number', /Partly dispatched/.test(partly) && /4 of 10 sent/.test(partly) && partly.includes(dc85?.invoiceNumber || '?'), partly.slice(0, 160));
+    await row.getByRole('button', { name: `Invoice the rest of ${soId}` }).click();
+    await page.waitForSelector('#invoice-preview', { timeout: 30000 });
+    await sleep(1500);
+    await save85();
+    const inv85 = await fromOrder85('tax-invoice');
+    const dcAfter = (await get85('/api/bills')).find((b) => b.id === dc85?.id);
+    check('v85 #135 Invoice the rest: one invoice for all 10 (the challan taken in), only 6 more out of stock',
+      inv85?.data?.items?.[0]?.quantity === 10 && dcAfter?.convertedTo === inv85?.id && (await stock85('smoketest-so-chair')) === 40,
+      `qty=${inv85?.data?.items?.[0]?.quantity} challan.convertedTo=${dcAfter?.convertedTo} stock=${await stock85('smoketest-so-chair')}`);
+    check('v85 #135 the invoice carries the order number (Buyer\'s Order No)', inv85?.data?.details?.buyerOrderNo === soId, inv85?.data?.details?.buyerOrderNo);
+    row = await ordersTab85();
+    check('v85 #135 the order is Invoiced', (await row.locator('.type-badge', { hasText: /^Invoiced$/ }).count()) === 1, (await row.textContent()).replace(/\s+/g, ' ').slice(0, 120));
+    await page.evaluate((m) => { if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m); }, modules85);
+  }
+
+  // ---- v1.10.85 (#168): Return to supplier makes a debit note: stock and
+  // GSTR-3B ITC go down; cancelling it puts both back.
+  {
+    const get85 = (url) => page.evaluate(async (url) => (await fetch(url)).json(), url);
+    const stock85 = async () => (await get85('/api/products')).find((x) => x.id === 'smoketest-ret85')?.stock;
+    const prof85 = await get85('/api/profile');
+    await api('/api/products', { id: 'smoketest-ret85', name: 'Smoke Return Item', hsn: '9608', rate: 100, taxPercent: 18, unit: 'Nos', stock: 10 });
+    await api('/api/purchases', { id: 'smoketest-pur85', date: today, supplierName: 'Smoke Return Supplier', supplierGstin: '07AAAAA0000A1Z1',
+      invoiceNumber: 'SMK-RET-85', paymentStatus: 'Unpaid', interstate: false, ownerGstin: prof85.gstin || '', ownerName: prof85.businessName || '',
+      items: [{ name: 'Smoke Return Item', hsn: '9608', quantity: 10, rate: 100, taxPercent: 18, cessPercent: 0 }], totalAmount: 1180, totalTax: 180, taxableAmount: 1000 });
+    const itcBefore = await netItc();
+    await reopenView('Purchases');
+    await page.getByRole('button', { name: 'Return goods on SMK-RET-85 to supplier' }).click();
+    await page.getByLabel('Return quantity of Smoke Return Item').fill('3');
+    await page.getByRole('button', { name: 'Save debit note' }).click();
+    await sleep(2500);
+    const dn85 = (await get85('/api/debit-notes')).find((d) => d.purchaseId === 'smoketest-pur85');
+    check('v85 #168 Return to supplier saves a debit note (DN/...) against the bill, and 3 go out of stock',
+      /^DN\//.test(dn85?.dnNumber || '') && dn85?.billNumber === 'SMK-RET-85' && dn85?.items?.[0]?.quantity === 3 && (await stock85()) === 7,
+      `dn=${dn85?.dnNumber} qty=${dn85?.items?.[0]?.quantity} stock=${await stock85()}`);
+    const returnsTab = (await page.getByRole('button', { name: /Returns \(\d+\)/ }).count()) > 0;
+    const itcAfter = await netItc();
+    check('v85 #168 GSTR-3B Net ITC is 54 less (GST on 3 x 100 @ 18%), with the return shown', close(itcAfter, itcBefore - 54)
+      && (await page.locator('tr', { hasText: 'Less: purchase returns (debit notes)' }).count()) > 0 && returnsTab, `${itcBefore} -> ${itcAfter}, Returns tab ${returnsTab}`);
+    await reopenView('Purchases');
+    const balance = (await page.locator('tr', { hasText: 'SMK-RET-85' }).first().innerText()).replace(/\s+/g, ' ');
+    check('v85 #168 the bill now owes 1180 - 354 = 826', /826\.00/.test(balance), balance.slice(0, 160));
+    await page.getByRole('button', { name: /Returns \(\d+\)/ }).click();
+    await page.getByRole('button', { name: `More actions for ${dn85?.dnNumber}` }).click();
+    await page.getByRole('menuitem', { name: 'Cancel debit note' }).click();
+    await sleep(400);
+    await page.getByRole('button', { name: 'Cancel debit note' }).last().click();
+    await sleep(2000);
+    const itcCancelled = await netItc();
+    check('v85 #168 cancelling the debit note puts the stock and the ITC back', (await stock85()) === 10 && close(itcCancelled, itcBefore), `stock=${await stock85()} itc ${itcBefore} -> ${itcCancelled}`);
+    await page.evaluate(async (id) => {
+      await fetch(`/api/debit-notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await fetch('/api/purchases/smoketest-pur85', { method: 'DELETE' });
+    }, dn85?.id || 'none');
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {

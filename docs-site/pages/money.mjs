@@ -334,8 +334,9 @@ export default [
 <ul>
   <li><strong><a href="purchases.html">Purchase bills</a></strong> dated in the period: their GST goes to IGST if the purchase is marked inter-state, otherwise half to CGST and half to SGST.</li>
   <li><strong><a href="expenses.html#gst-credit">Expenses</a></strong> dated in the period with a GST amount: the same way.</li>
+  <li><strong>Less <a href="purchases.html#purchase-returns">purchase returns</a></strong> (debit notes dated in the period, not cancelled): the GST on the goods sent back, head by head, the way the supplier's credit note is netted off in GSTR-2B.</li>
 </ul>
-<p>The row <b>(A) ITC Available — All other ITC</b> is the portal's Table 4(A)(5), where ordinary purchase credit goes. <b>Net ITC Available</b> is the same figure, because the app does not reverse any credit. Cess on purchases is sent in the 3B JSON.</p>
+<p>The row <b>(A)(5) ITC Available — All other ITC</b> is the portal's Table 4(A)(5), where ordinary purchase credit goes; with returns in the period it says <b>(net of returns)</b>, and two rows above it show the credit before returns and <b>Less: purchase returns (debit notes)</b>. <b>Net ITC Available</b> is the same figure. Only when a month's returns are more than its credit does a row <b>(B)(2) ITC reversed</b> appear: that extra is added to the tax to pay in Table 6 and sent as ITC reversed in the 3B JSON. Cess on purchases (less cess on returns) is sent in the 3B JSON.</p>
 <div class="note warn"><strong>Not all GST paid is credit</strong>
 <p>The app counts every GST amount you entered. Some is not claimable: food and drinks, personal spending, motor cars in most cases, bills without your GSTIN on them, or invoices the supplier has not reported (not in GSTR-2B). Leave such GST out of the expense, or reduce the figure on the portal. Ask your CA if unsure.</p></div>
 </section>

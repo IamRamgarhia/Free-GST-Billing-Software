@@ -182,7 +182,7 @@ app.use((req, res, next) => {
 });
 
 // Ensure data directory and sub-directories exist
-const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases', 'productions', 'purchase-orders', 'cash-book'];
+const DIRS = ['bills', 'clients', 'templates', 'products', 'expenses', 'recurring', 'receipts', 'profiles', 'purchases', 'productions', 'purchase-orders', 'cash-book', 'debit-notes'];
 // v1.10.83 - a data folder the app may not write to (inside Program Files, a
 // read-only drive, antivirus "controlled folder access") or a full disk used
 // to crash here with a raw stack trace the launcher never showed. Say it in
@@ -761,6 +761,38 @@ app.post('/api/purchase-orders', (req, res) => {
   res.json({ success: true, id: order.id });
 });
 
+// v1.10.85 (#168) - debit notes (purchase returns), a folder of their own like
+// purchase orders: GSTR-2B matching and every purchase total read
+// data/purchases, so a return can never be counted as a purchase. Cancelled
+// ones keep their number; Delete removes the file (the page puts the stock
+// back first, as for a purchase bill).
+app.get('/api/debit-notes', (req, res) => {
+  const notes = readAllFromDir('debit-notes');
+  notes.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.dnNumber || '').localeCompare(String(a.dnNumber || '')));
+  res.json(notes);
+});
+
+app.post('/api/debit-notes', (req, res) => {
+  const note = req.body;
+  if (!note || typeof note !== 'object' || Array.isArray(note)) return errRes(res, 400, 'bad-request');
+  if (note.id !== undefined && (typeof note.id !== 'string' || !note.id.trim())) return errRes(res, 400, 'bad-request');
+  if (!Array.isArray(note.items) || !note.items.length) return res.status(400).json({ error: 'A debit note needs at least one returned item', code: 'bad-request' });
+  if (!note.id) note.id = 'dn_' + Date.now() + crypto.randomBytes(3).toString('hex');
+  const dir = path.join(DATA_DIR, 'debit-notes');
+  const filePath = path.join(dir, safeFileName(note.id) + '.json');
+  if (!isPathInside(filePath, dir)) return errRes(res, 400, 'invalid-path');
+  writeJSON(filePath, note);
+  res.json({ success: true, id: note.id });
+});
+
+app.delete('/api/debit-notes/:id', (req, res) => {
+  const dir = path.join(DATA_DIR, 'debit-notes');
+  const filePath = path.join(dir, safeFileName(req.params.id) + '.json');
+  if (!isPathInside(filePath, dir)) return errRes(res, 400, 'invalid-path');
+  deleteFile(filePath);
+  res.json({ success: true });
+});
+
 // v1.10.83 - the cash book's own entries (cash recorded on invoices, receipts
 // and expenses is read from those, never copied here). Checked with the same
 // rules as the form, and only known fields are stored.
@@ -1203,6 +1235,7 @@ app.get('/api/export', (req, res) => {
     purchases: readAllFromDir('purchases'),
     productions: readAllFromDir('productions'), // v1.10.83 (#115)
     purchaseOrders: readAllFromDir('purchase-orders'),
+    debitNotes: readAllFromDir('debit-notes'), // v1.10.85 (#168)
     cashBook: readAllFromDir('cash-book'),
     // v1.10.77 - never the PIN hash: a backup file can travel (email, Drive).
     meta: withoutLock(readJSON(META_PATH, {})),
@@ -1237,6 +1270,7 @@ app.post('/api/import', (req, res) => {
     purchaseCount: 0, purchaseSkipped: 0,
     productionCount: 0, productionSkipped: 0,
     purchaseOrderCount: 0, purchaseOrderSkipped: 0,
+    debitNoteCount: 0, debitNoteSkipped: 0,
     cashBookCount: 0, cashBookSkipped: 0,
   };
 
@@ -1268,6 +1302,9 @@ app.post('/api/import', (req, res) => {
   // already hold the stock these entries moved, so nothing is applied again.
   (data.productions || []).forEach(p => upsertOne('productions', p, 'productionCount', 'productionSkipped'));
   (data.purchaseOrders || []).forEach(p => upsertOne('purchase-orders', p, 'purchaseOrderCount', 'purchaseOrderSkipped'));
+  // v1.10.85 (#168) - saved as they are: the products in the same backup
+  // already hold the stock these returns moved.
+  (data.debitNotes || []).forEach(p => upsertOne('debit-notes', p, 'debitNoteCount', 'debitNoteSkipped'));
   // v1.10.83 - a cash entry that fails the form's checks is skipped, not saved.
   (data.cashBook || []).forEach(c => { if (validateCashEntry(c)) counts.cashBookSkipped++; else upsertOne('cash-book', cleanCashEntry(c), 'cashBookCount', 'cashBookSkipped'); });
 

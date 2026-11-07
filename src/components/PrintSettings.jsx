@@ -923,6 +923,7 @@ export default function PrintSettings() {
               { key: 'composition',     label: 'Composition',       def: 'COMP' },
               { key: 'credit-note',     label: 'Credit Note',       def: 'CN'   },
               { key: 'delivery-challan',label: 'Delivery Challan',  def: 'DC'   },
+              { key: 'sales-order',     label: 'Sales Order',       def: 'SO'   },
             ].map(({ key, label, def }) => (
               <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: '0.5rem', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: '0.82rem' }}>{label}</span>

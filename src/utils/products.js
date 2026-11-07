@@ -42,8 +42,10 @@ export const bulkRowToProduct = (product, edits) => {
 // v1.10.83 (#115) - production entries dated after it are undone the same
 // way, from each entry's own stock record (raw materials back, made goods out).
 // v1.10.83 (#121) - services have no stock and are left out.
+// v1.10.85 (#168) - purchase returns (debit notes) dated after it are undone
+// from their own stock record too (the goods sent back come back).
 // Returns Map(productId -> quantity).
-export const closingStock = (products, bills, purchases, asOf, productions = []) => {
+export const closingStock = (products, bills, purchases, asOf, productions = [], debitNotes = []) => {
   const qty = new Map((products || []).filter((p) => !isServiceProduct(p)).map((p) => [p.id, Number(p.stock) || 0]));
   const byName = new Map((products || []).map((p) => [String(p.name || '').trim().toLowerCase(), p.id]));
   for (const pur of purchases || []) {
@@ -59,7 +61,7 @@ export const closingStock = (products, bills, purchases, asOf, productions = [])
       if (qty.has(id)) qty.set(id, qty.get(id) - change);
     }
   }
-  for (const pr of productions || []) {
+  for (const pr of [...(productions || []), ...(debitNotes || [])]) {
     if (!pr?.date || pr.date <= asOf) continue;
     for (const [id, change] of Object.entries(pr.stockApplied || {})) {
       if (qty.has(id)) qty.set(id, qty.get(id) - (Number(change) || 0));

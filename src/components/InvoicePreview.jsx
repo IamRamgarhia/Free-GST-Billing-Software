@@ -1106,7 +1106,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
     words: (n) => (currencySymbol === 'INR' ? `INR ${numberToWords(n)}` : amountInWords(n)),
     shortDate: formatShortDate,
     isServices: (options.invoiceMode || 'goods') === 'services',
-    docLabel: ({ quotation: 'Quotation', proforma: 'Proforma', 'credit-note': 'Credit Note', 'delivery-challan': 'Challan' })[invoiceType] || 'Invoice',
+    docLabel: ({ quotation: 'Quotation', proforma: 'Proforma', 'credit-note': 'Credit Note', 'delivery-challan': 'Challan', 'sales-order': 'Sales Order' })[invoiceType] || 'Invoice',
     placeOfSupply: placeOfSupplyText, clientAbroad, clientCountry, clientTaxIdLabel, paymentLink, purposeCode,
     shipTo: shipToParty,
     sig: gridSig,

@@ -148,10 +148,11 @@ export default [
 
 <section id="invoice-list">
 <h2>Finding an invoice</h2>
-<p><b>Three tabs at the top of the list:</b></p>
+<p><b>Tabs at the top of the list:</b></p>
 <table>
   <tr><th>Tab</th><th>Shows</th></tr>
   <tr><td>${ui('Invoices')}</td><td>Your invoices, quotations and other documents, except cancelled ones.</td></tr>
+  <tr><td>${ui('Sales orders')}</td><td>Only when <a href="invoices.html#sales-orders">Sales orders</a> are turned on: your customers' orders, with their dispatch status (Open, Partly dispatched, Dispatched, Invoiced), and the truck (<b>Make delivery challan</b>) and green page (<b>Invoice the rest</b>) buttons. Orders are then not listed under Invoices.</td></tr>
   <tr><td>${ui('Cancelled')}</td><td>Cancelled invoices. They keep their numbers and count for nothing in totals, reports and GST returns. ${ui('Undo cancel')} on a row puts it back in Invoices.</td></tr>
   <tr><td>${ui('Trash')}</td><td>Deleted invoices, with the days left. Each waits 30 days, then it is removed for good. ${ui('Restore')} puts it back in your invoices (with its stock); ${ui('Delete forever')} removes it at once.</td></tr>
 </table>

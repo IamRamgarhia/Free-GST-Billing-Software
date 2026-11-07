@@ -83,6 +83,31 @@ a backup is made first.
   due, a repair not yet paid) shows as **Outstanding**; click it to list only
   those, and *Mark as paid* when you pay. The Cash book counts only what was
   paid in cash. Expenses entered before are Paid, as they were.
+- **Sales orders, with a dispatch status** (#135, #112, #115): the order
+  between the quotation and the invoice. Turn it on in **Settings → Features
+  → Sales orders** (already on for the Wholesale, Manufacturing and Everything
+  business types). Make one with **New Invoice → Sales Order**, or from an
+  accepted quotation (**⋯ → Make sales order**); it has its own numbers
+  (`SO/2026-27/0001`) and prints and shares like a quotation, but it is never
+  counted as a sale, never in GST returns and never moves stock. The
+  Dashboard gets a **Sales orders** tab beside Invoices, Cancelled and Trash:
+  each order shows **Open**, **Partly dispatched**, **Dispatched** or
+  **Invoiced**, how much has gone ("4 of 10 sent") and its challans and
+  invoices. The truck button makes a **delivery challan** for some or all of
+  what is left to send; the green button **invoices the rest** in one go
+  (challans not yet invoiced are taken in, so their goods leave stock only
+  once). The challan or invoice carries the order number (Buyer's Order No).
+- **Purchase returns: debit notes** (#168): on a purchase bill, the new
+  return button (**Return to supplier**) lets you pick the items and
+  quantities going back, and makes a **Debit Note** (`DN/26-27/0001`) against
+  that bill, with its number and date, to download or print for the supplier.
+  The goods go out of stock, the bill's balance (and Party Outstanding) goes
+  down, the Purchases totals and cost-centre and income-tax purchase figures
+  are less the return, and **GSTR-3B Table 4(A)(5)** input tax credit is
+  reduced by the GST on it in the month of the debit note (as GSTR-2B nets off
+  the supplier's credit note). A **Returns** tab on Purchases lists them;
+  **Cancel debit note** (or Delete) undoes all of it. GSTR-2B matching is
+  unchanged.
 
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only

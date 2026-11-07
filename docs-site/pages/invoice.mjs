@@ -53,6 +53,7 @@ export default [
   <tr><th>Chip</th><th>Prints as</th><th>Numbered</th><th>Use it for</th><th>GST</th><th>Counts as a sale?</th></tr>
   <tr><td>Tax Invoice</td><td>TAX INVOICE</td><td>INV…</td><td>A normal sale by a GST-registered business</td><td>Yes</td><td>Yes</td></tr>
   <tr><td>Quotation</td><td>QUOTATION</td><td>QUO…</td><td>A priced offer for work or supply. Convert it to a tax invoice when the client accepts.</td><td>Shown</td><td>No</td></tr>
+  <tr><td>Sales Order</td><td>SALES ORDER</td><td>SO…</td><td>The customer's confirmed order, sent in parts with delivery challans and then invoiced. Only when <a href="#sales-orders">Sales orders</a> are turned on.</td><td>Shown</td><td>No</td></tr>
   <tr><td>Proforma / Estimate</td><td>PROFORMA INVOICE</td><td>EST…</td><td>A quote before the sale. Prints "This is not a tax invoice" and a faint ESTIMATE watermark.</td><td>Shown</td><td>No</td></tr>
   <tr><td>Bill of Supply (No GST)</td><td>BILL OF SUPPLY</td><td>BOS…</td><td>Exempt goods or services, where no GST is charged</td><td>No</td><td>Yes</td></tr>
   <tr><td>Composition (Bill of Supply)</td><td>BILL OF SUPPLY</td><td>COMP…</td><td>Sales under the composition scheme (section 10). The declaration required by Rule 46A prints automatically.</td><td>No</td><td>Yes</td></tr>
@@ -614,6 +615,28 @@ export default [
 <section id="proforma-to-invoice">
 <h2>Turning a quote into an invoice</h2>
 <p>When a client accepts a Quotation or a Proforma / Estimate, click ${ui('Convert to Tax Invoice')} on it in the Dashboard. A new tax invoice opens with the same client and items, and gets its own number when you save it. The same works for a delivery challan. Once saved, the original shows <b>Converted</b> and its Convert button goes away, so it cannot be turned into a second invoice by mistake.</p>
+</section>
+
+<section id="sales-orders">
+<h2>Sales orders: order, dispatch, invoice</h2>
+<p>A sales order records what a customer has ordered from you, before the goods go. It prints and shares like a quotation (title <b>SALES ORDER</b>, numbered <code>SO/2026-27/0001</code>), but it is <b>not a sale</b>: it is never in your totals, reports or GST returns, and it never changes stock. Stock moves when the goods actually go, on the delivery challan or the invoice made from it.</p>
+<p>Turn it on in <a href="settings.html#features">Settings, Features</a>: tick <b>Sales orders</b> under <b>Invoice screen</b>, and save. It is on to start if you picked <b>Wholesale / trading</b>, <b>Manufacturing</b> or <b>Everything</b> as your <a href="settings.html#business-type">business type</a>. The Dashboard's invoice list then has a ${ui('Sales orders')} tab beside ${ui('Invoices')}, ${ui('Cancelled')} and ${ui('Trash')}, and the orders move there from the Invoices tab.</p>
+<ol class="steps">
+  <li><strong>Make the order</strong>${ui('New Invoice')}, pick the ${ui('Sales Order')} chip, fill in the customer and items, and ${ui('Save')}. From an accepted quotation: on the Dashboard, its ${ui('⋯')} menu, ${ui('Make sales order')} (the quotation then shows <b>Converted</b>). Type the customer's own PO number in <b>Buyer's Order No</b> under <a href="#order-details">order details</a> if they gave you one.</li>
+  <li><strong>Send part of it</strong>On the ${ui('Sales orders')} tab, click the truck, <b>Make delivery challan</b>. A delivery challan opens with everything still to send; change each <b>Qty</b> to what goes now, and ${ui('Save')}. Its stock goes out, and the order shows <b>Partly dispatched</b>. Do it again for the next lot: only what is still to send is filled in.</li>
+  <li><strong>Invoice it</strong>Click the green page, <b>Invoice the rest</b>. One tax invoice opens for everything not yet invoiced: what is still to send plus what went on challans that are not invoiced yet. Those challans are taken into this invoice (they show <b>Converted</b>), so their goods leave stock only once. ${ui('Save')}, and the order shows <b>Invoiced</b>. You can also convert each challan to its own invoice from the Invoices tab, as for any challan.</li>
+  <li><strong>Get paid</strong>Payments are recorded on the invoices, as always.</li>
+</ol>
+<div class="table-wrap"><table>
+  <tr><th>Status</th><th>Means</th></tr>
+  <tr><td>Open</td><td>Nothing sent or invoiced from it yet.</td></tr>
+  <tr><td>Partly dispatched</td><td>Some of it has gone on challans or invoices.</td></tr>
+  <tr><td>Dispatched</td><td>Everything has gone, but not all of it is invoiced.</td></tr>
+  <tr><td>Invoiced</td><td>Invoices cover every item.</td></tr>
+  <tr><td>Cancelled</td><td>You cancelled it (${ui('⋯')}, ${ui('Cancel order')}). It keeps its number and moves to the Cancelled tab.</td></tr>
+</table></div>
+<p>Under the status each order shows how much has gone (<b>4 of 10 sent</b>, and how much is invoiced) and the numbers of its challans and invoices. Opening a saved order shows the same under the type chips; a challan or invoice made from an order says <b>Made from sales order</b> with its number. The order's number prints on them as <b>Buyer's Order No</b> with the order date, or, when the order already has the customer's PO number there, as <b>Reference No &amp; Date</b>.</p>
+<p>The status is worked out from the challans and invoices made from the order each time you look, so cancelling or deleting one of them puts its quantity back on the order. Items are matched by their line on the order, so keep each item on its own line.</p>
 </section>
 
 <section id="cancel">
