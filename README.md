@@ -76,7 +76,7 @@ Pick your computer. Every link below always gets the newest version. Your invoic
 
 No administrator password and no Node.js to install: everything it needs is inside. **Updates:** the app shows *Update to vX* → **Update Now** (no reinstalling). **Removing:** Windows **Settings → Apps → Installed apps → Free GST Billing → Uninstall** (it asks before deleting your books; the answer is No unless you choose Yes). Full guide: [Install on Windows](https://dicecodes.com/free-gst-software-documentation/install.html).
 
-Other ways on Windows: [one PowerShell line](#option-0-one-line-no-zip-no-smartscreen--gatekeeper-warning-no-npm) (no SmartScreen box) or [the ZIP](#-install-in-60-seconds--one-launcher-per-platform).
+Other ways on Windows: [one PowerShell line](#option-0-one-line-no-zip-no-smartscreen--gatekeeper-warning-no-npm) (no SmartScreen box) or [the ZIP](#the-zip-one-launcher-per-system).
 
 ### macOS
 
@@ -108,7 +108,9 @@ Use the ZIP with `Free GST Billing - LINUX.sh` (steps below), or the one-line `i
 
 ---
 
-## ⚡ Install in 60 Seconds — one launcher per platform
+## The ZIP: one launcher per system
+
+**On Windows, the [Setup program](#download-and-install) is the easier way.** The ZIP is for a Mac, Linux or a NAS, and for Windows PCs where you would rather not install anything (a USB stick, an office PC). Every copy made from the ZIP updates itself from inside the app.
 
 The download ZIP holds a **launcher for each system**, a plain-English **`READ ME FIRST.txt`**, and a `_system/` folder with everything else. Extract the ZIP, double-click the launcher for your computer, click **Install** — it sets itself up, needs no administrator rights, and opens the app in your browser when it is done.
 
@@ -192,7 +194,7 @@ More screenshots, next to the steps they show, in the [documentation](https://di
 ## 📑 Table of Contents
 
 - [Download and install](#download-and-install) — *Windows Setup, Mac, Linux (.deb, AppImage), NAS*
-- [Install in 60 Seconds](#-install-in-60-seconds--one-launcher-per-platform) — *the ZIP, one launcher per system*
+- [The ZIP](#the-zip-one-launcher-per-system) — *one launcher per system*
 - [Why Choose Free GST Billing Software?](#why-choose-free-gst-billing-software)
 - [Your First Invoice in 5 Minutes](#your-first-invoice-in-5-minutes) — *start here if you're new*
 - [Key Features](#key-features)
@@ -631,87 +633,41 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 ## Roadmap
 
-### :white_check_mark: Recently Delivered (v1.10 series — 2026)
+One update every Saturday. Dates are plans: if a week fills up, the least-used item moves to the next week, and we say so on its issue. Full history: [CHANGELOG.md](./CHANGELOG.md).
 
-- [x] **A page break never cuts through the signature or stamp** — the whole footer moves to the next page instead (v1.10.70)
-- [x] **Optional "system-generated invoice, no signature required" note** below Terms & Conditions (v1.10.70, #72)
-- [x] **One launcher for everything on Windows** — install, open and update from a single file, with its own icon and an auto-refreshing status (v1.10.69), plus a one-command PowerShell install
-- [x] **Install needs no administrator rights** — Node.js is set up inside the app folder if the PC does not have it, and the app opens in the browser by itself (v1.10.69)
-- [x] **Getting started checklist** on the Dashboard that ticks itself off from what you have actually set up (v1.10.69)
-- [x] **Purchase status dropdown**, Customize in the toolbar, and click-to-replace number fields in purchases (v1.10.69, #71)
-- [x] **A GSTIN fills in the client's state** and catches its own typos, offline (v1.10.68)
-- [x] **Cancel Invoice instead of deleting one** — the number stays in the books, the PDF is stamped CANCELLED, and it drops out of every total and return (v1.10.67)
-- [x] **Totals count only real sales** — proforma and delivery challans no longer inflate turnover; credit notes subtract (v1.10.67)
-- [x] **Company stamp beside the signature**, each with its own size slider (v1.10.67)
-- [x] **Separate books per business** — invoices, expenses, purchases, receipts, recurring templates, reports, GST returns and Income Tax all follow the selected company (v1.10.64–1.10.66)
-- [x] **Linux / NAS in-app updater** — Control Panel → Update Now works outside Windows (v1.10.66)
-- [x] **Mobile sidebar** — the menu hides behind ☰ on a phone so pages get the full width (v1.10.66)
-- [x] **Notifications can be cleared** and return when something new happens (v1.10.62)
-- [x] **Blank invoices and empty purchase bills can no longer be saved** (v1.10.58)
-- [x] **Purchase bills remember your suppliers and items** (v1.10.50)
-- [x] **One-file launcher per OS + in-app ⚙ Control Panel** — update, backup, restore, move PC, stop server (v1.10.44)
-- [x] **Direct-HTML vector thermal print with PDF fallback toggle** (v1.10.42)
-- [x] **Payment/receipt reconciliation** — orphaned receipts auto-heal on Dashboard load (v1.10.41)
-- [x] **REPRINT badge** repositioned + default OFF for non-retail (v1.10.41)
-- [x] **PDF Save & Download crash fix** — swapped `color-mix(oklab)` for `rgba()` (v1.10.40)
-- [x] **Bill of Supply / Delivery Challan** correctly remove GST from invoice total (v1.10.39)
-- [x] **Invoice PDF polish** — accent TOTAL DUE anchor, footer containers, smart Terms default (v1.10.38)
-- [x] **Payment Accounts — Account Holder Name + Account Type** on bank block (v1.10.37)
-- [x] **Portal print preview + settings redesign + business-type gating** (v1.10.36)
-- [x] **Vector-HTML thermal preview + OCR line items with catalog fuzzy-match** (v1.10.35)
-- [x] **In-app ConfirmModal + PromptModal** — every native browser confirm/prompt replaced (v1.10.34)
-- [x] **Thermal print rewrite + CSP fix + OCR offline bundling** (v1.10.33)
-- [x] **Complete 4-mode discount system** — Net / Unit / Price-with-Tax + invoice-level Total (v1.10.25)
-- [x] **Client credit balance** — overpayment carries forward and applies to next bill (v1.10.24)
-- [x] **Focus mode + Ctrl+K command palette + Notification bell** — POS-speed keyboard flow
-- [x] **DOM-level pagination + GST Rule 48 multi-copy** — page breaks respect row boundaries
-- [x] **UTGST bucket** for Chandigarh / Ladakh / A&N / Lakshadweep / DN&DD (Chapter II compliance)
-- [x] **TCS 206C(1H) on receipt-including-GST** per CBDT Circular 17/2020 + ₹50L threshold
-- [x] **9 one-click design presets** + full user-configurable PDF colours + font scale
-- [x] **Multi-language section labels** — English / Hindi / Tamil / Marathi / Bengali
-- [x] **Automatic daily backup + Trash bin** + transactional restore (rollback on error)
-- [x] **Bulk PDF export** with progress + cancel
-- [x] **Income Tax (ITR)** computation — old/new regime, 234B/C interest, surcharge cap
-- [x] **Setup wizard** with 6 business-type presets
+### :white_check_mark: Just released: v1.10.84 (7 November 2026)
 
-### :rocket: Coming Soon
+- [x] **A Windows Setup program**: installs like any other program, opens in its own window, stays near the clock when closed, updates itself; your earlier copy is never changed
+- [x] **Linux packages**: `.deb` for Ubuntu, Linux Mint and Debian, and an AppImage for any 64-bit Linux
+- [x] **Invoices, Cancelled and Trash tabs**; Delete moves invoices to the Trash for 30 days (restore or delete forever)
+- [x] **Import from Vyapar, Tally and Excel** ([#130](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/130), [#131](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/131)); imported invoices add new items to Products ([#170](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/170))
+- [x] **Profit & Loss counts the cost of goods sold** ([#146](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/146))
+- [x] **Size billing (Sq.ft)** for glass, mirror and flex shops ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140)), **your own fields on invoices** ([#126](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/126)), **unit NA** for services ([#143](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/143)), a **customer phone box** ([#129](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/129))
+- [x] **GSTR-1 file**: exports, nil-rated / exempt and deemed exports; **income tax for 2026-27**
+- [x] **Search invoices by order ID, AWB, phone or GSTIN** ([#172](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/172)); **delete many products at once** ([#177](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/177)); **Settings in 6 tabs**
 
-- [ ] **Bank Statement Import** + ITR Filing Summary PDF *(see [docs/TAX_HELPER_PLAN.md](./docs/TAX_HELPER_PLAN.md))*
-- [ ] **Tally XML export + Tally-format ledger import**
-- [ ] **Recurring invoices: scheduled auto-generate + email/WhatsApp dispatch**
-- [ ] **WhatsApp Business API integration** — one-click invoice send (currently opens WA Web with pre-filled text)
-- [ ] **Barcode scanning for products** (PWA camera)
-- [ ] **E-Invoicing (IRN)** — Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr)*
+### :rocket: Next update: Saturday 14 November 2026
 
-### :calendar: Planned Features
+- [ ] **Phone and tablet on the same Wi-Fi**: pair with a QR code and a PIN, encrypted ([#142](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/142), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115), [#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), and a Docker image for a NAS
+- [ ] **Sales orders → invoice** ([#135](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/135), [#112](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/112))
+- [ ] **Barcode**: a barcode on each product, scan with a USB scanner on New Invoice, print labels ([#137](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/137), [#158](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/158))
+- [ ] **Running-feet (RFT) lines** taken from the glass lines on the same invoice ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140))
+- [ ] **Discount on purchase bills** ([#171](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/171)) and an optional **serial number on each purchase line** ([#160](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/160))
+- [ ] **TDS / TCS under the Income-tax Act, 2025**: new section and table numbers and rates ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180))
+- [ ] **Dashboard totals for a chosen month or year**
 
-- [ ] **E-Invoicing (IRN)** — generate Invoice Reference Number via IRP portal *(mandatory for AATO > ₹5 cr — see [docs/COMPETITOR_GAPS.md](./docs/COMPETITOR_GAPS.md))*
-- [ ] **Bulk E-Invoicing** — generate IRN for multiple invoices at once
-- [ ] **Direct GSTR-1/3B portal upload** *(currently we generate the JSON, user uploads via offline tool — direct submission requires GSP partnership)*
-- [ ] **RCM self-invoice** for purchases from unregistered suppliers *(the reverse-charge switch, the "Reverse Charge: Yes / No" line on tax invoices and the GSTR-1 / GSTR-3B reporting already ship)*
-- [ ] **GST Cess** (compensation cess on tobacco/auto/coal)
-- [ ] **Composition scheme** invoice variant with Rule 46A declaration
-- [ ] **Automatic Payment Reminders** — email + WhatsApp for overdue invoices
-- [ ] **Android & iOS Mobile App** — native apps for billing on the go
-- [ ] **Multi-Language Support** — Hindi, Tamil, Telugu, Gujarati, Marathi
-- [ ] **AI-Powered Expense Categorization** — auto-classify expenses
-- [ ] **Shopify / WooCommerce Integration** — sync orders and generate invoices
-- [ ] **Customer Self-Service Portal** — shareable link for clients to view and pay invoices
-- [ ] **Payment-gateway pay-links** on invoices (Razorpay / Stripe / Cashfree)
-- [ ] **Multi-user access with roles** (admin, billing, view-only)
-- [ ] **Advanced Inventory** — batch tracking, expiry dates, warehouse management
-- [ ] **Payroll & Salary Management** — employee salary processing with TDS
-- [ ] **Balance Sheet & Cash Flow Reports** — complete financial reporting
+### :calendar: Later in November
 
-### :bulb: Community Requested (still open)
+- **21 November:** purchase return / debit note ([#168](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/168)), matching your bank statement against sales and purchases ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), price levels (MRP / wholesale / retail), credit-limit warning, stock adjustment and reorder → purchase order, locking a filed period with edit history
+- **28 November:** balance sheet and trial balance, fixed assets and depreciation, item variants, serial / IMEI and warranty tracking ([#122](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/122)), batch and expiry
 
-- [ ] Party-wise discount settings
-- [ ] Multiple price lists (wholesale / retail)
-- [ ] Sales order & purchase order workflows
-- [ ] Item size / colour variants
-- [ ] Digital signature on invoices (DSC integration)
-- [ ] More industry-specific *invoice templates* (separate from the 13 Terms presets we already ship)
-- [ ] Branch-wise reporting
+### :mag: Being studied
+
+Each needs care to stay simple for everyone else: a marketplace order import ([#172](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/172)), purchase bills from GSTR-2B ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), a fast POS counter screen ([#169](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/169)), admin and employee logins ([#155](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/155)), an Android app ([#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), rental billing ([#163](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/163)), paid / unpaid expenses ([#165](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/165)).
+
+### :no_entry: Not planned
+
+These would need an online account, a paid GST provider (GSP) or a server of ours, and would send your data out of your computer: filing or fetching data directly from the GST portal ([#139](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/139), [#173](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/173)), live bank feeds, payment-gateway links, an online store or Shopify sync, a customer portal, cloud sync. The app stays free, offline and private.
 
 > **Want a feature?** [Ask for it here](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/new?template=feature_request.yml) and let us know.
 
