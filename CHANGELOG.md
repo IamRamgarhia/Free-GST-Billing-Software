@@ -236,11 +236,12 @@ a backup is made first.
 
 - **Close the books** (Settings -> Data & Backups): after filing a month's GST
   returns, close the books up to its last day. Invoices, purchases, expenses,
-  receipts, debit notes and cash book entries dated then can no longer be
-  added, deleted, or changed in their date, number, items, amounts, GST or
-  cancellation; recording a payment against them still works. The server
-  checks every save, so no screen or phone can get round it. **Open the
-  books** to correct a filed month.
+  debit notes, stock adjustments and cash book entries dated then can no
+  longer be added, deleted, or changed in their date, number, items, amounts,
+  GST or cancellation; recording a payment or a receipt against them still
+  works. The server checks every save, so no screen or phone can get round
+  it. **Open the books** (on the PC, with the app's PIN when the App lock is
+  on) to correct a filed month.
 - **Edit history**: every invoice, purchase, expense, receipt, debit note and
   cash book entry added, changed or deleted, with the time, its number, date
   and amount before and after (Settings -> Data & Backups -> Show the edit

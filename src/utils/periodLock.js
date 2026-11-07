@@ -14,6 +14,10 @@ const ACCOUNT_FIELDS = {
     isCancelled(b), b.clientName, b.data?.client?.gstin, b.data?.client?.state,
     b.data?.details?.placeOfSupply, b.data?.items, b.data?.totals?.total, b.data?.totals?.taxableAmount,
     b.data?.profile?.gstin, b.ownerGstin,
+    // (review) what moves an invoice between GSTR-1 tables with the same total:
+    // SEZ, export (country, LUT), reverse charge, and the CGST/SGST/IGST split.
+    b.data?.client?.isSEZ, b.data?.client?.country, b.data?.invoiceOptions?.isLUT, b.data?.invoiceOptions?.reverseCharge,
+    b.data?.totals?.cgst, b.data?.totals?.sgst, b.data?.totals?.utgst, b.data?.totals?.igst, b.data?.totals?.cess,
   ],
   // Supplier payments and the paid status are not here: they stay allowed.
   purchases: (p) => [
@@ -21,7 +25,9 @@ const ACCOUNT_FIELDS = {
     p.reverseCharge, p.applyRoundOff, p.ownerGstin, p.kind, p.status === 'cancelled',
   ],
   expenses: (e) => [e.date, e.amount, e.gstAmount, e.gstPercent, e.category, e.ownerGstin],
-  receipts: (r) => [r.date, r.amount, r.receiptNo, r.paymentMode, r.ownerGstin],
+  // Receipts are not locked (review, 8 Nov): a receipt is a payment, like a
+  // payment recorded on an old invoice, which stays allowed. Locking them left
+  // a paid invoice with no receipt when the payment date was in a closed month.
   'debit-notes': (d) => [d.date, d.dnNumber, d.items, d.status, d.billId, d.ownerGstin],
   'cash-book': (c) => [c.date, c.amount, c.type, c.ownerGstin],
   // v1.10.85 - stock written off or found moves the closing stock of that date.

@@ -819,6 +819,10 @@ export const clientYearToDate = (bills, clientName, invoiceDate, excludeId = nul
     if ((b.currency || 'INR') !== 'INR') return sum;
     if (String(b.clientName || '').trim().toLowerCase() !== name) return sum;
     if (!b.invoiceDate || getFinancialYearLabel(parseLocalDate(b.invoiceDate)) !== fy) return sum;
+    // v1.10.85 (review) - only what was billed up to this invoice's date: an
+    // old invoice opened again must not count the ones made after it (its
+    // TDS / TCS, and so its total, would change).
+    if (invoiceDate && String(b.invoiceDate).slice(0, 10) > String(invoiceDate).slice(0, 10)) return sum;
     return sum + (Number(b.totalAmount) || 0);
   }, 0);
 };
@@ -2381,6 +2385,33 @@ export const newActCode = (code, kind = 'tds') => {
   if (list.some((s) => s.code === code)) return code;
   const hits = list.filter((s) => s.old === code);
   return hits.length === 1 ? hits[0].code : null;
+};
+// A document's TDS / TCS moved to the 2025 Act: { section, rate }, or null when
+// it stays. The rate follows the new section only when it was the old one's
+// usual rate (a rate typed for a lower-deduction certificate stays).
+const OLD_DEFAULT_RATES = { '194H': [5, 2], '194O': [1, 0.1] }; // before / after 1 Oct 2024
+export const movedSection = (code, rate, kind = 'tds') => {
+  const to = code ? newActCode(code, kind) : null;
+  if (!to || to === code) return null;
+  const oldList = kind === 'tcs' ? TCS_SECTIONS : TDS_SECTIONS;
+  const newList = kind === 'tcs' ? TCS_SECTIONS_2025 : TDS_SECTIONS_2025;
+  const usual = [oldList.find((s) => s.code === code)?.rate, ...(OLD_DEFAULT_RATES[code] || [])];
+  const typed = Number(rate);
+  const keep = rate !== undefined && rate !== '' && !usual.includes(typed);
+  return { section: to, rate: keep ? rate : newList.find((s) => s.code === to)?.rate ?? rate };
+};
+// A document's options with its 1961 sections moved, when its date is under
+// the 2025 Act (recurring invoices made from an older template).
+export const withNewActSections = (opts = {}, date) => {
+  if (!underNewAct(date)) return opts;
+  const tds = movedSection(opts.tdsSection, opts.tdsRate, 'tds');
+  const tcs = movedSection(opts.tcsSection, opts.tcsRate, 'tcs');
+  if (!tds && !tcs) return opts;
+  return {
+    ...opts,
+    ...(tds ? { tdsSection: tds.section, tdsRate: tds.rate } : {}),
+    ...(tcs ? { tcsSection: tcs.section, tcsRate: tcs.rate } : {}),
+  };
 };
 // What an invoice, a PDF and the TDS / TCS report print for a section.
 export const sectionShort = (code) => {

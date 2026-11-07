@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Lock, LockOpen, History } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { toast } from './Toast';
-import { confirmAction } from './ConfirmModal';
-import { getPeriodLock, setPeriodLock, getEditHistory } from '../store';
+import { confirmAction, promptAction } from './ConfirmModal';
+import { getPeriodLock, setPeriodLock, getEditHistory, getLockStatus } from '../store';
 import { formatCurrency } from '../utils';
 
 // v1.10.85 - Settings -> Data: Close the books (nothing dated on or before the
@@ -14,7 +14,17 @@ const KIND_NAMES = {
   bills: 'Invoice', purchases: 'Purchase bill', expenses: 'Expense', receipts: 'Receipt',
   'debit-notes': 'Debit note', 'cash-book': 'Cash book entry', 'stock-adjustments': 'Stock adjustment', books: 'Books',
 };
-const ACTION_NAMES = { added: 'Added', changed: 'Changed', deleted: 'Deleted', restored: 'Restored from Trash', closed: 'Closed up to', opened: 'Opened' };
+const ACTION_NAMES = { added: 'Added', changed: 'Changed', deleted: 'Deleted', restored: 'Restored from Trash', closed: 'Closed up to', opened: 'Opened',
+  'backup-restored': 'Daily backup restored', imported: 'Backup imported (added)', 'imported-replace': 'Backup imported (replaced)' };
+// With the app's PIN on, the server asks for it (null = cancelled).
+const appPinIfOn = async () => {
+  const on = await getLockStatus().then((s) => !!s?.enabled).catch(() => false);
+  if (!on) return '';
+  const pin = await promptAction({ title: "Type the app's PIN", message: 'Closing or opening the books needs the PIN of the app lock.', inputType: 'password', placeholder: '6 or 8 digits', confirmLabel: 'OK' });
+  return pin ? pin.trim() : null;
+};
+// The server's answer to a wrong PIN, in words.
+const pinTrouble = (e) => (e?.body?.code === 'wait' ? `Too many wrong tries. Wait ${e.body.wait} seconds.` : e?.status === 401 ? 'Wrong PIN. Nothing changed.' : '');
 const when = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -41,21 +51,25 @@ export default function BooksLockSettings() {
       confirmLabel: 'Close the books',
     })) return;
     try {
-      const r = await setPeriodLock(typed);
+      const pin = await appPinIfOn();
+      if (pin === null) return;
+      const r = await setPeriodLock(typed, pin);
       setUpTo(r.upTo);
       toast(`The books are closed up to ${r.upTo}.`, 'success');
       if (history) loadHistory();
-    } catch { toast('Could not close the books.', 'error'); }
+    } catch (e) { toast(pinTrouble(e) || 'Could not close the books.', 'error'); }
   };
   const open = async () => {
     if (!await confirmAction({ title: 'Open the books again?', message: 'Everything can be changed again, including entries in months you have already filed. This is written in the edit history.', confirmLabel: 'Open the books', tone: 'warning' })) return;
     try {
-      await setPeriodLock('');
+      const pin = await appPinIfOn();
+      if (pin === null) return;
+      await setPeriodLock('', pin);
       setUpTo('');
       setTyped('');
       toast('The books are open.', 'success');
       if (history) loadHistory();
-    } catch { toast('Could not open the books.', 'error'); }
+    } catch (e) { toast(pinTrouble(e) || 'Could not open the books.', 'error'); }
   };
 
   const shown = (history || []).filter((h) => !kind || h.kind === kind);

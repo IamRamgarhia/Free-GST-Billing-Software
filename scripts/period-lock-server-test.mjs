@@ -66,17 +66,17 @@ try {
   ok((await call('GET', '/period-lock')).json?.upTo === '2026-09-30', 'the lock date is kept');
 
   const added = await call('POST', '/bills', bill('DC-0915', '2026-09-15'));
-  ok(added.status === 409 && added.json?.code === 'period-locked' && /2026-09-30/.test(added.json?.error || ''), 'a new invoice dated 15 Sep: refused, with the reason', JSON.stringify(added.json));
-  ok((await call('POST', '/bills?overwrite=1', bill('DC-0901', '2026-09-01', 2360))).status === 409, 'changing the amount of the 1 Sep invoice: refused');
-  ok((await call('POST', '/bills?overwrite=1', bill('DC-0901', '2026-09-01', 1180, { status: 'cancelled' }))).status === 409, 'cancelling it: refused');
+  ok(added.status === 423 && added.json?.code === 'period-locked' && /2026-09-30/.test(added.json?.error || ''), 'a new invoice dated 15 Sep: refused, with the reason', JSON.stringify(added.json));
+  ok((await call('POST', '/bills?overwrite=1', bill('DC-0901', '2026-09-01', 2360))).status === 423, 'changing the amount of the 1 Sep invoice: refused');
+  ok((await call('POST', '/bills?overwrite=1', bill('DC-0901', '2026-09-01', 1180, { status: 'cancelled' }))).status === 423, 'cancelling it: refused');
   const paid = bill('DC-0901', '2026-09-01', 1180, { status: 'paid', paidAmount: 1180, payments: [{ date: '2026-11-07', amount: 1180, mode: 'upi' }] });
   ok((await call('POST', '/bills?overwrite=1', paid)).status === 200, 'recording a payment on it: allowed');
-  ok((await call('DELETE', '/bills/DC-0901')).status === 409, 'deleting it: refused');
+  ok((await call('DELETE', '/bills/DC-0901')).status === 423, 'deleting it: refused');
   ok((await call('POST', '/bills', bill('DC-1005', '2026-10-05'))).status === 200, 'an invoice dated 5 Oct (after the lock): saves');
-  ok((await call('POST', '/expenses', { id: 'exp_aug', date: '2026-08-10', amount: 500, description: 'Tea' })).status === 409, 'an expense dated in the closed period: refused');
+  ok((await call('POST', '/expenses', { id: 'exp_aug', date: '2026-08-10', amount: 500, description: 'Tea' })).status === 423, 'an expense dated in the closed period: refused');
   // v1.10.85 - stock adjustments are dated records too.
   const adj = (id, date) => ({ id, date, productId: 'p1', productName: 'DiceCodes Pen', quantity: -2, reason: 'damaged', stockApplied: { p1: -2 } });
-  ok((await call('POST', '/stock-adjustments', adj('adj_sep', '2026-09-20'))).status === 409, 'a stock adjustment dated in the closed period: refused');
+  ok((await call('POST', '/stock-adjustments', adj('adj_sep', '2026-09-20'))).status === 423, 'a stock adjustment dated in the closed period: refused');
   const saved = await call('POST', '/stock-adjustments', { ...adj('adj_oct', '2026-10-20'), stockApplied: { p1: -999, other: 5 }, extra: 'dropped' });
   ok(saved.status === 200, 'one dated after it: saves');
   ok(JSON.stringify(saved.json?.record?.stockApplied) === '{"p1":-2}' && saved.json?.record?.extra === undefined,
@@ -91,10 +91,19 @@ try {
     'an open-period adjustment deletes, answering with what it moved');
   ok((await call('DELETE', '/stock-adjustments/adj_oct')).status === 404, 'deleting it again: 404 (so no stock is put back twice)');
 
-  ok((await call('POST', '/period-lock', { upTo: '' })).json?.upTo === '', 'open the books again');
+  // (review) Express matches any case, a trailing slash and %-encoding: so does the lock.
+  ok((await call('DELETE', '/BILLS/DC-0901/')).status === 423 && (await call('DELETE', '/bill%73/DC-0901')).status === 423, 'deleting by /api/BILLS/x/ or %-encoded: refused too');
+  ok((await call('POST', '/Expenses/', { id: 'exp_aug2', date: '2026-08-10', amount: 500 })).status === 423, 'saving by /api/Expenses/: refused too');
+  ok((await call('POST', '/meta/periodLock', { value: null })).status === 403 && (await call('GET', '/period-lock')).json?.upTo === '2026-09-30', 'the books cannot be opened through /api/meta');
+  ok((await call('POST', '/receipts', { id: 'rcp_sep', date: '2026-09-12', amount: 300 })).status === 200, 'a receipt dated in the closed period saves (it is a payment)');
+  // With the app's PIN on, opening (or closing) the books needs it.
+  ok((await call('POST', '/lock/set', { pin: '24681357' })).status === 200, 'turn the app PIN on');
+  ok((await call('POST', '/period-lock', { upTo: '' })).status === 401 && (await call('GET', '/period-lock')).json?.upTo === '2026-09-30', 'with the app PIN on: opening without it is refused');
+  ok((await call('POST', '/period-lock', { upTo: '', pin: '24681357' })).json?.upTo === '', 'open the books again (with the PIN)');
+  ok((await call('POST', '/lock/set', { pin: null, currentPin: '24681357' })).status === 200, 'turn the app PIN off');
   ok((await call('DELETE', '/bills/DC-0901')).status === 200, 'now it can be deleted (to the Trash)');
   ok((await call('POST', '/period-lock', { upTo: '2026-09-30' })).status === 200, 'close again');
-  ok((await call('POST', '/trash/DC-0901/restore')).status === 409, 'a closed-period invoice cannot come back from the Trash');
+  ok((await call('POST', '/trash/DC-0901/restore')).status === 423, 'a closed-period invoice cannot come back from the Trash');
   ok((await call('DELETE', '/bills/DC-1005')).status === 200, 'an open-period invoice still deletes');
   await call('POST', '/period-lock', { upTo: '' });
 

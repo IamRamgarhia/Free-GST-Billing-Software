@@ -19,6 +19,7 @@ eq(periodRange('month', ''), null, 'No month chosen yet: no limit');
 eq(periodRange('2026-2027'), { from: '2026-04-01', to: '2027-03-31' }, 'A financial year runs April to March');
 eq([inPeriod('2026-11-30', periodRange('this-month', '', nov7)), inPeriod('2026-12-01', periodRange('this-month', '', nov7))], [true, false], 'The last day is in, the next day is out');
 eq([inPeriod('', periodRange('this-month', '', nov7)), inPeriod('', null)], [false, true], 'An undated invoice counts only in All time');
+eq(inPeriod('2026-11-30T18:30:00.000Z', periodRange('this-month', '', nov7)), true, 'A date saved with a time counts on its last day');
 
 console.log(`\nperiod-test: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
