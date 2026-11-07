@@ -2056,7 +2056,7 @@ try {
     const shared79Shown = await toNew79();
     check('v79 #95 a business with its own numbering shows and numbers in its own series',
       /SMKB\/[\d-]*\/?0502\b|SMKB\/0502\b/.test(own79) && !/SMKB/.test(shared79Shown),
-      JSON.stringify({ own: (own79.match(/SMKB[^\s]*/) || ['-'])[0], shared: (shared79Shown.match(/[A-Z-]+\/[\d-]+\/\d+/) || ['-'])[0] }));
+      JSON.stringify({ own: (own79.match(/SMKB[^\s]*/) || own79.match(/[A-Z][A-Z-]*\/[\d-]+\/\d+/) || ['-'])[0], shared: (shared79Shown.match(/[A-Z-]+\/[\d-]+\/\d+/) || ['-'])[0] }));
     await post79('/api/meta/invoiceNumberSeries', { value: series79 || {} });
     await post79('/api/meta/' + encodeURIComponent('counter_INV@27AAPFS9999Q1Z1'), { value: null });
 
