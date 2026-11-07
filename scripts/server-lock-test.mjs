@@ -85,6 +85,19 @@ try {
   ok(lockC.pid === c.pid && lockC.host === os.hostname() && /^[0-9a-f-]{36}$/.test(lockC.id), 'The lock is now C\'s, with this PC\'s name and a random id');
   const v = await (await fetch(`http://127.0.0.1:${PORT}/api/version`)).json();
   ok(v.pid === c.pid && v.lockId === lockC.id && v.books === BOOKS, '/api/version says which server it is and which books it serves');
+
+  // ERR-084: an invoice last changed 60 days ago, deleted now, gets its 30
+  // days in the Trash (the move kept its old date: emptied at the next start).
+  {
+    const billFile = path.join(BOOKS, 'data', 'bills', 'old-bill.json');
+    fs.writeFileSync(billFile, JSON.stringify({ id: 'old-bill', invoiceNumber: 'OLD/1', clientName: 'Test', totalAmount: 100 }));
+    const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(billFile, old, old);
+    const del = await fetch(`http://127.0.0.1:${PORT}/api/bills/old-bill`, { method: 'DELETE' });
+    const trashed = path.join(BOOKS, 'data', 'trash', 'old-bill.json');
+    const ageMs = fs.existsSync(trashed) ? Date.now() - fs.statSync(trashed).mtimeMs : null;
+    ok(del.ok && ageMs !== null && ageMs < 60000, 'ERR-084: a deleted old invoice is dated now in the Trash (kept 30 days from today)', `age=${ageMs}`);
+  }
   c.kill('SIGKILL');
   await c.exited;
 

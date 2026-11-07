@@ -156,6 +156,9 @@ a backup is made first.
 - The window title reads like a desktop program: the page and your business name.
 
 ### Fixed
+- **A deleted invoice now really stays 30 days in the Trash** (ERR-084): an
+  invoice not changed for over 30 days was removed from the Trash at the next
+  start of the app, and the Trash bin showed its old date as the delete date.
 - **Imported invoices add their items to Products** (#170): new items get
   their name, HSN, unit, rate and GST (tick box *Add new items to Products*,
   on by default); products you already have are not changed.

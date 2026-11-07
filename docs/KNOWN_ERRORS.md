@@ -730,6 +730,31 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-084 - A deleted invoice could leave the Trash at once instead of after 30 days
+
+**Version:** every version since 1.9.5 · fixed in 1.10.84
+**Found by:** checking the maintainer's question "delete invoice should go to trash folder and 30 days auto delete" (2026-11-07)
+
+**Symptom** (expected, not reported) - an invoice not changed for more than 30
+days, deleted (Clients page), was gone from the Trash bin at the next start of
+the app (or within a day), with no 30 days to restore it. The Trash bin also
+showed the invoice's old date as the date it was deleted.
+
+**Cause** - `DELETE /api/bills/:id` moves the file with `fs.renameSync`, which
+keeps the file's modified time; `purgeOldTrash` removes Trash files whose
+modified time is over 30 days old, and `/api/trash` shows that time as
+`_trashedAt`.
+
+**Rule** - a file moved into the Trash gets the current time
+(`fs.utimesSync`); anything that ages files by date must stamp them when they
+start their wait.
+
+**Guard** - `scripts/server-lock-test.mjs` (in `npm run test:unit`): a bill
+dated 60 days ago, deleted through the real server, is dated now in the Trash.
+It fails without the fix.
+
+---
+
 ## ERR-083 - The app's own server could freeze on a protected folder (Controlled folder access)
 
 **Version:** every version up to 1.10.83 · fixed in 1.10.84

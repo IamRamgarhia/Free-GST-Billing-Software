@@ -422,6 +422,10 @@ app.delete('/api/bills/:id', (req, res) => {
     const trashDir = path.join(DATA_DIR, 'trash');
     if (!fs.existsSync(trashDir)) makeDir(trashDir);
     fs.renameSync(filePath, path.join(trashDir, fname));
+    // ERR-084: a move keeps the file's old date, and the Trash is emptied by
+    // date (30 days, purgeOldTrash) - an invoice last changed 40 days ago was
+    // gone at the next start. Its time in the Trash starts now.
+    try { const now = new Date(); fs.utimesSync(path.join(trashDir, fname), now, now); } catch { /* the date only */ }
     // The list must not serve the moved bill from cache for 5 more seconds.
     invalidateCache('bills');
     res.json({ success: true, trashed: true });
