@@ -16,7 +16,7 @@
 //
 // Status: Open -> Partly dispatched -> Dispatched -> Invoiced, or Cancelled.
 // Pure: no React, no storage (tested in scripts/sales-order-test.mjs).
-import { isCancelledBill, SALES_INVOICE_TYPES, roundQty, formatShortDate, appliedStock } from '../utils.js';
+import { isCancelledBill, SALES_INVOICE_TYPES, roundQty, formatShortDate, appliedStock, stockEffect, stockDelta } from '../utils.js';
 
 export const SO_TYPE = 'sales-order';
 export const SO_STATUS_LABELS = {
@@ -122,6 +122,40 @@ export function orderSummary(order, bills) {
     leftToInvoice: lines.some((l) => l.ordered > l.invoiced),
     docs: docs.map((d) => ({ id: d.id, number: d.invoiceNumber || d.id, type: typeOf(d), convertedTo: d.convertedTo || '' })),
   };
+}
+
+// v1.10.85 - an invoice made from an order that took over its challans
+// ("Invoice the rest", or a challan converted) is cancelled or deleted: the
+// goods still left on those challans, so the challans count again. Each gets
+// its own stock record back (its goods go out of stock again, as the invoice
+// put them back) and loses convertedTo, so it is editable and can be invoiced
+// again; releasedFrom remembers the invoice. Undoing the cancel (or restoring
+// it from the Trash) takes those challans back in, if they have not been
+// invoiced since. Returns { patches: challans to save, changes: stock }.
+const takenChallans = (invoice, bills, pick) => {
+  const no = salesOrderOf(invoice);
+  if (!no || !isSale(invoice)) return [];
+  return (bills || []).filter((c) => isChallan(c) && salesOrderOf(c) === no && !isCancelledBill(c) && pick(c));
+};
+const addStock = (into, ch) => { for (const [id, q] of Object.entries(ch)) into[id] = roundQty((into[id] || 0) + q); return into; };
+export function releaseChallansPlan(invoice, bills) {
+  const changes = {};
+  const patches = takenChallans(invoice, bills, (c) => c.convertedTo === invoice.id).map((c) => {
+    const own = stockEffect(c.data?.items, 'delivery-challan', c.status);
+    addStock(changes, stockDelta(appliedStock(c), own));
+    const { convertedTo: _was, ...rest } = c;
+    return { ...rest, releasedFrom: invoice.id, data: { ...c.data, stockApplied: own } };
+  });
+  return { patches, changes };
+}
+export function reabsorbChallansPlan(invoice, bills) {
+  const changes = {};
+  const patches = takenChallans(invoice, bills, (c) => c.releasedFrom === invoice.id && !c.convertedTo).map((c) => {
+    addStock(changes, stockDelta(appliedStock(c), {}));
+    const { releasedFrom: _was, ...rest } = c;
+    return { ...rest, convertedTo: invoice.id, data: { ...c.data, stockApplied: {} } };
+  });
+  return { patches, changes };
 }
 
 // The new document to open in the editor from an order: 'delivery-challan'

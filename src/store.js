@@ -4,6 +4,7 @@
 import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta } from './utils';
 import { poCounterKey, formatPoNumber } from './utils/purchaseOrders';
 import { dnCounterKey, formatDnNumber } from './utils/debitNotes';
+import { salesOrderOf, releaseChallansPlan, reabsorbChallansPlan } from './utils/salesOrders';
 
 import { logProblem } from './utils/problemLog';
 
@@ -528,8 +529,23 @@ export const trashBill = async (bill) => {
   try { await deleteBill(bill.id); } catch (err) { if (moves) await saveBill(bill, { overwrite: true }).catch(() => {}); throw err; }
   let stockWarning = false;
   if (moves) await applyStockChanges(stockDelta(returned, {})).catch(() => { stockWarning = true; });
+  // v1.10.85 - challans this invoice took over from a sales order count again.
+  await syncTakenChallans(bill, true).catch(() => { stockWarning = true; });
   trashSavedPdf(bill).catch(() => {});
   return { stockWarning };
+};
+
+// v1.10.85 - an invoice made from a sales order that took over the order's
+// challans is cancelled or deleted (gone: true): the challans are released and
+// count again; it comes back (gone: false): they are taken in again. See
+// releaseChallansPlan in utils/salesOrders.js. Returns how many changed.
+export const syncTakenChallans = async (invoice, gone) => {
+  if (!salesOrderOf(invoice) || (!gone && (invoice.status || '') === 'cancelled')) return 0;
+  const bills = await getAllBills();
+  const { patches, changes } = gone ? releaseChallansPlan(invoice, bills) : reabsorbChallansPlan(invoice, bills);
+  for (const p of patches) await saveBill(p, { overwrite: true });
+  await applyStockChanges(changes);
+  return patches.length;
 };
 
 // v1.10.84 - an invoice back from the Trash (the Trash tab on the Invoices
@@ -546,6 +562,7 @@ export const restoreBillFromTrash = async (bill) => {
     await saveBill({ ...kept, data: { ...data, stockApplied: back } }, { overwrite: true });
     await applyStockChanges(stockDelta({}, back)).catch(() => {});
   }
+  await syncTakenChallans(kept, false).catch(() => {});
 };
 
 export const deleteReceipt = async (id) => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload, ClipboardList, Truck } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill } from '../store';
+import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, syncTakenChallans } from '../store';
 import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, findLowStock, trackedStock, billMatchesSearch } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
@@ -557,9 +557,25 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   };
   // Saves each planned bill with its new status; moves the stock of those that saved.
   const saveWithStock = async (plans, patchFor) => {
-    const results = await Promise.allSettled(plans.map((p) => saveBill(patchFor(p.bill), { overwrite: true })));
+    const patched = plans.map((p) => patchFor(p.bill));
+    const results = await Promise.allSettled(patched.map((b) => saveBill(b, { overwrite: true })));
     await moveStock(plans.filter((_, i) => results[i].status === 'fulfilled'));
+    await syncChallans(plans.map((p, i) => [p.bill, patched[i]]).filter((_, i) => results[i].status === 'fulfilled'));
     return results;
+  };
+  // v1.10.85 - an invoice that took over a sales order's challans, cancelled
+  // or brought back: its challans are released or taken in again
+  // (syncTakenChallans). pairs: [before, after].
+  const syncChallans = async (pairs) => {
+    for (const [before, after] of pairs) {
+      if (isCancelledBill(before) === isCancelledBill(after)) continue;
+      try {
+        const n = await syncTakenChallans(after, isCancelledBill(after));
+        if (n) toast(isCancelledBill(after)
+          ? `${n} delivery challan${n === 1 ? '' : 's'} taken into ${after.invoiceNumber} count${n === 1 ? 's' : ''} again: the goods on ${n === 1 ? 'it' : 'them'} are still sent.`
+          : `${n} delivery challan${n === 1 ? '' : 's'} taken back into ${after.invoiceNumber}.`, 'info', 8000);
+      } catch { toast(`Check the delivery challans of ${after.invoiceNumber}'s sales order: they could not be updated.`, 'warning', 10000); }
+    }
   };
 
   // v1.10.79 (#94) - the PDF in Saved Invoices follows: stamped CANCELLED, or
@@ -653,6 +669,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       if (p.id) deleteReceipt(p.id).catch(() => {});
     }
     try { await moveStock([plan]); } catch { /* the status change is saved */ }
+    await syncChallans([[bill, updated]]);
     if (isCancelledBill(bill) !== (updated.status === 'cancelled')) syncSavedPdfs([bill], updated.status === 'cancelled');
     toast(updated.status === newStatus
       ? `Marked as ${STATUS_CONFIG[newStatus].label}`
