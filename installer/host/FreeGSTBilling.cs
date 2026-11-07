@@ -64,6 +64,21 @@ static class Program
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    // v1.10.85 - a dark title bar when the app is dark: attribute 20 on
+    // Windows 11 and Windows 10 20H1+, 19 on older Windows 10 (1809-1909).
+    // Nothing happens on a Windows that has neither.
+    public static void DarkTitle(IntPtr hwnd, bool dark)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        int on = dark ? 1 : 0;
+        try
+        {
+            if (DwmSetWindowAttribute(hwnd, 20, ref on, 4) != 0) DwmSetWindowAttribute(hwnd, 19, ref on, 4);
+        }
+        catch (Exception) { }
+    }
 
     public static string AppDir, DataDir, Aumid, SmokeFile, TraceFile;
 
@@ -432,6 +447,7 @@ class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        Program.DarkTitle(Handle, Splash.Dark);
         Thread waiter = new Thread(delegate ()
         {
             WaitHandle[] all = new WaitHandle[] { showEvent, closeEvent, quitEvent };
@@ -751,6 +767,15 @@ class MainForm : Form
         core.Settings.IsStatusBarEnabled = false;   // no link addresses at the bottom
         core.Settings.IsPasswordAutosaveEnabled = false;
         core.DocumentTitleChanged += delegate { Text = TitleOf(core.DocumentTitle); Program.Trace("title=" + Text); };
+        // v1.10.85 - the page says "theme:dark" / "theme:light" when the theme
+        // changes (App.jsx), so the title bar follows it. Only our own page.
+        core.WebMessageReceived += delegate (object o, CoreWebView2WebMessageReceivedEventArgs a)
+        {
+            if (!Ours(a.Source)) return;
+            string m;
+            try { m = a.TryGetWebMessageAsString(); } catch (Exception) { return; }
+            if (m == "theme:dark" || m == "theme:light") Program.DarkTitle(Handle, m == "theme:dark");
+        };
         core.NavigationStarting += delegate (object o, CoreWebView2NavigationStartingEventArgs a)
         {
             if (Ours(a.Uri)) return;
@@ -949,6 +974,7 @@ class Splash : Control
 {
     static readonly bool dark = IsDark();
     public static Color Back { get { return dark ? Color.FromArgb(15, 23, 42) : Color.FromArgb(240, 242, 245); } }
+    public static bool Dark { get { return dark; } }
     readonly Image logo;
     readonly System.Windows.Forms.Timer tick = new System.Windows.Forms.Timer();
     int phase;

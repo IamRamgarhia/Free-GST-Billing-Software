@@ -405,6 +405,8 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
     localStorage.setItem('freegstbill_theme', darkMode ? 'dark' : 'light');
+    // v1.10.85 - the Windows Setup's window turns its title bar dark too.
+    try { window.chrome?.webview?.postMessage(`theme:${darkMode ? 'dark' : 'light'}`); } catch { /* not the Setup's window */ }
   }, [darkMode]);
 
   // Load all saved business profiles
