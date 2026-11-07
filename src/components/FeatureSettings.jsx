@@ -4,6 +4,7 @@ import { FEATURE_GROUPS, isModuleEnabled } from '../utils';
 import { BUSINESS_TYPES, businessTypeById, applyBusinessType, featureChanges, moduleLabel, orderedMenu, moveMenuItem, invoiceDefaultsForType } from '../utils/businessTypes';
 import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, getAllRecurring, patchInvoiceDefaults, getPriceLevelNames, setPriceLevelNames } from '../store';
 import { PriceLevelNames } from './PriceLevelFields';
+import { levelNameProblem } from '../utils/listCsv';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -31,6 +32,9 @@ export function useFeatureDraft() {
   const featuresChanged = changes.turnOn.length > 0 || changes.turnOff.length > 0 || orderKey(draft.order) !== orderKey(saved.order) || levelsChanged;
   const unsaved = [typeChanged && 'Business type', featuresChanged && 'Features'].filter(Boolean);
   const save = () => {
+    // v1.10.85 - a level name that would clash in the Products CSV is refused.
+    const levelProblem = isModuleEnabled('priceLevels', draft.modules) ? levelNameProblem(draft.levels) : '';
+    if (featuresChanged && levelProblem) { toast(`Features not saved. ${levelProblem}`, 'error'); return; }
     if (featuresChanged) { setEnabledModules(draft.modules); setMenuOrder(draft.order); setPriceLevelNames(draft.levels); }
     if (typeChanged && draft.type) { setBusinessType(draft.type); patchInvoiceDefaults(invoiceDefaultsForType(draft.type)); }
     setSaved(draft);
@@ -206,7 +210,7 @@ export function FeaturesPanel({ features, regionMode }) {
                   <Fragment key={mod.id}>
                     <Check id={mod.id} label={mod.label} help={mod.help} modules={draft.modules} onToggle={toggle} note={notes[mod.id]} />
                     {mod.id === 'priceLevels' && isModuleEnabled(mod.id, draft.modules) && (
-                      <PriceLevelNames names={draft.levels} onChange={(levels) => setDraft({ ...draft, levels })} />
+                      <PriceLevelNames names={draft.levels} problem={levelNameProblem(draft.levels)} onChange={(levels) => setDraft({ ...draft, levels })} />
                     )}
                   </Fragment>
                 ))}

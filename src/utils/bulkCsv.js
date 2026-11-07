@@ -43,7 +43,7 @@ export function parseCsv(text) {
   return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
 }
 
-const norm = (h) => String(h || '').toLowerCase().replace(/[\s_\-.%()/#*]+/g, '');
+export const norm = (h) => String(h || '').toLowerCase().replace(/[\s_\-.%()/#*]+/g, '');
 
 // Rows as objects keyed by canonical field name. `fields` maps each canonical
 // name to the accepted header spellings, the preferred one first.

@@ -4,10 +4,10 @@
 // sample back through the same code the screens use. Headings are matched
 // loosely (case, spaces, %, / ignored), so the Products export imports back.
 import { toCsvLine } from '../utils.js';
-import { rowsToRecords, toNum, percentPart } from './bulkCsv.js';
+import { rowsToRecords, toNum, percentPart, norm } from './bulkCsv.js';
 import { barcodeProblem, normaliseBarcode } from './barcode.js';
 import { normaliseCategory, CATEGORY_LEVELS } from './stock.js';
-import { levelCsvFields, levelPricesFromRecord } from './priceLevels.js';
+import { levelCsvFields, levelCsvHeaders, levelPricesFromRecord } from './priceLevels.js';
 
 const PRODUCT_FIELDS = {
   name: ['name', 'product', 'product name', 'item', 'item name'],
@@ -78,7 +78,13 @@ export function fillBlanks(saved, fresh) {
 // added again (importing twice is safe): its empty details are filled in
 // (updates), or it is skipped when there is nothing to fill.
 export function productsCsvToList(text, existing = [], levels = []) {
-  const { records } = rowsToRecords(text, { ...PRODUCT_FIELDS, ...levelCsvFields(levels) });
+  const fields = { ...PRODUCT_FIELDS, ...levelCsvFields(levels) };
+  let { records, unknown } = rowsToRecords(text, fields);
+  // With price levels on, a "... price" column that is not one of them (a
+  // level renamed since the export, a typo) is named on each row that fills
+  // it, instead of its prices being dropped without a word.
+  const stray = levels.length ? (unknown || []).filter((h) => /price$/i.test(String(h).trim())) : [];
+  if (stray.length) ({ records } = rowsToRecords(text, { ...fields, ...Object.fromEntries(stray.map((h, i) => [`stray${i}`, [h]])) }));
   const key = (n) => String(n || '').trim().toLowerCase();
   const saved = new Map((existing || []).map((p) => [key(p.name), p]));
   const seen = new Set();
@@ -97,6 +103,8 @@ export function productsCsvToList(text, existing = [], levels = []) {
     if (nums.taxPercent < 0 || nums.taxPercent > 100) { out.errors.push(`Row ${r._line} (${name}): GST % must be 0 to 100`); continue; }
     const lv = levelPricesFromRecord(r, levels, toNum);
     if (lv.error) { out.errors.push(`Row ${r._line} (${name}): ${lv.error}`); continue; }
+    const strayCol = stray.find((h, i) => String(r[`stray${i}`] ?? '').trim());
+    if (strayCol) { out.errors.push(`Row ${r._line} (${name}): "${strayCol}" is not one of your price levels (${levelCsvHeaders(levels).join(', ')}, or Level 1 price...)`); continue; }
     if (seen.has(key(name))) { out.skipped++; continue; }
     // A barcode is used only for a new product, or a saved one without one;
     // one that another product has (saved, or higher up in the file) is refused.
@@ -110,9 +118,11 @@ export function productsCsvToList(text, existing = [], levels = []) {
     }
     seen.add(key(name));
     // Our product prices are before tax: take the tax out of an inclusive one.
-    if (/^(y|yes|true|1)$/i.test(String(r.taxInclusive || '').trim()) && nums.taxPercent > 0) {
-      nums.sellingPrice = Math.round(nums.sellingPrice / (1 + nums.taxPercent / 100) * 100) / 100;
-    }
+    // v1.10.85 - the level prices too.
+    const inclusive = /^(y|yes|true|1)$/i.test(String(r.taxInclusive || '').trim()) && nums.taxPercent > 0;
+    const exTax = (v) => (inclusive ? Math.round(v / (1 + nums.taxPercent / 100) * 100) / 100 : v);
+    nums.sellingPrice = exTax(nums.sellingPrice);
+    const levelPrices = Object.fromEntries(Object.entries(lv.prices).map(([id, v]) => [id, exTax(v)]));
     const product = {
       name,
       ...(service ? { kind: 'service' } : {}),
@@ -129,13 +139,32 @@ export function productsCsvToList(text, existing = [], levels = []) {
       // A category deeper than 4 levels keeps its first 4.
       ...(r.category ? { category: normaliseCategory(r.category).split(' > ').slice(0, CATEGORY_LEVELS).join(' > ') } : {}),
       ...(String(r.brand || '').trim() ? { brand: String(r.brand).trim() } : {}),
-      ...(Object.keys(lv.prices).length ? { levelPrices: lv.prices } : {}),
+      ...(Object.keys(levelPrices).length ? { levelPrices } : {}),
     };
     if (!old) { out.products.push(product); continue; }
     const filled = fillBlanks(old, product);
     if (filled) out.updates.push(filled); else out.skipped++;
   }
   return out;
+}
+
+// v1.10.85 - a price level name that would make its CSV column ("<name>
+// price") read as another product column, or another level's: Selling
+// (Selling price), Sale, Purchase, Cost, MRP, Rate, "Level 2" and the like.
+// Settings refuses it. Returns the problem, or ''.
+const RESERVED_LEVEL_WORDS = ['mrp', 'sale', 'sales', 'selling', 'sell', 'purchase', 'cost', 'rate', 'price', 'box', 'list', 'unit', 'base', 'default'];
+export function levelNameProblem(names) {
+  const used = (names || []).map((n) => String(n ?? '').trim()).filter(Boolean);
+  const aliases = new Set(Object.values(PRODUCT_FIELDS).flat().map(norm));
+  for (const n of used) {
+    const k = norm(n);
+    if (RESERVED_LEVEL_WORDS.includes(k) || aliases.has(k) || aliases.has(norm(`${n} price`)) || /^(pricelevel|level)\d*$/.test(k)) {
+      return `"${n}" cannot be a price level name: its column "${n} price" would be read as another column. Try a name like Retail, Wholesale or Dealer.`;
+    }
+  }
+  const first = used.map((n) => used.findIndex((m) => norm(m) === norm(n)));
+  const dupAt = first.findIndex((f, i) => f !== i);
+  return dupAt >= 0 ? `Two price levels are both called "${used[first[dupAt]]}".` : '';
 }
 
 export function clientsCsvToList(text, existing = []) {
