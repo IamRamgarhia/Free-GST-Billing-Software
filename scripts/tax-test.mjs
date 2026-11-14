@@ -62,7 +62,14 @@ import {
   templateTotals,
   parseLocalDate,
   formatDateGST,
+  spreadBillDiscount,
+  templateItems,
+  withReceivedNow,
+  receivedNowPayment,
 } from '../src/utils.js';
+import { receiptForPayment } from '../src/utils/bankMatch.js';
+import { linkedCashLines } from '../src/utils/cashBook.js';
+import { hsnSummary } from '../src/utils/gstr1Json.js';
 import { splitPurchaseTax, clientPaperPrefs, clientPaperOptions, getPaperSize } from '../src/utils.js';
 import { buildXlsx, colName } from '../src/utils/xlsx.js';
 import { bulkRowToProduct, closingStock, stockValueOf } from '../src/utils/products.js';
@@ -1102,6 +1109,140 @@ console.log('\n[v1.10.84] Tax year 2026-27 (Income-tax Act 2025; rates as FY 202
   // Finance Act 2026: non-audit business returns are due 31 August, from AY 2026-27.
   eq(filingDueDates('2025-26'), { salary: '2026-07-31', business: '2026-08-31', audit: '2026-10-31' }, 'FY 2025-26 due dates');
   eq(filingDueDates('2026-27'), { salary: '2027-07-31', business: '2027-08-31', audit: '2027-10-31' }, 'tax year 2026-27 due dates');
+}
+
+console.log('\n[v1.10.85 #190] Whole-bill discount before GST (trade discount)');
+{
+  const prof = { country: 'India', state: 'Punjab', gstin: '03AAAAA0000A1Z5' };
+  const intra = { name: 'A', state: 'Punjab' };
+  const inter = { name: 'B', state: 'Delhi' };
+  const run = (items, invoiceOptions, extra = {}) => computeInvoiceTotals({ items, profile: prof, client: extra.client || intra, details: {}, showGST: extra.showGST !== false, taxInclusive: !!extra.taxInclusive, invoiceOptions });
+  const sumShares = (list) => Math.round(list.reduce((s, it) => s + (Number(it.billDiscShare) || 0) * 100, 0));
+
+  // Proportional split: 6,000 and 4,000 share a 1,000 discount as 600 / 400.
+  const two = [{ quantity: 1, rate: 6000, taxPercent: 18 }, { quantity: 2, rate: 2000, taxPercent: 18 }];
+  const spread = spreadBillDiscount(two, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 1000 });
+  eq(spread.map((i) => i.billDiscShare), [600, 400], 'the discount is shared in proportion to each line\'s value');
+  eq(two.map((i) => i.billDiscShare), [undefined, undefined], 'the items passed in are not changed');
+  const t1 = run(two, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 1000 });
+  eq([t1.taxableAmount, t1.cgst, t1.sgst, t1.igst, t1.total], [9000, 810, 810, 0, 10620], 'intra-state: GST on 9,000 (CGST 810 + SGST 810), total 10,620');
+  eq([t1.billDiscountBeforeGst, t1.invoiceDiscountAmount, t1.totalDiscount], [1000, 0, 1000], 'shown as a before-GST discount; nothing more comes off the total');
+  const t1x = run(two, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 1000 }, { client: inter });
+  eq([t1x.taxableAmount, t1x.igst, t1x.cgst, t1x.total], [9000, 1620, 0, 10620], 'inter-state: IGST 1,620 on 9,000');
+
+  // Old bills (no flag) and the default stay exactly as before: after GST.
+  const after = run(two, { invoiceDiscountValue: 1000 });
+  eq([after.taxableAmount, after.cgst, after.invoiceDiscountAmount, after.billDiscountBeforeGst, after.total], [10000, 900, 1000, 0, 10800], 'default "After GST": GST on 10,000, then 1,000 off (11,800 - 1,000)');
+  const afterPct = run(two, { invoiceDiscountValue: 10, invoiceDiscountType: 'percent' });
+  eq([afterPct.taxableAmount, afterPct.invoiceDiscountAmount, afterPct.total], [10000, 1180, 10620], 'default percent: 10% of the total with GST');
+  eq(spreadBillDiscount(two, { invoiceDiscountValue: 1000 }), two, 'after GST the lines get no part');
+  eq(run(two, { invoiceDiscountValue: 1000, invoiceDiscountBeforeGst: false }).total, 10800, 'Before GST switched off = After GST');
+
+  // Rounding: 100 over three equal lines -> 33.34 + 33.33 + 33.33, exactly 100.
+  const three = [1, 2, 3].map(() => ({ quantity: 1, rate: 100, taxPercent: 5 }));
+  const s3 = spreadBillDiscount(three, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 100 });
+  eq(s3.map((i) => i.billDiscShare), [33.34, 33.33, 33.33], 'paise left over go to the largest remainder, first line first');
+  eq(sumShares(s3), 10000, 'the parts add up to the discount exactly');
+  // Awkward values: 7 lines, odd rates, 123.45 off.
+  const odd = [17.31, 9.99, 250, 0.7, 1234.56, 3.33, 77.77].map((rate, i) => ({ quantity: i + 1, rate, taxPercent: [0, 5, 12, 18, 28, 18, 5][i] }));
+  const sOdd = spreadBillDiscount(odd, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 123.45 });
+  eq(sumShares(sOdd), 12345, '7 odd lines: parts add up to 123.45 exactly');
+  truthy(sOdd.every((it) => Math.abs(it.billDiscShare * 100 - Math.round(it.billDiscShare * 100)) < 1e-6), 'every part is whole paise');
+  const tOdd = run(odd, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 123.45 });
+  approx(tOdd.taxableAmount, run(odd, {}).taxableAmount - 123.45, 'taxable value drops by exactly the discount', 0.005);
+  const sPct = spreadBillDiscount(odd, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 7.5, invoiceDiscountType: 'percent' });
+  const oddBase = odd.reduce((s, it) => s + it.quantity * it.rate, 0);
+  eq(sumShares(sPct), Math.round(oddBase * 7.5), '7.5% on odd lines: parts add up to the rounded 7.5% exactly');
+
+  // Mixed GST rates: GST is worked out on each line's reduced value.
+  const mixed = [{ quantity: 1, rate: 1000, taxPercent: 5, hsn: '1001', name: 'Rice' }, { quantity: 1, rate: 3000, taxPercent: 18, hsn: '8471', name: 'Cable' }];
+  const tm = run(mixed, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 10, invoiceDiscountType: 'percent' });
+  eq([tm.taxableAmount, tm.cgst, tm.sgst, tm.total], [3600, 265.5, 265.5, 4131], '10% before GST on 5% + 18% lines: 900 @5% + 2,700 @18% = GST 531');
+  eq(tm.billDiscountBeforeGst, 400, 'percent: 10% of the value before GST (400)');
+  const tmx = run(mixed, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 400 }, { client: inter });
+  eq([tmx.taxableAmount, tmx.igst, tmx.total], [3600, 531, 4131], 'inter-state mixed rates: IGST 531');
+
+  // Line discounts first, then the bill discount on what is left.
+  const withLine = [{ quantity: 10, rate: 100, discount: 10, discountType: 'percent', taxPercent: 12 }, { quantity: 1, rate: 1100, discount: 100, taxPercent: 12 }];
+  const sl = spreadBillDiscount(withLine, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 190 });
+  eq(sl.map((i) => i.billDiscShare), [90, 100], 'shared on the value after line discounts (900 and 1,000)');
+  const tl = run(withLine, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 190 });
+  eq([tl.taxableAmount, tl.totalDiscount, tl.cgst], [1710, 390, 102.6], 'taxable 1,710 after 200 line + 190 bill discount');
+
+  // Fixed discount larger than the bill: capped at the bill's value.
+  const capped = run([{ quantity: 1, rate: 50, taxPercent: 18 }], { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 80 });
+  eq([capped.taxableAmount, capped.total], [0, 0], 'a discount bigger than the bill takes it to 0, never below');
+
+  // Tax-inclusive: the discount comes off the prices as entered (GST included), GST backed out of what is left.
+  const incl = [{ quantity: 1, rate: 1180, taxPercent: 18 }, { quantity: 1, rate: 1050, taxPercent: 5 }];
+  const ti = run(incl, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 223 }, { taxInclusive: true });
+  eq(spreadBillDiscount(incl, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 223 }, true).map((i) => i.billDiscShare), [118, 105], 'inclusive: shared on the prices with GST');
+  eq([ti.taxableAmount, Math.round((ti.cgst + ti.sgst) * 100) / 100, ti.total], [1800, 207, 2007], 'inclusive: 1,062 + 945 left, taxable 900 + 900, GST 207, total 2,007');
+  const tiPct = run(incl, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 10, invoiceDiscountType: 'percent' }, { taxInclusive: true });
+  eq([tiPct.taxableAmount, tiPct.total], [1800, 2007], 'inclusive percent: 10% off the same as 223 fixed');
+  const tiAfter = run(incl, { invoiceDiscountValue: 223 }, { taxInclusive: true });
+  eq([tiAfter.taxableAmount, tiAfter.total], [2000, 2007], 'inclusive After GST unchanged: taxable 2,000, 2,230 - 223');
+
+  // Bill of supply (no GST): just comes off the value.
+  const bos = run(two, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 1000 }, { showGST: false });
+  eq([bos.taxableAmount, bos.total], [9000, 9000], 'bill of supply: 10,000 - 1,000');
+
+  // Cess follows the reduced value too.
+  const cessT = run([{ quantity: 1, rate: 1000, taxPercent: 28, cessPercent: 12 }], { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 100 });
+  eq([cessT.taxableAmount, cessT.cess, cessT.total], [900, 108, 1260], 'cess on 900: 108');
+
+  // Saved lines carry their part: GSTR-1 HSN summary and splitLineTax agree with the totals.
+  const opts = { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 400 };
+  const savedItems = spreadBillDiscount(mixed, opts);
+  const tSaved = run(savedItems, opts);
+  eq(tSaved.taxableAmount, tm.taxableAmount, 'totals of the saved lines match (an old part is replaced, not added again)');
+  const bill = { invoiceType: 'tax-invoice', data: { items: savedItems, profile: prof, client: intra, totals: tSaved, invoiceOptions: opts, details: {} } };
+  const hsn = hsnSummary([bill]).rows;
+  eq(hsn.map((r) => [r.hsn_sc, r.txval, r.camt]), [['1001', 900, 22.5], ['8471', 2700, 243]], 'GSTR-1 HSN summary: taxable 900 and 2,700, CGST 22.50 and 243');
+  eq(Math.round(savedItems.reduce((s, it) => s + splitLineTax(it, false).taxable, 0) * 100) / 100, 3600, 'GSTR-1 taxable value (splitLineTax) 3,600');
+  eq(resolveLineDiscount(savedItems[1]), 300, 'the line\'s discount includes its part (300)');
+  // Switching back to After GST drops the parts: no stale discount.
+  const back = run(savedItems, { invoiceDiscountValue: 400 });
+  eq([back.taxableAmount, back.invoiceDiscountAmount], [4000, 400], 'switched to After GST: the saved parts are ignored');
+  eq(spreadBillDiscount(savedItems, {}).some((i) => 'billDiscShare' in i), false, 'and removed from the lines');
+
+  // Recurring invoices save the lines with their parts.
+  const tpl = { invoiceType: 'tax-invoice', items: mixed, invoiceOptions: opts, clientName: 'A', clientState: 'Punjab' };
+  eq(templateItems(tpl).map((i) => i.billDiscShare), [100, 300], 'a recurring invoice saves each line\'s part');
+  eq(templateTotals(tpl, prof).taxableAmount, 3600, 'and its totals use them');
+}
+
+console.log('\n[v1.10.85 #185] Payment received while making the invoice');
+{
+  const pay = receivedNowPayment({ amount: '1180', mode: 'cash', date: '2026-11-14' });
+  eq([pay.amount, pay.mode, pay.date, pay.note, /^pay_/.test(pay.id), !!pay.recordedAt], [1180, 'cash', '2026-11-14', 'Received with the invoice', true, true], 'a payment with the Record Payment fields (id, amount, date, mode, note)');
+  eq(receivedNowPayment({ amount: '' }), null, 'an empty amount is no payment');
+  eq(receivedNowPayment({ amount: '0' }), null, '0 is no payment');
+  eq(receivedNowPayment({ amount: '-5' }), null, 'a negative amount is no payment');
+  eq(receivedNowPayment({ amount: '10.005', id: 'pay_x', recordedAt: 'T0' }).amount, 10.01, 'rounded to the paisa');
+  eq(receivedNowPayment({ amount: 5, id: 'pay_keep', recordedAt: 'T0' }).id, 'pay_keep', 'a later save keeps the same id');
+  eq(typeof receivedNowPayment({ amount: 5 }).date, 'string', 'no invoice date: today');
+
+  // First save adds it; every later save (auto-saves too) replaces it, never adds a second.
+  const credit = { id: 'pay_credit', amount: 100, mode: 'credit-applied' };
+  let payments = withReceivedNow([credit], null, { ...pay, id: 'pay_now' });
+  eq(payments.map((p) => p.id), ['pay_credit', 'pay_now'], 'first save: the payment is added');
+  for (let i = 0; i < 3; i++) payments = withReceivedNow(payments, 'pay_now', { ...pay, id: 'pay_now', amount: 500 + i });
+  eq(payments.map((p) => `${p.id}:${p.amount}`), ['pay_credit:100', 'pay_now:502'], 'saved again 3 times: still one payment, with the latest amount');
+  eq(withReceivedNow(payments, 'pay_now', null).map((p) => p.id), ['pay_credit'], 'amount cleared: the payment is removed, others kept');
+  eq(withReceivedNow(undefined, null, null), [], 'no payments at all');
+
+  // Status and cash book, as the Dashboard's Record Payment gives them.
+  const bill = { id: 'INV-1', invoiceNumber: 'INV-1', clientName: 'Walk-in', currency: 'INR', totalAmount: 1180, invoiceType: 'tax-invoice', data: { client: { name: 'Walk-in' }, profile: { gstin: '03AAAAA0000A1Z5', businessName: 'DiceCodes' }, totals: { total: 1180 } } };
+  eq(paymentStatusFor(bill, 1180), 'paid', 'the full amount: Paid');
+  eq(paymentStatusFor(bill, 500), 'partial', 'part of it: Partly paid');
+  const p2 = { ...pay, id: 'pay_now' };
+  const receipt = receiptForPayment(bill, p2);
+  eq([receipt.id, receipt.amount, receipt.paymentMode, receipt.againstInvoice, receipt.billId, receipt.source], ['pay_now', 1180, 'cash', 'INV-1', 'INV-1', 'auto-from-payment'], 'its receipt carries the payment\'s id, as the Dashboard saves it');
+  const lines = linkedCashLines({ bills: [{ ...bill, payments: [p2] }], receipts: [receipt] });
+  eq(lines.map((l) => [l.source, l.type, l.amount]), [['receipt', 'in', 1180]], 'Cash book: the cash payment shows once (paired with its receipt)');
+  const upi = linkedCashLines({ bills: [{ ...bill, payments: [{ ...p2, mode: 'upi' }] }], receipts: [{ ...receipt, paymentMode: 'upi' }] });
+  eq(upi.length, 0, 'a UPI payment stays out of the Cash book');
 }
 
 console.log('\n────────────────────────────────────────');

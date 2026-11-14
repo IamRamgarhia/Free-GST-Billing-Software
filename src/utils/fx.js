@@ -27,7 +27,7 @@ export const billRate = (b, base = 'INR') => {
 // Amounts on an invoice's totals (the rest are flags, percentages and text).
 const TOTAL_KEYS = ['subtotal', 'totalDiscount', 'taxableAmount', 'cgst', 'sgst', 'utgst', 'igst', 'cess',
   'tcsAmount', 'tdsAmount', 'roundOff', 'invoiceDiscountAmount', 'total', 'netReceivable', 'totalTaxAmount',
-  'rcmTaxCgst', 'rcmTaxSgst', 'rcmTaxUtgst', 'rcmTaxIgst', 'rcmTaxTotal'];
+  'rcmTaxCgst', 'rcmTaxSgst', 'rcmTaxUtgst', 'rcmTaxIgst', 'rcmTaxTotal', 'billDiscountBeforeGst'];
 const LINE_KEYS = ['rate', 'disc', 'gross', 'afterDisc', 'taxable', 'tax', 'cess'];
 
 const scaleKeys = (obj, keys, rate, round = r2) => {
@@ -54,6 +54,8 @@ export const billInInr = (bill, base = 'INR') => {
     ...it,
     rate: (Number(it.rate) || 0) * rate,
     ...(it.discountType === 'percent' ? {} : { discount: (Number(it.discount) || 0) * rate }),
+    // v1.10.85 (#190) - the line's part of a before-GST bill discount.
+    ...(Number(it.billDiscShare) > 0 ? { billDiscShare: Number(it.billDiscShare) * rate } : {}),
   }));
   return {
     ...bill,

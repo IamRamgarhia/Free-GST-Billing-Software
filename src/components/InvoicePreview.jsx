@@ -265,7 +265,14 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   const pdfStyleVariant = pdfStyleRaw; // full value for CSS class targeting
 
   // Check if any item has discount
-  const hasAnyDiscount = showDiscount && items.some(item => (item.discount || 0) > 0);
+  // v1.10.85 (#190) - or a part of a whole-bill discount taken before GST, so
+  // Qty x Rate - Disc. = Amount on every line.
+  const hasAnyDiscount = showDiscount && items.some(item => (item.discount || 0) > 0 || (item.billDiscShare || 0) > 0);
+  // v1.10.85 (#190) - the before-GST bill discount is inside totalDiscount;
+  // printed on its own line, the line discounts on theirs.
+  const tradeDisc = Number(totals?.billDiscountBeforeGst) || 0;
+  const lineDisc = Math.round(((Number(totals?.totalDiscount) || 0) - tradeDisc) * 100) / 100;
+  const tradeDiscLabel = `Trade discount (before GST)${totals?.invoiceDiscountType === 'percent' && totals?.invoiceDiscountValue > 0 ? ` (${totals.invoiceDiscountValue}%)` : ''}`;
 
   // v1.10.73 - one per-line calculation for every design, the item table and
   // the HSN/SAC summary, so they can never disagree with each other.
@@ -781,10 +788,16 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 <span>{cap('Subtotal')}</span>
                 <span style={{ textAlign: 'right' }}>{amt(printedSubtotal(totals))}</span>
               </div>
-              {Number(totals?.totalDiscount) > 0 && (
+              {lineDisc > 0 && (
                 <div style={rowStyle}>
                   <span>{cap('Discount')}</span>
-                  <span style={{ textAlign: 'right' }}>-{amt(totals.totalDiscount)}</span>
+                  <span style={{ textAlign: 'right' }}>-{amt(lineDisc)}</span>
+                </div>
+              )}
+              {tradeDisc > 0 && (
+                <div style={rowStyle}>
+                  <span>{cap(tradeDiscLabel)}</span>
+                  <span style={{ textAlign: 'right' }}>-{amt(tradeDisc)}</span>
                 </div>
               )}
               {showGST && Number(totals?.cgst) > 0 && (
@@ -1371,10 +1384,16 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
               <span>{fmt(printedSubtotal(totals))}</span>
             </div>
           )}
-          {totals.totalDiscount > 0 && (
+          {lineDisc > 0 && (
             <div className="inv-total-row" style={{ color: '#dc2626' }}>
               <span>Discount</span>
-              <span>- {fmt(totals.totalDiscount)}</span>
+              <span>- {fmt(lineDisc)}</span>
+            </div>
+          )}
+          {tradeDisc > 0 && (
+            <div className="inv-total-row" style={{ color: '#dc2626' }}>
+              <span>{tradeDiscLabel}</span>
+              <span>- {fmt(tradeDisc)}</span>
             </div>
           )}
           {showGST && (

@@ -395,6 +395,7 @@ export default [
   <tr><td>Prices Include Tax</td><td>Yes if the rates already include GST.</td></tr>
   <tr><td>Notes</td><td>Printed on the invoice.</td></tr>
   <tr><td>Bill Discount, Round Off</td><td>For the whole invoice: rupees off after tax, and Yes to round the total to the rupee.</td></tr>
+  <tr><td>Bill Discount Before GST</td><td>Optional. Yes: the Bill Discount is a trade discount, taken before GST (shared over the lines, GST on the reduced value). No or blank: after GST, as before.</td></tr>
 </table>
 <p>GST, CGST + SGST or IGST and the totals are worked out exactly as on the invoice screen. Imported invoices start <b>Unpaid</b>, in rupees. An invoice number that already exists is <b>skipped, never overwritten</b>. Two different invoices with the same number (for example, numbering that restarts each year) are refused: give one of them its own number.</p>
 <div class="note tip"><strong>Something wrong?</strong>

@@ -114,6 +114,11 @@ export default [
 <p>Deleting a receipt removes only the receipt. A payment it recorded on an invoice stays on the invoice, so the invoice stays Paid or Partial. If the payment itself was a mistake, delete it from the invoice's Payment History on the <a href="dashboard.html#payments">Dashboard</a>; that also removes its receipt.</p>
 </section>
 
+<section id="from-invoice">
+<h2>Receipts made from an invoice</h2>
+<p>A payment recorded with ${ui('₹')} on the Dashboard, or typed in <a href="invoices.html#received-now">Received now</a> while making the invoice, saves its receipt here by itself, against that invoice. Clearing Received now on the invoice removes that receipt too.</p>
+</section>
+
 <section id="cash-receipts">
 <h2>Cash receipts and the cash book</h2>
 <p>A receipt with Payment Mode <b>Cash</b> shows in the <a href="cash-book.html#from-elsewhere">Cash book</a> as money in, labelled with its receipt number, so you never type it there again. A receipt against an invoice and the payment it records on that invoice are the same money, and the cash book counts it once. To change it, change the receipt here; the cash book follows.</p>

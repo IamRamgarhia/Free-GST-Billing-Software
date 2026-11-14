@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff, QrCode } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
+import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels, saveReceipt, deleteReceipt } from '../store';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES, spreadBillDiscount, amountDue, withReceivedNow, receivedNowPayment } from '../utils';
+import { receiptForPayment } from '../utils/bankMatch';
+import { PAID_MODES, lastPaidMode, rememberPaidMode } from './askPaidMode';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -193,6 +195,10 @@ const DEFAULT_OPTIONS = {
   // its own line above the grand total when > 0.
   invoiceDiscountValue: 0,
   invoiceDiscountType: 'fixed', // 'fixed' | 'percent'
+  // v1.10.85 (#190) - true: taken BEFORE GST (a trade discount, spread over
+  // the lines so GST is worked out on the reduced value). Off by default, so
+  // every older bill computes exactly as before.
+  invoiceDiscountBeforeGst: false,
   // v1.10.24 — Client-credit auto-apply. When true, opening a new invoice
   // for a client with an existing overpayment auto-applies the credit up
   // to the invoice total. When false (default), the user sees a banner
@@ -917,6 +923,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // paired with a `credit-transferred-out` entry on each source bill.
   const [allBillsForCredit, setAllBillsForCredit] = useState([]);
   const [creditToApply, setCreditToApply] = useState(0);
+  // v1.10.85 (#185) - money received while making the invoice (a cash sale):
+  // saved as one payment on the bill, with its receipt, as the Dashboard's
+  // Record Payment does. receivedPay keeps that payment's id (and when it was
+  // first recorded) across saves, so a re-save or an auto-save replaces it
+  // instead of adding another; receivedReceipt is the receipt last written.
+  const [receivedNow, setReceivedNow] = useState(() => ({ amount: '', mode: lastPaidMode() }));
+  const receivedPay = useRef(null);
+  const receivedReceipt = useRef('');
   const [units, setUnits] = useState(getAllUnits());
   const [taxInclusive, setTaxInclusive] = useState(draft?.taxInclusive || false);
 
@@ -1284,7 +1298,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }, 2000);
 
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, invoiceOptions, isMeaningfulInvoice]);
+  }, [invoiceType, client, details, items, customTerms, customNotes, internalNote, extraSections, invoiceOptions, isMeaningfulInvoice, receivedNow]);
 
   // Save-before-leave guard. P2 #32 rewrites this from the dangerous
   // browser `confirm()` (OK = save, Cancel = stay — users conditioned to
@@ -1703,7 +1717,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     items, profile, client, details, showGST, taxInclusive,
     // v1.10.83 - TDS recorded with a payment belongs to that issued invoice only.
     invoiceOptions: { ...invoiceOptions, tcsCumulativeThisYear: clientYtd, tdsCumulativeThisYear: clientYtd, tdsRecorded: isIssuedInvoice ? invoiceOptions.tdsRecorded : undefined },
-  }), [isIssuedInvoice, invoiceOptions.tdsRecorded, clientYtd, invoiceOptions.tcsSection, invoiceOptions.tdsSection, items, client.state, client?.country, client?.gstin, client?.isSEZ, profile?.state, profile?.country, profile?.gstin, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, invoiceOptions.isLUT, details?.placeOfSupply]);
+  }), [isIssuedInvoice, invoiceOptions.tdsRecorded, clientYtd, invoiceOptions.tcsSection, invoiceOptions.tdsSection, items, client.state, client?.country, client?.gstin, client?.isSEZ, profile?.state, profile?.country, profile?.gstin, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, invoiceOptions.invoiceDiscountBeforeGst, invoiceOptions.isLUT, details?.placeOfSupply]);
+  // v1.10.85 (#190) - the lines as they are saved and printed: each with its
+  // part of a whole-bill discount taken before GST (none after GST).
+  const { invoiceDiscountBeforeGst: discBeforeGst, invoiceDiscountValue: discValue, invoiceDiscountType: discType } = invoiceOptions;
+  // v1.10.85 (#185) - "Received now" is for sales that had no payment when
+  // opened; an invoice already paid (in part) shows what was paid instead.
+  const paidWhenOpened = editingBill && !editingBill._isDuplicate ? (editingBill.payments || []) : [];
+  const paidSoFar = Math.round(paidWhenOpened.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100;
+  const canReceiveNow = SALES_INVOICE_TYPES.includes(invoiceType) && !readOnlyDoc && paidWhenOpened.length === 0;
+  const receivableNow = Math.max(0, Math.round((amountDue({ totalAmount: totals.total, data: { totals } }) - (editingBill ? 0 : creditToApply)) * 100) / 100);
+  const billItems = useMemo(
+    () => spreadBillDiscount(items, { invoiceDiscountBeforeGst: discBeforeGst, invoiceDiscountValue: discValue, invoiceDiscountType: discType }, !showGST || taxInclusive),
+    [items, discBeforeGst, discValue, discType, showGST, taxInclusive],
+  );
 
   // v1.10.83 - exports and SEZ supplies under a LUT (Settings › Company).
   // A new invoice ticks "under LUT" by itself when the business's saved LUT
@@ -2250,7 +2277,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         return null;
       }
     }
-    const seedPayments = ownBill && editingBill.payments ? [...editingBill.payments] : [];
+    // v1.10.85 (#185) - the "Received now" payment saved before is left out
+    // here and added back below as it is now (or not at all, once cleared).
+    const ownNowId = receivedPay.current?.id || null;
+    const seedPayments = withReceivedNow(ownBill ? editingBill.payments : [], ownNowId, null);
     // Also for a NEW bill once it is saved: its stored copy holds the client
     // credit applied on the first save (and any payment recorded since). A
     // later save started from no payments and wiped them.
@@ -2267,11 +2297,29 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 && p.date === fp.date
                 && (p.mode || '') === (fp.mode || ''))
           );
-          if (!dup) seedPayments.push(fp);
+          if (!dup && !(ownNowId && fp.id === ownNowId)) seedPayments.push(fp);
         }
       } catch { /* non-fatal — reconciliation pass will catch it */ }
     }
     if (creditPlan?.targetEntry) seedPayments.push(creditPlan.targetEntry);
+    // v1.10.85 (#185) - offered only on a sale that had no payments when it
+    // was opened (those are shown, not changed, here). Its date is the
+    // invoice date.
+    const nowPayment = canReceiveNow
+      ? receivedNowPayment({ id: ownNowId, amount: receivedNow.amount, mode: receivedNow.mode, date: details.invoiceDate, recordedAt: receivedPay.current?.recordedAt })
+      : null;
+    if (nowPayment) seedPayments.push(nowPayment);
+    // Cleared (or no longer a sale): its receipt goes first, as on the
+    // Dashboard (#175): a receipt left behind would bring the payment back.
+    if (ownNowId && !nowPayment) {
+      try { await deleteReceipt(ownNowId); } catch (err) {
+        if (err?.status !== 404) {
+          toast(err?.status === 423 && err.message ? err.message : 'Could not remove the receipt of the payment received, so nothing was saved. Try again.', 'error');
+          return null;
+        }
+      }
+      receivedReceipt.current = '';
+    }
     const seedPaidAmount = seedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     // v1.10.41 — Recompute status from the merged paid amount rather
     // than trusting editingBill.status. If a payment was recorded on
@@ -2324,7 +2372,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ...((serverCopy?.einvoice || einvoice) ? { einvoice: serverCopy?.einvoice || einvoice } : {}),
       // v1.10.83 - the "TDS certificate received" tick from Reports › TDS & TCS.
       ...(ownBill && (serverCopy?.tdsCertificate || editingBill.tdsCertificate) ? { tdsCertificate: true } : {}),
-      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive,
+      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items: billItems, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive,
         // A converted quotation/proforma/challan's stock moved to its invoice:
         // its own record stays empty, or a save would take the stock twice.
         stockApplied: isIssued && (serverCopy?.convertedTo || editingBill.convertedTo) ? {} : stockEffect(items, invoiceType, seedStatus) }
@@ -2491,6 +2539,20 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     }
 
     savedId.current = savedNumber;
+    // v1.10.85 (#185) - the bill (with the payment) is saved; now its receipt,
+    // written as the Dashboard writes it (same id as the payment, so the Cash
+    // book pairs them). Only after the bill: a refused save (period lock, 423)
+    // has thrown before this, leaving nothing half-saved.
+    receivedPay.current = nowPayment ? { id: nowPayment.id, recordedAt: nowPayment.recordedAt } : null;
+    if (nowPayment) {
+      const receipt = receiptForPayment({ ...bill, id: savedNumber, invoiceNumber: savedNumber }, nowPayment);
+      const sig = JSON.stringify(receipt);
+      if (sig !== receivedReceipt.current) {
+        try { await saveReceipt(receipt); receivedReceipt.current = sig; } catch {
+          toast('The invoice and the payment received are saved, but its receipt could not be saved. Save again to retry.', 'warning', 8000);
+        }
+      }
+    }
     // A rename: the bill now lives under its new number, so the old file goes
     // (to the Trash, from where it can be restored).
     if (renameFrom && renameFrom !== savedNumber) {
@@ -3786,7 +3848,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // and where; uncaught, the click used to do nothing at all.
     let ewb;
     try {
-      ewb = generateEWayBillJSON(profile, client, details, items, totals, invoiceType, { taxInclusive });
+      ewb = generateEWayBillJSON(profile, client, details, billItems, totals, invoiceType, { taxInclusive });
     } catch (err) {
       toast(err.message || 'Could not make the E-Way Bill file', 'warning', 8000);
       return;
@@ -3850,7 +3912,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             invoiceNumber: details.invoiceNumber, invoiceDate: details.invoiceDate, invoiceType,
             status: editingBill && !editingBill._isDuplicate ? editingBill.status : 'unpaid',
             currency: invoiceOptions.currency || 'INR', einvoice,
-            data: { profile, client, details, items, totals, invoiceType, customTerms, invoiceOptions, taxInclusive },
+            data: { profile, client, details, items: billItems, totals, invoiceType, customTerms, invoiceOptions, taxInclusive },
           }}
           profile={profile} bills={allBillsForCredit} saved={showEinvoice.saved}
           onSaveIrn={saveEinvoice} onClose={() => setShowEinvoice(false)} />
@@ -5188,12 +5250,54 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountType: e.target.value }))}
                 style={{ width: 128 }}>
                 <option value="fixed">{currencySymbolFor(invoiceOptions.currency)} (fixed)</option>
-                <option value="percent">% of total</option>
+                <option value="percent">{invoiceOptions.invoiceDiscountBeforeGst ? '% of value' : '% of total'}</option>
               </select>
+              {/* v1.10.85 (#190) - Before GST: a trade discount, GST on the reduced value. */}
+              {showGST && (
+                <select className="form-input" aria-label="When the discount is taken"
+                  value={invoiceOptions.invoiceDiscountBeforeGst ? 'before' : 'after'}
+                  onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountBeforeGst: e.target.value === 'before' }))}
+                  style={{ width: 200 }}>
+                  <option value="after">After GST (cash discount)</option>
+                  <option value="before">Before GST (trade discount)</option>
+                </select>
+              )}
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                Applied after tax. For GST-compliant pre-tax discount, use per-line discount instead.
+                {invoiceOptions.invoiceDiscountBeforeGst && showGST
+                  ? 'Shared over the lines before GST, so GST is worked out on the reduced value.'
+                  : 'Taken off the total after GST.'}
               </span>
             </div>
+            )}
+            {/* v1.10.85 (#185) - payment received with the invoice (a cash sale). */}
+            {SALES_INVOICE_TYPES.includes(invoiceType) && paidWhenOpened.length > 0 && (
+              <div style={{ marginTop: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Paid so far <strong>{formatCurrency(paidSoFar, invoiceOptions.currency || 'INR')}</strong>. Payments are recorded and changed on the Dashboard.
+              </div>
+            )}
+            {canReceiveNow && (
+              <div data-testid="received-now" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                <label htmlFor="received-now-amount" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Received now <HelpButton title="Payment received with the invoice" doc="invoices#received-now" size={16} /></label>
+                <input id="received-now-amount" type="number" min="0" step="any" className="form-input"
+                  value={receivedNow.amount}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setReceivedNow(prev => ({ ...prev, amount: e.target.value }))}
+                  style={{ width: 110 }} placeholder="0" />
+                <button type="button" className="btn btn-secondary" title="Fill in the balance of this invoice"
+                  onClick={() => setReceivedNow(prev => ({ ...prev, amount: String(receivableNow) }))}
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>Full</button>
+                <select className="form-input" aria-label="How it was paid"
+                  value={receivedNow.mode}
+                  onChange={(e) => { rememberPaidMode(e.target.value); setReceivedNow(prev => ({ ...prev, mode: e.target.value })); }}
+                  style={{ width: 150 }}>
+                  {PAID_MODES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                </select>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  {Number(receivedNow.amount) > receivableNow + 0.01
+                    ? 'More than the balance: the extra is kept as the client\'s credit.'
+                    : 'Saved as a payment with the invoice. Cash also goes into the Cash book.'}
+                </span>
+              </div>
             )}
             <CreditLimitWarning savedClient={savedClientNow} bills={allBillsForCredit} profile={profile}
               excludeId={editingBill && !editingBill._isDuplicate ? editingBill.id : null} invoiceType={invoiceType} totals={totals}
@@ -5458,7 +5562,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               transformOrigin: 'top left',
             }}>
               <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
-                items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
+                items={billItems} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
                 customNotes={customNotes} extraSections={extraSections} options={invoiceOptions}
                 cancelled={editingBill?.status === 'cancelled'} einvoice={einvoice} />
             </div>
@@ -5483,7 +5587,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         profile={profile}
         client={client}
         details={details}
-        items={items}
+        items={billItems}
         totals={totals}
         invoiceType={invoiceType}
         customTerms={customTerms}
