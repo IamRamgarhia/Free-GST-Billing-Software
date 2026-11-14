@@ -345,7 +345,7 @@ export default [
 </table></div>
 <h3>Renaming, archiving and filtering</h3>
 <ul>
-  <li>Edit (pencil) renames a cost centre; reports show the new name.</li>
+  <li>Edit (pencil) opens a small <b>Edit cost centre</b> window: change the name or code and click ${ui('Save')} (or press Enter); ${ui('Cancel')} or Esc leaves it as it was. Reports show the new name.</li>
   <li>Archive takes it out of the <b>Cost centre</b> box for new documents. Documents already tagged keep it, and it stays in the lists and in this report, marked <b>(archived)</b>, whenever it has something in the period. Restore brings it back. There is no delete, so old documents never lose their tag.</li>
   <li>The Dashboard, Purchases and Expenses lists get an <b>All cost centres</b> filter: pick one centre, or <b>No cost centre</b> to find what is still untagged.</li>
   <li>The cost centre is not printed on the invoice. Cost centres are part of your backup (they are saved with the settings).</li>

@@ -21,7 +21,15 @@ export default [
   <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
   <li><a href="#menu-dots">Red dots</a> on the screens that need you.</li>
 </ul>
-<h3 id="menu-dots">Red dots in the menu</h3>
+<p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
+<p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
+<p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
+<p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
+<figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
+</section>
+
+<section id="menu-dots">
+<h2>Red dots in the menu</h2>
 <p>A small red dot on a menu item means something there needs you. Point at it (or at the item) to read why, for example "2 overdue invoices". A number in the dot says how many.</p>
 <div class="table-wrap"><table>
   <tr><th>Item</th><th>The dot means</th><th>It goes away when</th></tr>
@@ -34,8 +42,10 @@ export default [
 </table></div>
 <p>A closed group shows one dot on its name when an item inside has one; so does a group whose item you took out of the menu in <a href="#menu-groups">Customise menu</a>. In the slim icon menu the dot sits on the icon (or on the group's thin line). On a phone, the ☰ menu button has a dot when anything inside the menu does.</p>
 <p>The dots and the 🔔 <a href="#notifications">bell</a> always agree: ${ui('Mark all as read')} in the bell clears the same dots, and they come back together when something new happens. They are checked when the app opens, when you go to another screen, a moment after you save an invoice, product, purchase or template, and every 10 minutes. To turn them off, untick <b>Red dots in the menu</b> in <a href="settings.html#appearance">Settings → Appearance</a>; the bell keeps working.</p>
-<p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
-<h3 id="menu-groups">Open, close and customise the menu</h3>
+</section>
+
+<section id="menu-groups">
+<h2>Open, close and customise the menu</h2>
 <p><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</p>
 <p><b>Customise menu</b>: click the pencil beside your business name at the top of the sidebar (or ${ui('Customise menu…')} in <a href="settings.html#features-menu">Settings → Features</a>). The window lists the groups and their items as the menu shows them, and a <b>Bottom of the menu</b> part for Support &amp; About, Control Panel and Settings. It works with a mouse, a finger or the keyboard; on a phone it opens from the bottom of the screen.</p>
 <ul>
@@ -47,10 +57,6 @@ export default [
   <li>${ui('Reset menu')} puts back the three groups in the usual order, opens them all and shows every item. ${ui('Done')}, ${ui('✕')} or <kbd>Esc</kbd> closes the window.</li>
 </ul>
 <p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
-<p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
-<p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
-<p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
-<figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
 </section>
 
 <section id="support">
@@ -96,14 +102,24 @@ export default [
   <li>go to any screen, or start a new invoice;</li>
   <li>open an invoice by its number or client;</li>
   <li>find a client by name or GSTIN, or a product by name or HSN, which opens their list;</li>
-  <li>jump to Settings, switch dark mode, or see what is new in an update.</li>
+  <li>jump to Settings, switch dark mode, or see what is new in an update;</li>
+  <li>ask a question, such as <code>how do I add my logo</code>, <code>credit note</code> or <code>bill kaise banaye</code> (see below);</li>
+  <li>find a page of this guide by its title.</li>
 </ul>
 <ol class="steps">
-  <li><strong>Open it</strong>Click <b>Search or jump to…</b> at the top, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Type a command or page name…</b></li>
-  <li><strong>Type a few letters</strong>For example <code>gst</code>, an invoice number such as <code>0012</code>, or part of a client's name. The list narrows as you type.</li>
+  <li><strong>Open it</strong>Click <b>Search or jump to…</b> at the top, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Search, or ask: how do I…</b></li>
+  <li><strong>Type a few letters or words</strong>For example <code>gst</code>, an invoice number such as <code>0012</code>, part of a client's name, or a question. The list narrows as you type, in groups: <b>Screens</b>, <b>How do I…</b>, <b>Settings</b>, your <b>Invoices</b>, <b>Clients</b> and <b>Products</b>, and <b>Help pages</b>. When what you type looks like an invoice number or a name, your invoices, clients and products come first.</li>
   <li><strong>Pick one</strong>Move with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>Enter</kbd>, or click it. The box closes and the screen opens.</li>
 </ol>
-<p><kbd>Esc</kbd>, or a click outside the box, closes it. If nothing fits you see <b>Nothing matches "…"</b>: try fewer letters. ${ui('All shortcuts (Ctrl+/)')} at the bottom opens the list of <a href="#keyboard">keyboard shortcuts</a>.</p>
+<p><kbd>Esc</kbd>, or a click outside the box, closes it. If nothing fits you see <b>Nothing matches "…"</b>: try fewer words, or click <b>search the user guide</b>. ${ui('All shortcuts (Ctrl+/)')} at the bottom opens the list of <a href="#keyboard">keyboard shortcuts</a>.</p>
+<h3>How do I… answers</h3>
+<p>With the box empty, a few common questions are listed under <b>How do I…</b>; type a few words of your question to find the others (about 85: invoices and credit notes, payments, WhatsApp, GST returns, stock, backups, phone, updates and more). Typing mistakes and everyday words such as <code>bill</code>, <code>challan</code> or <code>udhaar</code> work too. Each answer has two ways to go:</p>
+<div class="table-wrap"><table>
+  <tr><th>You do</th><th>What happens</th></tr>
+  <tr><td>Click the question, or press <kbd>Enter</kbd></td><td><b>Take me there</b>: the app opens the screen or Settings part where it is done (the line under the question says where, for example <b>Opens Settings → Branding</b>) and outlines the box for a moment.</td></tr>
+  <tr><td>Click ${ui('Guide')} on its right, or press <kbd>Shift</kbd> + <kbd>Enter</kbd></td><td>Opens the part of this guide that explains it, in your browser. It needs the internet.</td></tr>
+</table></div>
+<p>If the screen it needs is switched off in <a href="settings.html#features">Settings, Features</a>, Features opens instead and a message says what to turn on. Results under <b>Help pages</b> are pages and sections of this guide; they open in your browser too.</p>
 <figure><img src="assets/img/app-palette.png" alt="Quick search finding a client and their invoices." loading="lazy"><figcaption>Quick search finding a client and their invoices.</figcaption></figure>
 </section>
 

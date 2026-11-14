@@ -173,9 +173,9 @@ export default [
 <p>On some purchases the law makes <b>you</b> pay the GST to the government instead of the supplier: for example a goods transport agency (GTA), an advocate, or goods the law puts under reverse charge. Tick <b>Reverse charge</b> on such a bill (under Inter-state purchase). It is off to start, and bills saved before are not reverse charge.</p>
 <ul>
   <li><strong>What you owe the supplier</strong> is the bill without its GST (and cess): the form, the bill's view and its PDF show <b>Less: GST you pay (reverse charge)</b> and <b>Paid to supplier</b>. The balance due, Mark as paid, the <a href="#supplier-statement">supplier statement</a> and goods returned on debit notes all use that figure.</li>
-  <li><strong>GSTR-3B:</strong> the bill's taxable value and GST go into <a href="gst-returns.html#reverse-charge-3b">3.1(d)</a>, the tax you pay in cash, and the same GST is credit in Table 4(A)(3) instead of 4(A)(5). Goods returned on such a bill come off 3.1(d) in the month of the debit note.</li>
+  <li><strong>GSTR-3B:</strong> the bill's taxable value and GST go into <a href="gst-returns.html#table-3-1">3.1(d)</a>, the tax you pay in cash, and the same GST is credit in Table 4(A)(3) instead of 4(A)(5). Goods returned on such a bill come off 3.1(d) in the month of the debit note.</li>
   <li>The bill's view and PDF say <b>Reverse charge: Yes</b>, and the purchase register has a <b>Reverse charge</b> column (Y / N).</li>
-  <li><a href="gst-returns.html#gstr-2b-add-bill">Add as purchase bill</a> from GSTR-2B ticks it for entries GSTR-2B marks reverse charge.</li>
+  <li><a href="gst-returns.html#gstr-2b-results">Add as purchase bill</a> from GSTR-2B ticks it for entries GSTR-2B marks reverse charge.</li>
 </ul>
 <p>Enter the GST rate on each line as usual: it is the rate you pay. Whether a purchase is under reverse charge is a legal question: ask your accountant if unsure.</p>
 </section>
@@ -468,7 +468,7 @@ export default [
   <tr><td>${ui('Close')}</td><td>Closes the window.</td></tr>
   <tr><td>${ui('Duplicate')}</td><td>A new PO with the same supplier and items.</td></tr>
   <tr><td>${ui('Edit')}</td><td>Open orders only.</td></tr>
-  <tr><td>${ui('WhatsApp')}</td><td>On a phone that can share files, sends the PDF with a short message. On a computer, opens WhatsApp with the message (PO number, date, items, quantities, rates and total) for you to pick the supplier; attach the PDF yourself if you want it.</td></tr>
+  <tr><td>${ui('WhatsApp')}</td><td>On a phone that can share files, sends the PDF with a short message. On a computer, copies the PDF and opens WhatsApp with the message (PO number, date, items, quantities, rates and total): pick the supplier, press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the chat to attach the PDF, then Send.</td></tr>
   <tr><td>${ui('Email')}</td><td>Opens your email program with the subject <b>Purchase order</b> <i>number</i> and the order typed out. Add the supplier's email address, and attach the PDF from ${ui('Download PDF')} if you want.</td></tr>
   <tr><td>${ui('Print')}</td><td>Opens the PDF ready to print. If pop-ups are blocked, it downloads instead.</td></tr>
   <tr><td>${ui('Download PDF')}</td><td>Saves the PDF, named after the PO number with <code>_</code> for each slash, such as <code>PO_26-27_0001.pdf</code>.</td></tr>

@@ -174,7 +174,8 @@ export default [
   <tr><td><b>Date *</b></td><td>The day the cash moved.</td></tr>
   <tr><td><b>Note</b></td><td>Up to 500 letters.</td></tr>
 </table></div>
-<p>After saving you see, for example, "Money in of ₹500.00 saved". The entry appears in the list, and the amount, name, category and note are cleared for the next one. Money in or out and the date stay as they were, so ten counter sales in a row are quick.</p>
+<p><b>The suggestion list.</b> Clicking the Name or Category box, or typing in it, opens a white list under it with the choices that match what you typed. Click one, or use the ↑ and ↓ keys and Enter. Esc closes the list, and Tab moves on to the next box. You can always type your own word instead.</p>
+<p>After saving you see, for example, "Money in of ₹500.00 saved." The entry appears in the list, and the amount, name, category and note are cleared for the next one, with the cursor back in Amount. Money in or out and the date stay as they were, so ten counter sales in a row are quick. If the date you gave is outside the dates the list shows, the message says so ("It is dated 05 Oct 2026, outside This month: choose All dates to see it.").</p>
 <div class="note tip"><strong>Something wrong?</strong><p>If something is missing you see a message saying what to fix, and nothing is saved: "Enter an amount more than 0", "Enter a date", "Choose Money in or Money out", or "The name is too long (120 letters at most)". "Could not save the entry. Try again.": the app could not reach its data; see <a href="troubleshooting.html#saving">Saving and working in the app</a>. The entry saved but you do not see it: it may be outside the dates chosen below the form; pick <b>All dates</b>.</p></div>
 </section>
 
@@ -216,7 +217,8 @@ export default [
 
 <section id="edit-entry">
 <h3>Changing or deleting an entry (Edit entry)</h3>
-<p>Your own entries have a pencil and a bin under <b>Actions</b>. The pencil opens the entry in the form at the top, now titled <b>Edit entry</b>. Change it and click ${ui('Update')}, or ${ui('Cancel')} to leave it as it was. After an update the form is ready for a new entry again, dated today.</p>
+<p>Your own entries have a pencil and a bin under <b>Actions</b>. The pencil opens the entry in a small <b>Edit entry</b> window, with the same boxes as the New entry form (on a phone it comes up from the bottom of the screen). Change it and click ${ui('Save')} or press Enter. ${ui('Cancel')}, the ${ui('X')}, Esc or a click outside the window leave it as it was. The New entry form at the top is not touched, so you can go back to adding straight away.</p>
+<p>${ui('Delete')} at the bottom left of the window deletes the entry, after the same question as the bin below.</p>
 <p>The bin deletes the entry. The app asks first, saying how cash in hand will change ("Money out of ₹200.00 on 05 Oct 2026 (Auto) is removed from the cash book..."). Click ${ui('Delete')}. This cannot be undone.</p>
 <p>Lines from invoices, receipts and expenses have no pencil or bin. Change them where they were made (<a href="#from-elsewhere">see above</a>).</p>
 </section>

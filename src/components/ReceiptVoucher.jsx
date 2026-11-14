@@ -6,6 +6,7 @@ import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import ComboInput from './ComboInput';
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
 
@@ -53,22 +54,31 @@ export default function ReceiptVoucher() {
       setReceipts((recs || []).filter(r => belongsToProfile(r, prof)));
       setBills((bls || []).filter(b => belongsToProfile(b, prof)));
       setProfile(prof || {});
+      return prof || {};
     } catch {
       toast('Failed to load data', 'error');
+      return null;
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData().then((prof) => {
+      // v1.10.86 - "Record payment" on a client's account (Clients) opens the
+      // new receipt for that client; Quick Select then lists their invoices.
+      let forClient = '';
+      try { forClient = sessionStorage.getItem('gst_receiptFor') || ''; sessionStorage.removeItem('gst_receiptFor'); } catch { /* storage blocked */ }
+      if (forClient && prof) openAdd({ clientName: forClient }, prof);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Peek at the next receipt number using the SAME atomic counter that
   // invoice numbers use. Pre-v1.6.8 this counted `receipts.length + 1`
   // which raced under concurrent saves + two tabs.
-  const getNextReceiptNo = async () => {
+  const getNextReceiptNo = async (prof = profile) => {
     try {
       // v1.10.79 (#95) - a business with its own numbering numbers its receipts too.
-      return await getNextInvoiceNumber('RCP', { peek: true, businessKey: businessKeyOf(profile) });
+      return await getNextInvoiceNumber('RCP', { peek: true, businessKey: businessKeyOf(prof) });
     } catch {
       // Fallback preserves old behaviour if server is offline mid-mount
       const count = receipts.length + 1;
@@ -84,10 +94,12 @@ export default function ReceiptVoucher() {
         (r.receiptNo || '').toLowerCase().includes(search.toLowerCase()))
     : receipts;
 
-  const openAdd = async () => {
-    const receiptNo = await getNextReceiptNo();
+  // v1.10.86 - prefill (e.g. the client) when opened for a client; a click
+  // passes an event, which is not a prefill.
+  const openAdd = async (prefill, prof) => {
+    const receiptNo = await getNextReceiptNo(prof || profile);
     previewedNoRef.current = receiptNo;
-    setForm({ ...emptyForm, date: localToday(), receiptNo });
+    setForm({ ...emptyForm, date: localToday(), receiptNo, ...(prefill?.clientName ? { clientName: prefill.clientName } : {}) });
     setEditingId(null);
     setShowForm(true);
   };
@@ -295,7 +307,11 @@ export default function ReceiptVoucher() {
 
   // v1.10.67 (#66 item 12) — no money is owed on a cancelled invoice.
   // v1.10.74 - nor on quotes, challans or credit notes: real sales only.
-  const unpaidBills = bills.filter(b => b.status !== 'paid' && countsAsSales(b));
+  // v1.10.86 - once the client is one with unpaid invoices, only theirs.
+  const unpaidAll = bills.filter(b => b.status !== 'paid' && countsAsSales(b));
+  const formClient = form.clientName.trim().toLowerCase();
+  const unpaidOfClient = formClient ? unpaidAll.filter(b => (b.clientName || '').trim().toLowerCase() === formClient) : [];
+  const unpaidBills = unpaidOfClient.length ? unpaidOfClient : unpaidAll;
 
   // v1.10.66 (#64 item 2) — receipts saved before this release carry no
   // business. As with expenses they are never assigned automatically: only the
@@ -380,9 +396,8 @@ export default function ReceiptVoucher() {
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label" htmlFor="receipt-client">Received From (Client Name) *</label>
-                <input id="receipt-client" type="text" className="form-input" list="receipt-clients" autoComplete="off" placeholder="Start typing a client name"
+                <ComboInput id="receipt-client" type="text" className="form-input" options={clientNames} listLabel="Clients" placeholder="Start typing a client name"
                   value={form.clientName} onChange={e => updateField('clientName', e.target.value)} />
-                <datalist id="receipt-clients">{clientNames.map((n) => <option key={n} value={n} />)}</datalist>
               </div>
               <div className="form-group">
                 <label className="form-label">Amount *</label>

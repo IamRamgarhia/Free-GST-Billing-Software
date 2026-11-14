@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Download, Printer, MessageCircle, Mail, FileText } from 'lucide-react';
-import { openWhatsAppShare } from '../utils/share';
+import { sendPdfOnWhatsApp } from '../utils/share';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -41,26 +41,9 @@ export default function PdfPreviewModal({ doc, fileName, title, message, phone, 
     catch { if (!window.open(url, '_blank')) download(); }
   };
 
-  // A phone (or a PC with a share sheet) gets the PDF itself.
-  const shareFile = async () => {
-    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
-    const file = new File([blob], fileName, { type: 'application/pdf' });
-    if (typeof navigator.canShare !== 'function' || !navigator.canShare({ files: [file] })) return false;
-    try {
-      await navigator.share({ title, text: message.replace(/\*/g, ''), files: [file] });
-    } catch (e) {
-      // AbortError = the share sheet was closed: nothing else to do.
-      if (e?.name !== 'AbortError') return false;
-    }
-    return true;
-  };
-
-  const whatsApp = async () => {
-    if (await shareFile()) return;
-    openWhatsAppShare(phone, message);
-    download();
-    toast(`PDF downloaded. Drag it into the WhatsApp chat${phone ? '' : ' (choose the contact there)'} — browsers can't attach it for you.`, 'info', 7000);
-  };
+  // v1.10.86 - a phone gets the Share sheet with the PDF; the PC copies the
+  // PDF for Ctrl+V in the chat (utils/share.js sendPdfOnWhatsApp).
+  const whatsApp = () => sendPdfOnWhatsApp({ phone, toast, prepare: () => ({ blob, fileName, message }) });
 
   const mail = () => {
     // Only a plain address is used, so a stray "?" or "&" can't break the link.

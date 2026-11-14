@@ -174,7 +174,7 @@ export function FeaturesPanel({ features, regionMode }) {
       {section === 'main' ? groups.map((g, gi) => (
         <div key={g.id} data-menu-group={g.id} style={{ marginTop: gi ? '0.85rem' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.45rem' }}>
-            <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+            <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
               <button type="button" className="icon-btn" disabled={gi === 0} onClick={() => moveGroup(g.id, -1)}
                 aria-label={`Move the ${g.label} group up`} title="Move the group up" style={{ padding: 2 }}><ChevronUp size={16} /></button>
               <button type="button" className="icon-btn" disabled={gi === groups.length - 1} onClick={() => moveGroup(g.id, 1)}
@@ -196,7 +196,7 @@ export function FeaturesPanel({ features, regionMode }) {
             const mod = menuModules.find(m => m.id === item.module);
             return (
               <div key={item.id} data-menu-item={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   <button type="button" className="icon-btn" disabled={stuck(item.id, -1)} onClick={() => move(item.id, -1)}
                     aria-label={`Move ${item.label} up`} title="Move up" style={{ padding: 2 }}><ChevronUp size={16} /></button>
                   <button type="button" className="icon-btn" disabled={stuck(item.id, 1)} onClick={() => move(item.id, 1)}

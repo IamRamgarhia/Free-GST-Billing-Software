@@ -124,7 +124,7 @@ export default [
   <li>Quotations, proforma estimates and delivery challans are <b>left out</b>: they are not sales yet.</li>
   <li>Cancelled invoices are <b>left out</b>.</li>
 </ul>
-<p>The totals are for <b>all years</b> together until you choose a period in <b>Totals for</b> above the cards: <b>This month</b>, <b>Last month</b>, <b>Choose a month…</b> (pick any month), or a financial year (April to March). An invoice counts in the period of its invoice date, and the choice is remembered in this browser. The cards do not follow the filters on the invoice list. For a quarter, or the full figures, use <a href="reports.html">Reports</a> or <a href="gst-returns.html">GST Returns</a>. Sales in a foreign currency get a line of their own on each card (for example ₹4,25,000 and \$1,200), never added to rupees. A card shows <b>—</b> when there are no sales yet.</p>
+<p>The totals are for <b>all years</b> together until you choose a period in <b>Totals for</b>, next to the Dashboard title and the number of invoices at the top: <b>This month</b>, <b>Last month</b>, <b>Choose a month…</b> (pick any month), or a financial year (April to March). An invoice counts in the period of its invoice date, and the choice is remembered in this browser. The cards do not follow the filters on the invoice list. For a quarter, or the full figures, use <a href="reports.html">Reports</a> or <a href="gst-returns.html">GST Returns</a>. Sales in a foreign currency get a line of their own on each card (for example ₹4,25,000 and \$1,200), never added to rupees. A card shows <b>—</b> when there are no sales yet.</p>
 </section>
 
 <section id="total-invoiced">
@@ -178,11 +178,11 @@ export default [
   <tr><td>All Years</td><td>Pick one financial year (1 April to 31 March).</td></tr>
   <tr><td>All Types</td><td>Pick one document type: Tax Invoice, Quotation, Proforma / Estimate, Bill of Supply (No GST), Composition (Bill of Supply), Credit Note or Delivery Challan.</td></tr>
   <tr><td>All Status</td><td>Unpaid, Partial, Paid, Overdue or Cancelled. See <a href="#status">Status</a>.</td></tr>
-  <tr><td>From / To</td><td>A range of invoice dates. Fill in one or both.</td></tr>
-  <tr><td>All cost centres</td><td>Only when <a href="reports.html#cost-centres">cost centres</a> are on: one branch, site or project, or <b>No cost centre</b> to find invoices not yet tagged.</td></tr>
+  <tr><td>${ui('Dates & more')}</td><td>Opens a small box with <b>From</b> / <b>To</b>, a range of invoice dates (fill in one or both), and, when <a href="reports.html#cost-centres">cost centres</a> are on, <b>Cost centre</b>: one branch, site or project, or <b>No cost centre</b> to find invoices not yet tagged. The button shows how many of these are set, such as <b>Dates & more (2)</b>. Click outside the box or press Esc to close it. With cost centres off the button is called ${ui('Dates')}.</td></tr>
   <tr><td>${ui('✕')}</td><td>Shows once any filter is set. Clears all of them at once.</td></tr>
-  <tr><td>Saved filters</td><td>Buttons for filter sets you saved, and ${ui('Save these filters')}. See <a href="#saved-filters">Saved filters</a>.</td></tr>
-  <tr><td>${ui('Columns')}</td><td>Choose which columns the list shows. See <a href="#columns">Choosing the columns</a>.</td></tr>
+  <tr><td>${ui('Print')}</td><td>Puts the invoices in the list into one PDF: All shown, Unpaid only, Overdue or Paid. See <a href="#quick-print">Printing many invoices as one PDF</a>.</td></tr>
+  <tr><td>${ui('▥')} (columns)</td><td>The last button on the row: choose which columns the list shows. See <a href="#columns">Choosing the columns</a>.</td></tr>
+  <tr><td>Saved filters</td><td>Buttons for filter sets you saved, and ${ui('Save these filters')}, in a row under the filters. See <a href="#saved-filters">Saved filters</a>.</td></tr>
 </table>
 <p>The filters you set (all but the search) are remembered: the Dashboard opens with them next time. Click ${ui('✕')} to see everything again.</p>
 <p><b>Sorting:</b> click a column header (Date, Invoice No., Type, Client, Amount, Due Date, Paid or Status) to sort the list by it: the first click sorts A to Z (oldest or lowest first), the second Z to A (newest or highest first), the third puts the usual order back. A small arrow on the header shows the sort. Each list remembers its sort on this computer and browser.</p>
@@ -213,7 +213,7 @@ export default [
 
 <section id="columns">
 <h2>Choosing the columns</h2>
-<p>${ui('Columns')} at the right end of the filters opens <b>Pick columns to show</b>. Tick or untick:</p>
+<p>The columns button (${ui('▥')}, "Choose which columns to show") at the right end of the filters opens <b>Pick columns to show</b>. Tick or untick:</p>
 <table>
   <tr><th>Column</th><th>Shows</th><th>To start</th></tr>
   <tr><td>Date</td><td>The invoice date</td><td>Shown</td></tr>
@@ -227,7 +227,7 @@ export default [
   <tr><td>Print count</td><td>How many times it was printed or downloaded, such as 2×</td><td>Hidden</td></tr>
   <tr><td>Actions</td><td>The buttons for each invoice (see <a href="#row-actions">What you can do with an invoice</a>)</td><td>Shown</td></tr>
 </table>
-<p>The <b>Paid</b> column and the tick boxes are always shown. Your choice is remembered on this computer and browser. Click ${ui('Columns')} again to close the list. On a narrow screen, hiding a few columns saves sideways scrolling.</p>
+<p>The <b>Paid</b> column and the tick boxes are always shown. Your choice is remembered on this computer and browser. Click the columns button again to close the list. On a narrow screen, hiding a few columns saves sideways scrolling.</p>
 </section>
 
 <section id="saved-filters">
@@ -379,7 +379,7 @@ export default [
 <p><b>WhatsApp</b> (in the ${ui('⋯')} menu) sends a message with the invoice number, date and due date, client, total, what is paid or still due (or "FULLY PAID"), the status, and your business name.</p>
 <ul>
   <li><b>On a phone or tablet</b> (Chrome or Safari): the app makes the PDF and opens your phone's share menu with it attached. Pick WhatsApp and the client.</li>
-  <li><b>On a computer</b>: WhatsApp does not let any website attach a file. So the client's chat opens in a new tab with the message, using the phone number saved for them, and the PDF is downloaded to your Downloads folder. Drag that PDF into the chat and send. If no number is saved, choose the contact in WhatsApp yourself.</li>
+  <li><b>On a computer</b>: the app copies the PDF to the clipboard and opens the client's chat in a new tab with the message, using the phone number saved for them. Press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the chat to attach the PDF, then Send. If no number is saved, choose the contact in WhatsApp yourself first. If the PDF could not be copied, it is downloaded instead: drag it into the chat.</li>
 </ul>
 <p><b>Email</b> opens your email program (Outlook, Windows Mail, Gmail if set as your mail app) with the subject <b>Invoice INV/0012 - ₹11,800</b>, a short "Dear …" message with the same details, and the client's email address filled in when the invoice or the saved client has one. Email links cannot attach files, so attach the PDF yourself: download it first with ${ui('Save PDF')} on the invoice screen, or tick the invoice and use ${ui('One merged PDF')}.</p>
 <div class="note tip"><strong>Something wrong?</strong>
@@ -438,9 +438,9 @@ export default [
 
 <section id="quick-print">
 <h2>Printing many invoices as one PDF</h2>
-<p>The <b>Quick print</b> row above the list combines invoices into one PDF file, without ticking anything. It uses the list <b>as it is filtered now</b>, so set the filters first: for example From 1 October To 31 October, then ${ui('All shown')} gives October's invoices for your CA.</p>
+<p>${ui('Print')} at the right of the filters combines invoices into one PDF file, without ticking anything. It uses the list <b>as it is filtered now</b>, so set the filters first: for example ${ui('Dates & more')}, From 1 October To 31 October, then ${ui('Print')}, ${ui('All shown')} gives October's invoices for your CA.</p>
 <table>
-  <tr><th>Button</th><th>Puts in the PDF</th></tr>
+  <tr><th>In the Print menu</th><th>Puts in the PDF</th></tr>
   <tr><td>${ui('All shown (n)')}</td><td>Every invoice in the list</td></tr>
   <tr><td>${ui('Unpaid only (n)')}</td><td>Only those marked Unpaid, not part-paid or overdue</td></tr>
   <tr><td>${ui('Overdue (n)')}</td><td>Only overdue ones, for chasing payments</td></tr>
@@ -453,12 +453,12 @@ export default [
 
 <section id="bulk">
 <h2>Ticking several invoices</h2>
-<p>Tick the box at the start of each row, or the box in the header to tick every row in the list as filtered. For a set of dates, such as one month, fill in <b>From</b> and <b>To</b> in the filters first, then tick the header box. A blue bar appears above the list with how many are ticked, such as <b>3 selected</b>, and these buttons:</p>
+<p>Tick the box at the start of each row, or the box in the header to tick every row in the list as filtered. For a set of dates, such as one month, fill in <b>From</b> and <b>To</b> under ${ui('Dates & more')} first, then tick the header box. A blue bar appears above the list with how many are ticked, such as <b>3 selected</b>, and these buttons:</p>
 <table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Mark paid')}, ${ui('Mark unpaid')}, ${ui('Mark overdue')}</td><td>Change them all, after asking. Mark paid records a payment for each balance (note "Marked paid (bulk)"); Mark unpaid takes such payments back, as the <a href="#status">status dropdown</a> does. Only tax invoices, bills of supply and composition bills change; ticked quotations or challans are left alone. Marking a cancelled invoice as anything brings it back and takes its stock out again.</td></tr>
   <tr><td>${ui('Export JSON')}</td><td>Saves the ticked invoices to one file, such as <code>freegstbill-bills-3-2026-10-31.json</code>, which can be brought back with <a href="backup.html#export-import">Import</a> in Settings, Backup.</td></tr>
-  <tr><td>${ui('One merged PDF')}</td><td>Combines the ticked invoices into one PDF, one invoice per page, useful for your CA or for filing. Works like <a href="#quick-print">Quick print</a>.</td></tr>
+  <tr><td>${ui('One merged PDF')}</td><td>Combines the ticked invoices into one PDF, one invoice per page, useful for your CA or for filing. Works like the <a href="#quick-print">Print menu</a>.</td></tr>
   <tr><td>${ui('Separate PDFs (ZIP)')}</td><td>One PDF file per ticked invoice, named by its invoice number (such as <code>INV-0012.pdf</code>), downloaded together in one ZIP, such as <code>invoices-26-2026-10-31.zip</code>. Open the ZIP to get the files.</td></tr>
   <tr><td>${ui('E-invoice JSON')}</td><td>Only when e-invoicing is on. One file with the ticked invoices, to upload on the e-invoice portal. See <a href="#einvoice">E-invoicing from the Dashboard</a>.</td></tr>
   <tr><td>Set cost centre…</td><td>Only when <a href="reports.html#cost-centres">cost centres</a> are on. Tags the ticked invoices with one branch, site or project, after asking; <b>Remove cost centre</b> takes it off. Only the cost centre changes.</td></tr>

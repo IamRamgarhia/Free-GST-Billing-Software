@@ -7,7 +7,9 @@ import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../ut
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
 import { EInvoiceReport } from './EInvoiceModal';
-import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
+import { openWhatsAppShare, invoiceShareMessage, sendPdfOnWhatsApp } from '../utils/share';
+// v1.10.86 - the single-invoice PDF moved to utils/billPdf.js (Clients uses it too).
+import { addCanvasAsA4Pages, safeBreaks, billPdfBlob, billPdfName } from '../utils/billPdf';
 import PageHeader from './PageHeader';
 import LockButton from './LockButton';
 import ActionsMenu from './ActionsMenu';
@@ -30,7 +32,8 @@ import ScanReturnCard from './ScanReturnCard';
 import { putReorderDraft } from '../utils/reorderDraft';
 // v1.10.86 - sort by column, Customise Dashboard, remembered and saved filters.
 import { useListSort, sortRows, readJson, writeJson, BLOCKS_KEY, normaliseLayout, takeStartScroll } from '../utils/listPrefs';
-import { SlidersHorizontal, Bookmark } from 'lucide-react';
+import { SlidersHorizontal, Bookmark, Columns3 } from 'lucide-react';
+import FilterPopover from './FilterPopover';
 import SortTh from './SortTh';
 import DashboardCustomise from './DashboardCustomise';
 import { promptAction } from './ConfirmModal';
@@ -51,48 +54,6 @@ const SO_STATUS_COLORS = {
 // user reported "NEW ISSUE IN CASE OF DARK MODE". rgba() with 12%
 // alpha lets the underlying row bg show through and works in both
 // themes.
-// v1.10.79 - put a captured invoice on A4 pages. It used to be drawn into one
-// page whatever its height (`Math.min(h, 297)`), so a long invoice shared on
-// WhatsApp or in Bulk PDF came out squashed into a single page. Now each
-// 297 mm slice is its own page.
-// `breaks` are canvas heights where a page may end (row and block bottoms,
-// see safeBreaks): a page ends at the last one that fits, so rows and the
-// signature are not cut in half.
-function addCanvasAsA4Pages(doc, canvas, startOnNewPage, breaks = []) {
-  const pageW = 210;
-  const pageH = 297;
-  const slicePx = Math.floor((canvas.width * pageH) / pageW);
-  for (let y = 0, page = 0; y < canvas.height; page++) {
-    let h = Math.min(slicePx, canvas.height - y);
-    if (y + h < canvas.height) {
-      const cut = breaks.filter((b) => b > y + slicePx * 0.5 && b <= y + slicePx).pop();
-      if (cut) h = cut - y;
-    }
-    if (page > 0 && h < 4) break; // a sliver of white margin is not worth a page
-    const slice = document.createElement('canvas');
-    slice.width = canvas.width;
-    slice.height = h;
-    const ctx = slice.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, slice.width, slice.height);
-    ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
-    if (page > 0 || startOnNewPage) doc.addPage();
-    doc.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, (h * pageW) / canvas.width, undefined, 'FAST');
-    y += h;
-  }
-}
-
-// Heights (in canvas pixels) where a page may end: the bottom of each table
-// row and of each block the editor's own PDF also keeps whole.
-function safeBreaks(el, canvas) {
-  const top = el.getBoundingClientRect().top;
-  const scale = canvas.height / Math.max(1, el.getBoundingClientRect().height);
-  return [...el.querySelectorAll('tr, .inv-footer-block, [data-pdf-page-boundary], .inv-signature')]
-    .map((n) => Math.round((n.getBoundingClientRect().bottom - top) * scale))
-    .filter((b) => b > 0 && b < canvas.height)
-    .sort((a, b) => a - b);
-}
-
 const STATUS_CONFIG = {
   unpaid:  { label: 'Unpaid',  icon: Clock,          color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)' },
   partial: { label: 'Partial', icon: Clock,          color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.14)' },
@@ -1403,44 +1364,6 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     await bulkExportPDF(targetBills);
   };
 
-  // v1.10.22 — Generate a single-bill PDF as a Blob. Split out of the
-  // bulk-export path so the WhatsApp / native share flows can attach the
-  // actual PDF via navigator.share (with a text-only URL fallback on
-  // desktop / browsers that don't support file sharing yet).
-  const generateSingleBillPdfBlob = async (bill) => {
-    const data = bill.data || {};
-    const { jsPDF } = await import('jspdf');
-    const html2canvas = (await import('html2canvas')).default;
-    const InvoicePreviewMod = await import('./InvoicePreview');
-    const { createRoot } = await import('react-dom/client');
-    const { createElement } = await import('react');
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;';
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    try {
-      await new Promise((resolve) => {
-        root.render(createElement(InvoicePreviewMod.default, {
-          profile: data.profile, client: data.client, details: data.details, items: data.items,
-          totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
-          customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
-          cancelled: bill.status === 'cancelled', einvoice: bill.einvoice,
-        }));
-        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
-      });
-      const capScale = Math.min(4, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.2)));
-      const canvas = await html2canvas(container.firstElementChild || container, {
-        scale: capScale, backgroundColor: '#ffffff', useCORS: false, logging: false,
-      });
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-      addCanvasAsA4Pages(doc, canvas, false, safeBreaks(container.firstElementChild || container, canvas));
-      return doc.output('blob');
-    } finally {
-      root.unmount();
-      document.body.removeChild(container);
-    }
-  };
-
   // v1.10.24 — Build a rich WhatsApp / Email caption that carries the full
   // payment status. Reported: "please forward with text message too with
   // status op payment." On mobile the message rides as WhatsApp caption
@@ -1449,56 +1372,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // v1.10.84 (#156) - the one message every screen sends (utils/share.js).
   const buildShareMessage = (bill) => invoiceShareMessage(bill, profile);
 
-  const shareWhatsApp = async (bill) => {
-    const msg = buildShareMessage(bill);
-    // v1.10.22 — try the native Web Share API first, with the actual PDF
-    // attached. On mobile Chrome / Safari the share sheet lets the user
-    // pick WhatsApp (or any other target). Falls through to the text-only
-    // wa.me URL on desktop and older browsers.
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try {
-        toast('Preparing PDF for share…', 'info', 1500);
-        const blob = await generateSingleBillPdfBlob(bill);
-        const file = new File([blob], `${bill.invoiceNumber}.pdf`, { type: 'application/pdf' });
-        const canShareFile = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
-        if (canShareFile) {
-          await navigator.share({
-            title: `Invoice ${bill.invoiceNumber}`,
-            text: msg,
-            files: [file],
-          });
-          return;
-        }
-      } catch (e) {
-        // AbortError = user dismissed the share sheet; not an error.
-        if (e?.name !== 'AbortError') console.warn('Web Share failed, falling back to WhatsApp URL:', e);
-        else return;
-      }
-    }
-    // Fallback (desktop): WhatsApp Web cannot be handed a file by a web page
-    // (a browser security rule), so the PDF is downloaded and the client's
-    // chat opened with the message, ready to drag the file in.
-    // v1.10.81 (#117) - the client's saved number is used (it was only the
-    // number on the invoice record, which is rarely set), and the PDF is
-    // downloaded for them instead of "download it yourself".
-    const phone = getClientPhone(bill);
-    // Opened first, while it still counts as the click: opened after the PDF
-    // is made, browsers block it as a popup.
-    openWhatsAppShare(phone, msg);
-    let downloaded = false;
-    try {
-      const blob = await generateSingleBillPdfBlob(bill);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `${String(bill.invoiceNumber).replace(/[\\/:*?"<>|]+/g, '-')}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      downloaded = true;
-    } catch { /* PDF failed: still open the chat with the text */ }
-    toast(downloaded
-      ? `PDF downloaded. Drag it into the WhatsApp chat${phone ? '' : ' (choose the contact there)'} — browsers can't attach it for you.`
-      : 'WhatsApp opened with the invoice details. Download the PDF from the invoice to send the file.', 'info', 7000);
-  };
+  // v1.10.86 - the PDF goes along: copied to the clipboard on the PC (Ctrl+V in
+  // the chat), the Share sheet on a phone (utils/share.js sendPdfOnWhatsApp).
+  // v1.10.81 (#117) - the client's saved number is used.
+  const shareWhatsApp = (bill) => sendPdfOnWhatsApp({
+    phone: getClientPhone(bill), toast,
+    prepare: async () => ({ blob: await billPdfBlob(bill), fileName: billPdfName(bill), message: buildShareMessage(bill) }),
+  });
 
   const shareEmail = (bill) => {
     // v1.10.24 — same rich payment status as the WhatsApp share (strip
@@ -1613,7 +1493,23 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           {/* v1.10.86 - on a phone Customise sits here, so the header buttons keep to one row. */}
           <button type="button" className="icon-btn dash-customise-phone" onClick={() => setShowCustomise(true)} aria-label="Customise Dashboard" title="Customise Dashboard"><SlidersHorizontal size={16} /></button></>}
         subtitle="Overview of your invoices"
-        meta={`${bills.length} invoice${bills.length === 1 ? '' : 's'}`}>
+        meta={<>{bills.length} invoice{bills.length === 1 ? '' : 's'}
+          {/* v1.10.86 - "Totals for" sits up here, not on a line of its own above the cards. */}
+          {blockOn('totals') && (
+            <span className="card-period">
+              <label htmlFor="card-period">Totals for</label>
+              <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
+                <option value="all">All time</option>
+                <option value="this-month">This month</option>
+                <option value="last-month">Last month</option>
+                <option value="month">Choose a month…</option>
+                {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+              {cardPeriod === 'month' && (
+                <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
+              )}
+            </span>
+          )}</>}>
         <LockButton />
         {/* v1.10.86 - which blocks show, in what order; the screen the app opens on. */}
         <button type="button" className="btn btn-secondary dash-customise-btn" onClick={() => setShowCustomise(true)} title="Customise Dashboard: show, hide and move the blocks of this page" aria-label="Customise Dashboard">
@@ -1765,20 +1661,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       )}
 
       {blockOn('totals') && <div style={blockOrder('totals')}>
-      <div className="card-period" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-        <label htmlFor="card-period" className="text-muted" style={{ fontSize: '0.8rem' }}>Totals for</label>
-        <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
-          <option value="all">All time</option>
-          <option value="this-month">This month</option>
-          <option value="last-month">Last month</option>
-          <option value="month">Choose a month…</option>
-          {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-        {cardPeriod === 'month' && (
-          <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
-        )}
-      </div>
-      <div className="stats-grid stats-grid-4">
+      {/* v1.10.86 - dash-totals: label and (?) on one line, every card laid out alike (index.css). */}
+      <div className="stats-grid stats-grid-4 dash-totals">
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue"><IndianRupee size={22} /></div>
           <div style={{ flex: 1 }}>
@@ -1822,7 +1706,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         </div>
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple"><Receipt size={22} /></div>
-          <div><p className="stat-label">Invoices <HelpButton title="Invoices count" doc="dashboard#invoice-count" size={14} /></p><h2 className="stat-value stat-value-purple">{stats.count}</h2></div>
+          <div style={{ flex: 1 }}><p className="stat-label">Invoices <HelpButton title="Invoices count" doc="dashboard#invoice-count" size={14} /></p><h2 className="stat-value stat-value-purple">{stats.count}</h2></div>
         </div>
       </div>
 
@@ -1860,7 +1744,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             );
           })}
         </div>
-        <div className="filters-bar">
+        <div className="filters-bar dash-filters">
           <div className="search-box">
             <Search size={16} className="search-icon" />
             {/* v1.10.86 (#197) - a barcode scanner types the label and presses
@@ -1875,7 +1759,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             <option value="all">All Years</option>
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
           </select>
-          <select className="filter-select" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+          <select className="filter-select dash-type-select" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
             <option value="all">All Types</option>
             {Object.entries(INVOICE_TYPES).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
           </select>
@@ -1888,18 +1772,31 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             {/* v1.10.74 - rows can be Cancelled, so the filter needs it too */}
             <option value="cancelled">Cancelled</option>
           </select>
-          {/* v1.10.83 - visible labels: the boxes alone read as "dd-mm-yyyy". */}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>From
-            <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" /></label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>To
-            <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" /></label>
-          {ccOn && <CostCentreFilter centres={centres} value={centreFilter} onChange={setCentreFilter} />}
+          {/* v1.10.86 - From / To and cost centre in one "Dates & more" box, so the row fits on one line. */}
+          <FilterPopover label={ccOn ? 'Dates & more' : 'Dates'} count={[dateFrom, dateTo, ccOn && centreFilter].filter(Boolean).length}>
+            {/* v1.10.83 - visible labels: the boxes alone read as "dd-mm-yyyy". */}
+            <label>From
+              <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" /></label>
+            <label>To
+              <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" /></label>
+            {ccOn && <label>Cost centre <CostCentreFilter centres={centres} value={centreFilter} onChange={setCentreFilter} /></label>}
+          </FilterPopover>
           {hasFilters && <button className="icon-btn icon-btn-red" onClick={clearFilters} title="Clear" aria-label="Clear filters"><X size={15} /></button>}
-          <button type="button" className="btn btn-secondary" onClick={() => setShowColumnPicker(v => !v)}
-            title="Choose which columns to show" aria-label="Column picker"
-            style={{ marginLeft: 'auto', fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
-            <FileText size={15} /> Columns
-          </button>
+          {/* v1.10.86 - Quick print is one Print menu here (it was a row of its own); same four choices. */}
+          <span className="dash-filter-end">
+            <ActionsMenu text="Print" icon={Printer} className="btn btn-secondary dash-filter-btn" disabled={bulkBusy}
+              label="Print the invoices shown, as one PDF" items={[
+                { label: `All shown (${filtered.length})`, icon: Download, title: 'Combine all filtered invoices into one PDF', onClick: () => bulkPrintByFilter('all') },
+                // v1.10.74 - label says "only": Partial and Overdue are not included
+                { label: `Unpaid only (${filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})`, icon: Clock, title: 'Only invoices marked Unpaid (not Partial or Overdue)', onClick: () => bulkPrintByFilter('unpaid') },
+                { label: `Overdue (${filtered.filter(b => b.status === 'overdue').length})`, icon: AlertTriangle, onClick: () => bulkPrintByFilter('overdue') },
+                { label: `Paid (${filtered.filter(b => b.status === 'paid').length})`, icon: CheckCircle, onClick: () => bulkPrintByFilter('paid') },
+              ]} />
+            <button type="button" className="btn btn-secondary dash-filter-btn dash-filter-icon" onClick={() => setShowColumnPicker(v => !v)}
+              title="Choose which columns to show" aria-label="Column picker" aria-expanded={showColumnPicker}>
+              <Columns3 size={16} />
+            </button>
+          </span>
           </>)}
         </div>
         {/* v1.10.86 (#197) - a scanned return label names one invoice: show it with Return / credit note. */}
@@ -1956,43 +1853,6 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
               ))}
             </div>
           </div>
-        )}
-
-        {/* v1.9.1 — Quick bulk-print filters. One-click "print everything
-             matching X" without needing to manually tick rows. Useful for
-             month-end filing, wholesale reminders, CA handoffs. */}
-        {folder !== 'trash' && (
-        <div style={{
-          padding: '0.5rem 0.85rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap',
-          alignItems: 'center', borderBottom: '1px solid var(--border)',
-        }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Quick print: <HelpButton title="Quick print" doc="dashboard#quick-print" size={14} />
-          </span>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('all')}
-            title="Combine all filtered invoices into one PDF">
-            <Download size={12} /> All shown ({filtered.length})
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('unpaid')}
-            title="Only invoices marked Unpaid (not Partial or Overdue)">
-            {/* v1.10.74 - label says "only": Partial and Overdue are not included */}
-            <Clock size={12} /> Unpaid only ({filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('overdue')}>
-            <AlertTriangle size={12} /> Overdue ({filtered.filter(b => b.status === 'overdue').length})
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('paid')}>
-            <CheckCircle size={12} /> Paid ({filtered.filter(b => b.status === 'paid').length})
-          </button>
-        </div>
         )}
 
         {/* Bulk-action toolbar — only renders when at least one row is ticked. */}

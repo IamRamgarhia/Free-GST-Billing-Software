@@ -352,6 +352,20 @@ export default [
 </ul>
 </section>
 
+<section id="new-invoice">
+<h2>New invoice starts with</h2>
+<p>On the ${ui('Company')} tab, above the terms templates. What a new invoice is filled in with, so you do not change the same things on every bill. Each choice is saved as soon as you pick it.</p>
+<div class="table-wrap"><table>
+  <tr><th>Choice</th><th>What a new invoice gets</th></tr>
+  <tr><td>Document type</td><td><b>The last one used</b> (the default), or always one type, such as Tax Invoice or Bill of Supply. See <a href="invoices.html#invoice-types">Document type</a>.</td></tr>
+  <tr><td>Due in</td><td>No due date, 7, 15 or 30 days after the invoice date, or another number of days. Until you choose, a freelancer's invoice is due in 15 days and others have none.</td></tr>
+  <tr><td>GST % on a new line</td><td>The GST rate each new item line starts at: 18% unless you choose another rate from your list (including your own rates from Print Settings).</td></tr>
+  <tr><td>"Received now" paid by</td><td>How a payment taken with the invoice is marked (<a href="invoices.html#received-now">Received now</a>): the last one used, or always Cash, UPI, Bank transfer, Cheque, Card or Other.</td></tr>
+  <tr><td>Goods or services</td><td>The last one used, or always <a href="invoices.html#goods-services">Goods, Services or Mixed</a>.</td></tr>
+</table></div>
+<p>Everything can still be changed on the invoice itself. Invoices already made keep their own: opening, editing or duplicating one never applies these choices.</p>
+</section>
+
 <section id="print-settings">
 <h2>Print &amp; PDF</h2>
 <p>The ${ui('Print &amp; PDF')} tab sets the look of every printed invoice and PDF: designs, thermal receipts, watermarks, copies, colours, languages and formats. It has its own page with a section for each card: <a href="print-settings.html">Print and PDF settings</a>.</p>
@@ -383,7 +397,7 @@ export default [
 <ul>
   <li>The tick box shows or hides the item.</li>
   <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. In the top box an item at the top or bottom of a group moves on into the next group, and the arrows beside a group's name move the whole group. ${ui('Reset menu')}, shown once you have moved something, puts back the usual groups and order.</li>
-  <li>${ui('Customise menu…')} opens the same window as the pencil at the top of the sidebar: open or close the groups, and take items out of the menu without switching the feature off. An item taken out says <b>Not in the menu</b> here. See <a href="shortcuts.html#menu-groups">Customise menu</a>. Both always show the same order.</li>
+  <li>${ui('Customise menu…')} opens the same window as the pencil at the top of the sidebar: open or close the groups, and take items out of the menu without switching the feature off. An item taken out says <b>Not in the menu</b> here. See <a href="shortcuts.html#sidebar">Customise menu</a>. Both always show the same order.</li>
   <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, and <b>Support &amp; About</b> say <b>(always shown)</b> and have no tick box. You can still move them.</li>
 </ul>
 <p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything unticked here, but still finds a screen only taken out of the menu. Save the ticks and arrows with ${ui('Save all changes')}; Customise menu saves straight away.</p>
@@ -543,7 +557,7 @@ export default [
   <tr><td>${ui('Text size')}</td><td>${ui('Smaller')}, ${ui('Normal')}, ${ui('Larger')} or ${ui('Largest')}. Everything on the screens grows or shrinks together: the menu, lists, forms, buttons and windows. The invoice preview keeps the size the invoice will print at.</td></tr>
   <tr><td>${ui('Compact lists')}</td><td>Shorter rows in the Invoices, Purchases, Expenses and Products lists (and the reports), and smaller client cards, so more fit on the screen without scrolling.</td></tr>
   <tr><td>${ui('Red dots in the menu')}</td><td>On to start. A red dot on a menu item when something there needs you: overdue invoices, low stock, a GST return due, a recurring invoice, an update, or a screen with something new. See <a href="shortcuts.html#menu-dots">Red dots in the menu</a>. Untick it to hide the dots; the 🔔 bell keeps working.</td></tr>
-  <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="help.html#dark-mode">Dark mode</a>.</td></tr>
+  <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="shortcuts.html#dark-mode">Dark mode</a>.</td></tr>
 </table></div>
 <p>${ui('Back to the default look')} (shown once something was changed) puts back blue, Normal and the usual row height.</p>
 <p>These are kept for this browser, and a copy goes in the app's data folder, so they come back if the browser clears its data or you move to the Windows Setup's window. A phone or tablet starts with the computer's choices and can change its own.</p>

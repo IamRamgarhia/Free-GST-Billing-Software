@@ -1,17 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download, Eye } from 'lucide-react';
+import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download, Eye, IndianRupee, Send } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, saveBill, getProfile, deleteReceipt, trashBill, getAllReceipts } from '../store';
 import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, belongsToProfile } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
-import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
+import { sendPdfOnWhatsApp, invoiceShareMessage, openWhatsAppShare } from '../utils/share';
+import { billPdfBlob, billPdfName } from '../utils/billPdf';
 import { confirmAction } from './ConfirmModal';
 import { askPaidMode } from './askPaidMode';
 import { billInInr, baseCurrencyOf } from '../utils/fx';
 import { toast } from './Toast';
 import { clientVisits } from '../utils/phoneClients';
 // v1.10.85 (#157, #148) - PDF preview, payment history, items, credit limit.
-import { clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientAccount, statementShareMessage, agingShareMessage } from '../utils/clientLedger';
+import { clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientAccount, statementShareMessage, agingShareMessage, balanceReminderMessage } from '../utils/clientLedger';
 import PdfPreviewModal from './PdfPreviewModal';
 import ClientPaymentHistory from './ClientPaymentHistory';
 import ActionsMenu from './ActionsMenu';
@@ -56,7 +57,7 @@ const STATUS_COLORS = {
   cancelled: { label: 'Cancelled', color: '#64748b', bg: '#f1f5f9' },
 };
 
-export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint }) {
+export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint, onNewFor, onRecordPayment }) {
   const [clients, setClients] = useState([]);
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState('');
@@ -757,7 +758,19 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint }) {
     // v1.10.84 (#156) - the same full message as the Invoices list, sent to
     // the number on the invoice or, failing that, the client's saved number.
     const phone = bill.clientPhone || bill.data?.client?.phone || clients.find(c => c.name === bill.clientName)?.phone;
-    openWhatsAppShare(phone, invoiceShareMessage(bill, profileForStatement));
+    // v1.10.86 - with the invoice PDF (copied for Ctrl+V on the PC, the Share sheet on a phone).
+    sendPdfOnWhatsApp({ phone, toast, prepare: async () => ({ blob: await billPdfBlob(bill), fileName: billPdfName(bill), message: invoiceShareMessage(bill, profileForStatement) }) });
+  };
+
+  // v1.10.86 - "Send reminder" on a client's account: one WhatsApp message
+  // with the balance and the unpaid invoices (the Dashboard's reminder is
+  // per invoice), to the client's saved phone or the one on their invoices.
+  const sendClientReminder = (clientName, savedClient) => {
+    const { unpaidBills } = getClientAging(clientName);
+    if (!unpaidBills.length) { toast('Nothing is pending from this client, so there is no reminder to send.', 'info'); return; }
+    const unpaid = unpaidBills.map(({ bill, outstanding }) => ({ number: bill.invoiceNumber, outstanding, dueDate: bill.data?.details?.dueDate || '' }));
+    const phone = savedClient?.phone || unpaidBills.map(({ bill }) => bill.clientPhone || bill.data?.client?.phone).find(Boolean) || '';
+    openWhatsAppShare(phone, balanceReminderMessage(clientName, unpaid, profileForStatement, localToday()));
   };
 
   const shareEmail = (bill) => {
@@ -919,26 +932,50 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint }) {
                 {/* Expanded: invoice list */}
                 {isExpanded && (
                   <div className="client-invoices">
-                    {/* Action bar (right-aligned) — Statement + Aging PDFs. */}
-                    <div style={{ padding: '0.5rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {/* v1.10.85 (#148 item 6) - items under each invoice, here and in the Statement PDF. */}
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', cursor: 'pointer', marginRight: 'auto' }}
-                        title="List each invoice's items (name x quantity, amount) under it, on screen and in the Statement PDF">
-                        <input type="checkbox" checked={showItems} onChange={(e) => setShowItems(e.target.checked)} />
-                        Show items
-                      </label>
-                      <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
-                        onClick={() => generateClientStatement(clientName, { showItems })}
-                        title="Account statement: every invoice, credit note, payment, and running balance in one PDF">
-                        <Download size={14} /> Statement PDF
+                    {/* Action bar — v1.10.86: quick actions for this client on the
+                        left (new invoice, record payment, reminder), the
+                        Statement + Aging PDFs on the right; wraps on a phone. */}
+                    <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                        onClick={() => (onNewFor ? onNewFor(savedClient || { name: clientName }) : onNew())}
+                        title="New invoice for this client, with their details filled in">
+                        <Plus size={14} /> New invoice
                       </button>
-                      {/* v1.10.22 — Aging breakdown (0-30 / 31-60 / 61-90 / 90+). */}
-                      <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
-                        onClick={() => generateAgingReport(clientName)}
-                        title="Aging report: outstanding invoices bucketed by how overdue they are">
-                        <Download size={14} /> Aging PDF
-                      </button>
-                      <HelpButton title="Statement and Aging PDFs" doc="clients#statement" size={16} style={{ alignSelf: 'center' }} />
+                      {onRecordPayment && (
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                          onClick={() => onRecordPayment(clientName)}
+                          title="Record a payment from this client: a payment receipt, against one of their invoices or as an advance">
+                          <IndianRupee size={14} /> Record payment
+                        </button>
+                      )}
+                      {stats.unpaid > 0.005 && (
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                          onClick={() => sendClientReminder(clientName, savedClient)}
+                          title="WhatsApp them a reminder of the balance and the unpaid invoices">
+                          <Send size={14} /> Send reminder
+                        </button>
+                      )}
+                      <HelpButton title="Quick actions for a client" doc="clients#quick-actions" size={16} style={{ alignSelf: 'center' }} />
+                      <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {/* v1.10.85 (#148 item 6) - items under each invoice, here and in the Statement PDF. */}
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', cursor: 'pointer' }}
+                          title="List each invoice's items (name x quantity, amount) under it, on screen and in the Statement PDF">
+                          <input type="checkbox" checked={showItems} onChange={(e) => setShowItems(e.target.checked)} />
+                          Show items
+                        </label>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                          onClick={() => generateClientStatement(clientName, { showItems })}
+                          title="Account statement: every invoice, credit note, payment, and running balance in one PDF">
+                          <Download size={14} /> Statement PDF
+                        </button>
+                        {/* v1.10.22 — Aging breakdown (0-30 / 31-60 / 61-90 / 90+). */}
+                        <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                          onClick={() => generateAgingReport(clientName)}
+                          title="Aging report: outstanding invoices bucketed by how overdue they are">
+                          <Download size={14} /> Aging PDF
+                        </button>
+                        <HelpButton title="Statement and Aging PDFs" doc="clients#statement" size={16} style={{ alignSelf: 'center' }} />
+                      </span>
                     </div>
 
                     {/* v1.10.22 — Aging summary strip: shows the four
@@ -980,7 +1017,7 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint }) {
                     {clientBills.length === 0 ? (
                       <div style={{ padding: '1.5rem', textAlign: 'center' }}>
                         <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>No invoices for this client yet.</p>
-                        <button className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 1rem' }} onClick={onNew}>
+                        <button className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 1rem' }} onClick={() => (onNewFor ? onNewFor(savedClient || { name: clientName }) : onNew())}>
                           <Plus size={15} /> Create Invoice
                         </button>
                       </div>

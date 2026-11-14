@@ -21,13 +21,13 @@ import { rollupDot } from '../utils/attention';
 // items it does not show right now (closed, or taken out of the menu).
 
 // The red dot, with a small count when it helps. Its words are read out with
-// the button's name and shown on hover.
+// the button's name and shown on hover. The count is drawn by CSS (data-count),
+// so the button's own text stays just its name.
 export function NavDot({ dot }) {
   if (!dot) return null;
   return (
-    <span className={`nav-dot${dot.count ? ' nav-dot-count' : ''}`} role="img" aria-label={dot.text} title={dot.text}>
-      {dot.count ? (dot.count > 99 ? '99+' : dot.count) : ''}
-    </span>
+    <span className={`nav-dot${dot.count ? ' nav-dot-count' : ''}`} role="img" aria-label={dot.text} title={dot.text}
+      data-count={dot.count ? (dot.count > 99 ? '99+' : String(dot.count)) : undefined} />
   );
 }
 

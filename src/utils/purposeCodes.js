@@ -32,3 +32,6 @@ export const purposeCodeText = (code) => {
   const hit = PURPOSE_CODES.find((p) => p.code === c);
   return hit ? `${c} (${hit.label})` : c;
 };
+
+// v1.10.86 - for the Purpose code box's suggestion list (components/ComboInput.jsx).
+export const PURPOSE_CODE_OPTIONS = PURPOSE_CODES.map((p) => ({ value: p.code, label: p.label }));
