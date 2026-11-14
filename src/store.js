@@ -64,6 +64,8 @@ export const getEditHistory = (limit = 200) => apiFetch(`${API}/edit-history?lim
 
 // ---- PIN lock (v1.10.77, #84; checked by the server, see AppLock.jsx) ----
 export const getLockStatus = () => apiFetch(`${API}/lock`);
+// v1.10.86 - "Forgot PIN?": opens the folder where the RESET-PIN file goes (this PC only).
+export const openResetFolder = () => apiFetch(`${API}/control-panel/open-reset-folder`, { method: 'POST' });
 export const verifyPin = (pin) => apiFetch(`${API}/lock/verify`, { method: 'POST', body: JSON.stringify({ pin }) });
 // pin null turns the lock off. currentPin is needed when a PIN is already set.
 export const setLockPin = (pin, currentPin) => apiFetch(`${API}/lock/set`, { method: 'POST', body: JSON.stringify({ pin, currentPin }) });

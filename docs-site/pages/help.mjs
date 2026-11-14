@@ -237,13 +237,21 @@ export default [
 <h3>PIN problems: "Wrong PIN" or a forgotten PIN</h3>
 <p>You may see: <strong>"Wrong PIN. Try again."</strong>, <strong>"Too many wrong tries. Wait 30 seconds and try again."</strong> (after 5 wrong PINs in a row), <strong>"Could not check the PIN. Is the app still running?"</strong>, or in Settings <strong>"Current PIN is wrong"</strong>, <strong>"The two PINs do not match"</strong>, <strong>"The PIN must be 6 digits"</strong> (or 8).</p>
 <p>The <a href="settings.html#lock">PIN lock</a> asks for the PIN once per browser tab. "Could not check the PIN" means the app is not running: see <a href="#cannot-connect">Failed to fetch</a>.</p>
-<p><b>Forgot the PIN?</b> It can be removed on this computer without losing anything:</p>
+<p><b>Forgot the PIN?</b> It can be removed on the computer where the app is installed, without losing anything. The lock screen shows these steps with the exact folder: click ${ui('Forgot PIN?')}.</p>
 <ol>
-  <li>Open the <b>Free-GST-Billing</b> folder, the one with the launcher in it.</li>
-  <li>Make a new empty file there named <code>RESET-PIN</code>. On Windows: right-click an empty space, ${ui('New')} → ${ui('Text Document')}, and name it <code>RESET-PIN</code> (<code>RESET-PIN.txt</code> also works). On a Mac or Linux, in the Terminal: <code>touch ~/Free-GST-Billing/RESET-PIN</code> (change the path if your folder is elsewhere).</li>
-  <li>Reload the app's page. The PIN is removed and the file deleted by itself. Your invoices are not touched.</li>
-  <li>Set a new PIN in <a href="settings.html#lock">Settings</a> if you want one.</li>
+  <li><b>Open the folder.</b> Click ${ui('Open the folder')} on the lock screen, or copy the path it shows (${ui('Copy the path')}) into the address bar of File Explorer or Finder. Where it usually is:
+    <ul>
+      <li><b>Windows Setup:</b> your books folder, by default <code>C:\Users\&lt;your name&gt;\Free GST Billing</code> (or the folder you chose when installing).</li>
+      <li><b>ZIP or the one-line install on Windows:</b> the <b>Free GST Billing</b> folder with the launcher in it (one-line install: <code>%LOCALAPPDATA%\Programs\Free GST Billing</code>).</li>
+      <li><b>Apple Mac (Terminal line):</b> <code>~/Applications/Free GST Billing</code>.</li>
+      <li><b>Linux .deb or AppImage:</b> <code>~/.local/share/free-gst-billing-data</code>.</li>
+      <li><b>Docker / NAS:</b> one line does it: <code>docker exec free-gst-billing touch /data/RESET-PIN</code>.</li>
+    </ul></li>
+  <li><b>Make an empty file named RESET-PIN there.</b> On Windows: right-click an empty space, ${ui('New')} → ${ui('Text Document')}, name it <code>RESET-PIN</code> and press Enter; if Windows asks about changing the file name extension, click ${ui('Yes')} (<code>RESET-PIN.txt</code> also works). On a Mac or Linux the lock screen shows a Terminal line with ${ui('Copy the line')}: paste it in Terminal and press Return.</li>
+  <li><b>Back to the app.</b> Click ${ui('I made the file: open the app')} (or reload the page). The PIN is removed and the file deleted by itself. Your invoices are not touched.</li>
+  <li><b>A new PIN.</b> Set one in <a href="settings.html#lock">Settings</a> if you want. Phone and tablet access stays off until a PIN is set again.</li>
 </ol>
+<p>On a paired phone or tablet these steps are not shown: do them on the computer.</p>
 </section>
 
 <section id="updating">

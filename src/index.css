@@ -3657,6 +3657,8 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-btn { background: rgba(15, 
   align-items: center;
   gap: 0.5rem;
 }
+/* v1.10.86 - wider while the forgotten-PIN steps are open (the folder path and its buttons). */
+.app-lock-card:has(.app-lock-help) { max-width: 460px; }
 .app-lock-card h1 { font-size: 1.35rem; margin: 0.25rem 0 0; }
 .app-lock-card p { margin: 0; }
 .app-lock-input {
@@ -3678,6 +3680,12 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-btn { background: rgba(15, 
   font-size: 0.85rem;
 }
 .app-lock-help { font-size: 0.8rem; color: var(--text-muted); text-align: left; line-height: 1.5; }
+/* v1.10.86 - the forgotten-PIN steps: numbered, with the folder path and buttons. */
+.app-lock-help p { margin: 0.5rem 0; }
+.app-lock-help ol { margin: 0.5rem 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.app-lock-help li { color: var(--text-primary, inherit); }
+.app-lock-path { display: block; margin: 0.4rem 0; padding: 0.4rem 0.6rem; border-radius: 6px; background: var(--input-bg, rgba(100, 116, 139, 0.12)); font-size: 0.78rem; word-break: break-all; }
+.app-lock-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
 
 /* v1.10.81 - welcome note for new users (WelcomeCard.jsx). Dark first, as the
    rest of this file; light below. */
