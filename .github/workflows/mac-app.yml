@@ -1,0 +1,51 @@
+# The Mac app: Free-GST-Billing-Mac.dmg (drag to Applications), built and
+# smoke-tested on GitHub's free macos-15 runner. On a published release the
+# DMG is attached to it. Never a .zip: old updaters take a release's first .zip.
+name: Mac app
+
+on:
+  push:
+    branches: [mac-app]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      contents: write # gh release upload, on a release only
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the app and the DMG
+        run: bash scripts/build-mac-app.sh release-build/mac
+
+      - name: Smoke test (open the DMG, start the app, API, stop, start again)
+        run: bash scripts/test-mac-app.sh release-build/mac/Free-GST-Billing-Mac.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Free-GST-Billing-Mac
+          path: release-build/mac/Free-GST-Billing-Mac.dmg
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" release-build/mac/Free-GST-Billing-Mac.dmg --clobber --repo "$GITHUB_REPOSITORY"
