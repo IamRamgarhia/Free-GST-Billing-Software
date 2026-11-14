@@ -1,0 +1,77 @@
+# Publishes the NAS / server image to GitHub Packages (free):
+#   ghcr.io/iamramgarhia/free-gst-billing:<version> and :latest
+# Runs when a release is published, or by hand (Actions -> Docker image -> Run
+# workflow, with the release tag). The image is built from that release's
+# Free-GST-Billing.zip exactly as scripts/build-linux.mjs builds it locally
+# (same files left out, same packaging/docker/Dockerfile), then started once
+# and checked before it is pushed.
+name: Docker image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v1.10.85
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      IMAGE: ghcr.io/iamramgarhia/free-gst-billing
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Stage the app from the release ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern Free-GST-Billing.zip --dir /tmp/rel
+          unzip -q /tmp/rel/Free-GST-Billing.zip -d /tmp/rel
+          mkdir -p /tmp/ctx/app
+          cd /tmp/rel/Free-GST-Billing/_system
+          # Same as LEAVE_OUT in scripts/build-linux.mjs.
+          for name in $(ls -A); do
+            if echo "$name" | grep -Eq '\.(ps1|ico|hta)$|^(install|uninstall|start)-unix\.sh$|^(check-node|open-app)\.sh$|^data$'; then continue; fi
+            cp -R "$name" /tmp/ctx/app/
+          done
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          docker build -f packaging/docker/Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.version="$VERSION" \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:latest" /tmp/ctx
+
+      - name: Check it starts and answers
+        run: |
+          set -eu
+          docker run -d --name fgsb-check "$IMAGE:$VERSION"
+          for i in $(seq 1 45); do
+            if docker exec fgsb-check node -e "fetch('http://127.0.0.1:47371/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              echo "The app answers inside the container."
+              docker rm -f fgsb-check
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs fgsb-check
+          exit 1
+
+      - name: Publish
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:latest"

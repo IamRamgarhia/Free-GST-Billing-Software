@@ -124,12 +124,12 @@ if (pkgTargets.length) {
   for (const f of readdirSync(join(WORK, 'out'))) cpSync(join(WORK, 'out', f), join(OUT, f));
 }
 
-// --- 3. Docker image (local only, never pushed) ---
+// --- 3. Docker image (local; the release workflow .github/workflows/docker-image.yml publishes it) ---
 if (targets.has('docker')) {
   const ctx = join(WORK, 'docker');
   mkdirSync(ctx);
   cpSync(app, join(ctx, 'app'), { recursive: true });
-  run('docker', ['build', '--pull=false', '-t', `free-gst-billing:${version}`, '-f', join(ROOT, 'packaging', 'docker', 'Dockerfile'), ctx]);
+  run('docker', ['build', '--pull=false', '-t', `free-gst-billing:${version}`, '-t', `ghcr.io/iamramgarhia/free-gst-billing:${version}`, '-f', join(ROOT, 'packaging', 'docker', 'Dockerfile'), ctx]);
   writeFileSync(join(OUT, 'docker-compose.yml'),
     readFileSync(join(ROOT, 'packaging', 'docker', 'docker-compose.yml'), 'utf8').replace(/\r/g, '').replace('__VERSION__', version));
 }

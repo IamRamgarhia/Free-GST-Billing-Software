@@ -165,10 +165,9 @@ rmSync(STAGE_ROOT, { recursive: true, force: true });
 
 const setup = join(OUT_DIR, 'Free-GST-Billing-Windows-Setup.exe');
 if (!existsSync(setup)) fail(`${setup} was not made.`);
-// GitHub publishes each release asset's SHA-256 (the updater checks it); this
-// file is for people who check by hand.
+// GitHub shows each release asset's SHA-256 next to it (and the updater checks
+// it), so no separate .sha256 file is made (removed 14 Nov 2026).
 const setupSha = createHash('sha256').update(readFileSync(setup)).digest('hex');
-writeFileSync(`${setup}.sha256`, `${setupSha}  Free-GST-Billing-Windows-Setup.exe\n`);
 console.log(`  SHA-256 ${setupSha}`);
 console.log(`\n  OK  ${setup}`);
 console.log(`      ${(statSync(setup).size / 1024 / 1024).toFixed(1)} MB, version ${version}, Node.js ${nodeVersion}, unsigned (SmartScreen: More info -> Run anyway)\n`);

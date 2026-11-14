@@ -23,7 +23,9 @@
 # Then: Advanced -> Proceed (Chrome) or Show Details -> visit this website (Safari).
 services:
   free-gst-billing:
-    image: free-gst-billing:__VERSION__
+    # Published on GitHub Packages for every release (.github/workflows/docker-image.yml).
+    # To update: put the new version here, then  docker compose pull && docker compose up -d
+    image: ghcr.io/iamramgarhia/free-gst-billing:__VERSION__
     container_name: free-gst-billing
     restart: unless-stopped
     init: true

@@ -101,9 +101,9 @@ curl -sIL -o /dev/null -w "%{http_code}\n" \
 
 An installed copy's **Update now** reads the latest release from the GitHub API,
 takes that asset's download URL, size and SHA-256 (`digest`), and downloads it
-(server.js `updateWithSetup`, checks in `src/utils/setupDownload.js`). The build
-also writes `Free-GST-Billing-Windows-Setup.exe.sha256` for people who check by
-hand (upload it too if you like). A release without the exe tells installed users "the new
+(server.js `updateWithSetup`, checks in `src/utils/setupDownload.js`). GitHub
+shows that SHA-256 next to each asset, so there is no separate `.sha256` file
+(not uploaded from v1.10.85). A release without the exe tells installed users "the new
 version's Setup is not on GitHub yet". The ZIP updaters take the first
 `*.zip` of the release, so the exe does not disturb them.
 
