@@ -318,6 +318,8 @@ a backup is made first.
   Products** under the item box. One-off items are still allowed.
 
 ### Changed
+- The invoice screen's **Save & Download** button is now **Save PDF** (it
+  still saves the invoice and downloads its PDF).
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only
   inside the container; other devices use the paired HTTPS connection.
 
