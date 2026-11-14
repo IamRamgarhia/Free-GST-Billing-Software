@@ -78,7 +78,7 @@ export default [
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Support with UPI')}</td><td>Opens <a href="shortcuts.html#support">Support &amp; About</a>, and hides the card for the rest of the day.</td></tr>
   <tr><td>${ui('Not today')}</td><td>Hides it until tomorrow.</td></tr>
-  <tr><td>${ui('Hide for 30 days')}</td><td>Hides it for a month.</td></tr>
+  <tr><td>${ui('Hide for 7 days')}</td><td>Hides it for a week.</td></tr>
 </table>
 <p>It never blocks your work, is never a pop-up, and is never printed on an invoice. It is remembered per browser, so a different browser or computer may show it again.</p>
 </section>
@@ -197,6 +197,18 @@ export default [
 <p>"No invoices yet." with a ${ui('Create Invoice')} button means the business has none. "No invoices match your filters." means the filters hide them all: click ${ui('✕')}.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p>An invoice you made is missing? Check the business selected in the sidebar, then clear the filters with ${ui('✕')}. Changing a filter also clears any ticks, so you never act on rows you cannot see.</p></div>
+</section>
+
+<section id="scan-a-return">
+<h2>Scan a return</h2>
+<p>A parcel came back? Scan the barcode on its label into the Invoices search (click the search box first). A USB barcode scanner types the code and presses Enter, like a keyboard; you can also type the code, on a phone too. When the code is exactly the <b>invoice number</b>, the <b>order ID</b> (Buyer's Order No) or the <b>AWB / tracking ID</b> (Dispatch Doc No) of one invoice, a card shows that invoice above the list: its number, date, client, amount, order ID and AWB. Capital letters and spaces do not matter. The invoice is found in all your invoices of this business, whatever the filters.</p>
+<table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td>${ui('Open')}</td><td>Opens the invoice.</td></tr>
+  <tr><td>${ui('Return / credit note')}</td><td>Opens a new <a href="invoices.html#credit-note">credit note</a> against the invoice: the same client, items, quantities and rates, the invoice number in <b>Original Invoice Reference</b>, and the order ID and AWB in its order details. For a part return, lower the quantities (or remove the items that did not come back). ${ui('Save')} it: the returned quantities go back into stock, and its total is taken off your sales and GST, as for any credit note. The invoice itself does not change.</td></tr>
+</table>
+<p>When a credit note against the invoice is already made, the card says so, such as <b>Credit note CN/2026-27/0001 already made</b>, with a button to open it, so the same return is not entered twice.</p>
+<p>After you press Enter the search text stays selected, so the next scan replaces it. Invoices from a <a href="#csv">Flipkart orders report</a>, or any import with order ID and AWB columns, carry these codes; for your own invoices, type the order ID and AWB in the invoice's <a href="invoices.html#order-details">order details</a>. The card shows only for an exact code of one invoice; part of a code, or a code on several invoices, just filters the list as usual. Stock comes back only for items picked from your products (or imported with <b>Take sold quantities out of product stock</b> ticked).</p>
 </section>
 
 <section id="columns">
@@ -400,7 +412,7 @@ export default [
   <li><strong>Import</strong>Click ${ui('Import')} (it shows the number ready, such as <b>Import 25</b>). It says "Importing…" while it works, then a message such as "25 invoices imported · 2 already there, skipped". The list refreshes by itself.</li>
 </ol>
 <p><b>From Vyapar or Excel:</b> you can choose an Excel file (<code>.xlsx</code>) instead of a CSV, such as Vyapar's sale report. The window opens on the sheet with the invoice items (pick another under <b>Sheet</b>), and what Vyapar's <b>Sale Report</b> sheet says was received is recorded as a payment. Cancelled sales are left out.</p>
-<p><b>From Flipkart:</b> download your orders report from Flipkart Seller Hub (Orders, then download the report as CSV) and choose it here as it is. Each order becomes a tax invoice with Flipkart's invoice number and date, the buyer and state, the HSN, quantity and GST, and the amount the buyer was billed (GST included). The <b>order ID</b> goes into <b>Buyer's Order No</b> and the <b>tracking ID (AWB)</b> into <b>Dispatch Doc No</b>, so typing either in the Invoices search finds the bill. Returned orders are imported as the sales they were; the window says how many, so you can record each return as a Credit Note.</p>
+<p><b>From Flipkart:</b> download your orders report from Flipkart Seller Hub (Orders, then download the report as CSV) and choose it here as it is. Each order becomes a tax invoice with Flipkart's invoice number and date, the buyer and state, the HSN, quantity and GST, and the amount the buyer was billed (GST included). The <b>order ID</b> goes into <b>Buyer's Order No</b> and the <b>tracking ID (AWB)</b> into <b>Dispatch Doc No</b>, so typing either in the Invoices search finds the bill. Returned orders are imported as the sales they were; the window says how many, so you can record each return as a Credit Note: scan the returned parcel's label (or type its order ID or AWB) in the Invoices search and click ${ui('Return / credit note')}. See <a href="#scan-a-return">Scan a return</a>.</p>
 <p><b>Order and courier details from any file:</b> columns named <i>Order ID</i> (or <i>Buyer Order No</i>), <i>AWB</i> (or <i>Tracking ID</i>, <i>Dispatch Doc No</i>) and <i>Courier</i> (or <i>Dispatched Through</i>) are read into the invoice's order details too.</p>
 <p>${ui('Export all as CSV')} downloads every invoice of this business, oldest first, in the same columns as the template (cancelled invoices are left out), as <code>Sales-invoices-YYYY-MM-DD.csv</code>. You can edit that file and import it into another copy of the app.</p>
 <p><b>How to fill the file.</b> One row per item. Rows with the same invoice number make one invoice; give the client, date and other invoice details on the first row (later rows may leave them blank). Column names are matched loosely, so <b>Qty</b> or <b>Quantity</b>, <b>GSTIN</b> or <b>Client GSTIN</b>, <b>Customer</b> or <b>Client Name</b> all work. Dates can be <code>2026-10-01</code>, <code>01-10-2026</code> or <code>01/10/2026</code> (day first, as in India).</p>

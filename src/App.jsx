@@ -970,11 +970,10 @@ function App() {
               : ownBrand ? <span className="sidebar-logo-letter">{brand.businessName.trim().charAt(0).toUpperCase()}</span>
                 : <FileText size={22} />}
           </div>
-          {/* "by DiceCodes" always stays, under their name too. "Free forever" is
-              in the top bar; on a phone (no top bar) it stays here. */}
+          {/* "by DiceCodes" always stays, under their name too. */}
           <div className="sidebar-brand-text">
             <h2 className={`sidebar-title${ownBrand ? ' sidebar-title-own' : ''}`} title={ownBrand ? `${brand.businessName} - Free GST Billing` : undefined}>{ownBrand ? brand.businessName : 'GST Billing'}</h2>
-            <p className="sidebar-subtitle" title="Free forever. Works on this computer, even offline. No tracking, no ads."><span className="sidebar-free sidebar-free-phone">Free forever<br /></span>by DiceCodes</p>
+            <p className="sidebar-subtitle">by DiceCodes</p>
           </div>
           {/* Auto-hide as a ☰ button (was a text checkbox): pressed = the menu
               shrinks to icons and opens when pointed at. */}
@@ -984,6 +983,11 @@ function App() {
             onClick={(e) => { e.stopPropagation(); toggleSidebarAutoHide(!sidebarAutoHide); }}>
             <Menu size={18} />
           </button>
+        </div>
+        {/* v1.10.86 (maintainer) - the promise sits under the app name in the
+            menu, on every screen size (it was in the top bar). */}
+        <div className="sidebar-free-row">
+          <span className="topbar-free" title="Free forever: no paid version, no locked features, no ads, no tracking. Works on this computer, even offline.">Free forever</span>
         </div>
 
         <div className="profile-switcher" ref={profileMenuRef} style={{ position: 'relative' }}>
@@ -1124,8 +1128,6 @@ function App() {
       )}
       <div className="main-content">
         <div className="app-topbar">
-          {/* v1.10.83 - the promise, on every screen (it was under the app name in the menu). */}
-          <span className="topbar-free" title="Free forever: no paid version, no locked features, no ads, no tracking. Works on this computer, even offline.">Free forever</span>
           {searchBox}
           {topActions}
         </div>

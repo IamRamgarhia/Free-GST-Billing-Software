@@ -51,10 +51,10 @@ export const parseSupporters = (raw) => {
 
 // The Dashboard's daily support card (SupportNudge): shown once a business has
 // made a few invoices, once a day. state = { hiddenOn: 'YYYY-MM-DD' ("Not
-// today"), snoozedUntil: ms ("Hide for 30 days"), never } - never was the old
+// today"), snoozedUntil: ms ("Hide for 7 days"), never } - never was the old
 // "Don't show again" (before v1.10.80) and is still honoured.
 export const SUPPORT_NUDGE_MIN_INVOICES = 10;
-export const SNOOZE_DAYS = 30;
+export const SNOOZE_DAYS = 7; // v1.10.86 (maintainer): a reminder after 7 days, not 30
 export const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const shouldShowSupportNudge = (invoiceCount, state = {}, now = new Date()) => {
   if (invoiceCount < SUPPORT_NUDGE_MIN_INVOICES || state.never) return false;

@@ -42,7 +42,7 @@ export default [
 <section id="support">
 <h2>Support &amp; About</h2>
 <p>Who makes the app, and how to help it grow. Free ways come first: star it on GitHub, tell another business, report a bug or ask for a feature. If you want to give money, scan the UPI QR with any UPI app, for any amount. The page also lists what DiceCodes builds for businesses: custom software and web apps, changes to this app, setup and data migration, support plans, AI integration and automation, and mobile apps.</p>
-<p>The app stays free whatever you choose. Nothing is locked, and nothing is ever printed on your invoices. Once you have made 10 invoices, the Dashboard shows a small <a href="dashboard.html#support-card">support card</a> once a day; ${ui('Not today')} hides it until tomorrow and ${ui('Hide for 30 days')} for a month.</p>
+<p>The app stays free whatever you choose. Nothing is locked, and nothing is ever printed on your invoices. Once you have made 10 invoices, the Dashboard shows a small <a href="dashboard.html#support-card">support card</a> once a day; ${ui('Not today')} hides it until tomorrow and ${ui('Hide for 7 days')} for a week.</p>
 <p>Scanning the QR fills in the payment note "Free GST Billing support - <i>your business name</i>", so DiceCodes can thank you; untick <b>Include my business name</b> to leave it out. The page also shows how much users have given so far and what it is going towards.</p>
 <p>Once a month at most, a one-line note at the top of the app asks for a star on GitHub. ${ui('✕')} hides it for 30 days; ${ui('Star on GitHub')} or ${ui('Already starred')} hides it for good. It never appears while you are making an invoice.</p>
 </section>

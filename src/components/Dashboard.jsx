@@ -25,6 +25,8 @@ import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../
 import { periodRange, inPeriod } from '../utils/period';
 import { askPaidMode } from './askPaidMode';
 import { reorderLines } from '../utils/stock';
+import { findScannedInvoice, creditNoteDraft } from '../utils/scanReturn';
+import ScanReturnCard from './ScanReturnCard';
 import { putReorderDraft } from '../utils/reorderDraft';
 // v1.10.86 - sort by column, Customise Dashboard, remembered and saved filters.
 import { useListSort, sortRows, readJson, writeJson, BLOCKS_KEY, normaliseLayout, takeStartScroll } from '../utils/listPrefs';
@@ -277,6 +279,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // Anything that cannot be attributed to a business is SHOWN, never hidden.
   // See belongsToProfile() in utils.js for why that matters here.
   const [allBills, setBills] = useState([]);
+  // v1.10.86 (maintainer: "that thank you banner comes and goes on refresh") -
+  // the thank-you and support cards wait for the real invoice count; with 0
+  // while loading they flashed up and vanished.
+  const [billsLoaded, setBillsLoaded] = useState(false);
   const [profileState, setProfileState] = useState(null);
 
   // v1.10.65 — requested (#58 item 1, @sangwanmail-eng): "Dashboard should
@@ -570,6 +576,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       // Headline totals are derived from the business-filtered list (`stats`).
       setBills(data);
+      setBillsLoaded(true);
     } catch {
       toast('Failed to load invoices', 'error');
     }
@@ -611,6 +618,12 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (centreFilter) result = result.filter(b => matchesCentre(b, centreFilter));
     setFiltered(result);
   }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter, folder, soOn]);
+  // v1.10.86 (#197) - the search text is exactly one invoice's number, order ID
+  // or AWB (a scanned return label): looked up in all of this business's
+  // bills, whatever the filters, since a return can come in a later year.
+  const scanned = useMemo(() => findScannedInvoice(bills, search), [bills, search]);
+  // The "scan a return" hint, for a business with marketplace orders (an AWB on file).
+  const sellsOnline = useMemo(() => bills.some((b) => String(b.data?.details?.dispatchDocNo || '').trim()), [bills]);
   // v1.10.86 - the rows as shown: sorted by the clicked header, if any.
   const shownBills = useMemo(() => sortRows(filtered, sort, SORT_GETTERS), [filtered, sort]);
   useEffect(() => {
@@ -1629,7 +1642,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       {/* v1.10.86 - each block in a wrapper whose CSS order follows Customise Dashboard. */}
       {blockOn('welcome') && <div style={blockOrder('welcome')}>
-      {onOpenSupport && <WelcomeCard invoiceCount={bills.length} onOpenSupport={onOpenSupport} />}
+      {onOpenSupport && billsLoaded && <WelcomeCard invoiceCount={bills.length} onOpenSupport={onOpenSupport} />}
 
       {startedSteps && (
         <div className="glass-panel p-6 mb-6">
@@ -1673,7 +1686,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       </div>}
 
-      {blockOn('support') && !startedSteps && onOpenSupport && <div style={blockOrder('support')}><SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} /></div>}
+      {blockOn('support') && !startedSteps && onOpenSupport && billsLoaded && <div style={blockOrder('support')}><SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} /></div>}
 
       {blockOn('overdue') && overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}
@@ -1850,8 +1863,11 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         <div className="filters-bar">
           <div className="search-box">
             <Search size={16} className="search-icon" />
+            {/* v1.10.86 (#197) - a barcode scanner types the label and presses
+                Enter: the text is then selected, so the next scan replaces it. */}
             <input type="text" placeholder="Search client, invoice, order no, AWB, phone..." value={search}
-              onChange={e => setSearch(e.target.value)} className="search-input" />
+              onChange={e => setSearch(e.target.value)} className="search-input" aria-label="Search invoices"
+              enterKeyHint="search" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.select(); }} />
           </div>
           {/* v1.10.84 - in the Trash tab only the search applies. */}
           {folder !== 'trash' && (<>
@@ -1886,6 +1902,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           </button>
           </>)}
         </div>
+        {/* v1.10.86 (#197) - a scanned return label names one invoice: show it with Return / credit note. */}
+        {folder !== 'trash' && scanned && (
+          <ScanReturnCard found={scanned} onOpen={handleView} onReturn={(bill) => onDuplicate(creditNoteDraft(bill))} />
+        )}
+        {folder !== 'trash' && !search && sellsOnline && (
+          <p className="scan-return-hint">Returned parcel? Scan its label in the search box. <HelpButton title="Scan a return" doc="dashboard#scan-a-return" size={14} /></p>
+        )}
 
         {/* v1.10.86 - saved filter sets as buttons; Save these filters names the current set. */}
         {folder !== 'trash' && (savedFilters.length > 0 || hasListFilters) && (
