@@ -1839,7 +1839,9 @@ export default function SettingsView({ onSaved }) {
           <div className="update-available-box">
             <p><strong>New version v{updateInfo.latest} is available!</strong></p>
             {updateInfo.updateHint ? (
-              <p>{updateInfo.updateHint}{updateInfo.releaseUrl && <> <a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer">Open the release page</a></>}</p>
+              <p>{updateInfo.updateHint}{updateInfo.downloadUrl
+                ? <> <a href={updateInfo.downloadUrl} target="_blank" rel="noopener noreferrer">Download the new Mac app</a></>
+                : updateInfo.releaseUrl && <> <a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer">Open the release page</a></>}</p>
             ) : (
               <>
                 <p>Your data is backed up first and is not affected. Click below to update:</p>

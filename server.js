@@ -22,6 +22,7 @@ import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
 import { lockProblem, bookedOn, isLockDate } from './src/utils/periodLock.js';
 import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './src/utils/serverLock.js';
 import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
+import { updateHintFor, updateDownloadUrlFor } from './src/utils/installKind.js';
 // v1.10.85 - phone / tablet access on the same Wi-Fi (off by default).
 import https from 'https';
 import {
@@ -1932,17 +1933,15 @@ app.post('/api/trash-pdf', express.json(), (req, res) => {
 // ========================
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
 
-// The Linux packages and the Docker image carry install-kind.txt ("deb",
-// "appimage" or "docker"). They are updated by installing the new package, so
-// the ZIP updater never runs there and the app says what to do instead.
+// The Linux packages, the Docker image and the Mac app carry install-kind.txt
+// ("deb", "appimage", "docker", "macapp"). They are updated by installing the
+// new package, so the ZIP updater never runs there and the app says what to
+// do instead (src/utils/installKind.js).
 const INSTALL_KIND = (() => {
   try { return fs.readFileSync(path.join(__dirname, 'install-kind.txt'), 'utf-8').trim(); } catch { return ''; }
 })();
-const updateHint = (latest) => ({
-  deb: `This copy was installed from the .deb package. To update, download free-gst-billing_${latest || '<version>'}_amd64.deb from the release page and open it (or run: sudo apt install ./free-gst-billing_${latest || '<version>'}_amd64.deb). Your invoices are kept.`,
-  appimage: 'This copy is the AppImage. To update, download the new Free-GST-Billing-Linux-x86_64.AppImage from the release page and use it instead of the old file. Your invoices are kept.',
-  docker: 'This copy runs in Docker. To update, put the new version in the image: line of docker-compose.yml and run: docker compose up -d. Your invoices stay in the /data volume.',
-}[INSTALL_KIND] || null);
+const updateHint = (latest) => updateHintFor(INSTALL_KIND, latest);
+const UPDATE_DOWNLOAD_URL = updateDownloadUrlFor(INSTALL_KIND);
 
 // v1.10.84 - also who is answering: the process and lock id (a second server
 // checks "is the lock's server really the one on that port?") and the books
@@ -2073,6 +2072,7 @@ app.get('/api/check-update', async (req, res) => {
       releasePublishedAt,
       releaseTag,
       updateHint: updateHint(latest),
+      downloadUrl: UPDATE_DOWNLOAD_URL,
     });
   } catch {
     res.json({ current: pkg.version, latest: null, updateAvailable: false, error: 'Could not check for updates' });
@@ -2321,7 +2321,7 @@ app.post('/api/control-panel/launch-script', async (req, res) => {
     }
     return;
   }
-  if (action === 'update' && updateHint()) { res.json({ ok: false, error: updateHint() }); return; }
+  if (action === 'update' && updateHint()) { res.json({ ok: false, error: updateHint(), downloadUrl: UPDATE_DOWNLOAD_URL }); return; }
   const script = pickScript(action);
   const result = await runControlScript(script);
   res.json(result);
