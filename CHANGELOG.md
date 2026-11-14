@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.86] - 2026-11-15
+
+### How to update
+
+**Current version:** 1.10.85  →  **New version:** 1.10.86
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.86** in the menu, or
+   **Settings → Updates → Update Now**.
+2. Wait about a minute, then reload the page.
+
+#### Installed with the Windows Setup
+Click **Update Now** in the app (or right-click the icon near the clock →
+**Check for updates**). Nothing to download by hand.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server**, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards. The `.deb` and the AppImage:
+download the new file and install or use it instead of the old one.
+**Docker:** download the new `docker-compose.yml` (it changed: put your PIN
+in `FGSB_PIN`), put the new version in its `image:` line and run
+`docker compose up -d`. The `.dockerignore` now ignores `_system/data`
+and `_system/logs` so rebuilds stay fast.
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+### Added
+- **TDS / TCS auto-suggestion from payment kind** — instead of picking a
+  section by hand, choose the kind of payment (contractor, commission,
+  professional, technical, rent, goods, partner) and the payee's
+  constitution (individual / company / firm); the software fills in the
+  correct 2025 Act section (393(1) Table Sl. 6(i), 8(ii)… 393(3) Sl. 7)
+  and its usual rate. A missing PAN flags the 20% higher-deduction rate.
+- **Complete TCS table for the 2025 Act** — Scrap (Sl. 4, 2%), motor vehicle
+  (Sl. 6, 1%), LRS education/medical (Sl. 7, 2%), LRS other purposes
+  (Sl. 7, 20%), overseas tour packages (Sl. 8, 2% flat, no threshold),
+  parking lot / toll plaza / mine / quarry (Sl. 9, 2%), alcoholic liquor
+  (Sl. 1, 2%), tendu leaves (Sl. 2, 2%), timber/forest produce (Sl. 3, 2%),
+  coal/lignite/iron ore (Sl. 5, 2%).
+- **Missing TDS sections for the 2025 Act** — Salary (Section 392) and
+  partner remuneration/commission/interest (Section 393(3) Table Sl. 7,
+  10%).
+- **TDS return file (Form 26Q) quarterly exports** — the Reports → TDS & TCS
+  tab now has one-button CSV exports per quarter (Q1–Q4), written with the
+  Act the transactions fall under (2025 Act sections from 1 April 2026,
+  1961 Act sections before). Upload each file at tin-nsdl.com or hand it to
+  your CA.
+
+### Changed
+- **Purchase TDS selector now date-driven** — when the bill date is on or
+  after 1 April 2026 the dropdown shows 393(1) Sl. 6(i), 8(ii)…; before
+  that it shows 194C, 194Q… The section and rate migrate automatically
+  when a recurring template crosses the Act boundary.
+
+### Fixed
+- **TCS calculation base for scrap / tour / LRS** — now consistently uses
+  the gross invoice value (GST included) per CBDT Circular 17/2020,
+  matching the Finance Act 2026 treatment.
+
+---
+
 ## [1.10.85] - 2026-11-14
 
 ### How to update

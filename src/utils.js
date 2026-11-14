@@ -2437,6 +2437,12 @@ export const TCS_SECTIONS = [
 // 1961 section it replaces.
 export const NEW_ACT_FROM = '2026-04-01';
 export const TDS_SECTIONS_2025 = [
+  // v1.10.86 (#180 part 2) — salary (Section 392) and partner remuneration
+  // (393(3) Table Sl. 7, 10%) were missing from the 2025 list. Salary TDS is
+  // deducted by the employer at the rates in force; the 10% partner rate is
+  // the usual one for remuneration, commission and interest paid to a partner.
+  { code: '392', short: '392', old: '192', rate: 0, label: '392 — Salary (deducted by the employer at the rates in force)' },
+  { code: '393-7', short: '393(3) Sl. 7', old: '194T', rate: 10, label: '393(3) Table Sl. 7 — Remuneration, commission or interest paid to a partner' },
   { code: '393-8ii', short: '393(1) Sl. 8(ii)', old: '194Q', rate: 0.1, label: '393(1) Table Sl. 8(ii) — Purchase of goods (buyer turnover > ₹10 cr; on the amount above ₹50 lakh)' },
   { code: '393-6i-ind', short: '393(1) Sl. 6(i)', old: '194C', rate: 1, label: '393(1) Table Sl. 6(i) — Contractor, incl. manpower supply (individual / HUF)' },
   { code: '393-6i-oth', short: '393(1) Sl. 6(i)', old: '194C-co', rate: 2, label: '393(1) Table Sl. 6(i) — Contractor, incl. manpower supply (others)' },
@@ -2459,11 +2465,18 @@ export const TCS_SECTIONS_2025 = [
   { code: '394-4', short: '394(1) Sl. 4', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 4 — Scrap' },
   { code: '394-5', short: '394(1) Sl. 5', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 5 — Coal, lignite, iron ore' },
   { code: '394-6', short: '394(1) Sl. 6', old: '206C(1F)', rate: 1, label: '394(1) Table Sl. 6 — Motor vehicle sold for more than ₹10 lakh' },
+  // v1.10.86 (#180 part 2) — LRS (Section 394(1) Table Sl. 7) and overseas tour
+  // packages (Sl. 8) were missing from the 2025 list. LRS keeps two rates in
+  // one table serial: education/medical 2%, other purposes 20% (Finance Act
+  // 2026). The tour package rate is 2% flat, with no ₹10 lakh threshold.
+  { code: '394-7', short: '394(1) Sl. 7', old: '206C(1)', rate: 2, label: '394(1) Table Sl. 7 — LRS remittance for education or medical, above ₹10 lakh' },
+  { code: '394-8', short: '394(1) Sl. 7', old: '206C(1)', rate: 20, label: '394(1) Table Sl. 7 — LRS remittance for other purposes, above ₹10 lakh' },
+  { code: '394-10', short: '394(1) Sl. 8', old: '206C(1C)', rate: 2, label: '394(1) Table Sl. 8 — Overseas tour programme package (2% flat, no threshold)' },
   { code: '394-9', short: '394(1) Sl. 9', old: '206C(1C)', rate: 2, label: '394(1) Table Sl. 9 — Licence or lease of a parking lot, toll plaza, mine or quarry' },
   { code: 'custom', short: '', label: 'Custom rate', rate: 0 },
 ];
 // The lists for a date: the 2025 Act from 1 April 2026 (no date = today).
-const underNewAct = (date) => String(date || new Date().toISOString().slice(0, 10)).slice(0, 10) >= NEW_ACT_FROM;
+export const underNewAct = (date) => String(date || new Date().toISOString().slice(0, 10)).slice(0, 10) >= NEW_ACT_FROM;
 export const tdsSectionsFor = (date) => (underNewAct(date) ? TDS_SECTIONS_2025 : TDS_SECTIONS);
 export const tcsSectionsFor = (date) => (underNewAct(date) ? TCS_SECTIONS_2025 : TCS_SECTIONS);
 // A 1961 code moved to the 2025 Act for a new document dated from 1 April
