@@ -103,6 +103,7 @@
     "app:refresh": "node scripts/refresh-my-app.mjs",
     "release:check": "node scripts/release-check.mjs",
     "release:exe": "node scripts/build-installer.mjs",
+    "release:winget": "node scripts/winget-manifest.mjs",
     "docs:zip": "node scripts/build-docs-zip.mjs",
     "verify:release": "node scripts/verify-release.mjs"
   },
