@@ -443,7 +443,14 @@ body {
     justify-content: center; gap: 0; padding-left: 0; padding-right: 0; font-size: 0;
   }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > svg { flex-shrink: 0; }
-  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > span:not(.nav-badge):not(.server-status-dot) { display: none; }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > span:not(.nav-badge):not(.server-status-dot):not(.nav-dot) { display: none; }
+  /* v1.10.86 - the red dots sit on the icon's corner (no count), and on the
+     thin line of a group that has one inside. */
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-dot {
+    position: absolute; top: 5px; right: 9px; margin: 0; width: 9px; min-width: 0; height: 9px; padding: 0; font-size: 0;
+  }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn { position: relative; overflow: visible; }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn .nav-dot { top: -4px; right: auto; left: calc(50% - 4px); }
   /* v1.10.84 (maintainer: "fix control panel design when compact sidebar") -
      the Control Panel's status dot (margin-left: auto) pushed its icon to the
      left edge; in the closed rail it sits in the corner, like the badges. */
@@ -459,7 +466,7 @@ body {
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn {
     font-size: 0; padding: 0; height: 1px; margin: 0.4rem 0.6rem; border-radius: 0; background: rgba(148, 163, 184, 0.3); pointer-events: none;
   }
-  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) :is(.nav-group-chevron, .nav-group-shut) { display: none !important; }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) :is(.nav-group-chevron, .nav-group-shut:not(.nav-group-has-dot)) { display: none !important; }
 }
 @media (max-width: 768px) { .sidebar-autohide-toggle { display: none; } }
 
@@ -631,10 +638,13 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-search { background: rgba(1
     color: #fff;
     cursor: pointer;
   }
-  .mobile-topbar-title { font-weight: 700; font-size: 1rem; white-space: nowrap; }
+  /* v1.10.86 - the name gives way (…) before the ☰ button is squeezed. */
+  .mobile-topbar-title { font-weight: 700; font-size: 1rem; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mobile-topbar-business {
     margin-left: auto;
     min-width: 0;
+    flex: 1 1 0; /* v1.10.86 - gives way first, then the app name */
+    text-align: right;
     font-size: 0.8rem;
     opacity: 0.8;
     white-space: nowrap;
@@ -866,6 +876,24 @@ html:not([data-theme="dark"]) .profile-switcher-item + .profile-switcher-details
 .nav-row { display: flex; align-items: center; }
 .nav-row > .nav-btn { flex: 1; min-width: 0; }
 .nav-row > .nav-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* v1.10.86 - the red dot on a menu item that needs you (utils/attention.js),
+   with a small count where it helps; also on a group header and the phone's
+   menu button. Red in both themes; the ring keeps it clear on the open item. */
+.nav-dot {
+  margin-left: auto; flex-shrink: 0; width: 8px; height: 8px; border-radius: 999px;
+  background: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.22);
+}
+.nav-dot-count {
+  width: auto; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box;
+  font-size: 0.68rem; font-weight: 700; line-height: 18px; text-align: center; color: #fff;
+  letter-spacing: 0; text-transform: none; box-shadow: none;
+}
+.nav-dot-count::after { content: attr(data-count); }
+.nav-btn-active .nav-dot { box-shadow: 0 0 0 2px #fff; }
+.nav-group-btn .nav-dot { width: 7px; height: 7px; }
+.nav-group-btn .nav-dot + .nav-group-chevron { margin-left: 0; }
+.mobile-topbar-btn { position: relative; flex-shrink: 0; } /* never squeezed by a long top bar */
+.mobile-topbar-btn .nav-dot { position: absolute; top: 5px; right: 5px; margin: 0; box-shadow: 0 0 0 2px #0f172a; }
 /* v1.10.86 - "Customise menu" (components/MenuCustomise.jsx), opened by the
    pencil at the top of the sidebar. Theme colours come from the variables. */
 .modal-content.mc-dialog { max-width: 540px; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -3962,6 +3990,7 @@ html:not([data-theme="dark"]) .profile-switcher-manage { border-top-color: var(-
 html:not([data-theme="dark"]) .mobile-topbar { background: #ffffff; color: #0f172a; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
 html:not([data-theme="dark"]) .mobile-topbar-btn,
 html:not([data-theme="dark"]) .mobile-topbar .topbar-btn { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
+html:not([data-theme="dark"]) .mobile-topbar-btn .nav-dot { box-shadow: 0 0 0 2px #fff; } /* v1.10.86 */
 
 /* v1.10.77 (#84) - PIN lock screen (AppLock.jsx) */
 .app-lock-screen {

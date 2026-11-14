@@ -19,12 +19,29 @@ export default [
   <li><strong>Update to v…</strong>, when a new version is out.</li>
   <li><a href="#support"><strong>Support &amp; About</strong></a>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
   <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
+  <li><a href="#menu-dots">Red dots</a> on the screens that need you.</li>
 </ul>
 <p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
 <p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
 <p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
 <p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
 <figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
+</section>
+
+<section id="menu-dots">
+<h2>Red dots in the menu</h2>
+<p>A small red dot on a menu item means something there needs you. Point at it (or at the item) to read why, for example "2 overdue invoices". A number in the dot says how many.</p>
+<div class="table-wrap"><table>
+  <tr><th>Item</th><th>The dot means</th><th>It goes away when</th></tr>
+  <tr><td><b>Dashboard</b></td><td>Invoices whose due date has passed and are not fully paid (the same ones as the bell's <b>overdue invoices</b>).</td><td>You record the payment.</td></tr>
+  <tr><td><b>Recurring</b></td><td>Recurring invoices the app made today, or a template that is due and was not made yet (the app was off).</td><td>The next day, or once the invoice is made (${ui('Generate Now')}).</td></tr>
+  <tr><td><b>Products</b></td><td>Products at or below your low-stock limit.</td><td>You add stock, or turn stock alerts off in <a href="settings.html#stock">Settings</a>.</td></tr>
+  <tr><td><b>GST Returns</b></td><td>A return due in the next 10 days. Point at it to see which and when.</td><td>The date passes, or you mark that month's GSTR-1 / GSTR-3B <b>Filed</b> on GST Returns.</td></tr>
+  <tr><td><b>Settings</b></td><td>A new version of the app is out.</td><td>You update, or close the update message for that version.</td></tr>
+  <tr><td>Any screen</td><td>"New in this update": the screen got something new in the latest update.</td><td>You open that screen once.</td></tr>
+</table></div>
+<p>A closed group shows one dot on its name when an item inside has one; so does a group whose item you took out of the menu in <a href="#menu-groups">Customise menu</a>. In the slim icon menu the dot sits on the icon (or on the group's thin line). On a phone, the ☰ menu button has a dot when anything inside the menu does.</p>
+<p>The dots and the 🔔 <a href="#notifications">bell</a> always agree: ${ui('Mark all as read')} in the bell clears the same dots, and they come back together when something new happens. They are checked when the app opens, when you go to another screen, a moment after you save an invoice, product, purchase or template, and every 10 minutes. To turn them off, untick <b>Red dots in the menu</b> in <a href="settings.html#appearance">Settings → Appearance</a>; the bell keeps working.</p>
 </section>
 
 <section id="menu-groups">
@@ -61,12 +78,14 @@ export default [
 <p>Click it to open the <b>Notifications</b> window. Each line is a button: click it and the window closes and takes you to the screen where you deal with it.</p>
 <div class="table-wrap"><table>
   <tr><th>Line</th><th>What it means</th><th>Clicking it opens</th></tr>
+  <tr><td>🔁 <b>N recurring invoices due to be made</b></td><td>A <a href="recurring.html#automatic">recurring template</a> is due but its invoice was not made (the app was off on that day, or it failed). Open Recurring and use ${ui('Generate Now')}.</td><td>Recurring</td></tr>
   <tr><td>🔁 <b>N recurring invoices auto-generated today</b></td><td>The app made invoices from your <a href="recurring.html#automatic">recurring templates</a> today. Check them and download the PDFs.</td><td>Dashboard</td></tr>
   <tr><td>⚠ <b>N overdue invoices</b></td><td>Tax invoices, bills of supply and composition bills not fully paid whose <b>Due Date</b> has passed. The first three numbers are shown. Quotations, proformas, challans, credit notes and cancelled invoices never appear.</td><td>Dashboard (see <a href="dashboard.html#overdue">Overdue invoices and reminders</a>)</td></tr>
   <tr><td>⏰ <b>N invoices due in next 3 days</b></td><td>Unpaid sales whose due date is today or within 3 days, with the client's name. A good time for a polite reminder.</td><td>Dashboard</td></tr>
-  <tr><td>📋 <b>N GST filings due in next 10 days</b></td><td>GSTR-1, GSTR-3B, TDS, TCS, advance tax and ITR dates coming up, with how many days are left ("today" or "4d").</td><td>GST Returns (see <a href="gst-returns.html#filing-guide">the filing guide</a>)</td></tr>
+  <tr><td>📋 <b>N GST filings due in next 10 days</b></td><td>GSTR-1, GSTR-3B, TDS, TCS, advance tax and ITR dates coming up, with how many days are left ("today" or "4d"). A month's GSTR-1 or GSTR-3B marked <b>Filed</b> on GST Returns (month view) is left out.</td><td>GST Returns (see <a href="gst-returns.html#filing-guide">the filing guide</a>)</td></tr>
   <tr><td>📦 <b>N products low on stock</b></td><td>Products at or below your low-stock limit (5 unless you changed it), with how many are left. Not shown when stock alerts are off in <a href="settings.html#stock">Settings</a>.</td><td>Products (see <a href="products.html#low-stock">Low stock</a>)</td></tr>
 </table></div>
+<p>The same things show as <a href="#menu-dots">red dots</a> on the menu items, so you can see where to go without opening the bell. Invoices and recurring templates are those of the business you have open.</p>
 <p>When nothing needs you, the window says <b>All clear ✨ — nothing needs your attention right now.</b></p>
 <p>${ui('Mark all as read')} clears everything shown and the count goes to zero. The app remembers exactly what you cleared, so a line comes back by itself only when something changes: a new invoice becomes overdue, a different product runs low, or the stock number changes. Clearing does not mark any invoice as paid; record the payment on the <a href="dashboard.html#payments">Dashboard</a> for that.</p>
 <div class="note tip"><strong>Something wrong?</strong>

@@ -17,7 +17,7 @@ export default [
   <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
   <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), <a href="phone.html">Use on phone or tablet</a>, Privacy &amp; internet</td></tr>
   <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, <a href="backup.html#close-books">Close the books</a> and the edit history, Google Drive, Import/Export</td></tr>
-  <tr><td>${ui('Appearance')}</td><td><a href="#appearance">App colour, Text size and Compact lists</a></td></tr>
+  <tr><td>${ui('Appearance')}</td><td><a href="#appearance">App colour, Text size, Compact lists and the menu's red dots</a></td></tr>
   <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
 </table></div>
 <p>Click a tab to show it; the tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two lines; nothing is hidden. Searching with ${ui('Ctrl + K')} for a setting (for example "Google Drive") opens its tab at that card.</p>
@@ -556,6 +556,7 @@ export default [
   <tr><td>${ui('App colour')}</td><td>The colour of the buttons, the open item in the menu, links, focus outlines and progress bars. Pick one of the eight colours (blue is the default), or the rainbow circle for a colour of your own. A very light or very dark colour is made a little darker or lighter by itself, so the white writing on buttons stays easy to read, in light and in dark mode.</td></tr>
   <tr><td>${ui('Text size')}</td><td>${ui('Smaller')}, ${ui('Normal')}, ${ui('Larger')} or ${ui('Largest')}. Everything on the screens grows or shrinks together: the menu, lists, forms, buttons and windows. The invoice preview keeps the size the invoice will print at.</td></tr>
   <tr><td>${ui('Compact lists')}</td><td>Shorter rows in the Invoices, Purchases, Expenses and Products lists (and the reports), and smaller client cards, so more fit on the screen without scrolling.</td></tr>
+  <tr><td>${ui('Red dots in the menu')}</td><td>On to start. A red dot on a menu item when something there needs you: overdue invoices, low stock, a GST return due, a recurring invoice, an update, or a screen with something new. See <a href="shortcuts.html#menu-dots">Red dots in the menu</a>. Untick it to hide the dots; the 🔔 bell keeps working.</td></tr>
   <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="shortcuts.html#dark-mode">Dark mode</a>.</td></tr>
 </table></div>
 <p>${ui('Back to the default look')} (shown once something was changed) puts back blue, Normal and the usual row height.</p>

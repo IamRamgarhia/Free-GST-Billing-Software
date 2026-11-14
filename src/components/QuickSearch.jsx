@@ -70,7 +70,7 @@ const SETTINGS_JUMPS = [
   ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
   ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
   ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
-  ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'],
+  ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'], ['Appearance: Red dots in the menu', 'section-appearance'],
 ];
 
 export default function QuickSearch({
