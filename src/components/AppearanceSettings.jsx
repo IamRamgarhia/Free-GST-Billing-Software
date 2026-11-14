@@ -9,11 +9,13 @@ import {
   APP_COLOURS, DEFAULT_COLOUR, getAppColour, setAppColour,
   TEXT_SIZES, getTextSize, setTextSize, getCompact, setCompact,
 } from '../utils/appLook';
+import { getMenuDots, setMenuDots } from '../store';
 
 export default function AppearanceSettings() {
   const [colour, setColour] = useState(getAppColour);
   const [size, setSize] = useState(getTextSize);
   const [compact, setCompactState] = useState(getCompact);
+  const [dots, setDots] = useState(getMenuDots);
   const preset = APP_COLOURS.some((c) => c.hex === colour);
   const changed = colour !== DEFAULT_COLOUR || size !== 'md' || compact;
 
@@ -72,6 +74,18 @@ export default function AppearanceSettings() {
           <span style={{ margin: 0 }}>
             <b style={{ color: 'var(--text)', fontSize: '0.92rem' }}>Compact lists</b>
             <span>Shorter rows in the Invoices, Purchases, Expenses and Products lists and smaller client cards, so more fit on the screen.</span>
+          </span>
+        </label>
+      </div>
+
+      {/* v1.10.86 - the red dots in the menu (utils/attention.js); the bell stays. */}
+      <div className="look-row">
+        <label className="look-row-label" style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input type="checkbox" checked={dots} onChange={(e) => { setMenuDots(e.target.checked); setDots(e.target.checked); }}
+            style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0 }} />
+          <span style={{ margin: 0 }}>
+            <b style={{ color: 'var(--text)', fontSize: '0.92rem' }}>Red dots in the menu</b>
+            <span>A red dot on a menu item when something there needs you: overdue invoices, low stock, a GST return due, a recurring invoice, an update, or a screen with something new. Point at a dot to see why. The bell at the top keeps working when this is off.</span>
           </span>
         </label>
       </div>

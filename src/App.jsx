@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart, Banknote } from 'lucide-react';
-import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
-import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
+import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, getMenuDots, onMenuChanged, getAllBills, getAllProducts, getAllRecurring, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden, DATA_SAVED_EVENT } from './store';
+import { isModuleEnabled, localToday, DOCS_URL, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
-import SidebarMenu from './components/SidebarMenu';
+import SidebarMenu, { NavDot } from './components/SidebarMenu';
 import MenuCustomise, { onOpenCustomiseMenu } from './components/MenuCustomise';
 import { hiddenItems } from './utils/menuGroups';
+import { findAttention, menuDots, rollupDot, readFiledMarks, readNewSeen, markNewSeen, NEW_IN } from './utils/attention';
+import { getPrintSettings } from './utils/printSettings';
 import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
@@ -28,7 +30,7 @@ import UpdateOverlay from './components/UpdateOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
-import { WhatsNewAfterUpdate } from './components/WhatsNewSlides';
+import { WhatsNewAfterUpdate, SEEN_KEY as WHATS_NEW_SEEN_KEY } from './components/WhatsNewSlides';
 const SettingsView = lazy(() => import('./components/SettingsView'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
 const InventoryView = lazy(() => import('./components/InventoryView'));
@@ -167,8 +169,17 @@ function App() {
   // Computed from server data on app boot + every 10 minutes; tucked under a
   // bell icon next to dark-mode toggle in the sidebar. Each section is one
   // click away from the relevant page.
-  const [notifications, setNotifications] = useState({ overdue: [], dueSoon: [], lowStock: [], filings: [], autoFire: null });
+  const [notifications, setNotifications] = useState({ overdue: [], dueSoon: [], lowStock: [], filings: [], autoFire: null, recurringDue: [] });
   const [showNotifs, setShowNotifs] = useState(false);
+  // v1.10.86 - "New" dots on screens with new features (utils/attention.js
+  // NEW_IN), until each is opened once. A new install (no What's new seen,
+  // setup not done) starts with all of them seen.
+  const [newSeen, setNewSeen] = useState(() => {
+    let fresh = false;
+    try { fresh = !localStorage.getItem(WHATS_NEW_SEEN_KEY) && getPrintSettings().onboardingComplete !== true; } catch { /* storage blocked */ }
+    return readNewSeen(fresh);
+  });
+  useEffect(() => { setNewSeen(s => markNewSeen(s, currentView)); }, [currentView]);
 
   // v1.10.62 — reported (#53, @sangwanmail-eng): "Notifications should clear
   // after check."
@@ -201,6 +212,7 @@ function App() {
     lowStock: notifications.lowStock.map(p => `${p.id || p.name}:${p.stock ?? ''}`).sort().join('|'),
     filings: notifications.filings.map(f => f.label || f.id || String(f)).sort().join('|'),
     autoFire: notifications.autoFire?.count > 0 ? `autofire:${notifications.autoFire.count}` : '',
+    recurringDue: notifications.recurringDue.map(t => `${t.id}:${t.nextDate}`).sort().join('|'),
   }), [notifications]);
 
   // A section counts toward the badge only when it has content AND that
@@ -211,10 +223,11 @@ function App() {
     + (isLive('dueSoon') ? notifications.dueSoon.length : 0)
     + (isLive('lowStock') ? notifications.lowStock.length : 0)
     + (isLive('filings') ? notifications.filings.length : 0)
-    + (isLive('autoFire') ? 1 : 0);
+    + (isLive('autoFire') ? 1 : 0)
+    + (isLive('recurringDue') ? notifications.recurringDue.length : 0);
 
   // How many sections are currently showing something that could be cleared.
-  const dismissableCount = ['overdue', 'dueSoon', 'lowStock', 'filings', 'autoFire']
+  const dismissableCount = ['overdue', 'dueSoon', 'lowStock', 'filings', 'autoFire', 'recurringDue']
     .filter(isLive).length;
 
   const markAllNotifsRead = () => {
@@ -223,39 +236,31 @@ function App() {
     try { localStorage.setItem(DISMISS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
   };
 
+  // v1.10.86 - the bell and the menu's red dots both come from findAttention
+  // (utils/attention.js). Looked at on start, on every screen change, a moment
+  // after a bill / product / template / purchase is saved, and every 10 min.
+  const profileRef = useRef(null);
+  profileRef.current = profile;
+  const profileKey = `${profile?.gstin || ''}|${profile?.businessName || ''}`;
   useEffect(() => {
     let cancelled = false;
+    let saveTimer = null;
     const compute = async () => {
       try {
-        const [bills, products, stockAlertCfg] = await Promise.all([
+        const [bills, products, stockAlertCfg, templates] = await Promise.all([
           getAllBills().catch(() => []),
           getAllProducts().catch(() => []),
           getStockAlertSettings().catch(() => ({ enabled: true, threshold: 5 })),
+          getAllRecurring().catch(() => []),
         ]);
         if (cancelled) return;
         // Local dates: toISOString() is UTC (yesterday in India until 05:30),
         // while the server stamps lastRecurringAutoFire with its local date.
         const today = localToday();
-        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 3);
-        const tomorrowStr = toLocalIsoDate(tomorrow);
-        // v1.10.67 (#66 item 12) — never chase payment for a cancelled invoice;
-        // nor for a quotation, proforma, challan or credit note (countsAsSales).
-        const overdue = bills.filter(b => {
-          const d = b.data?.details?.dueDate;
-          return d && d < today && b.status !== 'paid' && countsAsSales(b);
+        const prof = profileRef.current;
+        const { overdue, dueSoon, lowStock, filings, recurringDue } = findAttention({
+          bills, products, stockCfg: stockAlertCfg, templates, profile: prof, filed: readFiledMarks(prof),
         });
-        const dueSoon = bills.filter(b => {
-          const d = b.data?.details?.dueDate;
-          return d && d >= today && d <= tomorrowStr && b.status !== 'paid' && countsAsSales(b);
-        });
-        // Honour the user's stock-alert preferences. When disabled, the filter
-        // returns nothing — bell badge drops to 0 for the stock category.
-        // When enabled, use the configured threshold (default 5).
-        const stockThreshold = Number(stockAlertCfg?.threshold ?? 5);
-        const lowStock = stockAlertCfg?.enabled === false
-          ? []
-          : findLowStock(products, stockThreshold); // services and uncounted left out (#121)
-        const filings = getUpcomingFilings().filter(f => f.daysAway <= 10);
         // Recurring auto-fire breadcrumb — set by server.js processDueRecurring().
         // Only "fresh" (today's) auto-fires count as a notification; older ones
         // would otherwise stay sticky forever.
@@ -267,13 +272,17 @@ function App() {
             if (j.value && j.value.date === today && j.value.count > 0) autoFire = j.value;
           }
         } catch { /* fine */ }
-        setNotifications({ overdue, dueSoon, lowStock, filings, autoFire });
+        setNotifications({ overdue, dueSoon, lowStock, filings, autoFire, recurringDue });
       } catch { /* offline / server down — leave previous counts */ }
     };
     compute();
     const interval = setInterval(compute, 10 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [currentView]); // recompute on view change so the bell stays fresh after the user records a payment
+    // Not while an invoice is open: its auto-save would redraw the app
+    // between keystrokes. Leaving the editor looks again anyway.
+    const onSaved = () => { if (currentView === 'new') return; clearTimeout(saveTimer); saveTimer = setTimeout(compute, 1500); };
+    window.addEventListener(DATA_SAVED_EVENT, onSaved);
+    return () => { cancelled = true; clearInterval(interval); clearTimeout(saveTimer); window.removeEventListener(DATA_SAVED_EVENT, onSaved); };
+  }, [currentView, profileKey]); // recompute on view change so the bell stays fresh after the user records a payment
 
   // ---- Keyboard shortcuts + command palette ----
   // Ctrl+K opens a Spotlight-style command palette; Ctrl+N starts a new
@@ -609,6 +618,18 @@ function App() {
   };
   const navItems = menu.filter(m => m.section === 'main').map(m => ({ id: m.id, ...NAV_EXTRAS[m.id] }));
   const bottomIds = menu.filter(m => m.section === 'bottom').map(m => m.id);
+  // v1.10.86 - red dots in the menu: the bell's live sections (so "Mark all
+  // as read" clears both), an update, and "New" on screens still in the menu.
+  // Only items that are switched on; one taken out of the menu shows on its
+  // group's header (SidebarMenu), and anything at all on the phone's ☰ button.
+  const shownIds = [...navItems.map(i => i.id), ...bottomIds];
+  const allDots = getMenuDots() ? menuDots(notifications, {
+    live: isLive, autoFire: notifications.autoFire,
+    update: updateBannerVisible ? updateInfo.latest : null,
+    unseenNew: Object.keys(NEW_IN.items).filter(id => !newSeen.includes(id) && !menuHidden.includes(id)),
+  }) : {};
+  const dots = Object.fromEntries(Object.entries(allDots).filter(([id]) => shownIds.includes(id)));
+  const anyDot = rollupDot(Object.keys(dots), dots);
   // v1.10.86 - icons and names for the Customise menu window, as in the sidebar.
   const menuExtras = { ...NAV_EXTRAS, support: { icon: Heart, label: 'Support & About' }, controlpanel: { icon: HardDrive, label: 'Control Panel' }, settings: { icon: Settings, label: 'Settings' } };
   // v1.10.86 - a Settings tab / section from the sidebar (as openSettingsAt below).
@@ -760,7 +781,7 @@ function App() {
       ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
       ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
       // v1.10.86
-      ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'],
+      ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'], ['Appearance: Red dots in the menu', 'section-appearance'],
     ];
     settingsJumps.forEach(([s, sectionId]) => {
       acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => openSettingsAt(sectionId) });
@@ -954,8 +975,10 @@ function App() {
           on wider screens, where the sidebar is always shown. */}
       <div className="mobile-topbar">
         <button type="button" className="mobile-topbar-btn" onClick={() => setNavOpen(true)}
-          aria-label="Open menu" aria-expanded={navOpen}>
+          aria-label={anyDot ? `Open menu: ${anyDot.text}` : 'Open menu'} title={anyDot?.text} aria-expanded={navOpen}>
           <Menu size={22} />
+          {/* v1.10.86 - a dot when something inside the menu has one. */}
+          <NavDot dot={anyDot} />
         </button>
         <span className="mobile-topbar-title">GST Billing</span>
         <span className="mobile-topbar-business">{profile?.businessName || ''}</span>
@@ -1047,7 +1070,7 @@ function App() {
 
         <nav className="sidebar-nav">
           {/* v1.10.86 - in groups that open and close; arranged in Customise menu (the pencil). */}
-          <SidebarMenu items={navItems.filter(i => !menuHidden.includes(i.id))} currentView={currentView}
+          <SidebarMenu items={navItems.filter(i => !menuHidden.includes(i.id))} currentView={currentView} dots={dots}
             onPick={(item) => (item.onClick ? item.onClick() : setCurrentView(item.id))} />
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {/* Update-available banner — only shows when GitHub has a newer version
@@ -1104,16 +1127,11 @@ function App() {
                 <button key={id}
                   className={`nav-btn ${currentView === 'settings' ? 'nav-btn-active' : ''}`}
                   onClick={() => setCurrentView('settings')}
-                  style={updateBannerVisible ? { position: 'relative' } : undefined}
+                  title={dots.settings?.text}
                 >
                   <Settings size={18} /> Settings
-                  {updateBannerVisible && (
-                    <span className="nav-badge" style={{
-                      position: 'absolute', top: '8px', right: '12px',
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: '#f59e0b',
-                    }} title="Update available" />
-                  )}
+                  {/* v1.10.86 - the menu's red dot (was an amber one, for updates only). */}
+                  <NavDot dot={dots.settings} />
                 </button>
               ),
             })[id])}
@@ -1239,6 +1257,18 @@ function App() {
                       <strong>{notifications.autoFire.count} recurring invoice{notifications.autoFire.count !== 1 ? 's' : ''} auto-generated today</strong>
                       <div style={{ fontSize: '0.72rem', opacity: 0.85, marginTop: '0.2rem' }}>
                         Check the Dashboard for the new bills · review and download PDFs as needed
+                      </div>
+                    </div>
+                  </button>
+                )}
+                {/* v1.10.86 - a due template the server did not make (the app was off, or it failed). */}
+                {isLive('recurringDue') && (
+                  <button type="button" className="notice notice-warn" onClick={() => { setShowNotifs(false); setCurrentView('recurring'); }} style={{ cursor: 'pointer', border: 'none', textAlign: 'left' }}>
+                    <span className="notice-icon">🔁</span>
+                    <div style={{ flex: 1 }}>
+                      <strong>{notifications.recurringDue.length} recurring invoice{notifications.recurringDue.length !== 1 ? 's' : ''} due to be made</strong>
+                      <div style={{ fontSize: '0.72rem', opacity: 0.85, marginTop: '0.2rem' }}>
+                        {notifications.recurringDue.slice(0, 3).map(t => t.clientName || 'No client').join(' · ')} · open Recurring and use Generate Now
                       </div>
                     </div>
                   </button>

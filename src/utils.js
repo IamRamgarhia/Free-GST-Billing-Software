@@ -1355,11 +1355,11 @@ export const generateEWayBillJSON = (profile, client, details, items, totals, in
 export const getUpcomingFilings = (today = new Date()) => {
   const out = [];
   const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const push = (label, dueDate) => {
+  const push = (label, dueDate, extra) => {
     const diff = Math.round((dueDate - t) / 86400000);
     // Local date: toISOString() is UTC, which in India is the previous day
     // for a local midnight, so every due date was shown a day early.
-    if (diff >= 0 && diff <= 60) out.push({ label, dueDate: toLocalIsoDate(dueDate), daysAway: diff });
+    if (diff >= 0 && diff <= 60) out.push({ label, dueDate: toLocalIsoDate(dueDate), daysAway: diff, ...extra });
   };
   // From LAST month: its returns fall due this month (GSTR-3B for September
   // is due 20 October) and are the most urgent ones. Starting at this month
@@ -1368,8 +1368,11 @@ export const getUpcomingFilings = (today = new Date()) => {
     const nextMonth = new Date(t.getFullYear(), t.getMonth() + i, 1);
     const m = nextMonth.getMonth();
     const y = nextMonth.getFullYear();
-    push(`GSTR-1 (${nextMonth.toLocaleString('en-IN', { month: 'short', year: 'numeric' })})`, new Date(y, m + 1, 11));
-    push(`GSTR-3B (${nextMonth.toLocaleString('en-IN', { month: 'short', year: 'numeric' })})`, new Date(y, m + 1, 20));
+    // v1.10.86 - type + period: the month's "Filed" mark on GST Returns
+    // (`${month 0-11}_${year}`) takes the reminder off (utils/attention.js).
+    const period = `${m}_${y}`;
+    push(`GSTR-1 (${nextMonth.toLocaleString('en-IN', { month: 'short', year: 'numeric' })})`, new Date(y, m + 1, 11), { type: 'gstr1', period });
+    push(`GSTR-3B (${nextMonth.toLocaleString('en-IN', { month: 'short', year: 'numeric' })})`, new Date(y, m + 1, 20), { type: 'gstr3b', period });
     // Quarterly TDS / TCS — applies to the quarter the month falls into.
     const quarterEnd = m % 3 === 2; // Mar / Jun / Sep / Dec
     if (quarterEnd) {

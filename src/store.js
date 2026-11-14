@@ -55,8 +55,15 @@ async function apiFetch(url, options = {}) {
     }
     throw err;
   }
+  // v1.10.86 - a saved bill, product, template or purchase: the bell and the
+  // menu's red dots look again (App.jsx waits a moment, so a burst is one look).
+  if (options.method && options.method !== 'GET' && DATA_SAVED_PATHS.test(url) && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(DATA_SAVED_EVENT));
+  }
   return res.json();
 }
+const DATA_SAVED_PATHS = /\/api\/(bills|products|recurring|purchases|receipts|stock-adjustments|productions|import|trash)\b/;
+export const DATA_SAVED_EVENT = 'fgsb:data-saved';
 
 // ---- Close the books + edit history (v1.10.85; checked by the server) ----
 export const getPeriodLock = () => apiFetch(`${API}/period-lock`);
@@ -278,6 +285,14 @@ export const setMenuHidden = (ids) => {
     if (ids?.length) localStorage.setItem(MENU_HIDDEN_KEY, JSON.stringify(ids));
     else localStorage.removeItem(MENU_HIDDEN_KEY);
   } catch { /* ignore */ }
+  menuChanged();
+};
+// v1.10.86 - the red dots in the menu (Settings -> Appearance); on unless
+// switched off. This computer only; the bell is not affected.
+const MENU_DOTS_KEY = 'gst_menuDots';
+export const getMenuDots = () => { try { return localStorage.getItem(MENU_DOTS_KEY) !== '0'; } catch { return true; } };
+export const setMenuDots = (on) => {
+  try { localStorage.setItem(MENU_DOTS_KEY, on ? '1' : '0'); } catch { /* ignore */ }
   menuChanged();
 };
 
