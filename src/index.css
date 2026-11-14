@@ -4122,3 +4122,35 @@ html[data-compact] .client-card-header .client-avatar { width: 32px; height: 32p
   .btn-progress::after { animation: none; width: 100%; opacity: 0.5; }
 }
 
+
+/* v1.10.86 - Quick search (Ctrl+K): groups, "How do I…" rows with a Guide button. */
+.modal-content.qs-panel { max-width: 580px; width: 92%; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.qs-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border-color); }
+.qs-input { border: 0 !important; background: transparent !important; flex: 1; font-size: 0.95rem; min-width: 0; box-shadow: none !important; }
+.qs-esc { background: none; border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-muted); font-size: 0.7rem; padding: 0.1rem 0.4rem; cursor: pointer; }
+.qs-list { max-height: min(430px, calc(70vh / var(--ui-zoom, 1))); overflow-y: auto; padding-bottom: 0.25rem; }
+.qs-group { padding: 0.55rem 1rem 0.2rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.qs-row { display: flex; align-items: center; gap: 0.35rem; padding-right: 0.6rem; }
+.qs-row-on { background: var(--bg-tertiary); }
+.qs-main { display: flex; align-items: center; gap: 0.55rem; flex: 1; min-width: 0; padding: 0.5rem 0.4rem 0.5rem 1rem; border: 0; background: transparent; color: var(--text-primary); text-align: left; font-size: 0.88rem; cursor: pointer; }
+.qs-icon { color: var(--primary); flex-shrink: 0; }
+.qs-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.qs-label { overflow-wrap: anywhere; }
+.qs-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+.qs-hint { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.qs-guide { display: inline-flex; align-items: center; gap: 0.25rem; flex-shrink: 0; padding: 0.2rem 0.55rem; border: 1px solid var(--border-color); border-radius: 999px; background: var(--bg-primary, transparent); color: var(--primary); font-size: 0.72rem; font-weight: 600; cursor: pointer; }
+.qs-guide:hover, .qs-guide:focus-visible { border-color: var(--primary); }
+.qs-empty { text-align: center; color: var(--text-muted); padding: 1.25rem; margin: 0; font-size: 0.85rem; }
+.qs-link { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font-size: inherit; }
+.qs-foot { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.35rem 1rem; border-top: 1px solid var(--border-color); font-size: 0.7rem; color: var(--text-muted); }
+/* "Take me there": the box the answer is about, outlined for a moment. */
+.qs-spot { outline: 3px solid var(--primary) !important; outline-offset: 3px; border-radius: 6px; animation: qs-spot 0.8s ease-in-out 3; }
+@keyframes qs-spot { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .qs-spot { animation: none; } }
+/* A phone: the search sits at the top, full width, above the keyboard. */
+@media (max-width: 600px) {
+  .qs-overlay { align-items: flex-start; padding-top: 0.5rem; }
+  .modal-content.qs-panel { width: calc(100% - 1rem); max-height: calc(100dvh - 1rem); }
+  .qs-list { max-height: calc(100dvh - 8rem); }
+  .qs-keys, .qs-hint { display: none; }
+}

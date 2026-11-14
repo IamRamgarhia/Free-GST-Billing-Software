@@ -80,14 +80,24 @@ export default [
   <li>go to any screen, or start a new invoice;</li>
   <li>open an invoice by its number or client;</li>
   <li>find a client by name or GSTIN, or a product by name or HSN, which opens their list;</li>
-  <li>jump to Settings, switch dark mode, or see what is new in an update.</li>
+  <li>jump to Settings, switch dark mode, or see what is new in an update;</li>
+  <li>ask a question, such as <code>how do I add my logo</code>, <code>credit note</code> or <code>bill kaise banaye</code> (see below);</li>
+  <li>find a page of this guide by its title.</li>
 </ul>
 <ol class="steps">
-  <li><strong>Open it</strong>Click <b>Search or jump to…</b> at the top, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Type a command or page name…</b></li>
-  <li><strong>Type a few letters</strong>For example <code>gst</code>, an invoice number such as <code>0012</code>, or part of a client's name. The list narrows as you type.</li>
+  <li><strong>Open it</strong>Click <b>Search or jump to…</b> at the top, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Search, or ask: how do I…</b></li>
+  <li><strong>Type a few letters or words</strong>For example <code>gst</code>, an invoice number such as <code>0012</code>, part of a client's name, or a question. The list narrows as you type, in groups: <b>Screens</b>, <b>How do I…</b>, <b>Settings</b>, your <b>Invoices</b>, <b>Clients</b> and <b>Products</b>, and <b>Help pages</b>. When what you type looks like an invoice number or a name, your invoices, clients and products come first.</li>
   <li><strong>Pick one</strong>Move with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>Enter</kbd>, or click it. The box closes and the screen opens.</li>
 </ol>
-<p><kbd>Esc</kbd>, or a click outside the box, closes it. If nothing fits you see <b>Nothing matches "…"</b>: try fewer letters. ${ui('All shortcuts (Ctrl+/)')} at the bottom opens the list of <a href="#keyboard">keyboard shortcuts</a>.</p>
+<p><kbd>Esc</kbd>, or a click outside the box, closes it. If nothing fits you see <b>Nothing matches "…"</b>: try fewer words, or click <b>search the user guide</b>. ${ui('All shortcuts (Ctrl+/)')} at the bottom opens the list of <a href="#keyboard">keyboard shortcuts</a>.</p>
+<h3>How do I… answers</h3>
+<p>With the box empty, a few common questions are listed under <b>How do I…</b>; type a few words of your question to find the others (about 85: invoices and credit notes, payments, WhatsApp, GST returns, stock, backups, phone, updates and more). Typing mistakes and everyday words such as <code>bill</code>, <code>challan</code> or <code>udhaar</code> work too. Each answer has two ways to go:</p>
+<div class="table-wrap"><table>
+  <tr><th>You do</th><th>What happens</th></tr>
+  <tr><td>Click the question, or press <kbd>Enter</kbd></td><td><b>Take me there</b>: the app opens the screen or Settings part where it is done (the line under the question says where, for example <b>Opens Settings → Branding</b>) and outlines the box for a moment.</td></tr>
+  <tr><td>Click ${ui('Guide')} on its right, or press <kbd>Shift</kbd> + <kbd>Enter</kbd></td><td>Opens the part of this guide that explains it, in your browser. It needs the internet.</td></tr>
+</table></div>
+<p>If the screen it needs is switched off in <a href="settings.html#features">Settings, Features</a>, Features opens instead and a message says what to turn on. Results under <b>Help pages</b> are pages and sections of this guide; they open in your browser too.</p>
 <figure><img src="assets/img/app-palette.png" alt="Quick search finding a client and their invoices." loading="lazy"><figcaption>Quick search finding a client and their invoices.</figcaption></figure>
 </section>
 
