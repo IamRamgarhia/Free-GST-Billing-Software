@@ -96,7 +96,7 @@ export default [
 
 <section id="dark-mode">
 <h2>Dark mode</h2>
-<p>The moon button at the top right of every screen switches the app to dark colours, and the sun button switches back. Invoices and PDFs always print in their normal colours.</p>
+<p>The moon button at the top right of every screen switches the app to dark colours, and the sun button switches back. Invoices and PDFs always print in their normal colours. The app's own colour, the text size and compact lists are in <a href="settings.html#appearance">Settings, Appearance</a>.</p>
 <figure><img src="assets/img/dashboard-dark.png" alt="The Dashboard in dark mode: dark sidebar and cards, with the sun button at the top right to switch back." loading="lazy"><figcaption>The Dashboard in dark mode. The sun button at the top right switches back.</figcaption></figure>
 </section>
 

@@ -98,7 +98,7 @@ export default function WelcomeGuide({ onComplete }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--bg-primary)' }}>
+    <div style={{ minHeight: 'calc(100vh / var(--ui-zoom, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--bg-primary)' }}>
       <div style={{ maxWidth: '640px', width: '100%' }}>
         {/* Progress */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', justifyContent: 'center' }}>

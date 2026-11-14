@@ -63,7 +63,7 @@ export default function SetupWizard({ onClose }) {
 
   return (
     <div className="modal-overlay" style={{ zIndex: 9999 }}>
-      <div className="modal-content" style={{ maxWidth: '640px', maxHeight: '90vh', overflow: 'auto' }}>
+      <div className="modal-content" style={{ maxWidth: '640px', maxHeight: 'calc(90vh / var(--ui-zoom, 1))', overflow: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.35rem' }}>👋 Welcome to Free GST Billing <HelpButton title="Setting up your invoices" doc="first-run#setup-wizard" size={16} /></h2>
