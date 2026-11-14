@@ -352,6 +352,20 @@ export default [
 </ul>
 </section>
 
+<section id="new-invoice">
+<h2>New invoice starts with</h2>
+<p>On the ${ui('Company')} tab, above the terms templates. What a new invoice is filled in with, so you do not change the same things on every bill. Each choice is saved as soon as you pick it.</p>
+<div class="table-wrap"><table>
+  <tr><th>Choice</th><th>What a new invoice gets</th></tr>
+  <tr><td>Document type</td><td><b>The last one used</b> (the default), or always one type, such as Tax Invoice or Bill of Supply. See <a href="invoices.html#invoice-types">Document type</a>.</td></tr>
+  <tr><td>Due in</td><td>No due date, 7, 15 or 30 days after the invoice date, or another number of days. Until you choose, a freelancer's invoice is due in 15 days and others have none.</td></tr>
+  <tr><td>GST % on a new line</td><td>The GST rate each new item line starts at: 18% unless you choose another rate from your list (including your own rates from Print Settings).</td></tr>
+  <tr><td>"Received now" paid by</td><td>How a payment taken with the invoice is marked (<a href="invoices.html#received-now">Received now</a>): the last one used, or always Cash, UPI, Bank transfer, Cheque, Card or Other.</td></tr>
+  <tr><td>Goods or services</td><td>The last one used, or always <a href="invoices.html#goods-services">Goods, Services or Mixed</a>.</td></tr>
+</table></div>
+<p>Everything can still be changed on the invoice itself. Invoices already made keep their own: opening, editing or duplicating one never applies these choices.</p>
+</section>
+
 <section id="print-settings">
 <h2>Print &amp; PDF</h2>
 <p>The ${ui('Print &amp; PDF')} tab sets the look of every printed invoice and PDF: designs, thermal receipts, watermarks, copies, colours, languages and formats. It has its own page with a section for each card: <a href="print-settings.html">Print and PDF settings</a>.</p>

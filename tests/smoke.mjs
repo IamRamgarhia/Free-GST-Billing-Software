@@ -1361,16 +1361,13 @@ try {
   });
   await page.waitForSelector('#invoice-preview', { timeout: 20000 });
   await sleep(1500);
+  // v1.10.86 - the type is a drop-down (#invoice-type), not chips.
   const chips = await page.evaluate(() => {
-    const all = [...document.querySelectorAll('.type-selector .type-chip')];
-    return {
-      total: all.length,
-      disabled: all.filter((c) => c.disabled).length,
-      active: all.filter((c) => c.className.includes('type-chip-active')).length,
-    };
+    const sel = document.querySelector('#invoice-type');
+    return { found: !!sel, disabled: !!sel?.disabled, value: sel?.value || '', options: sel ? sel.options.length : 0 };
   });
   check('#66 the invoice type cannot be changed on a saved invoice',
-    chips.total > 1 && chips.disabled === chips.total - 1 && chips.active === 1, JSON.stringify(chips));
+    chips.found && chips.disabled && chips.value === 'tax-invoice' && chips.options > 1, JSON.stringify(chips));
   check('#66 the "Billing From" card is gone from the invoice screen',
     !(await screenText()).includes('Billing From'));
 
@@ -1616,6 +1613,8 @@ try {
   const billedTo = page.locator('.glass-panel').filter({ has: page.locator('h3.section-title', { hasText: 'Billed To' }) });
   const fieldGroup = (label) => billedTo.locator('.form-group').filter({ has: page.locator(`label.form-label:text-is("${label}")`) });
   const gstinInput = fieldGroup('GSTIN').locator('input');
+  // v1.10.86 - address, state and GSTIN are folded under "More client details".
+  if (!(await gstinInput.isVisible())) await billedTo.locator('summary', { hasText: 'More client details' }).click();
   await gstinInput.fill('27AAPFU0939F1ZV');
   await page.keyboard.press('Tab');
   await sleep(600);

@@ -179,3 +179,25 @@ export function agingShareMessage(clientName, buckets, profile) {
     'The ageing report PDF is attached.',
   ].filter(Boolean).join('\n');
 }
+
+// v1.10.86 - "Send reminder" on a client's account: a short WhatsApp message
+// with what they owe in all and the unpaid invoices, oldest first (five at
+// most), saying which are past their due date. `unpaid`: [{ number,
+// outstanding, dueDate }]; today is a 'YYYY-MM-DD' date (passed in for tests).
+export function balanceReminderMessage(clientName, unpaid, profile, today) {
+  const fmt = (n) => formatCurrency(Number(n) || 0, baseCurrencyOf(profile));
+  const list = (unpaid || []).filter((u) => Number(u.outstanding) > 0.005);
+  const total = r2(list.reduce((s, u) => s + Number(u.outstanding), 0));
+  const daysLate = (due) => (due && today ? Math.round((Date.parse(today) - Date.parse(due)) / 86400000) : 0);
+  const oldestFirst = [...list].sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+  return [
+    `Hi ${clientName || 'Sir/Madam'}, this is a gentle reminder that a balance of ${fmt(total)} is pending with us:`,
+    ...oldestFirst.slice(0, 5).map((u) => {
+      const late = daysLate(u.dueDate);
+      return `- Invoice ${u.number}: ${fmt(u.outstanding)}${late > 0 ? ` (due ${late} day${late === 1 ? '' : 's'} ago)` : ''}`;
+    }),
+    list.length > 5 && `- and ${list.length - 5} more`,
+    'Kindly arrange the payment at your earliest convenience. Thank you!',
+    profile?.businessName && `- ${profile.businessName}`,
+  ].filter(Boolean).join('\n');
+}
