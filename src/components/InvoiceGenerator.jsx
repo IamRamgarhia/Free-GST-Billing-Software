@@ -5473,8 +5473,23 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
                 <label className="form-label">Invoice Number</label>
-                <input type="text" className="form-input" value={details.invoiceNumber}
-                  onChange={(e) => setDetails({ ...details, invoiceNumber: e.target.value })} />
+                {/* v1.10.86 - GST (Rule 46): with a GSTIN, a tax invoice or credit
+                    note number is at most 16 letters, digits, - and /. The box
+                    takes no more, so GSTR-1 never refuses it. */}
+                {(() => {
+                  const gstLimit = !!profile?.gstin && ['tax-invoice', 'credit-note'].includes(invoiceType);
+                  const len = String(details.invoiceNumber || '').length;
+                  return (<>
+                    <input type="text" className="form-input" value={details.invoiceNumber}
+                      maxLength={gstLimit ? 16 : undefined} data-testid="invoice-number"
+                      onChange={(e) => setDetails({ ...details, invoiceNumber: gstLimit ? e.target.value.replace(/[^A-Za-z0-9\-/]/g, '') : e.target.value })} />
+                    {gstLimit && (
+                      <small style={{ display: 'block', marginTop: '0.3rem', fontSize: '0.72rem', color: len > 16 ? 'var(--danger)' : 'var(--text-muted)' }}>
+                        {len}/16 · GST allows letters, digits, - and /
+                      </small>
+                    )}
+                  </>);
+                })()}
               </div>
               <div className="form-group">
                 <label className="form-label">Invoice Date</label>

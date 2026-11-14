@@ -68,6 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Name on New Invoice opens the client window, and **Add Client** is the
   main button on the Clients screen again. Invoice Details uses both
   columns: Due Date, Currency and Place of Supply sit on one row.
+- **Invoice number limit for GST**: with a GSTIN, the Invoice Number box on a
+  tax invoice or credit note takes at most 16 characters (letters, digits,
+  - and /) and shows a 12/16 count, so GSTR-1 never refuses the number.
 - **New Invoice cards you can close and move**: Document type, Billed To,
   Line Items, Invoice Details and Terms & notes open and close from their
   title, and a closed card shows one line of what is in it ("2 items ·
