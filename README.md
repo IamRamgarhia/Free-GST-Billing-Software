@@ -256,10 +256,10 @@ Enter your invoices and purchase bills as usual. At the end of the month open **
 
 One update every Saturday. Dates are plans: if a week fills up, the least-used item moves to the next week, and we say so on its issue.
 
-**Next (21 and 28 November 2026):** TDS / TCS part 2 ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180)), serial number and warranty tracking ([#122](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/122)) with batch and expiry, balance sheet and trial balance, staff logins with roles ([#155](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/155), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115)).
+**Next:** **21 November**: an MRP column ([#189](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/189), [#192](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/192)), a statement for each supplier ([#148](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/148), [#194](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/194)), add GSTR-2B bills as purchase bills ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), invoices that always fit A4 ([#188](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/188)), and easier phone pairing and updates. **28 November**: TDS / TCS part 2 ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180)). **December**: a balance sheet and separate bank and cash ledgers ([#148](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/148), [#189](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/189)).
 
 <details>
-<summary><b>Just released, being studied, and not planned</b></summary>
+<summary><b>Just released, waiting for more requests, and not planned</b></summary>
 
 **Just released: v1.10.85 (14 November 2026)**
 - Use the app on a phone or tablet on the same Wi-Fi ([#142](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/142), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115)), and a Docker image for a NAS
@@ -270,9 +270,9 @@ One update every Saturday. Dates are plans: if a week fills up, the least-used i
 - Discount before GST ([#190](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/190)), purchase line discount and serial numbers ([#171](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/171), [#160](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/160)), running-feet lines ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140))
 - TDS / TCS under the Income-tax Act, 2025, part 1 ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180)), close the books, hide a business behind a PIN ([#125](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/125)), Flipkart order import ([#172](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/172)), paid / unpaid expenses ([#165](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/165))
 
-**Being studied** (each needs care to stay simple for everyone else): purchase bills from GSTR-2B ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), a fast POS counter screen ([#169](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/169)), an Android app ([#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), rental billing ([#163](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/163)), pharmacy features ([#192](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/192)), MRP on the invoice ([#189](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/189)).
+**Waiting for more requests** (add a 👍 to the issue if you need it; we build first what most users ask for): staff logins with roles ([#155](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/155)), warranty tracking ([#122](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/122)), batch and expiry ([#192](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/192)).
 
-**Not planned:** anything that needs an online account, a paid GST provider (GSP) or a server of ours and would send your data out of your computer: filing or fetching data directly from the GST portal ([#139](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/139), [#173](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/173)), live bank feeds, payment-gateway links, an online store, cloud sync.
+**Not planned:** anything that needs an online account, a paid GST provider (GSP) or a server of ours and would send your data out of your computer: filing or fetching data directly from the GST portal ([#139](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/139), [#173](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/173)), live bank feeds, payment-gateway links, an online store, cloud sync. Also a separate Android app (use the app on your phone over Wi-Fi instead) and a separate POS screen.
 
 </details>
 
@@ -381,7 +381,7 @@ Updates replace only the app's own files. Your invoices, clients, products, sett
 <details>
 <summary><b>Is there a mobile app?</b></summary>
 
-Not yet; an Android app is being studied ([#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)). Today you can use the app from a phone or tablet on the same Wi-Fi as your computer: [Use on a phone or tablet](https://dicecodes.com/free-gst-software-documentation/phone.html).
+Not as a separate app. Since v1.10.85 you can use the app from a phone or tablet on the same Wi-Fi as your computer: [Use on a phone or tablet](https://dicecodes.com/free-gst-software-documentation/phone.html).
 
 </details>
 
