@@ -31,3 +31,10 @@ export async function askToNotify(latest) {
     if (await Notification.requestPermission() === 'granted') notifyUpdate(latest);
   } catch { /* the browser refused to ask */ }
 }
+
+// v1.10.86 - the update's progress window (components/UpdateOverlay.jsx).
+// runUpdateNow (store.js) sends { step, pct } while it runs, { error } when it
+// failed, and null to close it. pct null = a moving bar (no real percent).
+let progressListener = null;
+export const onUpdateProgress = (fn) => { progressListener = fn; return () => { progressListener = null; }; };
+export const setUpdateProgress = (state) => { if (progressListener) progressListener(state); };

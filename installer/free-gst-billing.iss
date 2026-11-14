@@ -914,7 +914,11 @@ var
   I: Integer;
   After: Integer;
 begin
-  if IsUpgrade then exit;
+  { v1.10.86 - an update says so in the window title too (see SayUpdating). }
+  if IsUpgrade then begin
+    WizardForm.Caption := 'Updating Free GST Billing';
+    exit;
+  end;
   After := wpWelcome;
   if OldCount > 1 then begin
     WhichPage := CreateInputOptionPage(wpWelcome, 'Your books', 'Free GST Billing was found more than once',
@@ -984,8 +988,37 @@ begin
   end;
 end;
 
+{ v1.10.86 - an update of the installed copy (Update Now in the app, or this
+  Setup run again over it) says "Updating", not "Installing". Inno Setup sets
+  its own captions before CurPageChanged runs, so these replace them; a new
+  install keeps Inno Setup's own words. }
+procedure SayUpdating(CurPageID: Integer);
+begin
+  case CurPageID of
+    wpReady: begin
+      WizardForm.PageNameLabel.Caption := 'Ready to update';
+      WizardForm.PageDescriptionLabel.Caption := 'Setup is ready to update Free GST Billing to version {#AppVersion}.';
+      WizardForm.ReadyLabel.Caption := 'Click Update to continue. Your books are kept as they are.';
+      WizardForm.NextButton.Caption := 'Update';
+    end;
+    wpPreparing: begin
+      WizardForm.PageNameLabel.Caption := 'Preparing to update';
+      WizardForm.PageDescriptionLabel.Caption := 'Setup is getting ready to update Free GST Billing.';
+    end;
+    wpInstalling: begin
+      WizardForm.PageNameLabel.Caption := 'Updating';
+      WizardForm.PageDescriptionLabel.Caption := 'Please wait while Setup updates Free GST Billing to version {#AppVersion}. Your books are not touched.';
+    end;
+    wpFinished: begin
+      WizardForm.FinishedHeadingLabel.Caption := 'Free GST Billing is updated';
+      WizardForm.FinishedLabel.Caption := 'Free GST Billing is now version {#AppVersion}.';
+    end;
+  end;
+end;
+
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  if IsUpgrade then SayUpdating(CurPageID);
   if (DataPage <> nil) and (CurPageID = DataPage.ID) and (OldCount > 0) then
     DataPage.CheckListBox.ItemEnabled[1] := not (IsInside(BooksHome, OldHome) or IsInside(OldHome, BooksHome));
   { An earlier copy that opened by itself at start-up: tick the same here, once. }

@@ -3691,3 +3691,10 @@ html:not([data-theme="dark"]) .welcome-card-close:hover { background: rgba(15, 2
 .inv-bank-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 0.75rem; align-items: baseline; }
 .inv-bank-grid .inv-detail-label { min-width: 0; display: block; }
 .inv-bank-grid p { overflow-wrap: anywhere; }
+
+/* v1.10.86 - the update's progress window (components/UpdateOverlay.jsx). */
+.update-bar { position: relative; height: 10px; margin: 1.1rem 0 0.9rem; border-radius: 999px; background: rgba(100, 116, 139, 0.22); overflow: hidden; }
+.update-bar > div { height: 100%; width: 0; border-radius: inherit; background: var(--primary, #2563eb); transition: width 0.6s ease; }
+.update-bar-moving > div { position: absolute; width: 35%; animation: update-bar-move 1.4s ease-in-out infinite; }
+@keyframes update-bar-move { from { left: -35%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .update-bar-moving > div { animation: none; left: 0; width: 100%; opacity: 0.5; } }

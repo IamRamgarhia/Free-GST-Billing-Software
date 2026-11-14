@@ -185,13 +185,13 @@ export default function SettingsView({ onSaved }) {
   // v1.10.69 - see runUpdateNow() in store.js: this used to be a link to a URL
   // protocol that no current install registers, so it did nothing at all.
   const [updatingNow, setUpdatingNow] = useState(false);
+  // v1.10.86 - the progress window (UpdateOverlay in App.jsx) shows the steps
+  // and any error; on success the page reloads on the new version by itself.
   const handleSettingsUpdateNow = async () => {
     setUpdatingNow(true);
-    toast('Updating… your data is backed up first. This takes about a minute.', 'info', 8000);
     const result = await runUpdateNow();
     setUpdatingNow(false);
-    toast(result.ok ? 'Update finished. Reload the page to use the new version.' : `Update failed — ${result.error}`,
-      result.ok ? 'success' : 'error', 10000);
+    if (result.hint) toast(result.error, 'info', 10000);
   };
   const [regionMode, setRegionModeState] = useState(getRegionMode());
   // v1.10.83 - Business type + Features: a draft, applied by "Save all changes".
