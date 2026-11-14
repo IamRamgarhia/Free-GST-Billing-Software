@@ -2910,6 +2910,84 @@ try {
     }, modules148);
   }
 
+  // ---- v1.10.86 (#189, #194, #175): the MRP column prints a product's MRP;
+  // the supplier statement lists a bill and its payment with what is owed,
+  // and opens its PDF in the preview; a GSTR-2B "2B only" row opens a filled
+  // purchase bill which, once saved, shows as matched.
+  {
+    const get86 = (url) => page.evaluate(async (url) => (await fetch(url)).json(), url);
+    const prof86 = await get86('/api/profile');
+    const owner86 = { ownerGstin: prof86.gstin || '', ownerName: prof86.businessName || '' };
+    const keepOpts86 = await page.evaluate(() => localStorage.getItem('freegstbill_invoiceOptions'));
+    await api('/api/products', { id: 'smoketest-mrp86', name: 'Smoke MRP Pen', hsn: '9608', sellingPrice: 10, rate: 10, mrp: 15, taxPercent: 18, unit: 'Nos' });
+    await page.evaluate(() => {
+      const o = JSON.parse(localStorage.getItem('freegstbill_invoiceOptions') || '{}');
+      localStorage.setItem('freegstbill_invoiceOptions', JSON.stringify({ ...o, showMRP: true }));
+      sessionStorage.removeItem('gst_invoiceDraft'); sessionStorage.removeItem('gst_editingBill');
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await reopenView('New Invoice');
+    const name86 = page.locator('.line-item-name').first();
+    await name86.click(); await name86.fill('Smoke MRP P'); await sleep(600);
+    await name86.press('ArrowDown'); await name86.press('Enter'); await sleep(800);
+    const mrp86 = await page.locator('.line-item-mrp').first().inputValue().catch(() => '');
+    const prev86 = (await page.locator('.invoice-preview-container').first().innerText().catch(() => '')).replace(/\s+/g, ' ');
+    check('v86 #189 picking a product brings its MRP onto the line, and the MRP column prints it',
+      mrp86 === '15' && /\bMRP\b/.test(prev86) && /15\.00/.test(prev86), `mrp=${mrp86} ${prev86.slice(0, 200)}`);
+    await page.evaluate((o) => {
+      if (o === null) localStorage.removeItem('freegstbill_invoiceOptions'); else localStorage.setItem('freegstbill_invoiceOptions', o);
+      sessionStorage.removeItem('gst_invoiceDraft');
+    }, keepOpts86);
+    await page.reload({ waitUntil: 'networkidle' });
+
+    await api('/api/purchases', { id: 'smoketest-pur86', ...owner86, date: today, supplierName: 'Smoke Statement Supplier', supplierGstin: '27AAAAA0000A1Z5',
+      invoiceNumber: 'SMK-ST-86', paymentStatus: 'Partial', interstate: true, paidAmount: 500,
+      items: [{ name: 'Smoke Ink', hsn: '3215', quantity: 1, rate: 1000, taxPercent: 18, cessPercent: 0 }], totalAmount: 1180, totalTax: 180, taxableAmount: 1000,
+      payments: [{ id: 'smoketest-pp86', amount: 500, date: today, mode: 'upi', reference: 'SMKUTR86' }] });
+    await reopenView('Purchases');
+    await page.getByRole('button', { name: /Supplier statement/ }).click();
+    await sleep(800);
+    await page.locator('#sst-supplier').selectOption('Smoke Statement Supplier');
+    await sleep(300);
+    const st86 = (await page.locator('.supplier-statement').innerText()).replace(/\s+/g, ' ');
+    check('v86 #194 supplier statement: the bill, the payment and the closing amount owed',
+      /Purchase bill SMK-ST-86/.test(st86) && /Paid \(UPI SMKUTR86\)/.test(st86) && /Closing balance ₹680\.00 you owe/.test(st86), st86.slice(-240));
+    await page.getByRole('button', { name: /Statement PDF/ }).click();
+    await sleep(1500);
+    check('v86 #194 the statement PDF opens in the preview (Download, Print, WhatsApp, Email)',
+      await page.locator('iframe[title="Statement: Smoke Statement Supplier"]').count() === 1 && await page.getByRole('button', { name: /^WhatsApp$/ }).count() > 0);
+    await page.keyboard.press('Escape');
+    await sleep(300);
+    await page.locator('.modal-content').filter({ hasText: 'Supplier statement' }).getByRole('button', { name: 'Close' }).click();
+    await sleep(300);
+
+    const twoB86 = { data: { gstin: prof86.gstin || '', rtnprd: '', docdata: { b2b: [{ ctin: '27AAAAA0000A1Z5', trdnm: 'Smoke 2B Supplier',
+      inv: [{ inum: 'SMK-2B-86', dt: today.split('-').reverse().join('-'), val: 1180, pos: '27', rev: 'N', itcavl: 'Y', items: [{ num: 1, rt: 18, txval: 1000, igst: 180, cess: 0 }] }] }] } } };
+    await reopenView('GST Returns');
+    await page.getByRole('button', { name: /GSTR-2B Reconciliation/ }).click();
+    await sleep(500);
+    await page.locator('input[type=file][accept=".json,application/json"]').setInputFiles({ name: 'smoke-2b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(twoB86)) });
+    await sleep(800);
+    await page.locator('tr', { hasText: 'SMK-2B-86' }).getByRole('button', { name: 'Add as purchase bill' }).click();
+    await sleep(2500);
+    const form86 = page.locator('.modal-content').filter({ hasText: 'Add Purchase Bill' });
+    const vals86 = await form86.locator('input').evaluateAll((els) => els.map((e) => e.value));
+    check('v86 #175 Add as purchase bill opens the form filled in from 2B (supplier, GSTIN, number, date, one line at 18%)',
+      ['Smoke 2B Supplier', '27AAAAA0000A1Z5', 'SMK-2B-86', today, 'Purchase at 18% GST (from GSTR-2B)', '1000'].every((v) => vals86.includes(v)), JSON.stringify(vals86).slice(0, 240));
+    await form86.getByRole('button', { name: /^Save$/ }).click();
+    await sleep(3000);
+    const row86 = (await page.locator('tr', { hasText: 'SMK-2B-86' }).first().innerText().catch(() => '')).replace(/\s+/g, ' ');
+    const placeholder86 = (await get86('/api/products')).some((p) => /GSTR-2B/.test(p.name || ''));
+    check('v86 #175 after Save it is back on GSTR-2B and the entry is matched; no "(from GSTR-2B)" product was made',
+      /Matched/.test(row86) && !placeholder86, `${row86} placeholder=${placeholder86}`);
+    await page.evaluate(async () => {
+      for (const p of await (await fetch('/api/purchases')).json()) {
+        if (p.invoiceNumber === 'SMK-2B-86') await fetch(`/api/purchases/${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+      }
+      sessionStorage.removeItem('fgsb_gstr2bFile');
+    });
+  }
+
   // Put the real business details back.
   await page.evaluate(async (prof) => {
     await fetch('/api/profile', {

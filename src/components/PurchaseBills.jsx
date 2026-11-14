@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee, RotateCcw, FileText } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes, saveDebitNote } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS_2025, tdsSectionsFor, movedSection, sectionOptionLabel, sectionShort } from '../utils';
@@ -31,6 +31,10 @@ import { findByBarcode } from '../utils/barcode';
 import { baseQty, lineFactor, altLineFields } from '../utils';
 import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { takeReorderDraft } from '../utils/reorderDraft';
+// v1.10.86 - (#148, #194) a supplier's statement, from the Purchase Records header.
+import SupplierStatement from './SupplierStatement';
+// v1.10.86 - (#175) a bill handed over from GST Returns -> GSTR-2B ("2B only").
+import { takeTwoBDraft, isTwoBPlaceholder, markBackToTwoB } from '../utils/gstr2bBill';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -132,7 +136,7 @@ const purchaseTdsFields = (form, taxable) => {
   };
 };
 
-export default function PurchaseBills() {
+export default function PurchaseBills({ onOpenGstReturns } = {}) {
   const [purchases, setPurchases] = useState([]);
   // v1.10.65 (#58 item 3) — the business these records belong to.
   const [ownerProfile, setOwnerProfile] = useState(null);
@@ -174,6 +178,7 @@ export default function PurchaseBills() {
   // v1.10.85 (#168) - purchase returns, and the bill being returned.
   const [debitNotes, setDebitNotes] = useState([]);
   const [returnBill, setReturnBill] = useState(null);
+  const [statementFor, setStatementFor] = useState(null); // v1.10.86 - (#194) '' or a supplier name: statement open
   // The number shown on a new PO; only that one is swapped for a reserved
   // number on save, so a number the user typed is kept.
   const previewedPoRef = useRef('');
@@ -397,6 +402,21 @@ export default function PurchaseBills() {
   useEffect(() => {
     reorderRef.current = reorderRef.current || takeReorderDraft();
   }, []);
+  // v1.10.86 - (#175) a 2B entry opens in a new bill once the business is
+  // known (the bill is stamped with it); the user checks it and saves.
+  const twoBRef = useRef(null);
+  useEffect(() => {
+    twoBRef.current = twoBRef.current || takeTwoBDraft();
+  }, []);
+  useEffect(() => {
+    if (!twoBRef.current || !ownerProfile) return;
+    const draft = twoBRef.current;
+    twoBRef.current = null;
+    setTab('bills');
+    setForm({ ...emptyForm, ...draft, date: draft.date || localToday(), items: draft.items.map(i => ({ ...i })), from2b: true });
+    setEditingId(null);
+    setShowForm(true);
+  }, [ownerProfile]);
   useEffect(() => {
     if (!reorderRef.current || !ownerProfile) return;
     const items = reorderRef.current;
@@ -674,6 +694,7 @@ export default function PurchaseBills() {
 
   const handleSave = async () => {
     if (form.kind === 'po') return handleSavePo();
+    const from2b = !!form.from2b && !editingId; // v1.10.86 - (#175) back to GSTR-2B once saved
     if (!form.supplierName.trim()) { toast('Supplier name is required', 'warning'); return; }
     if (!form.invoiceNumber.trim()) { toast('Invoice number is required', 'warning'); return; }
     // v1.10.58 — reported (#47 item 2, @sangwanmail-eng): "Purchase also
@@ -801,7 +822,8 @@ export default function PurchaseBills() {
         const productsToUpsert = new Map();
         const seenPriorKeys = new Set();
 
-        for (const it of purchase.items.filter(x => x.name)) {
+        // v1.10.86 - (#175) lines still named "... (from GSTR-2B)" are no product: no stock.
+        for (const it of purchase.items.filter(x => x.name && !isTwoBPlaceholder(x.name))) {
           const qty = baseQty(it); // #148 - 3 boxes of 12 add 36
           // Match order: productId (persisted below) → name (case-insensitive).
           let existing = it.productId ? byId.get(it.productId) : null;
@@ -873,7 +895,7 @@ export default function PurchaseBills() {
           }
         }
         await Promise.all(upserts);
-        toast(editingId ? 'Purchase updated' : 'Purchase added — items synced to Products', 'success');
+        toast(editingId ? 'Purchase updated' : from2b ? 'Purchase added. Back to GSTR-2B.' : 'Purchase added — items synced to Products', 'success');
       } catch (e) {
         console.warn('Products auto-sync from purchase failed (non-fatal):', e);
         toast('Purchase saved, but updating stock in Products failed - check them there', 'warning');
@@ -886,6 +908,7 @@ export default function PurchaseBills() {
       // refresh it too. Otherwise a brand-new item would not appear in the
       // suggestions until the page was reloaded.
       loadProducts();
+      if (from2b && onOpenGstReturns) { markBackToTwoB(); onOpenGstReturns(); }
     } catch {
       toast('Failed to save purchase', 'error');
     }
@@ -1254,6 +1277,10 @@ export default function PurchaseBills() {
         </div>
       )}
 
+      {statementFor !== null && (
+        <SupplierStatement purchases={purchases} debitNotes={debitNotes} profile={ownerProfile}
+          initialSupplier={statementFor} onClose={() => setStatementFor(null)} />
+      )}
       {tab === 'returns' && <DebitNotesList notes={debitNotes} purchases={purchases} ownerProfile={ownerProfile} onChanged={() => { loadPurchases(); loadProducts(); }} />}
       {returnBill && (
         <ReturnToSupplierModal bill={returnBill} debitNotes={debitNotes} ownerProfile={ownerProfile}
@@ -1472,6 +1499,13 @@ export default function PurchaseBills() {
         <div className="modal-overlay" onClick={closeForm}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '720px' }}>
             <h3 className="section-title">{isPo ? (editingId ? 'Edit purchase order' : 'New purchase order') : (editingId ? 'Edit Purchase Bill' : 'Add Purchase Bill')} <HelpButton title="Purchases" doc={isPo ? 'purchases#new-po' : (fromPoNumber && !editingId) ? 'purchases#convert-po' : 'purchases#add-purchase'} size={16} style={{ marginLeft: 6 }} /></h3>
+            {/* v1.10.86 - (#175) filled in from GSTR-2B. */}
+            {!isPo && form.from2b && !editingId && (
+              <div className="notice notice-info twob-draft-note" style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                Filled in from GSTR-2B: one line per GST rate. Check it and Save. To add the goods to stock, change each line to your item name, quantity and rate; lines left as &quot;(from GSTR-2B)&quot; are not added to Products.
+                {/Reverse charge: Yes/.test(form.note || '') && <> <strong>2B says reverse charge:</strong> you pay this GST yourself; check it with your accountant.</>}
+              </div>
+            )}
             {/* v1.10.83 (#112) - a bill made from a purchase order. */}
             {!isPo && fromPoNumber && (
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
@@ -1844,6 +1878,14 @@ export default function PurchaseBills() {
       <div className="glass-panel">
         <div className="table-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3>Purchase Records <HelpButton title="Purchase Records" doc="purchases#purchase-list" size={16} /></h3>
+          {/* v1.10.86 - (#194) opens on the supplier searched for, when the list shows only one. */}
+          {purchases.length > 0 && (
+            <button type="button" className="btn btn-secondary" style={{ marginLeft: 'auto' }}
+              title="A supplier's bills, payments and returns for a period, with what you still owe (PDF, print, WhatsApp, email)"
+              onClick={() => setStatementFor(new Set(filtered.map(p => (p.supplierName || '').trim().toLowerCase())).size === 1 ? filtered[0].supplierName : '')}>
+              <FileText size={15} /> Supplier statement
+            </button>
+          )}
           <TableExport title="Purchase register" filename="Purchases" landscape
             subtitle={ownerProfile?.businessName || ''}
             headers={['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'CGST', 'SGST', 'IGST', 'Cess', 'Inter-state', 'Round-off', 'Total', 'Paid', 'Balance due', 'Status', 'Note']}

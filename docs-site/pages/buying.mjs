@@ -36,7 +36,7 @@ export default [
 </ul>
 
 <h3>Purchase Records</h3>
-<p>The table lists <b>Date</b>, <b>Supplier</b>, <b>GSTIN</b>, <b>Invoice No</b>, <b>Taxable</b> (value before GST), <b>Tax</b> (GST), <b>Total</b>, <b>Balance due</b> (what is still to pay, in red; a dash when nothing is), <b>Status</b> and <b>Actions</b>, newest first, with a <b>Total</b> row at the bottom. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons at the top of the table save the <a href="#export">purchase register</a>.</p>
+<p>The table lists <b>Date</b>, <b>Supplier</b>, <b>GSTIN</b>, <b>Invoice No</b>, <b>Taxable</b> (value before GST), <b>Tax</b> (GST), <b>Total</b>, <b>Balance due</b> (what is still to pay, in red; a dash when nothing is), <b>Status</b> and <b>Actions</b>, newest first, with a <b>Total</b> row at the bottom. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons at the top of the table save the <a href="#export">purchase register</a>. ${ui('Supplier statement')} beside them opens one supplier's account: see <a href="#supplier-statement">Supplier statement</a>.</p>
 <div class="table-wrap"><table>
   <tr><th>On each row</th><th>What it does</th></tr>
   <tr><td><b>Status</b> dropdown</td><td>Unpaid, Partly paid or Paid. Picking Paid or Unpaid saves at once; Partly paid opens the payment window for the amount. See <a href="#mark-paid">Marking a bill paid from the list</a>.</td></tr>
@@ -259,8 +259,21 @@ export default [
   <li>The <b>Balance due</b> column, with its total at the bottom. Pick <b>Unpaid / Partly paid</b> in the filters to see only those bills.</li>
   <li>The purchase register (${ui('Print / PDF')}, ${ui('Excel')}, ${ui('CSV')}), which has <b>Paid</b> and <b>Balance due</b> columns. See <a href="#export">For your accountant</a>.</li>
   <li><a href="reports.html#supplier-outstanding">Reports, Party Outstanding</a> with <b>You owe suppliers</b>: one row per supplier, month by month, like Tally.</li>
+  <li>The <a href="#supplier-statement">Supplier statement</a>: one supplier's bills, payments and returns, with the closing balance.</li>
 </ul>
 <p>The balance of a bill is its total, less TDS you keep back, less the payments recorded. A bill marked Paid before payments could be recorded owes nothing.</p>
+</section>
+
+<section id="supplier-statement">
+<h3>Supplier statement</h3>
+<p>Like the client statement on the sales side: everything with one supplier for a period, and what you still owe them. Use it to check your account with the supplier, or send it to them to confirm.</p>
+<ol class="steps">
+  <li><strong>Open it</strong>Click ${ui('Supplier statement')} above the Purchase Records table. If your search shows only one supplier's bills, it opens on that supplier.</li>
+  <li><strong>Pick the supplier and dates</strong>Choose the <b>Supplier</b>, and <b>From</b> and <b>To</b> (the current financial year to start).</li>
+  <li><strong>Read it</strong>One row for each purchase bill (<b>Credit</b>: what you owe), each payment to them, TDS you kept back and each return on a debit note (<b>Debit</b>: takes it off), in date order, with the <b>Balance</b> after each row. Everything before <b>From</b> is added up in the <b>Opening balance</b>; the <b>Closing balance</b> is what you owe on the <b>To</b> date.</li>
+  <li><strong>Send it</strong>${ui('Statement PDF')} opens the PDF first, with ${ui('Download')}, ${ui('Print')}, ${ui('WhatsApp')} and ${ui('Email')}, as for the client statement.</li>
+</ol>
+<p>In the PDF, a balance marked <b>Cr</b> is what you owe the supplier; <b>Dr</b> is what the supplier owes you (for example a refund for goods returned after you paid). A bill marked Paid before payments could be recorded shows as paid on its own date. Only the business selected in the sidebar is included, and suppliers are matched by name (any capitals). The closing balance agrees with the bills' <b>Balance due</b> in the list.</p>
 </section>
 
 <section id="payments-cash-book">
@@ -478,7 +491,7 @@ export default [
   <li><strong>What you owe the supplier:</strong> the bill's <b>Balance due</b> (on the list, in the view, in its PDF and in Reports, Party Outstanding, Suppliers) is less the debit note's total. A bill already paid in full stays Paid: the supplier owes you the refund.</li>
   <li><strong>Purchases total and ITC:</strong> the Purchases cards show <b>Total Purchases (less returns)</b> and the GST card less the returned GST. Cost-centre purchases and the Income Tax trading purchases are less its taxable value.</li>
   <li><strong>GSTR-3B:</strong> the GST on the returned goods comes off <b>Table 4(A)(5), all other ITC</b>, in the month of the debit note, as GSTR-2B nets off the supplier's credit note. The Table 4 card shows the line <b>Less: purchase returns (debit notes)</b>. If a month's returns are more than its input tax credit, the extra is shown as <b>(B)(2) ITC reversed</b> and added to the tax to pay.</li>
-  <li><strong>GSTR-2B matching</strong> is not changed: it matches your purchase bills as before. The supplier's credit note shows in your GSTR-2B under credit notes.</li>
+  <li><strong>GSTR-2B matching</strong> is not changed: it matches your purchase bills as before. The supplier's credit note shows in your GSTR-2B under credit notes (the GSTR-2B tab counts them but does not match them).</li>
 </ul>
 <p><strong>Rules:</strong> the <b>Debit note date</b> cannot be before the bill's date. Editing a bill that has returns: a returned line cannot be cut below what went back, nor renamed or removed (the debit note points at it); cancel or delete the debit note first. Choosing <b>Paid</b> on such a bill records the balance less the returns. A bill sent back in full owes nothing, round-off included. A bill saved before bills had a business gives its debit note the open business, and assigning the bill to a business later moves its debit notes with it. If the stock could not be changed after the debit note was saved, it says so (check Products) instead of letting you save it twice; a returned item that matches no product is named, since no stock moves for it. Returns on a <b>reverse charge</b> bill also come off the reverse-charge tax in GSTR-3B 3.1(d), in the same month.</p>
 <p><strong>Cancel or delete:</strong> on the Returns tab, ${ui('⋯')}, ${ui('Cancel debit note')} keeps its number but undoes all of the above (stock back, ITC and balance back); ${ui('Undo cancel')} applies it again. ${ui('Delete')} removes it for good and also puts the stock back. A purchase bill that has debit notes cannot be deleted until they are deleted.</p>

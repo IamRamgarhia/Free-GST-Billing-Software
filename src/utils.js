@@ -660,7 +660,8 @@ export const ORDER_DETAIL_FIELDS = [
 // box can never show one thing while the invoice prints another (and the first
 // click always flips what you see - it used to take two clicks for options
 // that had never been saved).
-export const OPTIONS_OFF_BY_DEFAULT = ['showRoundOff', 'showAccountLabel', 'showCess', 'reverseCharge', 'showSystemGeneratedNote'];
+// v1.10.86 - (#189, #192) showMRP: the MRP column, off unless chosen.
+export const OPTIONS_OFF_BY_DEFAULT = ['showRoundOff', 'showAccountLabel', 'showCess', 'reverseCharge', 'showSystemGeneratedNote', 'showMRP'];
 export const OPTIONS_ON_FOR_TALLY = ['showHsnSummary', 'showTaxInWords', 'showDeclaration', 'showCustomerSeal'];
 export const invoiceOptionOn = (options, key, style = options?.pdfStyle) => {
   const v = options?.[key];

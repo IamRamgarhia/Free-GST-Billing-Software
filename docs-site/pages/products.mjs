@@ -29,7 +29,7 @@ export default [
   <tr><th>Column</th><th>Shows</th></tr>
   <tr><td>Name</td><td>The product name. Point at it to see its description. A product made from raw materials also shows <b>Made here · cost ₹… per unit</b> under its name.</td></tr>
   <tr><td>HSN/SAC</td><td>Its HSN or SAC code, or a dash.</td></tr>
-  <tr><td>Rate</td><td>The selling price.</td></tr>
+  <tr><td>Rate</td><td>The selling price, with the <b>MRP</b> under it when the product has one.</td></tr>
   <tr><td>GST %</td><td>The GST rate.</td></tr>
   <tr><td>Unit</td><td>Pcs, Kg, Hrs and so on.</td></tr>
   <tr><td>Stock</td><td>How many you have. <b>Out of Stock</b> in red at zero or below; the number in amber when it is at or below your <a href="#low-stock">low-stock threshold</a>. <b>Service</b> for a <a href="#goods-or-service">service</a>, which has no stock, and a dash (-) for goods whose stock was never entered: neither is ever out of stock.</td></tr>
@@ -40,7 +40,7 @@ export default [
 
 <section id="product-export">
 <h3>Printing or exporting the list</h3>
-<p>${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} beside the table title save the products shown, with name, type (Goods or Service), HSN/SAC, purchase price, selling price, GST %, unit and stock. Search first to save only some. ${ui('Print / PDF')} opens the print window, where you can choose a printer or <b>Save as PDF</b>. The buttons are hidden during a bulk edit.</p>
+<p>${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} beside the table title save the products shown, with name, type (Goods or Service), HSN/SAC, purchase price, selling price, MRP, GST %, unit and stock. Search first to save only some. ${ui('Print / PDF')} opens the print window, where you can choose a printer or <b>Save as PDF</b>. The buttons are hidden during a bulk edit.</p>
 <p>A CSV saved here can be opened in Excel, and is a handy way to send your price list to an accountant. It can also be brought back in with ${ui('Import CSV')}, or into another copy of the app.</p>
 </section>
 
@@ -68,6 +68,7 @@ export default [
   <tr><td>HSN / SAC Code</td><td>HSN for goods, SAC for services. For a service the box is labelled <b>SAC Code</b>. See <a href="#product-hsn">HSN and SAC codes</a>.</td></tr>
   <tr><td>Purchase Price</td><td>What you pay the supplier for one unit. Filled in on new purchase bills, used to value your stock and to cost things you make.</td></tr>
   <tr><td>Selling Price</td><td>What you charge for one unit. Filled in on new invoices, and shown as the <b>Rate</b> in the list. Type it the same way your invoices work: before GST, unless you make <a href="invoices.html#tax-inclusive">tax-inclusive</a> invoices.</td></tr>
+  <tr><td>MRP (optional)</td><td>The maximum retail price printed on the pack. Picking the product on an invoice copies it onto the line, where you can change it. It prints only when the <a href="invoice-options.html#show-items">MRP column</a> is turned on, and it never changes the rate, the GST or the total.</td></tr>
   <tr><td>GST %</td><td>The GST rate, such as 5 or 18. 0 to 100; blank counts as 0. Since 22 September 2025 most goods are at 5%, 18% or 40%.</td></tr>
   <tr><td>Unit</td><td>Pcs to start. Pcs, Nos, Kg, g, Tonne, Ltr, ml, Mtr, cm, Ft, In, Rft, Sq.ft, Sq.m, Hrs, Day, Week, Month, Year, Visit, Session, Project, Word, Page, Box, Dozen, Pair, Set, Bag, Roll, Bottle, and your own <a href="invoices.html#items">custom units</a>, marked ★.</td></tr>
   <tr><td>Stock Quantity</td><td>Goods only. How many you have now. After this, sales and purchases change it for you; see <a href="#stock">How stock is counted</a>. Left blank, the stock is <b>not counted</b>: the list shows a dash, never <b>Out of Stock</b>, until you type a number, buy it on a purchase bill or sell it.</td></tr>
@@ -191,7 +192,7 @@ export default [
 </ol>
 <p><b>From Excel or Vyapar:</b> you can choose an Excel file (<code>.xlsx</code>) instead of a CSV, such as the item list Vyapar exports. If the file has several sheets, pick the one with your items under <b>Sheet</b>.</p>
 <p><b>From Tally:</b> in Tally, go to <b>Gateway of Tally → Export → Masters</b>, choose format <b>XML</b> and export. Choose that <code>.xml</code> file here. Your stock items come in with their HSN, GST rate, unit and price. Stock is not brought in: enter today's stock after the import.</p>
-<p><b>Importing again fills in blanks.</b> A product already in your list is never added twice. If it has empty details (no HSN, no price, 0% GST with no HSN, no unit or stock), they are filled in from the file. A detail that already has a value is never changed.</p>
+<p><b>Importing again fills in blanks.</b> A product already in your list is never added twice. If it has empty details (no HSN, no price, no MRP, 0% GST with no HSN, no unit or stock), they are filled in from the file. A detail that already has a value is never changed.</p>
 <p>The columns (headings in small or capital letters, in any order; spaces and % do not matter):</p>
 <div class="table-wrap"><table>
   <tr><th>Column heading</th><th>Holds</th></tr>
@@ -201,6 +202,7 @@ export default [
   <tr><td><code>Unit</code></td><td>Nos if left out. Write it as in the app's list (Kg, Ltr, Pcs, Hrs, Page), so the GST returns get the right unit code.</td></tr>
   <tr><td><code>Purchase Price</code> (or <code>Cost</code>)</td><td>What you pay for one unit</td></tr>
   <tr><td><code>Selling Price</code> (or <code>Rate</code>, <code>Price</code>)</td><td>What you charge for one unit</td></tr>
+  <tr><td><code>MRP</code> (or <code>M.R.P.</code>, <code>Maximum Retail Price</code>)</td><td>Optional. The printed price on the pack, kept as typed (an MRP already includes tax). Blank or 0: no MRP.</td></tr>
   <tr><td><code>GST %</code> (or <code>GST Rate</code>, <code>Tax %</code>)</td><td>GST rate, such as 18. 0 to 100.</td></tr>
   <tr><td><code>Stock</code> (or <code>Quantity</code>, <code>Opening Stock</code>)</td><td>Opening stock of goods. Leave it blank for a service, or for goods you do not count.</td></tr>
   <tr><td><code>Description</code></td><td>Optional</td></tr>
@@ -208,9 +210,9 @@ export default [
   <tr><td><code>Wholesale price</code> (the level's name + <code>price</code>, or <code>Level 2 price</code>)</td><td>Only read when <a href="settings.html#price-levels">Price levels</a> is on: the product's price for that level. One column per level. The Products export writes them the same way.</td></tr>
 </table></div>
 <p>The sample file looks like this:</p>
-<pre><code>Name,Type,HSN/SAC,Unit,Purchase Price,Selling Price,GST %,Stock,Description,Barcode
-Demo A4 Paper Ream 75 GSM,Goods,4802,Nos,220,280,18,50,Sample goods row - replace with your own,
-Demo Printing service,Service,998912,Page,,5,18,,Sample service row - a service has no stock,</code></pre>
+<pre><code>Name,Type,HSN/SAC,Unit,Purchase Price,Selling Price,MRP,GST %,Stock,Description,Barcode
+Demo A4 Paper Ream 75 GSM,Goods,4802,Nos,220,280,340,18,50,Sample goods row - replace with your own,
+Demo Printing service,Service,998912,Page,,5,,18,,Sample service row - a service has no stock,</code></pre>
 <p>Products you already have (same name, any capitals) are skipped, and so are repeats inside the file, so importing the same file twice is safe. The CSV saved by the ${ui('CSV')} button above the list uses the same columns, so you can export, edit in Excel and import into another copy of the app.</p>
 <div class="note info"><p><b>Old invoices</b> are imported somewhere else: on the Dashboard, with ${ui('CSV import / export')}, which has its own template. See <a href="dashboard.html#csv">Importing and exporting invoices as CSV</a>. The link at the bottom of the import window goes there too.</p></div>
 <div class="note tip"><strong>Something wrong?</strong><p>A row is listed as a problem, such as "Row 4 (Tea): GST % must be 0 to 100" or "Type must be Goods or Service": fix that row in the file and choose it again (the rows already imported are skipped). Nothing is read: the file is not a plain CSV, or the headings are not in the first row. An <code>.xlsx</code> file renamed to <code>.csv</code> does not work. See <a href="troubleshooting.html#csv-import">A CSV import did not work</a>.</p></div>

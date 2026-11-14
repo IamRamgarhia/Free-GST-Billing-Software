@@ -15,7 +15,8 @@ import HelpButton from './HelpButton';
 // Invoices list: a phone shares the PDF itself; on a PC (where a web page
 // cannot attach a file to WhatsApp or a mail) the PDF is downloaded and the
 // chat / mail opens with the message, ready to attach it.
-export default function PdfPreviewModal({ doc, fileName, title, message, phone, email, subject, onClose }) {
+// v1.10.86 - helpDoc: the help page for the ? button (the supplier statement has its own).
+export default function PdfPreviewModal({ doc, fileName, title, message, phone, email, subject, onClose, helpDoc = 'clients#statement' }) {
   const frameRef = useRef(null);
   const blob = useMemo(() => doc.output('blob'), [doc]);
   // Made and revoked in one effect: React StrictMode runs effects twice in
@@ -79,7 +80,7 @@ export default function PdfPreviewModal({ doc, fileName, title, message, phone, 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.9rem 1.25rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)' }}>
           <h3 id="pdf-preview-title" style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <FileText size={18} style={{ color: 'var(--primary)' }} /> {title}
-            <HelpButton title="Statement and Aging PDFs" doc="clients#statement" size={16} />
+            <HelpButton title="Statement and Aging PDFs" doc={helpDoc} size={16} />
           </h3>
           <button type="button" className="icon-btn" onClick={onClose} title="Close (Esc)" aria-label="Close"><X size={18} /></button>
         </div>

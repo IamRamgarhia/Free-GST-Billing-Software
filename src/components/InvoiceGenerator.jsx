@@ -653,6 +653,16 @@ const LineItem = memo(function LineItem({
           ))}
         </select>
       </div>}
+      {/* v1.10.86 - (#189, #192) the product's MRP, shown while the MRP column is on. */}
+      {invoiceOptionOn(invoiceOptions, 'showMRP') && (
+        <div className="line-item-field" style={{ flex: 0.9 }}>
+          <label className="form-label">MRP</label>
+          <input type="number" min="0" step="any" className="form-input line-item-mrp" value={item.mrp ?? ''}
+            title="Printed price on the pack. For information only: the rate and totals do not use it."
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onFieldChange(item.id, 'mrp', clampNonNeg(e.target.value))} />
+        </div>
+      )}
       <div className="line-item-field" style={{ flex: 1.2 }}>
         <label className="form-label">{item.size?.manual ? 'Amount' : item.size ? 'Rate / sq.ft' : 'Rate'}{currency && currency !== 'INR' ? ` (${currencySymbolFor(currency)})` : ''}</label>
         {item.size?.manual ? (
@@ -1896,6 +1906,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     gstTreatment: product.gstTreatment || '',
     productId: product.id,
     isCharge: false, // a product picked on the delivery line makes it a product line
+    // v1.10.86 - (#189, #192) the product's MRP comes along (editable on the line).
+    mrp: Number(product.mrp) > 0 ? Number(product.mrp) : '',
   });
   const selectProduct = useCallback((itemId, product) => {
     setItems(prev => prev.map(item => item.id === itemId ? productLine(item, product) : item));
@@ -1926,7 +1938,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       }
       const service = /^99/.test(String(item.hsn || '').trim());
       const saved = await saveProduct({ name, hsn: item.hsn || '', unit: item.unit || 'Nos',
-        sellingPrice: Number(item.rate) || 0, rate: Number(item.rate) || 0, taxPercent: Number(item.taxPercent) || 0, kind: service ? 'service' : 'goods' });
+        sellingPrice: Number(item.rate) || 0, rate: Number(item.rate) || 0, taxPercent: Number(item.taxPercent) || 0, kind: service ? 'service' : 'goods',
+        ...(Number(item.mrp) > 0 ? { mrp: Number(item.mrp) } : {}) }); // v1.10.86 - (#189)
       setProducts(await getAllProducts());
       toast(`${saved.name} saved to Products`, 'success');
     } catch { toast('Could not save it to Products.', 'error'); }
@@ -4494,6 +4507,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     // instead. Label now describes what actually happens.
                     // v1.10.83 - off by itself in Services mode (see the mode chips).
                     ['showItemUnit', 'Unit (Hrs, Nos...) next to Qty'],
+                    // v1.10.86 - (#189, #192) information only: never changes the rate or totals.
+                    ['showMRP', 'MRP column (printed price; does not change the bill)'],
                     ['showRateColumn', 'Rate column'],
                     ['showDiscount', 'Discount column'],
                     ['showTaxColumns', 'Tax % columns (rate and tax on each line; GST is still charged)'],

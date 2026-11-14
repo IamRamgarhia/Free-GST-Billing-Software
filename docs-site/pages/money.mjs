@@ -383,7 +383,7 @@ export default [
   <li><strong>Act on the differences</strong>Correct your bills, add missing ones, or ask suppliers to file.</li>
 </ol>
 <p>Before you import, the tab shows "Import your GSTR-2B JSON to reconcile against your purchase records." If you have no purchase bills at all, it warns that everything will show as "2B only".</p>
-<p>The imported file is not kept: import it again after leaving the screen. Only the B2B invoices in GSTR-2B are compared (not its credit notes, imports or ISD entries), and only purchase bills, not expenses.</p>
+<p>The imported file stays while the app is open in this window, so you can go to Purchases and come back; after closing the window, import it again. Only the B2B invoices in GSTR-2B are compared (not its credit notes, imports or ISD entries), and only purchase bills, not expenses. If the file has credit or debit notes, a line above the table says how many were left out.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p>"That doesn't look like a GSTR-2B JSON": you picked the Excel or PDF, or another return. See <a href="troubleshooting.html#gstr2b-wrong-file">the GSTR-2B file message</a>.</p></div>
 </section>
@@ -397,8 +397,9 @@ export default [
   <tr><td><b>✓ Matched</b></td><td>In both, and the invoice value and taxable value agree to within ₹1</td><td>Nothing. This credit is safe to claim.</td></tr>
   <tr><td><b>⚠ Amount mismatch</b></td><td>In both, but the amounts differ by more than ₹1</td><td>Compare with the paper bill. Correct your purchase entry, or ask the supplier to amend their GSTR-1.</td></tr>
   <tr><td><b>⚠ Books only</b></td><td>A purchase bill of this period that is not in GSTR-2B</td><td>The supplier may not have filed, or filed with a different number or GSTIN. Ask them. Usually you cannot claim it until it appears.</td></tr>
-  <tr><td><b>⚠ 2B only</b></td><td>In GSTR-2B but not in your purchase bills</td><td>Enter the bill in <a href="purchases.html#add-purchase">Purchases</a> if it is yours. If you never bought it, tell the supplier.</td></tr>
+  <tr><td><b>⚠ 2B only</b></td><td>In GSTR-2B but not in your purchase bills</td><td>If it is yours, click ${ui('Add as purchase bill')} (see below). If you never bought it, tell the supplier.</td></tr>
 </table></div>
+<p id="gstr-2b-add-bill"><b>Add as purchase bill</b> (on each 2B only row) opens Purchases with a new bill filled in from GSTR-2B: the supplier's name and GSTIN, their invoice number and date, IGST or CGST + SGST, and one line per GST rate at its taxable value (with cess). GSTR-2B has no item names, so each line is called <i>Purchase at 18% GST (from GSTR-2B)</i>. Nothing is saved until you check it and click ${ui('Save')}; then you come back here and the entry shows as <b>✓ Matched</b>. To add the goods to stock, change the lines to your item names, quantities and rates first; lines left as "(from GSTR-2B)" are not added to Products. Reverse charge and "ITC not available" from GSTR-2B are written in the bill's note.</p>
 <p>The table shows Status, Supplier (name and GSTIN), Invoice No., Date, <b>2B Value</b>, <b>Books Value</b>, <b>Diff</b> (2B minus books, in red when more than ₹1) and <b>ITC</b>: ✓ when GSTR-2B says the credit is available, ✗ when it is not (Books only rows always show ✗).</p>
 <p>How matching works: invoice numbers are compared ignoring capitals, spaces, slashes and dashes, so <code>INV/12</code> matches <code>inv-12</code>. Your book value includes cess and any round-off on the bill. A bill entered in an earlier month still matches; only this period's bills can show as Books only.</p>
 </section>
