@@ -437,6 +437,7 @@ body {
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-brand { justify-content: center; gap: 0; }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-brand > :not(.sidebar-logo),
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-autohide-toggle,
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-free-row,
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .profile-switcher { display: none; }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn {
     justify-content: center; gap: 0; padding-left: 0; padding-right: 0; font-size: 0;
@@ -511,7 +512,9 @@ body {
 }
 [data-theme="dark"] .topbar-free { color: #4ade80; background: rgba(34, 197, 94, 0.14); }
 /* On a PC the promise is in the top bar; a phone has no top bar, so the menu keeps it. */
-@media (min-width: 769px) { .sidebar-free-phone { display: none; } }
+/* v1.10.86 - "Free forever" under the app name in the menu (was the top bar). */
+.sidebar-free-row { display: flex; justify-content: center; margin: -1.4rem 0 1rem; }
+.sidebar-free-row .topbar-free { display: inline-block; margin-right: 0; font-size: 0.68rem; padding: 0.22rem 0.65rem; }
 .topbar-btn {
   position: relative;
   width: 36px;
