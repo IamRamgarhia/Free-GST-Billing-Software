@@ -229,7 +229,9 @@ try {
         const mine = failures.filter((x) => x.name === name);
         console.log(`  ${mine.length ? '✗' : '✓'} ${name}${mine.length ? `  (${mine.length})` : ''}`);
       } catch (err) {
-        failures.push({ name, line: `could not open the screen: ${err.message.split('\n')[0]}`, shot: '' });
+        const shot = path.join(OUT, `${name}-did-not-open.png`);
+        await page.screenshot({ path: shot }).catch(() => {});
+        failures.push({ name, line: `could not open the screen: ${err.message.split('\n')[0]}`, shot });
         console.log(`  ✗ ${name}  (did not open)`);
         await page.keyboard.press('Escape').catch(() => {});
       }

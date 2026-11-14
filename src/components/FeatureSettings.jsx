@@ -158,7 +158,7 @@ export function FeaturesPanel({ features, regionMode }) {
       {section === 'main' ? groups.map((g, gi) => (
         <div key={g.id} data-menu-group={g.id} style={{ marginTop: gi ? '0.85rem' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.45rem' }}>
-            <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+            <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
               <button type="button" className="icon-btn" disabled={gi === 0} onClick={() => moveGroup(g.id, -1)}
                 aria-label={`Move the ${g.label} group up`} title="Move the group up" style={{ padding: 2 }}><ChevronUp size={16} /></button>
               <button type="button" className="icon-btn" disabled={gi === groups.length - 1} onClick={() => moveGroup(g.id, 1)}
