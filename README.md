@@ -20,11 +20,11 @@ Your data never leaves your computer. No cloud and no limits. Open source, so yo
 
 **A free invoice builder and invoice maker** for shop owners, freelancers, consultants, traders and small businesses in India: make a GST invoice, quotation (proforma / estimate), bill of supply, credit note or delivery challan in minutes and save it as a PDF. Free billing software and a free, open-source alternative to Tally, Vyapar, Zoho and myBillBook.
 
-<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Windows-Setup%20.exe-0078D4?style=for-the-badge&labelColor=334155" alt="Download for Windows (Setup program)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Mac.dmg"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Apple%20Mac-App%20.dmg-111827?style=for-the-badge&labelColor=334155" alt="Download for Apple Mac (the Mac app, .dmg)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Linux-x86_64.AppImage"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Linux-AppImage-E95420?style=for-the-badge&labelColor=334155" alt="Download for Linux (AppImage)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest"><img src="https://img.shields.io/badge/%F0%9F%93%A6%20All-downloads-16a34a?style=for-the-badge&labelColor=334155" alt="All downloads: the latest release" height="40"></a>
+<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Windows-Setup%20.exe-0078D4?style=for-the-badge&labelColor=334155" alt="Download for Windows (Setup program)" height="40"></a>&nbsp;<a href="#apple-mac-macos"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Apple%20Mac-Install%20steps-111827?style=for-the-badge&labelColor=334155" alt="Install on an Apple Mac: one Terminal line, or the .dmg" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Linux-x86_64.AppImage"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Linux-AppImage-E95420?style=for-the-badge&labelColor=334155" alt="Download for Linux (AppImage)" height="40"></a>&nbsp;<a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest"><img src="https://img.shields.io/badge/%F0%9F%93%A6%20All-downloads-16a34a?style=for-the-badge&labelColor=334155" alt="All downloads: the latest release" height="40"></a>
 
 <a href="https://dicecodes.com/free-gst-software-documentation/"><img src="https://img.shields.io/badge/%F0%9F%93%96%20Documentation-Read%20the%20guide-2563eb?style=for-the-badge&labelColor=1d4ed8" alt="Read the documentation" height="40"></a>
 
-<sub>Each button always gets the newest version · Windows: the Setup program (about 35 MB) · Apple Mac: the Mac app, .dmg (Intel and Apple silicon) · Linux: the AppImage, or the .deb on the <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release page</a> · <a href="#download-and-install">step-by-step for every system</a></sub>
+<sub>Each button always gets the newest version · Windows: the Setup program (about 35 MB) · Apple Mac: one Terminal line (no warning) or the .dmg · Linux: the AppImage, or the .deb on the <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest">release page</a> · <a href="#download-and-install">step-by-step for every system</a></sub>
 
 <a href="#quick-start--installation"><img src="https://img.shields.io/badge/%E2%9A%A1%20Install-3%20steps-0f766e?style=for-the-badge&labelColor=334155" alt="Install in 3 steps" height="30"></a> <a href="#your-first-invoice-in-5-minutes"><img src="https://img.shields.io/badge/%F0%9F%A7%BE%20First%20invoice-5%20minutes-7c3aed?style=for-the-badge&labelColor=334155" alt="Your first invoice in 5 minutes" height="30"></a> <a href="#screenshots"><img src="https://img.shields.io/badge/%F0%9F%93%B8%20See-screenshots-0369a1?style=for-the-badge&labelColor=334155" alt="Screenshots" height="30"></a> <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases"><img src="https://img.shields.io/badge/%F0%9F%93%A6%20All-releases-475569?style=for-the-badge&labelColor=334155" alt="All releases" height="30"></a> <a href="https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/new/choose"><img src="https://img.shields.io/badge/%F0%9F%90%9B%20Report-a%20problem-b91c1c?style=for-the-badge&labelColor=334155" alt="Report a problem" height="30"></a> <a href="https://dicecodes.com/free-gst-software-documentation/support.html"><img src="https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20Support-the%20project-be123c?style=for-the-badge&labelColor=334155" alt="Support the project" height="30"></a>
 
@@ -82,13 +82,19 @@ Other ways on Windows: [one PowerShell line](#option-0-one-line-no-zip-no-smarts
 
 ### Apple Mac (macOS)
 
-1. **[Download `Free-GST-Billing-Mac.dmg`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Mac.dmg)**: one app for Intel and Apple silicon Macs, macOS 11 or newer, nothing else to install.
-2. Double-click it and drag **Free GST Billing** onto **Applications**.
-3. Open **Free GST Billing** from Applications. The first time, macOS 15 or newer says *"Free GST Billing" Not Opened*: click **Done**, then Apple menu → **System Settings** → **Privacy & Security** → **Open Anyway** → your password. (macOS 14 or older: Control-click the app → **Open** → **Open**.) The app opens in your browser at `http://localhost:47371`.
+**Easiest: one line in Terminal** (macOS shows no warning, nothing to allow):
 
-Your books are kept in `~/Library/Application Support/Free GST Billing`, never inside the app. To update, download the new `.dmg` and drag the app to Applications again (**Replace**); the books stay.
+1. Open **Terminal** (press **Cmd + Space**, type *Terminal*, press **Return**).
+2. Paste this line and press **Return**:
 
-Other way, with no message to allow: paste `curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.sh | bash` into Terminal. Or the [ZIP](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip): updates come from the app's **Update** button, and **never drag a new folder over the old one on a Mac** (Finder's Replace swaps the whole folder, including your invoices). Full guide: [Install on a Mac](https://dicecodes.com/free-gst-software-documentation/install-mac.html).
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/Free-GST-Billing-Software/main/install.sh | bash
+   ```
+3. It installs in about a minute and opens the app. From then on, open **Free GST Billing** from Launchpad or the Dock. To update or repair it, paste the same line again; your books are kept.
+
+**Or the Mac app (.dmg):** [download `Free-GST-Billing-Mac.dmg`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Mac.dmg) (Intel and Apple silicon, macOS 11 or newer), drag **Free GST Billing** to **Applications** and open it. The app is not sold through Apple, so the first time macOS says *Apple could not verify "Free GST Billing"*: click **Done** (not *Move to Bin*), then Apple menu → **System Settings** → **Privacy & Security** → **Open Anyway** → your password. Only once. (macOS 14 or older: Control-click the app → **Open**.) Its books are in `~/Library/Application Support/Free GST Billing`; to update, drag the new app to Applications again (**Replace**).
+
+Full guide with pictures of every step: [Install on a Mac](https://dicecodes.com/free-gst-software-documentation/install-mac.html).
 
 ### Linux: Ubuntu, Linux Mint, Debian (.deb)
 
@@ -199,7 +205,7 @@ You need: Windows 10/11 PC, ~50 MB free disk, your business name + bank details 
 
 ### Step 1 — Install (1 minute)
 
-1. **[Download for your computer](#download-and-install)**: Windows, the Setup program; Mac, the app (.dmg); Linux, the .deb or the AppImage. Each link always gets the latest version.
+1. **[Download for your computer](#download-and-install)**: Windows, the Setup program; Mac, the one Terminal line or the app (.dmg); Linux, the .deb or the AppImage. Each link always gets the latest version.
    (Do **not** use the green *Code -> Download ZIP* button: that gives the source code without the built app.)
 2. **Windows:** double-click `Free-GST-Billing-Windows-Setup.exe` → (if asked) **More info → Run anyway** → **Install** → **Finish**. **Mac / Linux:** follow the three steps for your system in [Download and install](#download-and-install).
 3. The app opens by itself, and a **Free GST Billing** icon is on your Desktop (or in your applications menu) for next time.
@@ -491,9 +497,9 @@ If we priced every 🆕 feature at the going rate on the paid alternatives:
 
 Download [`Free-GST-Billing-Windows-Setup.exe`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Windows-Setup.exe), double-click it, and click **Install**. Everything it needs is inside; no administrator password. Step by step: [Download and install](#download-and-install).
 
-### Apple Mac: the Mac app
+### Apple Mac
 
-Download [`Free-GST-Billing-Mac.dmg`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Mac.dmg), open it and drag **Free GST Billing** to **Applications**. The first time, allow it once in **System Settings → Privacy & Security → Open Anyway**. Step by step: [Apple Mac](#apple-mac-macos).
+Paste one line into Terminal (no warning; see [Option 0](#option-0-one-line-no-zip-no-smartscreen--gatekeeper-warning-no-npm)), or download [`Free-GST-Billing-Mac.dmg`](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing-Mac.dmg) and allow it once in **System Settings → Privacy & Security → Open Anyway**. Step by step: [Apple Mac](#apple-mac-macos).
 
 ### Linux and NAS
 
@@ -836,7 +842,7 @@ Yes. Free GST Billing Software supports **22 countries** with locale-correct cur
 Yes. You can add unlimited business profiles (each with its own GSTIN, bank accounts, logo, signature, and country setting) under **Settings → Business Profile → Add New Profile**, and switch between them from the business name at the top of the sidebar. Each one can have its own invoice numbering.
 
 ### Does it run on Mac or Linux?
-Yes. **Apple Mac:** the Mac app (`Free-GST-Billing-Mac.dmg`), for Intel and Apple silicon Macs. **Linux:** the `.deb` (Ubuntu, Linux Mint, Debian) or the AppImage (any 64-bit Linux). **NAS / home server:** Docker (`docker-compose.yml` on the release page) or the ZIP with `Free GST Billing - LINUX.sh`. See [Download and install](#download-and-install).
+Yes. **Apple Mac:** one line in Terminal (no warning), or the Mac app (`Free-GST-Billing-Mac.dmg`), for Intel and Apple silicon Macs. **Linux:** the `.deb` (Ubuntu, Linux Mint, Debian) or the AppImage (any 64-bit Linux). **NAS / home server:** Docker (`docker-compose.yml` on the release page) or the ZIP with `Free GST Billing - LINUX.sh`. See [Download and install](#download-and-install).
 
 ### What happens to my data when the app updates?
 Updates only refresh the app code and dependencies. Your `data/` folder (invoices, clients, products, settings) and `Saved Invoices/` PDF archive are **never touched**. The updater also saves a backup ZIP to `Documents\FreeGSTBill Backups` before it changes anything.

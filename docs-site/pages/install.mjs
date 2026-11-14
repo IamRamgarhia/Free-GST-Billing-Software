@@ -194,12 +194,39 @@ ${which}
   slug: 'install-mac',
   title: 'Install on a Mac, step by step',
   nav: 'Install on a Mac',
-  lead: 'Download the Mac app, drag it to Applications and allow it once in System Settings. Or paste one line into Terminal. About 3 minutes either way. Every step says what you will see.',
+  lead: 'Paste one line into Terminal: no warning, nothing to allow, and the app is in your Applications. Or download the Mac app and allow it once in System Settings. About 3 minutes either way. Every step says what you will see.',
   body: `
 ${which}
 
+<section id="before">
+<h2>Before you start</h2>
+<ul>
+  <li><strong>macOS 11 Big Sur or newer.</strong> To check: click the Apple menu (the apple logo at the top left), then ${ui('About This Mac')}.</li>
+  <li><strong>Internet</strong> for the install. After that the app works offline.</li>
+  <li><strong>About 600 MB of free space.</strong></li>
+</ul>
+</section>
+
+<section id="one-line">
+<h2>Install with one line in Terminal (recommended)</h2>
+<p>The easiest way on a Mac: macOS shows <b>no warning</b> and there is nothing to allow in System Settings. It puts a <b>Free GST Billing</b> app in your Applications.</p>
+<ol class="steps">
+  <li><strong>Copy this line</strong>Click the ${ui('Copy')} button at the right end of the line below. (Or select all of it and press ${key('Cmd', 'C')}.)
+<pre><code>${UNIX_LINE}</code></pre></li>
+  <li><strong>Open Terminal</strong>Press ${key('Cmd', 'Space')}, type <code>Terminal</code> and press ${key('Return')}. A plain text window opens. (More help: <a href="terminal.html#mac">Opening Terminal on a Mac</a>.)</li>
+  <li><strong>Paste and press Return</strong>Press ${key('Cmd', 'V')}, then ${key('Return')}.</li>
+  <li><strong>Watch it work</strong>It shows four steps, each ending in <b>OK</b>: <i>[1/4] Checking this computer</i>, <i>[2/4] Downloading</i> (also Node.js, the engine the app runs on, if this Mac does not have it), <i>[3/4] Installing</i>, <i>[4/4] Adding icons</i>.</li>
+  <li><strong>Answer two questions</strong><i>Add Free GST Billing to the Dock? [y/N]</i> and <i>Open Free GST Billing by itself when this computer starts? [y/N]</i>. Type <code>y</code> and press ${key('Return')} for yes, or just ${key('Return')} for no.</li>
+  <li><strong>The app opens</strong>It says <i>Done! Opening Free GST Billing...</i> and the app appears in its own window if you have Chrome or Edge, or in Safari otherwise. A short welcome asks for your business details; see <a href="first-run.html">The first-run setup</a>. You can close Terminal.</li>
+</ol>
+<p><b>Every day after that:</b> click <b>Free GST Billing</b> in the Dock or in Launchpad. (It lives in the <b>Applications</b> folder inside your home folder: Finder → ${ui('Go')} → ${ui('Home')} → <b>Applications</b>.)</p>
+<p><b>To update or repair it:</b> paste the same line again. It backs up your data to <code>Documents/FreeGSTBill Backups</code> and replaces only the app's own files; your invoices, clients and settings stay as they are.</p>
+<p>If something goes wrong, Terminal shows <b>PROBLEM</b> and, under it, what to do. Do that, then paste the line again.</p>
+<p>The app's files are in <code>Applications/Free GST Billing</code> in your home folder; your data is in <code>_system/data</code> inside it.</p>
+</section>
+
 <section id="mac-app">
-<h2>The Mac app (.dmg)</h2>
+<h2>Other way: the Mac app (.dmg)</h2>
 <p>One download for every Mac, Intel or Apple M1 / M2 / M3 / M4, with macOS 11 Big Sur or newer. Nothing else to install.</p>
 <ol class="steps">
   <li><strong>Download</strong><a class="download" href="${MAC_DMG}">Download the Mac app (.dmg)</a></li>
@@ -220,7 +247,7 @@ ${which}
 <p><b>macOS 14 Sonoma and older:</b> in <b>Applications</b>, hold ${key('Control')} and click <b>Free GST Billing</b> (or right-click it), choose ${ui('Open')}, then click ${ui('Open')} in the box that asks.</p>
 <p><b>If macOS says the app "is damaged"</b>, or there is no ${ui('Open Anyway')} button: open Terminal (see <a href="terminal.html#mac">Opening Terminal on a Mac</a>), paste this line and press ${key('Return')}, then open the app again:</p>
 <pre><code>xattr -dr com.apple.quarantine "/Applications/Free GST Billing.app"</code></pre>
-<p>Or use <a href="#one-line">the one line in Terminal</a> below instead.</p>
+<p>Or use <a href="#one-line">the one line in Terminal</a> above instead: it shows no warning.</p>
 <h3 id="mac-app-every-day">Every day, stopping, updating</h3>
 <ul>
   <li><strong>Every day:</strong> double-click <b>Free GST Billing</b> in Applications or Launchpad. If it is already running, it just opens your browser at it. To keep it in the Dock, drag it from Applications onto the Dock.</li>
@@ -229,33 +256,6 @@ ${which}
   <li><strong>To update:</strong> when the app says a new version is out, click ${ui('Download the new Mac app')}, open the DMG and drag <b>Free GST Billing</b> to Applications again, choosing ${ui('Replace')}. Your books are kept. macOS may ask you to allow the new version once, as above.</li>
   <li><strong>To remove it:</strong> stop it, then drag <b>Free GST Billing</b> from Applications to the Bin. Your books stay in Application Support until you delete that folder too.</li>
 </ul>
-</section>
-
-<section id="before">
-<h2>Before you start</h2>
-<ul>
-  <li><strong>macOS 11 Big Sur or newer.</strong> To check: click the Apple menu (the apple logo at the top left), then ${ui('About This Mac')}.</li>
-  <li><strong>Internet</strong> for the install. After that the app works offline.</li>
-  <li><strong>About 600 MB of free space.</strong></li>
-</ul>
-</section>
-
-<section id="one-line">
-<h2>Other way: one line in Terminal</h2>
-<p>Nothing to allow in System Settings: macOS shows no message for it.</p>
-<ol class="steps">
-  <li><strong>Copy this line</strong>Click the ${ui('Copy')} button at the right end of the line below. (Or select all of it and press ${key('Cmd', 'C')}.)
-<pre><code>${UNIX_LINE}</code></pre></li>
-  <li><strong>Open Terminal</strong>Press ${key('Cmd', 'Space')}, type <code>Terminal</code> and press ${key('Return')}. A plain text window opens. (More help: <a href="terminal.html#mac">Opening Terminal on a Mac</a>.)</li>
-  <li><strong>Paste and press Return</strong>Press ${key('Cmd', 'V')}, then ${key('Return')}.</li>
-  <li><strong>Watch it work</strong>It shows four steps, each ending in <b>OK</b>: <i>[1/4] Checking this computer</i>, <i>[2/4] Downloading</i> (also Node.js, the engine the app runs on, if this Mac does not have it), <i>[3/4] Installing</i>, <i>[4/4] Adding icons</i>.</li>
-  <li><strong>Answer two questions</strong><i>Add Free GST Billing to the Dock? [y/N]</i> and <i>Open Free GST Billing by itself when this computer starts? [y/N]</i>. Type <code>y</code> and press ${key('Return')} for yes, or just ${key('Return')} for no.</li>
-  <li><strong>The app opens</strong>It says <i>Done! Opening Free GST Billing...</i> and the app appears in its own window if you have Chrome or Edge, or in Safari otherwise. A short welcome asks for your business details; see <a href="first-run.html">The first-run setup</a>. You can close Terminal.</li>
-</ol>
-<p><b>Every day after that:</b> click <b>Free GST Billing</b> in the Dock or in Launchpad. (It lives in the <b>Applications</b> folder inside your home folder: Finder → ${ui('Go')} → ${ui('Home')} → <b>Applications</b>.)</p>
-<p><b>To update or repair it:</b> paste the same line again. It backs up your data to <code>Documents/FreeGSTBill Backups</code> and replaces only the app's own files; your invoices, clients and settings stay as they are.</p>
-<p>If something goes wrong, Terminal shows <b>PROBLEM</b> and, under it, what to do. Do that, then paste the line again.</p>
-<p>The app's files are in <code>Applications/Free GST Billing</code> in your home folder; your data is in <code>_system/data</code> inside it.</p>
 </section>
 
 <section id="uninstall-mac">
