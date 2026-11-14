@@ -4436,3 +4436,10 @@ html[data-compact] .client-card-header .client-avatar { width: 32px; height: 32p
 @media (max-width: 600px) {
   .ed-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* v1.10.86 - New Invoice -> Invoice Details: Due date, Currency and Place of
+   supply share one row; a foreign currency (with its rate box) takes a row of
+   its own and Place of supply moves up beside Due date. */
+.inv-row3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); grid-auto-flow: row dense; gap: 0 1rem; }
+.inv-row3 > .form-group { margin-bottom: 0; }
+.inv-row3 > .form-group.full-width { grid-column: 1 / -1; margin-top: 0.75rem; }

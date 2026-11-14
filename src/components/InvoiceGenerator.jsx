@@ -5481,31 +5481,55 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <input type="date" className="form-input" value={details.invoiceDate}
                   onChange={(e) => setDetails({ ...details, invoiceDate: e.target.value })} />
               </div>
-              <div className="form-group">
-                <div className="label-with-toggle"><label className="form-label">Due Date</label><PrintToggle optKey="showDueDate" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
-                <input type="date" className="form-input" value={details.dueDate}
-                  onChange={(e) => setDetails({ ...details, dueDate: e.target.value })} />
-                {/* v1.10.83 - payment terms in one click: due N days after the invoice date. */}
-                <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Due in</span>
-                  {[7, 15, 30].map(n => (
-                    <button key={n} type="button" className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}
-                      onClick={() => {
-                        const d = parseLocalDate(details.invoiceDate || localToday());
-                        setDetails({ ...details, dueDate: toLocalIsoDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)) });
-                      }}>{n} days</button>
-                  ))}
+              {/* v1.10.86 - Due date, Currency and Place of supply on one row (two or one when narrow). */}
+              <div className="form-group full-width inv-row3">
+                <div className="form-group">
+                  <div className="label-with-toggle"><label className="form-label">Due Date</label><PrintToggle optKey="showDueDate" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
+                  <input type="date" className="form-input" value={details.dueDate}
+                    onChange={(e) => setDetails({ ...details, dueDate: e.target.value })} />
+                  {/* v1.10.83 - payment terms in one click: due N days after the invoice date. */}
+                  <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Due in</span>
+                    {[7, 15, 30].map(n => (
+                      <button key={n} type="button" className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}
+                        onClick={() => {
+                          const d = parseLocalDate(details.invoiceDate || localToday());
+                          setDetails({ ...details, dueDate: toLocalIsoDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)) });
+                        }}>{n} days</button>
+                    ))}
+                  </div>
                 </div>
+                {/* v1.10.83 - the currency where the amounts are typed: shown when
+                    the business bills abroad (Region: International or Both), the
+                    client is abroad, or the invoice is already in another currency.
+                    An India-only business billing an Indian client in rupees keeps
+                    it in Customize only. */}
+                {(getRegionMode() !== 'india' || isForeignClient(client, profile) || (invoiceOptions.currency || baseCurrency) !== baseCurrency) && (
+                  <InvoiceCurrency options={invoiceOptions} baseCurrency={baseCurrency} regionMode={getRegionMode()}
+                    invoiceDate={details.invoiceDate} total={totals.total} onCurrency={setCurrency} onRate={setExchangeRate} disabled={readOnlyDoc} />
+                )}
+                {/* v1.10.84 - shown while GST is on even when not printed: it decides
+                    CGST + SGST or IGST, and its Print switch must stay reachable. */}
+                {(showGST || invoiceOptions.showPlaceOfSupply) && (() => {
+                  const posOpts = getStatesForCountry(profile?.country);
+                  return (
+                    <div className="form-group">
+                      <div className="label-with-toggle"><label className="form-label">Place of Supply</label><PrintToggle optKey="showPlaceOfSupply" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
+                      {posOpts.length > 0 ? (
+                        <select className="form-input" value={details.placeOfSupply}
+                          onChange={(e) => setDetails({ ...details, placeOfSupply: e.target.value })}>
+                          {/* v1.10.83 - an export's place of supply is outside India. */}
+                          <option value="">{isForeignClient(client, profile) ? 'Outside India (export)' : 'Defaults to Client State'}</option>
+                          {posOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <input type="text" className="form-input" value={details.placeOfSupply}
+                          onChange={(e) => setDetails({ ...details, placeOfSupply: e.target.value })} placeholder="State / Region" />
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-              {/* v1.10.83 - the currency where the amounts are typed: shown when
-                  the business bills abroad (Region: International or Both), the
-                  client is abroad, or the invoice is already in another currency.
-                  An India-only business billing an Indian client in rupees keeps
-                  it in Customize only. */}
-              {(getRegionMode() !== 'india' || isForeignClient(client, profile) || (invoiceOptions.currency || baseCurrency) !== baseCurrency) && (
-                <InvoiceCurrency options={invoiceOptions} baseCurrency={baseCurrency} regionMode={getRegionMode()}
-                  invoiceDate={details.invoiceDate} total={totals.total} onCurrency={setCurrency} onRate={setExchangeRate} disabled={readOnlyDoc} />
-              )}
               {lutEligible && (() => {
                 const savedArn = normaliseLutArn(profile?.lutArn);
                 const invFy = fyOf(details.invoiceDate);
@@ -5576,27 +5600,6 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   </button>
                 </div>
               )}
-              {/* v1.10.84 - shown while GST is on even when not printed: it decides
-                  CGST + SGST or IGST, and its Print switch must stay reachable. */}
-              {(showGST || invoiceOptions.showPlaceOfSupply) && (() => {
-                const posOpts = getStatesForCountry(profile?.country);
-                return (
-                  <div className="form-group">
-                    <div className="label-with-toggle"><label className="form-label">Place of Supply</label><PrintToggle optKey="showPlaceOfSupply" label="Print" options={invoiceOptions} setOptions={setInvoiceOptions} disabled={readOnlyDoc} /></div>
-                    {posOpts.length > 0 ? (
-                      <select className="form-input" value={details.placeOfSupply}
-                        onChange={(e) => setDetails({ ...details, placeOfSupply: e.target.value })}>
-                        {/* v1.10.83 - an export's place of supply is outside India. */}
-                        <option value="">{isForeignClient(client, profile) ? 'Outside India (export)' : 'Defaults to Client State'}</option>
-                        {posOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    ) : (
-                      <input type="text" className="form-input" value={details.placeOfSupply}
-                        onChange={(e) => setDetails({ ...details, placeOfSupply: e.target.value })} placeholder="State / Region" />
-                    )}
-                  </div>
-                );
-              })()}
               {invoiceType === 'credit-note' && (
                 <div className="form-group full-width">
                   <label className="form-label">Original Invoice Reference</label>
