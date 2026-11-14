@@ -1114,6 +1114,43 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    for every column at natural width while still preventing infinite
    stretch on ultra-wide displays. */
 .dashboard-container { max-width: 1400px; margin: 0 auto; width: 100%; }
+/* v1.10.86 - Customise Dashboard: the blocks are flex items, so their CSS
+   order follows the order chosen (the blocks only have bottom margins, so the
+   spacing is the same as before). */
+.dashboard-blocks { display: flex; flex-direction: column; }
+.dash-customise-phone { display: none; vertical-align: middle; margin-left: 0.25rem; }
+@media (max-width: 480px) { .dash-customise-btn { display: none; } .dash-customise-phone { display: inline-flex; } }
+.dash-customise-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; }
+.dash-customise-list li { display: flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.6rem; border-top: 1px solid var(--border); }
+.dash-customise-list li:first-child { border-top: 0; }
+.dash-customise-list li.is-hidden label { color: var(--text-muted); }
+.dash-customise-list label { flex: 1; display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; min-width: 0; }
+.dash-customise-list input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); flex-shrink: 0; }
+.dash-customise-list .icon-btn:disabled { opacity: 0.3; cursor: default; }
+/* v1.10.86 - a sortable column header: a button that looks like the header
+   text; the arrow is drawn here so the header's text stays the column name. */
+.th-sort { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; display: inline-flex; align-items: center; white-space: nowrap; }
+.th-sort::after { content: "\2195"; margin-left: 0.3em; opacity: 0.35; font-size: 0.9em; }
+.th-sort:hover::after { opacity: 0.7; }
+.th-sort:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
+th[aria-sort] .th-sort { color: var(--primary); }
+th[aria-sort="ascending"] .th-sort::after { content: "\25B2"; opacity: 1; font-size: 0.7em; }
+th[aria-sort="descending"] .th-sort::after { content: "\25BC"; opacity: 1; font-size: 0.7em; }
+/* v1.10.86 - Clients: search with Sort by beside it. */
+.client-search-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.client-search-bar .search-box { flex: 1 1 240px; }
+.client-sort { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+/* v1.10.86 - saved filter sets above the invoice list. */
+.saved-filters { padding: 0.5rem 0.85rem; display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
+.saved-filters-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.saved-filter-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; font-size: 0.75rem; }
+.saved-filter-chip button { background: none; border: 0; color: var(--text-primary); font: inherit; font-weight: 600; cursor: pointer; padding: 0.25rem 0.65rem; }
+.saved-filter-chip button + button { padding: 0.25rem 0.45rem; color: var(--text-muted); border-left: 1px solid var(--border); display: inline-flex; }
+.saved-filter-chip button:hover { background: rgba(var(--primary-rgb), 0.08); }
+.saved-filter-chip.is-on { border-color: var(--primary); background: var(--primary); }
+.saved-filter-chip.is-on button { color: #fff; }
+.saved-filter-chip.is-on button + button { border-left-color: rgba(255, 255, 255, 0.35); }
+.saved-filter-chip button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 /* v1.10.37 — Widened 800 → 1100px. Reported: "settings page could
    be widened so nav pills fit on one line". 11-chip jump-nav needs
    ~950px to render without horizontal scroll, so 1100 gives comfortable

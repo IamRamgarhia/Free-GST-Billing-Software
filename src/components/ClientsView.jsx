@@ -33,6 +33,16 @@ function getAccentRGB() {
 import ClientModal from './ClientModal';
 import CsvListImport from './CsvListImport';
 import { clientsCsvToList, CLIENTS_SAMPLE } from '../utils/listCsv';
+// v1.10.86 - the client cards' "Sort by", remembered in this browser.
+import { useListSort, sortRows } from '../utils/listPrefs';
+
+// [value, label, sort]; the first (no sort) is the usual order: most owed first.
+const CLIENT_SORTS = [
+  ['', 'Most owed first', null],
+  ['name', 'Name (A-Z)', { key: 'name', dir: 'asc' }],
+  ['billed', 'Most billed first', { key: 'billed', dir: 'desc' }],
+  ['recent', 'Latest invoice first', { key: 'recent', dir: 'desc' }],
+];
 
 const STATUS_COLORS = {
   unpaid: { label: 'Unpaid', color: '#f59e0b', bg: '#fffbeb' },
@@ -645,7 +655,12 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
     : allClientNames;
 
   // Sort by outstanding amount
-  const sortedClients = [...filteredClients].sort((a, b) => {
+  const { sort: clientSort, setSort: setClientSort } = useListSort('clients', ['name', 'billed', 'recent']);
+  const sortedClients = clientSort ? sortRows(filteredClients, clientSort, {
+    name: (n) => n,
+    billed: (n) => getClientStats(n).total,
+    recent: (n) => getClientBills(n)[0]?.invoiceDate,
+  }) : [...filteredClients].sort((a, b) => {
     const sa = getClientStats(a);
     const sb = getClientStats(b);
     return sb.unpaid - sa.unpaid;
@@ -783,13 +798,19 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
       {pdfPreview && <PdfPreviewModal {...pdfPreview} onClose={() => setPdfPreview(null)} />}
 
       {/* Search */}
-      <div className="glass-panel p-4 mb-6">
+      <div className="glass-panel p-4 mb-6 client-search-bar">
         <div className="search-box" style={{ maxWidth: '400px' }}>
           <Search size={16} className="search-icon" />
           <input type="text" placeholder="Search clients..." value={search}
             onChange={e => setSearch(e.target.value)} className="search-input" />
           {search && <button className="icon-btn" onClick={() => setSearch('')}><X size={14} /></button>}
         </div>
+        <label className="client-sort">Sort by
+          <select className="filter-select" value={clientSort?.key || ''}
+            onChange={(e) => setClientSort(CLIENT_SORTS.find(([v]) => v === e.target.value)?.[2] || null)}>
+            {CLIENT_SORTS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+        </label>
       </div>
 
       {/* Client cards */}

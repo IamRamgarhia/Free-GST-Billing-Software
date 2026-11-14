@@ -17,6 +17,17 @@ import BarcodeLabels from './BarcodeLabels';
 import { barcodeProblem, normaliseBarcode, nextInternalCode } from '../utils/barcode';
 import { normaliseCategory, categoryProblem, altUnitProblem, altUnitText, hasAltUnit, productMatches, reorderLines } from '../utils/stock';
 import { putReorderDraft } from '../utils/reorderDraft';
+// v1.10.86 - sort by a column header, remembered in this browser.
+import { useListSort, sortRows } from '../utils/listPrefs';
+import SortTh from './SortTh';
+
+const SORT_GETTERS = {
+  name: (p) => p.name,
+  hsn: (p) => p.hsn,
+  rate: (p) => Number(p.rate) || 0,
+  gst: (p) => Number(p.taxPercent) || 0,
+  stock: (p) => trackedStock(p),
+};
 import { CategoryBrandFields, AltUnitFields, ProductFilters, StockAdjustModal } from './StockFields';
 
 // v1.10.29 — reported: "here purchase price and selling price need".
@@ -109,6 +120,8 @@ export default function InventoryView({ onOpenPurchases }) {
     onOpenPurchases?.();
   };
   const pickedShown = filtered.filter((p) => picked.has(p.id));
+  const { sort, toggle: toggleSort } = useListSort('products', Object.keys(SORT_GETTERS));
+  const sortedProducts = sortRows(filtered, sort, SORT_GETTERS);
 
   const openAdd = () => {
     setForm({ ...emptyForm });
@@ -514,17 +527,17 @@ export default function InventoryView({ onOpenPurchases }) {
                       checked={pickedShown.length === filtered.length}
                       onChange={(e) => setPicked(e.target.checked ? new Set(filtered.map((p) => p.id)) : new Set())} />
                   </th>
-                  <th>Name</th>
-                  <th>HSN/SAC</th>
-                  <th>Rate</th>
-                  <th>GST %</th>
+                  <SortTh col="name" label="Name" sort={sort} onSort={toggleSort} />
+                  <SortTh col="hsn" label="HSN/SAC" sort={sort} onSort={toggleSort} />
+                  <SortTh col="rate" label="Rate" sort={sort} onSort={toggleSort} />
+                  <SortTh col="gst" label="GST %" sort={sort} onSort={toggleSort} />
                   <th>Unit</th>
-                  <th>Stock</th>
+                  <SortTh col="stock" label="Stock" sort={sort} onSort={toggleSort} />
                   <th className="col-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(product => (
+                {sortedProducts.map(product => (
                   <tr key={product.id}>
                     <td>
                       <input type="checkbox" aria-label={`Select ${product.name}`} checked={picked.has(product.id)}
