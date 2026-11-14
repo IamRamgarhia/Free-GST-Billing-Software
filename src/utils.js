@@ -915,6 +915,25 @@ export const markPaidPatch = (bill, note = 'Marked paid', mode = 'other') => {
   };
 };
 
+// v1.10.85 (#185) - New Invoice's "Received now": ONE payment on the bill,
+// kept under the same id on every save (auto-saves too). Returns the payments
+// with that one (ownId) taken out and the new one, when there is one, added:
+// a re-save replaces it, a cleared amount removes it, never a second copy.
+export const withReceivedNow = (payments, ownId, payment) => [
+  ...(Array.isArray(payments) ? payments : []).filter((p) => !ownId || p?.id !== ownId),
+  ...(payment ? [payment] : []),
+];
+// The payment itself, with the fields the Dashboard's Record Payment gives one.
+export const receivedNowPayment = ({ id, amount, mode, date, recordedAt }) => {
+  const amt = Math.round((Number(amount) || 0) * 100) / 100;
+  if (!(amt > 0)) return null;
+  return {
+    id: id || 'pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    amount: amt, date: date || localToday(), mode: mode || 'cash',
+    note: 'Received with the invoice', recordedAt: recordedAt || new Date().toISOString(),
+  };
+};
+
 // v1.10.77 (#86) - choosing Unpaid takes back the payment that choosing Paid
 // recorded (auto: true, or older ones noted "Marked paid ..."). It used to
 // leave it, so an "Unpaid" invoice still showed the full amount as Paid and

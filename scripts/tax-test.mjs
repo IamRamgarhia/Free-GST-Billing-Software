@@ -64,7 +64,11 @@ import {
   formatDateGST,
   spreadBillDiscount,
   templateItems,
+  withReceivedNow,
+  receivedNowPayment,
 } from '../src/utils.js';
+import { receiptForPayment } from '../src/utils/bankMatch.js';
+import { linkedCashLines } from '../src/utils/cashBook.js';
 import { hsnSummary } from '../src/utils/gstr1Json.js';
 import { splitPurchaseTax, clientPaperPrefs, clientPaperOptions, getPaperSize } from '../src/utils.js';
 import { buildXlsx, colName } from '../src/utils/xlsx.js';
@@ -1206,6 +1210,39 @@ console.log('\n[v1.10.85 #190] Whole-bill discount before GST (trade discount)')
   const tpl = { invoiceType: 'tax-invoice', items: mixed, invoiceOptions: opts, clientName: 'A', clientState: 'Punjab' };
   eq(templateItems(tpl).map((i) => i.billDiscShare), [100, 300], 'a recurring invoice saves each line\'s part');
   eq(templateTotals(tpl, prof).taxableAmount, 3600, 'and its totals use them');
+}
+
+console.log('\n[v1.10.85 #185] Payment received while making the invoice');
+{
+  const pay = receivedNowPayment({ amount: '1180', mode: 'cash', date: '2026-11-14' });
+  eq([pay.amount, pay.mode, pay.date, pay.note, /^pay_/.test(pay.id), !!pay.recordedAt], [1180, 'cash', '2026-11-14', 'Received with the invoice', true, true], 'a payment with the Record Payment fields (id, amount, date, mode, note)');
+  eq(receivedNowPayment({ amount: '' }), null, 'an empty amount is no payment');
+  eq(receivedNowPayment({ amount: '0' }), null, '0 is no payment');
+  eq(receivedNowPayment({ amount: '-5' }), null, 'a negative amount is no payment');
+  eq(receivedNowPayment({ amount: '10.005', id: 'pay_x', recordedAt: 'T0' }).amount, 10.01, 'rounded to the paisa');
+  eq(receivedNowPayment({ amount: 5, id: 'pay_keep', recordedAt: 'T0' }).id, 'pay_keep', 'a later save keeps the same id');
+  eq(typeof receivedNowPayment({ amount: 5 }).date, 'string', 'no invoice date: today');
+
+  // First save adds it; every later save (auto-saves too) replaces it, never adds a second.
+  const credit = { id: 'pay_credit', amount: 100, mode: 'credit-applied' };
+  let payments = withReceivedNow([credit], null, { ...pay, id: 'pay_now' });
+  eq(payments.map((p) => p.id), ['pay_credit', 'pay_now'], 'first save: the payment is added');
+  for (let i = 0; i < 3; i++) payments = withReceivedNow(payments, 'pay_now', { ...pay, id: 'pay_now', amount: 500 + i });
+  eq(payments.map((p) => `${p.id}:${p.amount}`), ['pay_credit:100', 'pay_now:502'], 'saved again 3 times: still one payment, with the latest amount');
+  eq(withReceivedNow(payments, 'pay_now', null).map((p) => p.id), ['pay_credit'], 'amount cleared: the payment is removed, others kept');
+  eq(withReceivedNow(undefined, null, null), [], 'no payments at all');
+
+  // Status and cash book, as the Dashboard's Record Payment gives them.
+  const bill = { id: 'INV-1', invoiceNumber: 'INV-1', clientName: 'Walk-in', currency: 'INR', totalAmount: 1180, invoiceType: 'tax-invoice', data: { client: { name: 'Walk-in' }, profile: { gstin: '03AAAAA0000A1Z5', businessName: 'DiceCodes' }, totals: { total: 1180 } } };
+  eq(paymentStatusFor(bill, 1180), 'paid', 'the full amount: Paid');
+  eq(paymentStatusFor(bill, 500), 'partial', 'part of it: Partly paid');
+  const p2 = { ...pay, id: 'pay_now' };
+  const receipt = receiptForPayment(bill, p2);
+  eq([receipt.id, receipt.amount, receipt.paymentMode, receipt.againstInvoice, receipt.billId, receipt.source], ['pay_now', 1180, 'cash', 'INV-1', 'INV-1', 'auto-from-payment'], 'its receipt carries the payment\'s id, as the Dashboard saves it');
+  const lines = linkedCashLines({ bills: [{ ...bill, payments: [p2] }], receipts: [receipt] });
+  eq(lines.map((l) => [l.source, l.type, l.amount]), [['receipt', 'in', 1180]], 'Cash book: the cash payment shows once (paired with its receipt)');
+  const upi = linkedCashLines({ bills: [{ ...bill, payments: [{ ...p2, mode: 'upi' }] }], receipts: [{ ...receipt, paymentMode: 'upi' }] });
+  eq(upi.length, 0, 'a UPI payment stays out of the Cash book');
 }
 
 console.log('\n────────────────────────────────────────');

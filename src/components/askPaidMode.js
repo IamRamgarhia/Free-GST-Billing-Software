@@ -10,17 +10,26 @@ export const PAID_MODES = [
 ];
 const LAST_MODE_KEY = 'fgsb_lastPaidMode';
 
-export async function askPaidMode(title = 'How was it paid?') {
+// v1.10.85 (#185) - the last way paid (offered first), shared with New
+// Invoice's "Received now".
+export function lastPaidMode() {
   let last = 'cash';
   try { last = localStorage.getItem(LAST_MODE_KEY) || 'cash'; } catch { /* storage blocked */ }
+  return PAID_MODES.some(([v]) => v === last) ? last : 'cash';
+}
+export function rememberPaidMode(mode) {
+  try { localStorage.setItem(LAST_MODE_KEY, mode); } catch { /* storage blocked */ }
+}
+
+export async function askPaidMode(title = 'How was it paid?') {
   const mode = await promptAction({
     title,
     message: 'A payment for the balance is recorded with today\'s date. Cash payments also go into the Cash book.',
     options: PAID_MODES,
-    defaultValue: PAID_MODES.some(([v]) => v === last) ? last : 'cash',
+    defaultValue: lastPaidMode(),
     confirmLabel: 'Mark paid',
   });
   if (!mode) return null;
-  try { localStorage.setItem(LAST_MODE_KEY, mode); } catch { /* storage blocked */ }
+  rememberPaidMode(mode);
   return mode;
 }
