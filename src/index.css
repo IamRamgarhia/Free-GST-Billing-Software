@@ -925,6 +925,28 @@ select.form-input {
   padding-right: 2rem;
 }
 
+/* v1.10.86 (maintainer: "this placement of down arrow is not correct in all
+   places") - every drop-down draws the same arrow, with room on the right.
+   The browser's own arrow sat against the right edge of the filters, "Totals
+   for" and status pills. !important so a screen's inline padding or its
+   `background:` shorthand (status colours) cannot take the room or the arrow
+   away; the colour of the box is kept. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.7rem center !important;
+  background-size: 12px 12px !important;
+  padding-right: 2rem !important;
+}
+[data-theme="dark"] select:not([multiple]):not([size]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E") !important;
+}
+/* The small status pills keep a tighter arrow. */
+select.status-select { padding-right: 1.6rem !important; background-position: right 0.5rem center !important; }
+
 textarea.form-input { resize: vertical; min-height: 60px; }
 
 /* ========= Buttons ========= */
