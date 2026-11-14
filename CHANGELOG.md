@@ -283,15 +283,6 @@ a backup is made first.
   only, never printed; **Hide** it when the customer can see your screen.
 - **Start with "Cash Sale"** (#147): a switch in **Settings → Features** so
   every new invoice starts with the customer *Cash Sale*, for counter sales.
-- **Mac app (.dmg)**: `Free-GST-Billing-Mac.dmg` on the release page. Open it,
-  drag **Free GST Billing** to Applications and open it; one app for Intel and
-  Apple silicon Macs (macOS 11 or newer), with Node.js inside, so nothing else
-  is installed. The first time, macOS 15 and 26 ask you to allow it once:
-  **Done**, then **System Settings → Privacy & Security → Open Anyway** and
-  your password (macOS 14 and older: Control-click → **Open**). The books are
-  kept in `~/Library/Application Support/Free GST Billing`. To update,
-  download the new DMG and drag the app to Applications again (**Replace**):
-  the app's update button links to it. The Terminal one-liner still works.
 
 ### Fixed
 - **Duplicate** keeps the invoice's currency: a copy of a USD invoice opened

@@ -1,18 +1,14 @@
-# The Mac app: Free-GST-Billing-Mac.dmg (drag to Applications), built and
-# smoke-tested on GitHub's free macos-15 runner. On a published release the
-# DMG is attached to it. Never a .zip: old updaters take a release's first .zip.
+# The Mac app: Free-GST-Billing-Mac.dmg, built and smoke-tested on GitHub's
+# free macos-15 runner, by hand only. NOT attached to releases (14 Nov 2026):
+# without a paid Apple Developer ID, macOS says "Apple could not verify" and
+# offers Move to Bin. Mac users install with the Terminal line (install.sh),
+# which shows no warning. Attach it again only once it is signed and notarized.
 name: Mac app
 
 on:
   push:
     branches: [mac-app]
-  release:
-    types: [published]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Attach the DMG to this release tag (for example v1.10.85); empty = build and test only
-        required: false
 
 permissions:
   contents: read
@@ -21,8 +17,6 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 40
-    permissions:
-      contents: write # gh release upload, on a release only
     steps:
       - uses: actions/checkout@v5
 
@@ -46,10 +40,3 @@ jobs:
           path: release-build/mac/Free-GST-Billing-Mac.dmg
           if-no-files-found: error
           compression-level: 0
-
-      - name: Attach to the release
-        if: github.event_name == 'release' || inputs.tag != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: gh release upload "$TAG" release-build/mac/Free-GST-Billing-Mac.dmg --clobber --repo "$GITHUB_REPOSITORY"

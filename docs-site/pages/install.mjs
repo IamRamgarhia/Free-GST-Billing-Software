@@ -18,8 +18,6 @@ const UNIX_LINE = `curl -fsSL ${RAW}/install.sh | bash`;
 const UNIX_REMOVE = `curl -fsSL ${RAW}/install.sh | bash -s -- --uninstall`;
 // The .deb's name carries the version, so it is linked through the release page.
 const RELEASES = 'https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest';
-// v1.10.85 - the Mac app (scripts/build-mac-app.sh, attached to each release).
-const MAC_DMG = `${RELEASES}/download/Free-GST-Billing-Mac.dmg`;
 
 const which = `
 <div class="note tip"><strong>Which guide is mine?</strong>
@@ -194,7 +192,7 @@ ${which}
   slug: 'install-mac',
   title: 'Install on a Mac, step by step',
   nav: 'Install on a Mac',
-  lead: 'Paste one line into Terminal: no warning, nothing to allow, and the app is in your Applications. Or download the Mac app and allow it once in System Settings. About 3 minutes either way. Every step says what you will see.',
+  lead: 'Paste one line into Terminal: no warning, nothing to allow, and the app is in your Applications. About 3 minutes. Every step says what you will see.',
   body: `
 ${which}
 
@@ -223,39 +221,6 @@ ${which}
 <p><b>To update or repair it:</b> paste the same line again. It backs up your data to <code>Documents/FreeGSTBill Backups</code> and replaces only the app's own files; your invoices, clients and settings stay as they are.</p>
 <p>If something goes wrong, Terminal shows <b>PROBLEM</b> and, under it, what to do. Do that, then paste the line again.</p>
 <p>The app's files are in <code>Applications/Free GST Billing</code> in your home folder; your data is in <code>_system/data</code> inside it.</p>
-</section>
-
-<section id="mac-app">
-<h2>Other way: the Mac app (.dmg)</h2>
-<p>One download for every Mac, Intel or Apple M1 / M2 / M3 / M4, with macOS 11 Big Sur or newer. Nothing else to install.</p>
-<ol class="steps">
-  <li><strong>Download</strong><a class="download" href="${MAC_DMG}">Download the Mac app (.dmg)</a></li>
-  <li><strong>Open the download</strong>Double-click <b>Free-GST-Billing-Mac.dmg</b> in <b>Downloads</b>. A window opens with <b>Free GST Billing</b> and an <b>Applications</b> folder.</li>
-  <li><strong>Drag it to Applications</strong>Drag <b>Free GST Billing</b> onto the <b>Applications</b> folder in that window. Then eject the disk: click the eject arrow next to <b>Free GST Billing</b> on the left of Finder.</li>
-  <li><strong>Open it</strong>Open <b>Finder</b> → <b>Applications</b> and double-click <b>Free GST Billing</b>.</li>
-</ol>
-<h3 id="mac-app-first-open">The first time: allow it once</h3>
-<p>The app is free and not sold through Apple, so macOS asks you to allow it the first time. After that it opens with a normal double-click.</p>
-<p><b>macOS 15 Sequoia and macOS 26 Tahoe:</b></p>
-<ol class="steps">
-  <li><strong>Click Done</strong>A box says <i>"Free GST Billing" Not Opened</i> and <i>Apple could not verify "Free GST Billing" is free of malware…</i>. Click ${ui('Done')}. Do <b>not</b> click ${ui('Move to Trash')}.</li>
-  <li><strong>Open Privacy &amp; Security</strong>Click the Apple menu (the apple logo at the top left) → ${ui('System Settings')} → ${ui('Privacy &amp; Security')} on the left.</li>
-  <li><strong>Click Open Anyway</strong>Scroll down to <b>Security</b>. Next to the line about <b>Free GST Billing</b> (<i>was blocked to protect your Mac</i>), click ${ui('Open Anyway')}. The button is there for about an hour after step 1; if you do not see it, double-click the app again and come back.</li>
-  <li><strong>Confirm with your password</strong>In the box that opens, click ${ui('Open Anyway')} (or ${ui('Open')}), then type your Mac login password (or use Touch ID) and click ${ui('OK')}.</li>
-  <li><strong>The app opens in your browser</strong>At <code>http://localhost:47371</code>. A short welcome asks for your business details; see <a href="first-run.html">The first-run setup</a>.</li>
-</ol>
-<p><b>macOS 14 Sonoma and older:</b> in <b>Applications</b>, hold ${key('Control')} and click <b>Free GST Billing</b> (or right-click it), choose ${ui('Open')}, then click ${ui('Open')} in the box that asks.</p>
-<p><b>If macOS says the app "is damaged"</b>, or there is no ${ui('Open Anyway')} button: open Terminal (see <a href="terminal.html#mac">Opening Terminal on a Mac</a>), paste this line and press ${key('Return')}, then open the app again:</p>
-<pre><code>xattr -dr com.apple.quarantine "/Applications/Free GST Billing.app"</code></pre>
-<p>Or use <a href="#one-line">the one line in Terminal</a> above instead: it shows no warning.</p>
-<h3 id="mac-app-every-day">Every day, stopping, updating</h3>
-<ul>
-  <li><strong>Every day:</strong> double-click <b>Free GST Billing</b> in Applications or Launchpad. If it is already running, it just opens your browser at it. To keep it in the Dock, drag it from Applications onto the Dock.</li>
-  <li><strong>To stop it:</strong> in the app open <b>Control Panel</b> and click ${ui('Stop Server')}. Restarting the Mac also stops it.</li>
-  <li><strong>Your books</strong> (invoices, clients, settings, saved PDFs) are in your home folder under <code>Library/Application Support/Free GST Billing</code>, never inside the app. Control Panel → ${ui('Open Data Folder')} shows them.</li>
-  <li><strong>To update:</strong> when the app says a new version is out, click ${ui('Download the new Mac app')}, open the DMG and drag <b>Free GST Billing</b> to Applications again, choosing ${ui('Replace')}. Your books are kept. macOS may ask you to allow the new version once, as above.</li>
-  <li><strong>To remove it:</strong> stop it, then drag <b>Free GST Billing</b> from Applications to the Bin. Your books stay in Application Support until you delete that folder too.</li>
-</ul>
 </section>
 
 <section id="uninstall-mac">
@@ -519,7 +484,6 @@ bash "_system/start-unix.sh"</code></pre>
 
 <section id="mac">
 <h2>Mac: other ways</h2>
-<p><b>The Mac app (.dmg):</b> its update button says ${ui('Download the new Mac app')}. Download it, open it and drag <b>Free GST Billing</b> to Applications, choosing ${ui('Replace')}. Your books are in Application Support and are kept (<a href="install-mac.html#mac-app">more</a>).</p>
 <p><b>Installed with the Terminal line or the ZIP:</b> use the <a href="#in-app">Update button</a> in the app. That is the safe way on a Mac.</p>
 <div class="note warn"><strong>Never drag a new download over your old folder on a Mac</strong>
 <p>On a Mac, Finder's ${ui('Replace')} swaps the <b>whole</b> folder, including <code>_system/data</code> with all your invoices. (Windows merges folders; the Mac does not.)</p></div>
