@@ -1135,6 +1135,43 @@ try {
   check('#180 a new invoice under the 2025 Act prints TDS (393(1) Sl. 6(iii) @ 10%)', tdsLine === 'Less: TDS (393(1) Sl. 6(iii) @ 10%)', tdsLine);
   await page.evaluate((m) => { if (m === null) localStorage.removeItem('gst_enabledModules'); else localStorage.setItem('gst_enabledModules', m); }, modulesBefore);
 
+  // v1.10.85 #190: a whole-bill discount Before GST: 1,000 off 10,000 at 18%
+  // intra-state -> GST on 9,000 (CGST 810), total 10,620, and the line's part
+  // shows in its Disc. column. Draft only: nothing is saved.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/TRADE', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [{ id: 'smk-trade', name: 'Cartons', hsn: '4819', quantity: 100, rate: 100, taxPercent: 18, discount: 0, unit: 'Pcs' }],
+    taxInclusive: false,
+    invoiceOptions: { invoiceDiscountValue: 1000, invoiceDiscountType: 'fixed', invoiceDiscountBeforeGst: true },
+  });
+  await sleep(800);
+  const trade = await page.evaluate(() => {
+    const text = document.querySelector('#invoice-preview')?.innerText || '';
+    return { trade: /Trade discount \(before GST\)/i.test(text), cgst: /(810\.00|1,620\.00)/.test(text), total: /10,620\.00/.test(text), cash: /Discount on total/i.test(text),
+      picker: document.querySelector('select[aria-label="When the discount is taken"]')?.value || '' };
+  });
+  check('#190 discount Before GST: GST on 9,000 (CGST 810 or IGST 1,620), total 10,620, printed as a trade discount',
+    trade.trade && trade.cgst && trade.total && !trade.cash && trade.picker === 'before', JSON.stringify(trade));
+
+  // v1.10.85 #185: "Received now" on a new sale; Full fills the balance (11,800,
+  // or 10,800 when the TDS from #180 above is still on). Not saved. The
+  // discount goes back to none, so the drafts below are not changed by it.
+  await openDraft({
+    invoiceType: 'tax-invoice',
+    client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
+    details: { invoiceNumber: 'SMOKE-DRAFT/RCVD', invoiceDate: today, placeOfSupply: 'Delhi' },
+    items: [{ id: 'smk-rcvd', name: 'Cartons', hsn: '4819', quantity: 100, rate: 100, taxPercent: 18, discount: 0, unit: 'Pcs' }],
+    taxInclusive: false,
+    invoiceOptions: { invoiceDiscountValue: 0, invoiceDiscountBeforeGst: false },
+  });
+  const rcvdBox = page.locator('[data-testid="received-now"]');
+  const rcvdShown = await rcvdBox.isVisible().catch(() => false);
+  if (rcvdShown) await rcvdBox.getByRole('button', { name: 'Full' }).click();
+  const rcvdAmount = rcvdShown ? await page.locator('#received-now-amount').inputValue() : '';
+  check('#185 New Invoice offers "Received now"; Full fills the balance', rcvdShown && ['11800', '10800'].includes(rcvdAmount), `${rcvdShown} ${rcvdAmount}`);
+
   // #164: "Print rates before GST" with prices that include tax: 13.25 at 18%
   // prints 11.23, the total stays 2500 x 13.25 = 33,125.00.
   const rbtDraft = (on) => openDraft({
