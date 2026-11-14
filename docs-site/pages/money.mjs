@@ -320,7 +320,7 @@ export default [
   <tr><td>(b) Zero-rated supplies</td><td>Exports: their taxable value and any IGST charged on them</td></tr>
   <tr><td>(c) Other outward supplies (nil rated, exempted)</td><td>Always ₹0: the app does not separate exempt sales. If you have them, enter them on the portal.</td></tr>
 </table></div>
-<p>Reverse-charge purchases, 3.1(d), are not shown on screen, but the <a href="#gstr-3b-files">3B JSON</a> fills them from the period's purchase bills marked reverse charge. Pay that tax in cash on the portal.</p>
+<p id="reverse-charge-3b"><b>(d) Inward supplies liable to reverse charge</b> appears when the period has <a href="purchases.html#reverse-charge">purchase bills ticked Reverse charge</a>: their taxable value and GST, less goods returned on such bills (debit notes dated in the period). This tax is yours to pay, and only in cash: Table 6 adds it to the cash to pay, and the same tax comes back as credit in Table 4(A)(3). The <a href="#gstr-3b-files">3B CSV and JSON</a> carry it too. Without such bills the row is not shown and nothing changes.</p>
 </section>
 
 <section id="table-3-2">
@@ -336,7 +336,7 @@ export default [
   <li><strong><a href="expenses.html#gst-credit">Expenses</a></strong> dated in the period with a GST amount: the same way.</li>
   <li><strong>Less <a href="purchases.html#purchase-returns">purchase returns</a></strong> (debit notes dated in the period, not cancelled): the GST on the goods sent back, head by head, the way the supplier's credit note is netted off in GSTR-2B.</li>
 </ul>
-<p>The row <b>(A)(5) ITC Available — All other ITC</b> is the portal's Table 4(A)(5), where ordinary purchase credit goes; with returns in the period it says <b>(net of returns)</b>, and two rows above it show the credit before returns and <b>Less: purchase returns (debit notes)</b>. <b>Net ITC Available</b> is the same figure. Only when a month's returns are more than its credit does a row <b>(B)(2) ITC reversed</b> appear: that extra is added to the tax to pay in Table 6 and sent as ITC reversed in the 3B JSON. Cess on purchases (less cess on returns) is sent in the 3B JSON.</p>
+<p>With <a href="purchases.html#reverse-charge">reverse-charge bills</a> in the period, a row <b>(A)(3) ITC on reverse charge</b> shows their tax (the tax in 3.1(d)) as credit, Table 4(A)(3) on the portal; it is taken out of (A)(5), so the total credit is the same. The row <b>(A)(5) ITC Available — All other ITC</b> is the portal's Table 4(A)(5), where ordinary purchase credit goes; with returns in the period it says <b>(net of returns)</b>, and two rows above it show the credit before returns and <b>Less: purchase returns (debit notes)</b>. <b>Net ITC Available</b> is the same figure. Only when a month's returns are more than its credit does a row <b>(B)(2) ITC reversed</b> appear: that extra is added to the tax to pay in Table 6 and sent as ITC reversed in the 3B JSON. Cess on purchases (less cess on returns) is sent in the 3B JSON.</p>
 <div class="note warn"><strong>Not all GST paid is credit</strong>
 <p>The app counts every GST amount you entered. Some is not claimable: food and drinks, personal spending, motor cars in most cases, bills without your GSTIN on them, or invoices the supplier has not reported (not in GSTR-2B). Leave such GST out of the expense, or reduce the figure on the portal. Ask your CA if unsure.</p></div>
 </section>
@@ -348,6 +348,7 @@ export default [
   <tr><td>Output Tax Liability</td><td>Tax on your sales: Table 3.1(a), plus IGST on exports</td></tr>
   <tr><td>Less: ITC utilised</td><td>The credit from Table 4 used against it, in the order the law sets</td></tr>
   <tr><td>Net Tax Payable</td><td>What is left, for each tax and in total. This is paid in cash.</td></tr>
+  <tr><td>Add: reverse charge tax, 3.1(d) (cash only)</td><td>Shown only with <a href="purchases.html#reverse-charge">reverse-charge bills</a>: their tax, which cannot be paid from credit. It is in the Net GST Payable below.</td></tr>
   <tr><td>ITC carried forward</td><td>Shown only when credit is left over. It stays in your credit ledger for next month.</td></tr>
 </table></div>
 <p>Credit is used in the order the law sets: IGST credit first (against IGST, then CGST and SGST), then CGST credit (against CGST, then IGST) and SGST credit (against SGST, then IGST). CGST credit never pays SGST, nor SGST credit CGST. So credit you hold in CGST and SGST can pay a tax that is all IGST. When IGST credit is spread over CGST and SGST, the app sends it first to the part your own CGST or SGST credit cannot cover, so none of that credit is left stranded while you pay cash.</p>
@@ -357,7 +358,7 @@ export default [
 
 <section id="net-payable">
 <h3>Net GST Payable</h3>
-<p>The big figure at the bottom of the GSTR-3B tab: the total to pay for the period. Underneath it says <b>Pay via Electronic Cash Ledger</b> (create a challan on the portal and pay by net banking, UPI, card or NEFT/RTGS), or <b>ITC covers your liability</b> when nothing is due in cash.</p>
+<p>The big figure at the bottom of the GSTR-3B tab: the total to pay for the period, including any reverse-charge tax (3.1(d)). Underneath it says <b>Pay via Electronic Cash Ledger</b> (create a challan on the portal and pay by net banking, UPI, card or NEFT/RTGS), or <b>ITC covers your liability</b> when nothing is due in cash.</p>
 <p>Late payment carries interest at 18% a year on the cash amount, and a late fee for filing late. See the <a href="#guide-gstr3b-steps">Filing Guide</a>.</p>
 </section>
 
@@ -365,8 +366,8 @@ export default [
 <h3>GSTR-3B downloads</h3>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it saves</th></tr>
-  <tr><td>${ui('3B CSV')}</td><td><code>GSTR3B_Summary.csv</code>: rows for 3.1(a), 4(A) ITC available, 6.1 ITC utilised, 6.1 tax payable in cash, and ITC carried forward</td></tr>
-  <tr><td>${ui('3B JSON')}</td><td><code>GSTR3B_<i>GSTIN</i>_<i>MMYYYY</i>.json</code> in the portal's GSTR-3B format: 3.1(a), 3.1(b), reverse charge 3.1(d) and Table 4(A)(5) with cess. Other rows are sent as 0.</td></tr>
+  <tr><td>${ui('3B CSV')}</td><td><code>GSTR3B_Summary.csv</code>: rows for 3.1(a), 3.1(b), 3.1(d) and 4(A)(3) (only with reverse-charge bills), 4(A) ITC available, 6.1 ITC utilised, 6.1 tax payable in cash, and ITC carried forward</td></tr>
+  <tr><td>${ui('3B JSON')}</td><td><code>GSTR3B_<i>GSTIN</i>_<i>MMYYYY</i>.json</code> in the portal's GSTR-3B format: 3.1(a), 3.1(b), reverse charge 3.1(d), Table 4(A)(3) (credit of the reverse-charge tax) and Table 4(A)(5) with cess. Other rows are sent as 0.</td></tr>
   <tr><td>${ui('Mark Filed')}</td><td>Marks GSTR-3B filed for this period; use the <a href="#filed-status">3B pill</a> to undo</td></tr>
 </table></div>
 <p>${ui('3B JSON')} says "No data to export for this period" when the period has no invoices and no expenses, even if it has purchase bills. In that case use ${ui('3B CSV')}, or type the credit in on the portal.</p>
@@ -399,7 +400,7 @@ export default [
   <tr><td><b>⚠ Books only</b></td><td>A purchase bill of this period that is not in GSTR-2B</td><td>The supplier may not have filed, or filed with a different number or GSTIN. Ask them. Usually you cannot claim it until it appears.</td></tr>
   <tr><td><b>⚠ 2B only</b></td><td>In GSTR-2B but not in your purchase bills</td><td>If it is yours, click ${ui('Add as purchase bill')} (see below). If you never bought it, tell the supplier.</td></tr>
 </table></div>
-<p id="gstr-2b-add-bill"><b>Add as purchase bill</b> (on each 2B only row) opens Purchases with a new bill filled in from GSTR-2B: the supplier's name and GSTIN, their invoice number and date, IGST or CGST + SGST, and one line per GST rate at its taxable value (with cess). GSTR-2B has no item names, so each line is called <i>Purchase at 18% GST (from GSTR-2B)</i>. Nothing is saved until you check it and click ${ui('Save')}; then you come back here and the entry shows as <b>✓ Matched</b>. To add the goods to stock, change the lines to your item names, quantities and rates first; lines left as "(from GSTR-2B)" are not added to Products. Reverse charge and "ITC not available" from GSTR-2B are written in the bill's note.</p>
+<p id="gstr-2b-add-bill"><b>Add as purchase bill</b> (on each 2B only row) opens Purchases with a new bill filled in from GSTR-2B: the supplier's name and GSTIN, their invoice number and date, IGST or CGST + SGST, and one line per GST rate at its taxable value (with cess). GSTR-2B has no item names, so each line is called <i>Purchase at 18% GST (from GSTR-2B)</i>. Nothing is saved until you check it and click ${ui('Save')}; then you come back here and the entry shows as <b>✓ Matched</b>. To add the goods to stock, change the lines to your item names, quantities and rates first; lines left as "(from GSTR-2B)" are not added to Products. An entry GSTR-2B marks reverse charge comes in with <a href="purchases.html#reverse-charge">Reverse charge</a> ticked; "ITC not available" is written in the bill's note.</p>
 <p>The table shows Status, Supplier (name and GSTIN), Invoice No., Date, <b>2B Value</b>, <b>Books Value</b>, <b>Diff</b> (2B minus books, in red when more than ₹1) and <b>ITC</b>: ✓ when GSTR-2B says the credit is available, ✗ when it is not (Books only rows always show ✗).</p>
 <p>How matching works: invoice numbers are compared ignoring capitals, spaces, slashes and dashes, so <code>INV/12</code> matches <code>inv-12</code>. Your book value includes cess and any round-off on the bill. A bill entered in an earlier month still matches; only this period's bills can show as Books only.</p>
 </section>

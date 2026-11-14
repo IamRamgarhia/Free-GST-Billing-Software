@@ -94,6 +94,17 @@ const plainLine = (line) => {
 // Options: kind 'purchase' starts from the purchase price instead of the
 // selling price; levelPrice (a number) is the client's price level, which
 // then wins over the box price (factor x the level price).
+// v1.10.86 - the line's MRP follows its unit: per box it is the product's
+// piece MRP x pieces per box, back in pieces the piece MRP. Only an MRP the
+// app filled in changes (it still equals piece MRP x the old factor); one the
+// user typed, or cleared, stays as it is. Lines without an MRP are untouched.
+const mrpInUnit = (line, product, factor) => {
+  const piece = Number(product?.mrp) || 0;
+  if (!(piece > 0) || line?.mrp === undefined || line.mrp === null || line.mrp === '') return {};
+  const was = piece * (Number(line.unitFactor) > 0 ? Number(line.unitFactor) : 1);
+  return Math.abs(Number(line.mrp) - was) < 0.005 ? { mrp: r2(piece * factor) } : {};
+};
+
 export function lineInUnit(line, product, unit, { kind = 'sale', levelPrice = null } = {}) {
   const wasBox = Number(line?.unitFactor) > 0 && Number(line.unitFactor) !== 1;
   const next = { ...plainLine(line), unit };
@@ -103,9 +114,9 @@ export function lineInUnit(line, product, unit, { kind = 'sale', levelPrice = nu
   if (unit === product.altUnit) {
     const factor = Number(product.altFactor);
     const own = kind === 'sale' && level === null && String(product.altPrice ?? '').trim() !== '' && Number(product.altPrice) > 0;
-    return { ...next, unitFactor: factor, baseUnit: product.unit || 'Nos', rate: own ? Number(product.altPrice) : r2(base * factor) };
+    return { ...next, unitFactor: factor, baseUnit: product.unit || 'Nos', rate: own ? Number(product.altPrice) : r2(base * factor), ...mrpInUnit(line, product, factor) };
   }
-  return unit === (product.unit || 'Nos') || wasBox ? { ...next, rate: base } : next;
+  return unit === (product.unit || 'Nos') || wasBox ? { ...next, rate: base, ...mrpInUnit(line, product, 1) } : next;
 }
 
 // ---- Stock adjustments ----

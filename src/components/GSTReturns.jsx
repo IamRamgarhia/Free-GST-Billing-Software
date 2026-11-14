@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, ChevronRight, AlertTriangle, BookOpen, BarChart3 } from 'lucide-react';
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules, getAllDebitNotes } from '../store';
-import { purchaseReturnsTax, netItc, rcmNetOfReturns } from '../utils/debitNotes';
+import { purchaseReturnsTax, netItc, rcmInward, splitRcmItc } from '../utils/debitNotes';
 import { purchaseLineTax } from '../utils/purchaseOrders';
 import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, mergeHsnRows, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
@@ -909,6 +909,14 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
   const hasReturns = returnsItc.igst + returnsItc.cgst + returnsItc.sgst + returnsItc.cess > 0;
   const { avl: itcNet, rev: itcReversed } = netItc({ ...itcGross, cess: itcCessFromPurchases }, returnsItc);
   const hasReversal = itcReversed.igst + itcReversed.cgst + itcReversed.sgst + itcReversed.cess > 0;
+  // v1.10.86 - reverse-charge purchase bills (the Reverse charge tick): their
+  // tax is 3.1(d), paid in cash (it cannot be paid from credit), and the same
+  // tax is credit in 4(A)(3) instead of 4(A)(5). Without such bills both are 0
+  // and every figure is as before.
+  const rcm31d = rcmInward(filteredPurchases, rcmReturns);
+  const rcmTax = rcm31d.iamt + rcm31d.camt + rcm31d.samt;
+  const hasRcm = rcm31d.txval > 0 || rcmTax > 0;
+  const { isrc: itcRcm, oth: itcOther } = splitRcmItc(itcNet, rcm31d);
   const itcFromExpenses = { cgst: itcNet.cgst, sgst: itcNet.sgst, igst: itcNet.igst };
   // v1.10.76 (#81) - credit set off across heads in the legal order (see setOffITC).
   const setOff = setOffITC({ igst: outputTax.igst + itcReversed.igst, cgst: outputTax.cgst + itcReversed.cgst, sgst: outputTax.sgst + itcReversed.sgst }, itcFromExpenses);
@@ -1122,6 +1130,8 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
     downloadCSV('GSTR3B_Summary.csv', ['Description', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Total'], [
       ['3.1(a) Outward taxable supplies', outward31a.taxable.toFixed(2), outward31a.igst.toFixed(2), outward31a.cgst.toFixed(2), outward31a.sgst.toFixed(2), (outward31a.igst + outward31a.cgst + outward31a.sgst).toFixed(2)],
       ['3.1(b) Zero rated (exports, SEZ)', exportTotals.taxable.toFixed(2), exportTotals.igst.toFixed(2), '0.00', '0.00', exportTotals.igst.toFixed(2)],
+      ...(hasRcm ? [['3.1(d) Inward supplies liable to reverse charge (paid in cash)', rcm31d.txval.toFixed(2), rcm31d.iamt.toFixed(2), rcm31d.camt.toFixed(2), rcm31d.samt.toFixed(2), rcmTax.toFixed(2)],
+        ['4(A)(3) ITC on reverse charge', '', itcRcm.igst.toFixed(2), itcRcm.cgst.toFixed(2), itcRcm.sgst.toFixed(2), (itcRcm.igst + itcRcm.cgst + itcRcm.sgst).toFixed(2)]] : []),
       ['4(A) ITC Available', '', itcFromExpenses.igst.toFixed(2), itcFromExpenses.cgst.toFixed(2), itcFromExpenses.sgst.toFixed(2), (itcFromExpenses.igst + itcFromExpenses.cgst + itcFromExpenses.sgst).toFixed(2)],
       ['6.1 ITC utilised', '', setOff.used.igst.toFixed(2), setOff.used.cgst.toFixed(2), setOff.used.sgst.toFixed(2), (setOff.used.igst + setOff.used.cgst + setOff.used.sgst).toFixed(2)],
       ['6.1 Tax Payable in cash', '', netTax.igst.toFixed(2), netTax.cgst.toFixed(2), netTax.sgst.toFixed(2), (netTax.igst + netTax.cgst + netTax.sgst).toFixed(2)],
@@ -1162,23 +1172,10 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
       // v1.10.31 — GST-M10: RCM inward supplies populated from purchases
       // flagged as reverse-charge (was hardcoded 0 → self-remit RCM liability
       // never reported → interest u/s 50).
-      isup_rev: (() => {
-        // v1.10.74 - only this return period's purchases; was every purchase ever
-        // recorded, so past reverse-charge tax was declared again each period.
-        const rcmPurchases = filteredPurchases.filter(p => !!p.reverseCharge);
-        if (rcmPurchases.length === 0 && !rcmReturns.taxable) return { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
-        const t = rcmPurchases.reduce((acc, p) => ({
-          txval: acc.txval + (Number(p.taxableAmount) || 0),
-          iamt: acc.iamt + (p.interstate ? (Number(p.totalTax) || 0) : 0),
-          camt: acc.camt + (p.interstate ? 0 : (Number(p.totalTax) || 0) / 2),
-          samt: acc.samt + (p.interstate ? 0 : (Number(p.totalTax) || 0) / 2),
-          csamt: acc.csamt + (Number(p.totalCess) || purchaseBookTotals(p).cess),
-        }), { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 });
-        // v1.10.85 (#168) - goods sent back on reverse-charge bills: the tax
-        // you owed on them comes off here too, in the debit note's month (the
-        // same rule as the ITC side, Table 4).
-        return rcmNetOfReturns(t, rcmReturns);
-      })(),
+      // v1.10.74 - only this return period's purchases. v1.10.85 (#168) - less
+      // returns on reverse-charge bills, in the debit note's month.
+      // v1.10.86 - worked out once (rcm31d, utils/debitNotes.js rcmInward).
+      isup_rev: rcm31d,
       osup_nongst: { txval: round2(nilSum(r => r.treatment === 'nongst')) }, // v1.10.84 - 3.1(e)
     };
 
@@ -1186,13 +1183,14 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
       itc_avl: [
         { ty: 'IMPG', iamt: 0, camt: 0, samt: 0, csamt: 0 },
         { ty: 'IMPS', iamt: 0, camt: 0, samt: 0, csamt: 0 },
-        { ty: 'ISRC', iamt: 0, camt: 0, samt: 0, csamt: 0 },
+        // v1.10.86 - 4(A)(3): credit of the reverse-charge tax (0 without such bills).
+        { ty: 'ISRC', iamt: round2(itcRcm.igst), camt: round2(itcRcm.cgst), samt: round2(itcRcm.sgst), csamt: round2(itcRcm.cess) },
         { ty: 'ISD',  iamt: 0, camt: 0, samt: 0, csamt: 0 },
         { ty: 'OTH',
-          iamt: round2(itcFromExpenses.igst),
-          camt: round2(itcFromExpenses.cgst),
-          samt: round2(itcFromExpenses.sgst),
-          csamt: round2(itcNet.cess),
+          iamt: round2(itcOther.igst),
+          camt: round2(itcOther.cgst),
+          samt: round2(itcOther.sgst),
+          csamt: round2(itcOther.cess),
         },
       ],
       // v1.10.85 (#168) - only when purchase returns are more than the
@@ -1529,7 +1527,8 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
 
   // ========== RENDER ==========
   const totalTax = grandTotals.cgst + grandTotals.sgst + grandTotals.igst;
-  const netPayable = netTax.igst + netTax.cgst + netTax.sgst;
+  // v1.10.86 - plus the reverse-charge tax, always paid in cash (3.1(d)).
+  const netPayable = netTax.igst + netTax.cgst + netTax.sgst + rcmTax;
 
   return (
     <div className="dashboard-container">
@@ -1938,6 +1937,10 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
                   <tr><td className="font-medium">(a) Outward taxable supplies (other than zero-rated, nil-rated and exempted)</td><td style={{ textAlign: 'right' }}>{formatCurrency(outward31a.taxable)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(outward31a.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(outward31a.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(outward31a.sgst)}</td></tr>
                   <tr><td className="font-medium">(b) Zero-rated supplies (exports, SEZ)</td><td style={{ textAlign: 'right' }}>{formatCurrency(exportTotals.taxable)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(exportTotals.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td></tr>
                   <tr><td className="font-medium">(c) Other outward supplies (nil rated, exempted)</td><td style={{ textAlign: 'right' }}>{formatCurrency(0)}</td><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>N/A</td></tr>
+                  {/* v1.10.86 - purchase bills ticked Reverse charge. */}
+                  {hasRcm && (
+                    <tr className="rcm-31d"><td className="font-medium">(d) Inward supplies liable to reverse charge (you pay this tax in cash)</td><td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.txval)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.iamt)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.camt)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.samt)}</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1995,7 +1998,10 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
                     <tr><td className="font-medium">ITC on purchase bills and expenses</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcGross.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcGross.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcGross.sgst)}</td></tr>
                     <tr><td className="font-medium" style={{ color: '#dc2626' }}>Less: purchase returns (debit notes)</td><td style={{ textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(returnsItc.igst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(returnsItc.cgst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>-{formatCurrency(returnsItc.sgst)}</td></tr>
                   </>}
-                  <tr><td className="font-medium">(A)(5) ITC Available — All other ITC{hasReturns ? ' (net of returns)' : ''}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcFromExpenses.sgst)}</td></tr>
+                  {hasRcm && (
+                    <tr className="rcm-4a3"><td className="font-medium">(A)(3) ITC on reverse charge (the tax in 3.1(d))</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcRcm.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcRcm.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcRcm.sgst)}</td></tr>
+                  )}
+                  <tr><td className="font-medium">(A)(5) ITC Available — All other ITC{hasReturns ? ' (net of returns)' : ''}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcOther.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcOther.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(itcOther.sgst)}</td></tr>
                   {hasReversal && (
                     <tr><td className="font-medium" style={{ color: '#dc2626' }}>(B)(2) ITC reversed — returns more than this period's ITC (paid with the tax)</td><td style={{ textAlign: 'right', color: '#dc2626' }}>{formatCurrency(itcReversed.igst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>{formatCurrency(itcReversed.cgst)}</td><td style={{ textAlign: 'right', color: '#dc2626' }}>{formatCurrency(itcReversed.sgst)}</td></tr>
                   )}
@@ -2026,6 +2032,13 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
                   <td style={{ textAlign: 'right' }}>{formatCurrency(netTax.igst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(netTax.cgst)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(netTax.sgst)}</td>
                   <td style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '1.1rem' }}>{formatCurrency(netTax.igst + netTax.cgst + netTax.sgst)}</td>
                 </tr>
+                {hasRcm && (
+                  <tr className="rcm-cash">
+                    <td>Add: reverse charge tax, 3.1(d) (cash only)</td>
+                    <td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.iamt)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.camt)}</td><td style={{ textAlign: 'right' }}>{formatCurrency(rcm31d.samt)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(rcmTax)}</td>
+                  </tr>
+                )}
                 {hasCarry && (
                   <tr style={{ color: 'var(--text-muted)' }}>
                     <td>ITC carried forward</td>

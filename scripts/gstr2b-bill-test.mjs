@@ -35,6 +35,7 @@ console.log('\n[#175] Intra-state invoice with two rates');
   eq(isTwoBPlaceholder('A4 paper'), false, 'a real item name is not');
   eq(f.applyRoundOff, false, 'exact total: no round-off');
   eq(f.note, 'From GSTR-2B (102026)', 'note');
+  eq(f.reverseCharge, false, 'rev N: not reverse charge');
   eq(purchaseTotals(f.items, f.applyRoundOff).finalTotal, 1600, 'saved bill total = 2B value');
 }
 
@@ -49,7 +50,8 @@ console.log('\n[#175] Inter-state with cess and a rounded value');
   const t = purchaseTotals(f.items, f.applyRoundOff);
   eq(Math.abs(t.finalTotal - 1399) <= 1, true, 'saved total within a rupee of the 2B value (matches)');
   eq(Math.abs(t.taxable - 999.6) <= 1, true, 'taxable within a rupee (matches)');
-  eq(f.note, 'From GSTR-2B. Reverse charge: Yes. ITC not available as per 2B (P)', 'reverse charge and ITC not available are noted');
+  eq(f.note, 'From GSTR-2B. ITC not available as per 2B (P)', 'ITC not available is noted');
+  eq(f.reverseCharge, true, 'rev Y: the bill is ticked Reverse charge');
 }
 
 console.log('\n[#175] Rate worked out when 2B has none; no tax uses place of supply');

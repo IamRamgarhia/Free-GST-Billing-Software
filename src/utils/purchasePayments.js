@@ -45,9 +45,17 @@ export function purchaseTotal(p) {
   if (Array.isArray(p?.items) && p.items.length) return r2(purchaseTotals(p.items, !!p.applyRoundOff).finalTotal);
   return r2(p?.totalAmount);
 }
-// What the supplier is to be paid: the total less TDS you keep back.
+// v1.10.86 - reverse charge: you pay the bill's GST (and cess) to the
+// government yourself, so it is not owed to the supplier. 0 on other bills.
+export function purchaseRcmTax(p) {
+  if (!p?.reverseCharge) return 0;
+  if (Array.isArray(p.items) && p.items.length) { const t = purchaseTotals(p.items); return r2(t.tax + t.cess); }
+  return r2((Number(p.totalTax) || 0) + (Number(p.totalCess) || 0));
+}
+// What the supplier is to be paid: the total less TDS you keep back
+// (and less the GST on a reverse-charge bill).
 export function purchaseOwed(p) {
-  const total = purchaseTotal(p);
+  const total = r2(purchaseTotal(p) - purchaseRcmTax(p));
   const tds = Math.min(Math.max(0, Number(p?.tdsAmount) || 0), Math.max(0, total));
   return r2(total - tds);
 }
