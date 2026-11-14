@@ -40,12 +40,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Chrome and Safari) and the PC's security code; Continue then opens the
   encrypted pairing page. The PIN is typed only once when pairing, and the PC
   shows "Paired: <name>" at once.
+- **The menu in groups you can customise**: the sidebar's screens are in
+  three groups (Sales, Stock & buying, Money & reports) that open and close
+  with a click. The pencil next to your business name opens **Customise
+  menu**: move items and groups, choose which groups start open, take items
+  out of the menu (the screen stays on and search still finds it), and
+  **Reset menu**. **Edit business details** is now in the list under your
+  business name.
+- **Red dots in the menu** when something needs you: overdue invoices
+  (Dashboard), recurring invoices due (Recurring), low stock (Products), a GST
+  return due in the next 10 days (GST Returns), an update (Settings), and
+  "New" on screens with something new. A closed group, the slim icon menu and
+  the phone's menu button show it too. They agree with the bell (Mark all as
+  read clears both); turn them off in Settings -> Appearance.
+- **Search answers "How do I…" questions** (Ctrl+K or the search box at the
+  top): 87 answers, everyday words and spelling mistakes work too ("credit
+  note", "add my logo", "bill kaise banaye"). Click to go straight to the
+  screen or Settings box (it is outlined), or **Guide** to read that part of
+  the online guide. The guide's pages are searchable too.
+- **New Invoice is shorter and shows the total** (#147, #189): items come
+  right under the customer; address, GSTIN, ship-to, order details, terms and
+  notes open on click and say what is in them when closed. Items, GST, total,
+  received and balance stay on screen next to Save. The document type is one
+  drop-down that starts as the type you used last, and the preview opens
+  fitted to its space.
+- **New invoice starts with** (Settings -> Company): document type, due in,
+  GST %, how "Received now" was paid, goods or services.
+- **Client quick actions**: New invoice, Record payment and Send reminder on a
+  client's account.
+- **Customise Dashboard**: hide, show or move its blocks, and choose where the
+  app opens (Dashboard, New Invoice or the invoice list).
+- **Sort by column** on the Dashboard, Purchases, Expenses and Products (click
+  a column heading; each list remembers), and **Sort by** for Clients.
+- **Saved filters** on the Dashboard: the last filters come back, and **Save
+  these filters** makes a named button.
+- **Scan a returned parcel to make its credit note** (#197): scan the label's
+  barcode (or type the order ID, AWB or invoice number) in the Dashboard
+  search; the invoice shows with **Return / credit note**, which opens a
+  credit note with the same items. Saving puts the stock back.
+- **WhatsApp sends the PDF from the PC too**: the app copies the invoice PDF
+  and opens the client's chat; press Ctrl+V (Mac: Cmd+V), then Send. On a
+  phone the Share sheet attaches it. Works on the invoice screen, the invoice
+  list, a client's account, statements and purchase orders. The invoice
+  screen's WhatsApp button saves the invoice first, like Save PDF.
+- **What's new after an update**: the first time the app opens after an
+  update, a few slides show what is new, once. See them again from Support &
+  About.
+- **Settings -> Appearance**: choose the app's colour, the text size of the
+  screens (Smaller to Largest), compact lists, and the red dots. Invoices and
+  PDFs keep their own look.
+- **Forgot PIN?** shows numbered steps with the exact folder, **Open the
+  folder**, and a button that opens the app as soon as the RESET-PIN file is
+  there.
+- **Windows: install with one command**, `winget install DiceCodes.FreeGSTBilling`
+  (once Microsoft has listed it).
 
 ### Changed
 - **The Windows Setup says "Updating"** when it updates the installed app
   (window title, pages and the Update button), instead of "Installing".
 - **A shorter What's new** on Support & About: only the main titles of each
   version, with **Read the full notes** for the full list on GitHub.
+- **One setup when you start**: the welcome asks what kind of business you
+  run (the second "Step 1 of 3" window is gone). Your business type also puts
+  matching terms on your bills (a shop no longer prints software-agency
+  terms), sets the print style, and starts shop and restaurant invoices with
+  "Cash Sale". Typing your GSTIN fills in your state and PAN.
+- **Same words and buttons everywhere**: View, Edit, Payment and More (…) in
+  the same order on every list; "Import / export CSV", "Purchases", "Add
+  Purchase Bill", "New Receipt"; one Business type picker (Settings ->
+  Company). A search box sits at the top of every screen, and **?** lists the
+  keyboard shortcuts.
+- **White suggestion lists**: Cash book name and category, supplier, item,
+  unit, client, category, brand, return reason and purpose code show the
+  app's own list (dark in dark mode) instead of the browser's black one, with
+  a search at the top when long.
+- **Edit in a window**: the Cash book's and cost centres' pencil opens a small
+  Edit window.
+- **A tidier Dashboard**: Totals for sits next to the title; the invoice
+  filters fit one line (dates and cost centre under **Dates & more**, Quick
+  print is one **Print** menu); the total cards line up.
+- **Free forever** sits under the app name in the menu; one **Lock** button
+  (on the Dashboard); the Control Panel says how the app was installed and
+  keeps Node.js, port and folders under Technical details.
+- **Node.js 26** (long-term support) for the Windows Setup, the Linux
+  packages, Docker and the Mac / Linux install line; Macs before macOS 13.5,
+  32-bit Windows and 32-bit ARM keep Node.js 22.
+- **Hide for 7 days** on the support card (was 30).
 
 ### Fixed
 - **Update Now on the ZIP copy no longer stays on "Updating..." for ever**
@@ -66,6 +146,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More space between boxes, notices and rows of buttons, so they no longer
   look joined. Settings -> Use on phone or tablet: the switch, the Windows
   note and the Pair button no longer touch.
+- **A duplicated invoice keeps its currency** (ERR-088).
+- Every drop-down's arrow has room on the right instead of sitting on the
+  edge; the Dashboard's Invoices / Cancelled / Trash tabs no longer touch the
+  line above them.
+- The thank-you and support cards no longer flash up and vanish when the
+  Dashboard loads.
+- The **⋯** menus on list rows were hard to read in dark mode.
+- On a phone: the menu button is no longer squeezed by the buttons at the
+  top, and the Customise menu and Edit windows open as a sheet at the bottom.
 
 ---
 
