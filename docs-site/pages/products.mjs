@@ -24,6 +24,7 @@ export default [
 </table></div>
 <p><b>Search by name or HSN...</b> narrows the list as you type (with <a href="#barcodes">Barcodes</a> on, it finds the barcode too). The cross clears it.</p>
 <p><b>Deleting many products at once:</b> tick the box at the start of each row (the box in the header ticks every product the list shows), then click ${ui('Delete selected')} and confirm. Only ticked products the list shows are deleted; invoices that used them keep their lines. ${ui('Clear')} unticks them all.</p>
+<p>Click a column header (Name, HSN/SAC, Rate, GST % or Stock) to sort the list by it: the first click sorts A to Z (lowest first), the second Z to A (highest first), the third puts the usual order back. A small arrow on the header shows the sort. Each list remembers its sort on this computer and browser. Services, which have no stock, go last when sorting by Stock.</p>
 <p>The <b>Products &amp; Services</b> table:</p>
 <div class="table-wrap"><table>
   <tr><th>Column</th><th>Shows</th></tr>

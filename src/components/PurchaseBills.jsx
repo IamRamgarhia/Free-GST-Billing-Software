@@ -32,6 +32,20 @@ import { findByBarcode } from '../utils/barcode';
 import { baseQty, lineFactor, altLineFields } from '../utils';
 import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { takeReorderDraft } from '../utils/reorderDraft';
+// v1.10.86 - sort by a column header, remembered in this browser.
+import { useListSort, sortRows } from '../utils/listPrefs';
+import SortTh from './SortTh';
+
+const SORT_GETTERS = {
+  date: (p) => p.date,
+  supplier: (p) => p.supplierName,
+  invoice: (p) => p.invoiceNumber,
+  taxable: (p) => calcPurchaseTotal(p.items, !!p.applyRoundOff).taxable,
+  tax: (p) => calcPurchaseTotal(p.items, !!p.applyRoundOff).tax,
+  total: (p) => calcPurchaseTotal(p.items, !!p.applyRoundOff).finalTotal,
+  balance: (p) => purchaseBalance(p),
+  status: (p) => purchaseStatus(p),
+};
 // v1.10.86 - (#148, #194) a supplier's statement, from the Purchase Records header.
 import SupplierStatement from './SupplierStatement';
 // v1.10.86 - (#175) a bill handed over from GST Returns -> GSTR-2B ("2B only").
@@ -324,6 +338,9 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
     if (statusFilter === 'Paid' && purchaseStatus(p) !== 'Paid') return false;
     return matchesCentre(p, centreFilter);
   });
+
+  const { sort, toggle: toggleSort } = useListSort('purchases', Object.keys(SORT_GETTERS));
+  const sortedPurchases = sortRows(filtered, sort, SORT_GETTERS);
 
   const totalStats = filtered.reduce((acc, p) => {
     const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
@@ -1928,20 +1945,20 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
             <table className="data-table" style={{ minWidth: '800px' }}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Supplier</th>
+                  <SortTh col="date" label="Date" sort={sort} onSort={toggleSort} />
+                  <SortTh col="supplier" label="Supplier" sort={sort} onSort={toggleSort} />
                   <th>GSTIN</th>
-                  <th>Invoice No</th>
-                  <th style={{ textAlign: 'right' }}>Taxable</th>
-                  <th style={{ textAlign: 'right' }}>Tax</th>
-                  <th style={{ textAlign: 'right' }}>Total</th>
-                  <th style={{ textAlign: 'right' }}>Balance due</th>
-                  <th>Status</th>
+                  <SortTh col="invoice" label="Invoice No" sort={sort} onSort={toggleSort} />
+                  <SortTh col="taxable" label="Taxable" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="tax" label="Tax" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="total" label="Total" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="balance" label="Balance due" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="status" label="Status" sort={sort} onSort={toggleSort} />
                   <th className="col-center col-sticky-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(p => {
+                {sortedPurchases.map(p => {
                   const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
                   const st = purchaseStatus(p);
                   const bal = purchaseBalance(p);

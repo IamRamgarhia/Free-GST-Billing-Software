@@ -120,7 +120,7 @@ export default function WelcomeGuide({ onComplete }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(0.75rem, 3vw, 2rem)', background: 'var(--bg-primary)' }}>
+    <div style={{ minHeight: 'calc(100vh / var(--ui-zoom, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(0.75rem, 3vw, 2rem)', background: 'var(--bg-primary)' }}>
       <div style={{ maxWidth: '680px', width: '100%' }}>
         {/* Progress */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', justifyContent: 'center' }}>

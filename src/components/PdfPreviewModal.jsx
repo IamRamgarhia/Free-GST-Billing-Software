@@ -76,7 +76,7 @@ export default function PdfPreviewModal({ doc, fileName, title, message, phone, 
     <div className="modal-overlay print-preview-overlay" role="dialog" aria-modal="true" aria-labelledby="pdf-preview-title"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ zIndex: 10001 }}>
       <div className="modal-content print-preview-content" onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 'min(900px, 96vw)', width: '100%', height: 'min(92vh, 92dvh)', padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        style={{ maxWidth: 'min(900px, calc(96vw / var(--ui-zoom, 1)))', width: '100%', height: 'calc(min(92vh, 92dvh) / var(--ui-zoom, 1))', padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.9rem 1.25rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)' }}>
           <h3 id="pdf-preview-title" style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <FileText size={18} style={{ color: 'var(--primary)' }} /> {title}

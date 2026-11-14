@@ -251,6 +251,18 @@ export const setMenuOrder = (order) => {
   } catch { /* ignore */ }
   menuChanged();
 };
+// v1.10.86 - the sidebar groups that are closed (list of group ids, see
+// utils/menuGroups.js). Mirrored to the data folder like the order.
+const MENU_CLOSED_KEY = 'gst_menuClosed';
+export const getMenuClosed = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(MENU_CLOSED_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+};
+export const setMenuClosed = (ids) => {
+  try { localStorage.setItem(MENU_CLOSED_KEY, JSON.stringify(ids || [])); } catch { /* ignore */ }
+};
 
 // v1.10.85 - the names of the price levels (Settings -> Features -> Price
 // levels): three strings, '' = level not used. One per PC like the switches,
@@ -689,7 +701,8 @@ const EXPORTABLE_LOCALSTORAGE_KEYS = [
   'gst_enabledModules',              // map of disabled feature toggles
   'gst_businessType',                // v1.10.83 — business type picked in Settings / first run
   'gst_offlineMode',                 // v1.10.83 — Offline mode: no automatic internet use
-  'gst_menuOrder',                   // v1.10.83 — sidebar order
+  'gst_menuOrder',                   // v1.10.83 — sidebar order (v1.10.86: with groups)
+  'gst_menuClosed',                  // v1.10.86 — sidebar groups that are closed
   'gst_filing_status',               // GSTR-1/3B "Filed" pill states per period key
   'gst_printSettings',               // v1.8.4 — thermal printer defaults (font, weight, all-caps, etc.)
   'gst_itrCalcInputs',               // v1.7.0 — regime calculator inputs

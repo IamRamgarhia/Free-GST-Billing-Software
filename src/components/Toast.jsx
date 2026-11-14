@@ -80,7 +80,8 @@ export default function ToastContainer() {
             borderLeft: `4px solid ${color.icon}`,
             color: color.text
           }}>
-            <Icon size={18} style={{ color: color.icon, flexShrink: 0 }} />
+            {/* v1.10.86 - a success toast draws its tick (index.css, none with reduced motion). */}
+            <Icon size={18} className={t.type === 'success' ? 'toast-tick' : undefined} style={{ color: color.icon, flexShrink: 0 }} />
             <span className="toast-message">{t.message}</span>
             {t.actions?.map((a) => (a.href
               ? <a key={a.label} className="toast-action" href={a.href} target="_blank" rel="noopener noreferrer">{a.label}</a>

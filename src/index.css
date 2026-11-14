@@ -26,6 +26,10 @@
      dynamic tints that used to be color-mix now use rgba(var(--primary-rgb), α). */
   --primary-rgb: 37, 99, 235;
   --primary-darker: #1e3a8a;
+  /* v1.10.86 - lighter shades of the accent, for text on dark surfaces; the
+     App colour (utils/appColour.js) sets all of these for its own colour. */
+  --primary-soft: #60a5fa;
+  --primary-pale: #93c5fd;
   --bg: #f0f2f5;
   --bg-primary: #f0f2f5;
   --bg-secondary: #f8fafc;       /* card / inset surface — light grey on light, dark slate on dark */
@@ -65,6 +69,8 @@
   --primary-light: rgba(59, 130, 246, 0.12);
   --primary-rgb: 59, 130, 246;
   --primary-darker: #1e3a8a;
+  --primary-soft: #60a5fa;
+  --primary-pale: #93c5fd;
   --bg: #0f172a;
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;       /* card / inset surface in dark mode */
@@ -95,7 +101,7 @@
 }
 [data-theme="dark"] .form-input { background-color: #1e293b; border-color: #334155; color: #f1f5f9; }
 [data-theme="dark"] .form-input::placeholder { color: #64748b; }
-[data-theme="dark"] .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+[data-theme="dark"] .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.2); }
 [data-theme="dark"] select.form-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E"); }
 [data-theme="dark"] .btn-secondary { background: #1e293b; color: #f1f5f9; border-color: #334155; }
 [data-theme="dark"] .btn-secondary:hover:not(:disabled) { background: #334155; border-color: #475569; }
@@ -103,16 +109,16 @@
 [data-theme="dark"] .data-table th { background: rgba(30,41,59,0.55); color: #94a3b8; }
 [data-theme="dark"] .data-table td { border-bottom-color: rgba(148,163,184,0.08); }
 [data-theme="dark"] .data-table tr:hover td { background: rgba(51,65,85,0.35); }
-[data-theme="dark"] .data-table tr:hover td:first-child { box-shadow: inset 3px 0 0 #60a5fa; }
+[data-theme="dark"] .data-table tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--primary-soft); }
 .row-overdue td { background: #fef2f2; }
 [data-theme="dark"] .row-overdue td { background: rgba(220,38,38,0.12) !important; color: #f1f5f9; }
 .row-warning td { background: #fffbeb; }
 [data-theme="dark"] .row-warning td { background: rgba(217,119,6,0.1) !important; color: #f1f5f9; }
 [data-theme="dark"] .search-input, [data-theme="dark"] .filter-select, [data-theme="dark"] .filter-date { background-color: #1e293b; border-color: #334155; color: #f1f5f9; }
 [data-theme="dark"] .template-editor, [data-theme="dark"] .template-card { background: #1e293b; border-color: #334155; }
-[data-theme="dark"] .quick-templates-section { background: rgba(59,130,246,0.08); border-color: #334155; }
-[data-theme="dark"] .quick-template-btn { background: #0f172a; border-color: #3b82f6; color: #60a5fa; }
-[data-theme="dark"] .quick-template-btn:hover { background: #3b82f6; color: white; }
+[data-theme="dark"] .quick-templates-section { background: rgba(var(--primary-rgb),0.08); border-color: #334155; }
+[data-theme="dark"] .quick-template-btn { background: #0f172a; border-color: var(--primary); color: var(--primary-soft); }
+[data-theme="dark"] .quick-template-btn:hover { background: var(--primary); color: white; }
 [data-theme="dark"] .client-card-header:hover, [data-theme="dark"] .payment-history, [data-theme="dark"] .upload-preview { background: #1e293b; }
 [data-theme="dark"] .payment-row, [data-theme="dark"] .upload-area { border-color: #334155; }
 [data-theme="dark"] .type-badge { background: #334155; color: #94a3b8; }
@@ -120,14 +126,14 @@
 [data-theme="dark"] .product-suggestion-item, [data-theme="dark"] .client-picker-item, [data-theme="dark"] .client-suggestion-item { border-color: #334155; }
 [data-theme="dark"] .product-suggestion-item:hover { background: #334155; }
 [data-theme="dark"] .client-picker-item, [data-theme="dark"] .client-suggestion-item { background: #0f172a; }
-[data-theme="dark"] .client-picker-item:hover, [data-theme="dark"] .client-suggestion-item:hover { background: rgba(59,130,246,0.12); }
-[data-theme="dark"] .client-suggestion-save { border-color: #3b82f6; color: #60a5fa; }
-[data-theme="dark"] .client-suggestion-save:hover { background: rgba(59,130,246,0.12); }
-[data-theme="dark"] .btn-client-edit { background: rgba(59,130,246,0.12); border-color: #3b82f6; color: #60a5fa; }
-[data-theme="dark"] .btn-client-edit:hover { background: #3b82f6; color: white; }
+[data-theme="dark"] .client-picker-item:hover, [data-theme="dark"] .client-suggestion-item:hover { background: rgba(var(--primary-rgb),0.12); }
+[data-theme="dark"] .client-suggestion-save { border-color: var(--primary); color: var(--primary-soft); }
+[data-theme="dark"] .client-suggestion-save:hover { background: rgba(var(--primary-rgb),0.12); }
+[data-theme="dark"] .btn-client-edit { background: rgba(var(--primary-rgb),0.12); border-color: var(--primary); color: var(--primary-soft); }
+[data-theme="dark"] .btn-client-edit:hover { background: var(--primary); color: white; }
 [data-theme="dark"] .client-suggestion-edit { background: #0f172a; border-color: #334155; color: #64748b; }
-[data-theme="dark"] .client-suggestion-edit:hover { background: rgba(59,130,246,0.12); color: #60a5fa; }
-[data-theme="dark"] .extra-section-editor { background: rgba(59,130,246,0.08); border-color: #334155; }
+[data-theme="dark"] .client-suggestion-edit:hover { background: rgba(var(--primary-rgb),0.12); color: var(--primary-soft); }
+[data-theme="dark"] .extra-section-editor { background: rgba(var(--primary-rgb),0.08); border-color: #334155; }
 [data-theme="dark"] .client-actions-bar { background: #1e293b; border-color: #334155; }
 /* Force invoice preview to always be light (PDF output) */
 [data-theme="dark"] .invoice-preview-container,
@@ -211,6 +217,7 @@ body {
 .app-layout {
   display: flex;
   height: 100vh;
+  height: calc(100vh / var(--ui-zoom, 1)); /* v1.10.86 - Text size zooms vh too */
   overflow: hidden;
   position: relative;
 }
@@ -371,6 +378,7 @@ body {
      CSS had no overflow rule so bottom items got clipped invisibly.
      Now: sidebar scrolls internally, brand stays at top. */
   height: 100vh;
+  height: calc(100vh / var(--ui-zoom, 1));
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -392,7 +400,7 @@ body {
   background: transparent; border: 1px solid transparent; color: rgba(255,255,255,0.6);
 }
 .sidebar-autohide-toggle:hover { background: rgba(255,255,255,0.08); color: #fff; }
-.sidebar-autohide-toggle.on { background: rgba(37, 99, 235, 0.18); border-color: rgba(37, 99, 235, 0.45); color: #93c5fd; }
+.sidebar-autohide-toggle.on { background: rgba(var(--primary-rgb), 0.18); border-color: rgba(var(--primary-rgb), 0.45); color: var(--primary-pale); }
 .sidebar-autohide-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* Support & About stands out in the sidebar: a rose pill, solid when open. */
@@ -445,6 +453,12 @@ body {
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-badge {
     top: 6px !important; right: 10px !important; min-width: 0 !important; width: 8px; height: 8px !important; padding: 0 !important; font-size: 0 !important;
   }
+  /* v1.10.86 - in the closed rail a group header is a thin line between the
+     groups; the names, grips and "Arrange menu" come back when it opens. */
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn {
+    font-size: 0; padding: 0; height: 1px; margin: 0.4rem 0.6rem; border-radius: 0; background: rgba(148, 163, 184, 0.3); pointer-events: none;
+  }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) :is(.nav-group-chevron, .nav-grip, .nav-arrows, .nav-edit-row, .nav-edit-hint, .nav-group-shut) { display: none !important; }
 }
 @media (max-width: 768px) { .sidebar-autohide-toggle { display: none; } }
 
@@ -630,7 +644,7 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-search { background: rgba(1
     left: 0;
     bottom: 0;
     z-index: 1200;
-    width: min(280px, 85vw);
+    width: min(280px, calc(85vw / var(--ui-zoom, 1)));
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     box-shadow: 4px 0 24px rgba(0,0,0,0.35);
@@ -735,7 +749,7 @@ html:not([data-theme="dark"]) .sidebar-free { color: #16a34a; }
   justify-content: center;
   transition: background 0.15s, color 0.15s;
 }
-.profile-switcher-edit:hover { background: rgba(255,255,255,0.12); color: #60a5fa; }
+.profile-switcher-edit:hover { background: rgba(255,255,255,0.12); color: var(--primary-soft); }
 .profile-switcher-btn {
   display: flex;
   align-items: center;
@@ -784,7 +798,7 @@ html:not([data-theme="dark"]) .sidebar-free { color: #16a34a; }
   transition: background 0.1s;
 }
 .profile-switcher-item:hover { background: rgba(255,255,255,0.08); }
-.profile-switcher-item.active { color: #60a5fa; font-weight: 600; }
+.profile-switcher-item.active { color: var(--primary-soft); font-weight: 600; }
 .profile-switcher-manage {
   border-top: 1px solid rgba(255,255,255,0.08);
   color: #64748b;
@@ -816,11 +830,85 @@ html:not([data-theme="dark"]) .sidebar-free { color: #16a34a; }
 .nav-btn-active {
   background: var(--primary) !important;
   color: white !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.35);
 }
 
 .nav-btn-bottom {
   margin-top: auto;
+}
+
+/* v1.10.86 - sidebar groups that open and close, and drag to any place
+   (components/SidebarMenu.jsx). Light-theme colours further down. */
+.nav-groups { position: relative; display: flex; flex-direction: column; gap: 0.6rem; margin: 0.75rem 0 0.35rem; }
+/* Slightly shorter rows (were 0.7rem) so the three group names cost little height. */
+.sidebar-nav .nav-btn { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.nav-group, .nav-group-items { display: flex; flex-direction: column; gap: 0.25rem; }
+.nav-group-head { position: relative; display: flex; align-items: center; gap: 0.25rem; }
+.nav-group-btn {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 1rem; border: 0; border-radius: 6px; background: transparent; color: #64748b;
+  font-family: inherit; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  text-align: left; cursor: pointer;
+}
+@media (hover: hover) { .nav-group-btn:hover { color: #cbd5e1; background: rgba(255,255,255,0.04); } }
+.nav-group-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-group-chevron { flex-shrink: 0; transition: transform 0.15s ease; }
+.nav-group-chevron.closed { transform: rotate(-90deg); }
+.nav-group-btn:focus-visible, .nav-groups .nav-btn:focus-visible, .nav-arrow:focus-visible, .nav-edit-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nav-row { position: relative; display: flex; align-items: center; gap: 0.25rem; }
+.nav-row > .nav-btn { flex: 1; min-width: 0; }
+.nav-row > .nav-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The grip: shown on hover (mouse), always while arranging (phone too). */
+.nav-grip {
+  display: none; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 28px; border-radius: 6px; color: #64748b; cursor: grab; touch-action: none;
+}
+.nav-grip:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+.nav-drag-on, .nav-drag-on * { cursor: grabbing !important; user-select: none; }
+@media (hover: hover) {
+  .nav-row:hover > .nav-grip, .nav-group-head:hover > .nav-grip, .nav-held > .nav-grip, .nav-held > .nav-group-head > .nav-grip {
+    display: flex; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  }
+  .nav-row > .nav-btn-active ~ .nav-grip { color: rgba(255,255,255,0.85); }
+}
+.nav-drag-on .nav-held { opacity: 0.45; }
+.nav-drop-line {
+  position: absolute; left: 0.25rem; right: 0.25rem; height: 3px; margin-top: -1.5px; border-radius: 2px;
+  background: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); pointer-events: none; z-index: 2;
+}
+.nav-group-empty {
+  margin: 0 0.5rem; padding: 0.55rem; border: 1px dashed rgba(255,255,255,0.2); border-radius: 8px;
+  font-size: 0.72rem; color: #64748b; text-align: center;
+}
+/* "Arrange menu": arrows, grips always shown, Done / Reset menu. */
+.nav-editing .nav-row > .nav-grip, .nav-editing .nav-group-head > .nav-grip { display: flex; position: static; transform: none; }
+.nav-btn.nav-btn-editing { cursor: default; padding: 0.55rem 0.6rem; }
+.nav-editing .nav-group-btn { padding: 0.3rem 0 0.3rem 0.6rem; cursor: default; }
+.nav-editing .nav-group-btn:hover { background: transparent; color: #64748b; }
+.nav-btn.nav-btn-editing:hover { background: transparent; color: inherit; }
+.nav-arrows { display: flex; gap: 3px; flex-shrink: 0; }
+.nav-arrow {
+  width: 26px; height: 28px; display: flex; align-items: center; justify-content: center; padding: 0;
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #cbd5e1; cursor: pointer;
+}
+.nav-arrow:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-arrow:disabled { opacity: 0.3; cursor: default; }
+.nav-edit-hint { margin: 0 0.5rem; font-size: 0.72rem; line-height: 1.45; color: #94a3b8; }
+.nav-edit-hint svg { vertical-align: -2px; }
+.nav-edit-row { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.5rem; }
+.nav-edit-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: #64748b;
+  font-family: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+}
+.nav-edit-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.06); }
+.nav-editing .nav-edit-btn { border-color: rgba(255,255,255,0.14); color: #cbd5e1; }
+.nav-editing .nav-edit-btn.nav-edit-done { background: var(--primary); border-color: var(--primary); color: #fff; }
+@media (max-width: 768px) {
+  .nav-arrow { width: 34px; height: 34px; }
+  /* A finger uses the arrows: the grips would only squeeze the names. */
+  .nav-editing .nav-row > .nav-grip, .nav-editing .nav-group-head > .nav-grip { display: none; }
+  .nav-edit-btn { padding: 0.45rem 0.75rem; font-size: 0.78rem; }
 }
 
 .main-content {
@@ -892,7 +980,7 @@ html:not([data-theme="dark"]) .sidebar-free { color: #16a34a; }
    `oklab` slightly differently; the fallback ensures the gradient
    still reads correctly. */
 [data-theme="dark"] .page-header {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), var(--card-bg));
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.14), var(--card-bg));
 }
 /* v1.10.77 (#84) - compact header (Dashboard): a plain title row. */
 .page-header.page-header-compact,
@@ -1019,12 +1107,12 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 .btn-primary {
   background: var(--primary);
   color: white;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.25);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
   transform: translateY(-1px);
 }
 
@@ -1064,7 +1152,7 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   background: var(--primary-light);
   color: var(--primary);
 }
-.icon-btn-blue:hover { background: rgba(37, 99, 235, 0.18); box-shadow: 0 2px 6px rgba(37,99,235,0.15); }
+.icon-btn-blue:hover { background: rgba(var(--primary-rgb), 0.18); box-shadow: 0 2px 6px rgba(var(--primary-rgb),0.15); }
 
 .icon-btn-red {
   background: var(--danger-light);
@@ -1079,6 +1167,43 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    for every column at natural width while still preventing infinite
    stretch on ultra-wide displays. */
 .dashboard-container { max-width: 1400px; margin: 0 auto; width: 100%; }
+/* v1.10.86 - Customise Dashboard: the blocks are flex items, so their CSS
+   order follows the order chosen (the blocks only have bottom margins, so the
+   spacing is the same as before). */
+.dashboard-blocks { display: flex; flex-direction: column; }
+.dash-customise-phone { display: none; vertical-align: middle; margin-left: 0.25rem; }
+@media (max-width: 480px) { .dash-customise-btn { display: none; } .dash-customise-phone { display: inline-flex; } }
+.dash-customise-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; }
+.dash-customise-list li { display: flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.6rem; border-top: 1px solid var(--border); }
+.dash-customise-list li:first-child { border-top: 0; }
+.dash-customise-list li.is-hidden label { color: var(--text-muted); }
+.dash-customise-list label { flex: 1; display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; min-width: 0; }
+.dash-customise-list input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); flex-shrink: 0; }
+.dash-customise-list .icon-btn:disabled { opacity: 0.3; cursor: default; }
+/* v1.10.86 - a sortable column header: a button that looks like the header
+   text; the arrow is drawn here so the header's text stays the column name. */
+.th-sort { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; display: inline-flex; align-items: center; white-space: nowrap; }
+.th-sort::after { content: "\2195"; margin-left: 0.3em; opacity: 0.35; font-size: 0.9em; }
+.th-sort:hover::after { opacity: 0.7; }
+.th-sort:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
+th[aria-sort] .th-sort { color: var(--primary); }
+th[aria-sort="ascending"] .th-sort::after { content: "\25B2"; opacity: 1; font-size: 0.7em; }
+th[aria-sort="descending"] .th-sort::after { content: "\25BC"; opacity: 1; font-size: 0.7em; }
+/* v1.10.86 - Clients: search with Sort by beside it. */
+.client-search-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.client-search-bar .search-box { flex: 1 1 240px; }
+.client-sort { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+/* v1.10.86 - saved filter sets above the invoice list. */
+.saved-filters { padding: 0.5rem 0.85rem; display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
+.saved-filters-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.saved-filter-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; font-size: 0.75rem; }
+.saved-filter-chip button { background: none; border: 0; color: var(--text-primary); font: inherit; font-weight: 600; cursor: pointer; padding: 0.25rem 0.65rem; }
+.saved-filter-chip button + button { padding: 0.25rem 0.45rem; color: var(--text-muted); border-left: 1px solid var(--border); display: inline-flex; }
+.saved-filter-chip button:hover { background: rgba(var(--primary-rgb), 0.08); }
+.saved-filter-chip.is-on { border-color: var(--primary); background: var(--primary); }
+.saved-filter-chip.is-on button { color: #fff; }
+.saved-filter-chip.is-on button + button { border-left-color: rgba(255, 255, 255, 0.35); }
+.saved-filter-chip button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 /* v1.10.37 — Widened 800 → 1100px. Reported: "settings page could
    be widened so nav pills fit on one line". 11-chip jump-nav needs
    ~950px to render without horizontal scroll, so 1100 gives comfortable
@@ -1265,7 +1390,7 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   border-radius: 999px;
   vertical-align: middle;
 }
-[data-theme="dark"] .currency-chip { background: rgba(59,130,246,0.18); color: #93c5fd; }
+[data-theme="dark"] .currency-chip { background: rgba(var(--primary-rgb),0.18); color: var(--primary-pale); }
 
 .table-actions {
   display: flex;
@@ -1471,7 +1596,7 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   padding: 2rem;
   max-width: 560px;
   width: 90%;
-  max-height: 85vh;
+  max-height: calc(85vh / var(--ui-zoom, 1));
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
 }
@@ -1521,7 +1646,7 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary), #3b82f6);
+  background: linear-gradient(135deg, var(--primary), rgba(var(--primary-rgb), 0.85));
   color: white;
   display: flex;
   align-items: center;
@@ -3112,7 +3237,7 @@ kbd {
   background: var(--primary);
   color: white;
   border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.25);
 }
 
 .type-desc {
@@ -3432,7 +3557,7 @@ kbd {
 }
 .status-select:hover { transform: translateY(-1px); }
 .status-select:focus-visible {
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.25);
 }
 
 /* ========= Stats Grid 4-col ========= */
@@ -3658,7 +3783,7 @@ html:not([data-theme="dark"]) .sidebar-title { color: #0f172a; }
 html:not([data-theme="dark"]) .sidebar-subtitle { color: #64748b; }
 html:not([data-theme="dark"]) .sidebar-autohide-toggle { color: #64748b; }
 html:not([data-theme="dark"]) .sidebar-autohide-toggle:hover { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
-html:not([data-theme="dark"]) .sidebar-autohide-toggle.on { background: rgba(37, 99, 235, 0.10); border-color: rgba(37, 99, 235, 0.35); color: var(--primary); }
+html:not([data-theme="dark"]) .sidebar-autohide-toggle.on { background: rgba(var(--primary-rgb), 0.10); border-color: rgba(var(--primary-rgb), 0.35); color: var(--primary); }
 html:not([data-theme="dark"]) .nav-btn.nav-btn-support { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
 html:not([data-theme="dark"]) .nav-btn.nav-btn-support:hover { background: #ffe4e6; color: #9f1239; }
 html:not([data-theme="dark"]) .nav-btn.nav-btn-support > svg { color: #e11d48; }
@@ -3667,6 +3792,17 @@ html:not([data-theme="dark"]) .nav-btn.nav-btn-support-active:hover { background
 html:not([data-theme="dark"]) .nav-btn.nav-btn-support-active > svg { color: #fff; }
 html:not([data-theme="dark"]) .nav-btn { color: #475569; }
 html:not([data-theme="dark"]) .nav-btn:hover { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
+/* v1.10.86 - menu groups and "Arrange menu" in the light theme. */
+@media (hover: hover) { html:not([data-theme="dark"]) .nav-group-btn:hover { color: #0f172a; background: rgba(15, 23, 42, 0.04); } }
+html:not([data-theme="dark"]) .nav-btn.nav-btn-editing:hover { background: transparent; color: #475569; }
+html:not([data-theme="dark"]) .nav-grip:hover { color: #0f172a; background: rgba(15, 23, 42, 0.06); }
+html:not([data-theme="dark"]) .nav-group-empty { border-color: rgba(15, 23, 42, 0.22); }
+html:not([data-theme="dark"]) .nav-arrow { border-color: var(--border); background: rgba(15, 23, 42, 0.03); color: #334155; }
+html:not([data-theme="dark"]) .nav-arrow:hover:not(:disabled) { background: rgba(15, 23, 42, 0.08); color: #0f172a; }
+html:not([data-theme="dark"]) .nav-edit-hint { color: #64748b; }
+html:not([data-theme="dark"]) .nav-edit-btn:hover { color: #0f172a; background: rgba(15, 23, 42, 0.06); }
+html:not([data-theme="dark"]) .nav-editing .nav-edit-btn { border-color: var(--border); color: #334155; }
+html:not([data-theme="dark"]) .nav-editing .nav-edit-btn.nav-edit-done { color: #fff; border-color: var(--primary); }
 html:not([data-theme="dark"]) .profile-switcher-btn,
 html:not([data-theme="dark"]) .profile-switcher-edit {
   background: rgba(15, 23, 42, 0.04);
@@ -3685,7 +3821,7 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-btn { background: rgba(15, 
 
 /* v1.10.77 (#84) - PIN lock screen (AppLock.jsx) */
 .app-lock-screen {
-  min-height: 100vh;
+  min-height: calc(100vh / var(--ui-zoom, 1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3865,3 +4001,103 @@ html:not([data-theme="dark"]) .welcome-card-close:hover { background: rgba(15, 2
    above or below it. */
 :is(.main-content, .modal-overlay) * + .notice:not(#section-phone *),
 :is(.main-content, .modal-overlay) .notice + *:not(#section-phone *) { margin-top: 0.75rem; }
+
+/* ========= v1.10.86 - Settings -> Appearance (utils/appLook.js) ========= */
+/* App colour: the invoice sheet keeps the default accent (its own colours are
+   Print & PDF's --pdf-accent; the few var(--primary) inside it stay blue). */
+html[data-accent] .invoice-preview-container { --primary: #2563eb; --primary-hover: #1d4ed8; --primary-light: rgba(37, 99, 235, 0.08); --primary-rgb: 37, 99, 235; --primary-darker: #1e3a8a; }
+html[data-accent][data-theme="dark"] .invoice-preview-container { --primary: #3b82f6; --primary-hover: #2563eb; --primary-light: rgba(59, 130, 246, 0.12); --primary-rgb: 59, 130, 246; }
+
+/* Text size: the app is zoomed as a whole, the invoice sheet zoomed back so
+   the preview, the PDF and the print are unchanged. vh / vw inside a zoomed
+   element are zoomed too, so screen-height rules divide by --ui-zoom. */
+@media screen {
+  html[data-text-size] #root { zoom: var(--ui-zoom, 1); }
+  html[data-text-size] .invoice-preview-container { zoom: calc(1 / var(--ui-zoom, 1)); }
+}
+/* Larger text: the Live preview bar wraps (it ran past the narrower pane). */
+html:is([data-text-size="lg"], [data-text-size="xl"]) .preview-pane-label { flex-wrap: wrap; row-gap: 0.4rem; border-radius: 14px !important; }
+
+/* Compact lists: tighter rows in every list (Invoices, Purchases, Expenses,
+   Products, reports) and smaller client cards, so more fit on the screen. */
+html[data-compact] .data-table th { padding-top: 0.45rem; padding-bottom: 0.45rem; }
+html[data-compact] .data-table td { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+html[data-compact] .data-table .icon-btn { width: 26px; height: 26px; }
+html[data-compact] .data-table .status-select { min-height: 0; padding-top: 0.15rem; padding-bottom: 0.15rem; }
+html[data-compact] .client-list > .glass-panel { margin-bottom: 0.5rem; }
+html[data-compact] .client-card-header { padding: 0.6rem 1rem; }
+html[data-compact] .client-card-header .client-avatar { width: 32px; height: 32px; font-size: 0.95rem; border-radius: 8px; }
+
+/* The App colour swatches. */
+.colour-swatches { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.colour-swatch {
+  width: 36px; height: 36px; border-radius: 50%; cursor: pointer; padding: 0;
+  border: 2px solid var(--card-bg); box-shadow: 0 0 0 1px var(--border-color);
+  display: inline-flex; align-items: center; justify-content: center; color: #fff;
+}
+.colour-swatch.on { box-shadow: 0 0 0 2px var(--text); }
+.colour-swatch-custom { position: relative; overflow: hidden; background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444); }
+.colour-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; border: 0; padding: 0; }
+.look-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; padding: 1rem 0; border-top: 1px solid var(--border-color); }
+.look-row:first-of-type { border-top: 0; padding-top: 0.25rem; }
+.look-row-label { flex: 1 1 220px; min-width: 0; }
+.look-row-label b { display: block; font-size: 0.92rem; }
+.look-row-label span { display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; line-height: 1.45; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
+.seg .btn { padding: 0.45rem 0.85rem; }
+.seg .btn[aria-pressed="true"] { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* "What's new" slides (WhatsNewSlides.jsx). */
+.wns { max-width: 460px; padding: 1.25rem 1.5rem 1.25rem; outline: none; display: flex; flex-direction: column; gap: 1rem; }
+.wns-top { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.wns-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.wns-close { background: none; border: 0; color: var(--text-muted); cursor: pointer; padding: 0.3rem; border-radius: 6px; display: inline-flex; }
+.wns-close:hover { background: var(--bg-tertiary); color: var(--text); }
+.wns-slide { min-height: 228px; }
+.wns-icon { width: 52px; height: 52px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; background: var(--primary-light); color: var(--primary); margin-bottom: 0.85rem; }
+.wns-title { margin: 0 0 0.6rem; font-size: 1.2rem; line-height: 1.3; }
+.wns-text { margin: 0; color: var(--text-secondary); line-height: 1.6; }
+.wns-list { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.45rem; line-height: 1.45; }
+.wns-list li::marker { color: var(--primary); }
+.wns-dots { display: flex; justify-content: center; gap: 0.25rem; }
+.wns-dot { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.wns-dot::before { content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--border-color); transition: width 0.2s ease, background 0.2s ease; }
+.wns-dot.on::before { width: 20px; background: var(--primary); }
+.wns-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.wns-actions-end { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+@media (max-width: 480px) {
+  .wns { width: calc(100% - 2rem); padding: 1.1rem 1.1rem 1.2rem; }
+  .wns-actions-end { width: 100%; }
+  .wns-actions-end .btn { flex: 1 1 auto; }
+}
+
+/* ========= v1.10.86 - small motions. None when the system asks for less
+   motion (Windows: Settings -> Accessibility -> Visual effects -> Animation
+   effects off). Nothing here runs while typing or scrolling. ========= */
+/* The success toast draws its tick (an invoice saved, a PDF downloaded). */
+@keyframes tick-draw { to { stroke-dashoffset: 0; } }
+/* The Save PDF button while the PDF is being made: a bar along its foot. */
+.btn-progress { position: relative; overflow: hidden; }
+.btn-progress::after {
+  content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: 40%;
+  border-radius: 3px; background: var(--primary); animation: btn-progress 1.1s ease-in-out infinite;
+}
+@keyframes btn-progress { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes wns-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .toast-tick circle { stroke-dasharray: 64; stroke-dashoffset: 64; animation: tick-draw 0.35s ease-out forwards; }
+  .toast-tick path { stroke-dasharray: 10; stroke-dashoffset: 10; animation: tick-draw 0.25s ease-out 0.3s forwards; }
+  .wns-slide { animation: wns-in 0.22s ease-out; }
+  /* Fold-out panels (<details>) open and close smoothly where the browser
+     can (Edge, Chrome, the Windows app's window); elsewhere they open at once,
+     as before. */
+  @supports (interpolate-size: allow-keywords) {
+    details { interpolate-size: allow-keywords; }
+    details::details-content { overflow: clip; overflow-clip-margin: 6px; transition: block-size 0.2s ease, content-visibility 0.2s allow-discrete; }
+    details:not([open])::details-content { block-size: 0; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-progress::after { animation: none; width: 100%; opacity: 0.5; }
+}
+

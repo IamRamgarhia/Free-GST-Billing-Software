@@ -19,6 +19,7 @@ import HelpButton from './HelpButton';
 import BooksLockSettings from './BooksLockSettings';
 import AppLockSettings from './AppLockSettings';
 import PrivacyInternet from './PrivacyInternet';
+import AppearanceSettings from './AppearanceSettings';
 import PhoneAccessSettings from './PhoneAccessSettings';
 import CostCentreSettings from './CostCentreSettings';
 import { BusinessTypePanel, FeaturesPanel, useFeatureDraft } from './FeatureSettings';
@@ -45,6 +46,8 @@ const SETTINGS_TABS = [
   ['tab-features', 'Features',           ['section-modules', 'section-costcentres', 'section-stock']],
   ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-phone', 'section-privacy']],
   ['tab-data',     'Data & Backups',     ['section-backups', 'section-books', 'section-cloud', 'section-data']],
+  // v1.10.86 - App colour, Text size and Compact lists.
+  ['tab-look',     'Appearance',         ['section-appearance']],
   ['tab-updates',  'Updates',            ['section-updates']],
 ];
 const ALL_SECTIONS = SETTINGS_TABS.flatMap(([, , sections]) => sections);
@@ -60,7 +63,7 @@ const SETTINGS_TAB_DOCS = {
   'section-terms': 'settings#terms', 'section-print': 'print-settings', 'section-modules': 'settings#features',
   'section-stock': 'settings#stock', 'section-region': 'settings#region', 'section-lock': 'settings#lock', 'section-phone': 'phone', 'section-privacy': 'security#offline-mode',
   'section-backups': 'backup#automatic-backups', 'section-books': 'backup#close-books', 'section-cloud': 'settings#google-drive', 'section-data': 'backup#export-import',
-  'section-updates': 'settings#updates',
+  'section-updates': 'settings#updates', 'section-appearance': 'settings#appearance',
 };
 
 export default function SettingsView({ onSaved }) {
@@ -1108,6 +1111,9 @@ export default function SettingsView({ onSaved }) {
       </div>
       <div id="section-privacy" className="glass-panel p-6 mb-6" style={{ order: 7 }}>
         <PrivacyInternet />
+      </div>
+      <div id="section-appearance" className="glass-panel p-6 mb-6" style={{ order: 10 }}>
+        <AppearanceSettings />
       </div>
 
       {/* ---- Business Profile ---- */}

@@ -3,6 +3,7 @@ import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, Refr
 import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
+import SidebarMenu from './components/SidebarMenu';
 import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
@@ -25,6 +26,7 @@ import UpdateOverlay from './components/UpdateOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
+import { WhatsNewAfterUpdate } from './components/WhatsNewSlides';
 const SettingsView = lazy(() => import('./components/SettingsView'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
 const InventoryView = lazy(() => import('./components/InventoryView'));
@@ -43,6 +45,7 @@ import AppFooter from './components/AppFooter';
 import OfflineModeButton from './components/OfflineModeButton';
 import PhonePairButton from './components/PhonePairButton';
 import { isOfflineMode } from './utils/offlineMode';
+import { startView } from './utils/listPrefs';
 import HelpButton from './components/HelpButton';
 import ActionsMenu from './components/ActionsMenu';
 import { lockNow } from './utils/appLock';
@@ -89,7 +92,9 @@ function App() {
     } catch { /* sandboxed history API — fall through */ }
     // 'guide' was the built-in User Guide (removed in v1.10.75).
     const last = sessionStorage.getItem('gst_currentView');
-    return last && last !== 'guide' ? last : 'dashboard';
+    // v1.10.86 - a new tab or window opens on the screen chosen in Customise
+    // Dashboard ("Open the app on"); a reload keeps the screen it was on.
+    return last && last !== 'guide' ? last : startView();
   });
   const [profile, setProfile] = useState(null);
   // v1.10.83 - the menu's own name and logo, as last shown (see `brand` below).
@@ -491,7 +496,8 @@ function App() {
   const [navOpen, setNavOpen] = useState(false);
   const closeNavAfterPick = (e) => {
     const picked = e.target.closest('button');
-    if (picked && !picked.classList.contains('profile-switcher-btn')) setNavOpen(false);
+    // v1.10.86 - nor opening / closing a menu group or arranging the menu.
+    if (picked && !picked.classList.contains('profile-switcher-btn') && !picked.hasAttribute('data-keep-open')) setNavOpen(false);
   };
 
   // v1.10.76 - a fresh editor for every invoice opened, so nothing (such as
@@ -737,6 +743,8 @@ function App() {
       ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
       ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
       ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
+      // v1.10.86
+      ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'],
     ];
     settingsJumps.forEach(([s, sectionId]) => {
       acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => openSettingsAt(sectionId) });
@@ -912,6 +920,9 @@ function App() {
           if (p) setProfile(p);
           setShowWelcome(false);
         }} />
+        {/* v1.10.86 - mounted (and blocked) during the welcome so a new install
+            marks this version's slides as seen: none right after setup. */}
+        <WhatsNewAfterUpdate blocked />
         <ToastContainer />
         <ConfirmModalContainer />
       </>
@@ -920,6 +931,9 @@ function App() {
 
   return (
     <div className={`app-layout${sidebarAutoHide ? ' sidebar-autohide' : ''}`}>
+      {/* v1.10.86 - "What's new" slides, once after an update (never during the
+          first-run welcome, which renders above instead of this layout). */}
+      <WhatsNewAfterUpdate blocked={showWelcome} />
       {/* v1.10.66 (#59) — phone-only top bar with the menu button. CSS hides it
           on wider screens, where the sidebar is always shown. */}
       <div className="mobile-topbar">
@@ -1003,15 +1017,9 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-btn ${currentView === item.id ? 'nav-btn-active' : ''}`}
-              onClick={item.onClick || (() => setCurrentView(item.id))}
-            >
-              <item.icon size={18} /> {item.label}
-            </button>
-          ))}
+          {/* v1.10.86 - in groups that open and close, and drag to any place. */}
+          <SidebarMenu items={navItems} currentView={currentView}
+            onPick={(item) => (item.onClick ? item.onClick() : setCurrentView(item.id))} />
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {/* Update-available banner — only shows when GitHub has a newer version
                 AND the user hasn't already dismissed THIS specific version. New
