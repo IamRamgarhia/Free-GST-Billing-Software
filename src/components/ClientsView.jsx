@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download, Eye, IndianRupee, Send } from 'lucide-react';
+import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download, Eye, IndianRupee, Send, UserPlus } from 'lucide-react';
 import HelpButton from './HelpButton';
+import PageHeader, { BarButton } from './PageHeader';
 import { getAllClients, getAllBills, deleteClient, saveClient, saveBill, getProfile, deleteReceipt, trashBill, getAllReceipts } from '../store';
 import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, belongsToProfile } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
@@ -783,25 +784,18 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint, onNew
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Clients <HelpButton title="Clients — how to use" doc="clients" size={16} /></h1>
-            <p className="page-subtitle">Client-wise invoice ledger and outstanding</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button className="btn btn-secondary" onClick={() => setShowImport(true)} title="Add clients from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)">
-            <Upload size={16} /> Import CSV
-          </button>
-          <button className="btn btn-secondary" onClick={() => openAddClient()}>
-            <Plus size={18} /> Add Client
-          </button>
-          <button className="btn btn-primary" onClick={onNew}>
-            <FileText size={18} /> New Invoice
-          </button>
-        </div>
-      </div>
+      {/* v1.10.86 - in the top bar: Import CSV and Add Client as icons. */}
+      <PageHeader
+        title="Clients"
+        help={{ title: 'Clients — how to use', doc: 'clients' }}
+        subtitle="Client-wise invoice ledger and outstanding"
+        secondary={<>
+          <BarButton icon={Upload} label="Import CSV" onClick={() => setShowImport(true)}
+            title="Import CSV: add clients from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)" />
+          <BarButton icon={UserPlus} label="Add Client" onClick={() => openAddClient()} />
+        </>}
+        primary={<button className="btn btn-primary" onClick={onNew}><FileText size={18} /> New Invoice</button>}
+      />
 
       {showImport && (
         <CsvListImport what="clients" sample={CLIENTS_SAMPLE} sampleName="Clients-sample.csv" doc="clients#import-csv"

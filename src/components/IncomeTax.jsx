@@ -5,6 +5,7 @@ import { debitNoteTotals } from '../utils/debitNotes';
 import { formatCurrency } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 
 // v1.10.31 — Parse the user's chosen PDF accent (hex like "#1e40af") into
 // a [r, g, b] tuple for jsPDF's setFillColor / setDrawColor. Falls back to
@@ -240,21 +241,20 @@ export default function IncomeTax() {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        {/* v1.10.86 - wraps on a phone: the title was squeezed into a narrow column beside the Year box. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <div>
-            <h1 className="page-title">Income Tax Helper <HelpButton title="Income tax — how to use" doc="income-tax" size={16} /></h1>
-            <p className="page-subtitle">{yearLabel(fy)}: Old vs New Regime, bank-statement import, ITR summary</p>
-          </div>
-          <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+      {/* v1.10.86 - in the top bar; the Year box sits by the title. */}
+      <PageHeader
+        title="Income Tax Helper"
+        help={{ title: 'Income tax — how to use', doc: 'income-tax' }}
+        subtitle={`${yearLabel(fy)}: Old vs New Regime, bank-statement import, ITR summary`}
+        extras={(
+          <label className="page-bar-field">
             Year
-            <select className="form-input" style={{ width: 'auto' }} value={fy} onChange={(e) => setFy(e.target.value)} aria-label="Which year the figures are for">
+            <select className="filter-select" value={fy} onChange={(e) => setFy(e.target.value)} aria-label="Which year the figures are for">
               {TAX_YEARS.map((y) => <option key={y} value={y}>{yearLabel(y)}</option>)}
             </select>
           </label>
-        </div>
-      </div>
+        )}
+      />
 
       {/* v1.10.53 — The slab tables in utils/itr.js only go up to the FY
           named by CURRENT_FY. When the real financial year has moved past

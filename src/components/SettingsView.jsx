@@ -16,6 +16,7 @@ import { toast } from './Toast';
 import { confirmAction, promptAction } from './ConfirmModal';
 import PrintSettings from './PrintSettings';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import BooksLockSettings from './BooksLockSettings';
 import AppLockSettings from './AppLockSettings';
 import PrivacyInternet from './PrivacyInternet';
@@ -844,34 +845,13 @@ export default function SettingsView({ onSaved }) {
            card, gear glyph in a rounded badge for visual identity, and
            a subtle count chip showing how many sections there are so
            the user has a scale expectation before diving in. */}
-      <div className="page-header" style={{
-        padding: '1.1rem 1.35rem',
-        background: 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), var(--card-bg))',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        marginBottom: '1.25rem',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{
-            width: 44, height: 44,
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--primary), var(--primary-darker))',
-            color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.15rem',
-            boxShadow: '0 6px 18px rgba(var(--primary-rgb), 0.35)',
-          }}>⚙</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 className="page-title" style={{ margin: 0 }}>Settings <HelpButton title="Settings" doc={SETTINGS_TAB_DOCS[sectionsOf(activeSection)[0]] || 'settings'} size={16} /></h1>
-            <p className="page-subtitle" style={{ margin: '0.15rem 0 0' }}>
-              Business profile, branding, integrations & data
-              <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.5rem', borderRadius: 999, background: 'var(--bg-secondary)', border: '1px solid var(--border)', marginLeft: '0.55rem', fontWeight: 600 }}>
-                {SETTINGS_TABS.length} tabs
-              </span>
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* v1.10.86 - in the top bar (the tabs and the Save bar stay as they were);
+          the "7 tabs" count is gone: the tabs are right under it. */}
+      <PageHeader
+        title="Settings"
+        help={{ title: 'Settings', doc: SETTINGS_TAB_DOCS[sectionsOf(activeSection)[0]] || 'settings' }}
+        subtitle="Business profile, branding, integrations & data"
+      />
 
       {/* v1.10.75 - the section buttons, pinned at the top. They wrap onto a
            second line rather than scroll sideways (asked for: "top should not

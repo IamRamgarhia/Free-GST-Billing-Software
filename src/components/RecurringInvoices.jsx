@@ -6,6 +6,7 @@ import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 
 const FREQUENCIES = [
   { value: 'weekly', label: 'Weekly' },
@@ -221,15 +222,12 @@ export default function RecurringInvoices() {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Recurring Invoices <HelpButton title="Recurring invoices — how to use" doc="recurring" size={16} /></h1>
-            <p className="page-subtitle">Auto-generate invoices for retainer clients</p>
-          </div>
-        </div>
-        <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> New Template</button>
-      </div>
+      <PageHeader
+        title="Recurring Invoices"
+        help={{ title: 'Recurring invoices — how to use', doc: 'recurring' }}
+        subtitle="Auto-generate invoices for retainer clients"
+        primary={<button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> New Template</button>}
+      />
 
       {/* Due Now Alert */}
       <UnassignedBanner

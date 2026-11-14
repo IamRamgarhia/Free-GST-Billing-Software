@@ -7,6 +7,7 @@ import { toast } from './Toast';
 import { EXPENSE_PAYMENT, expenseStatus, expensePaid, expenseDue } from '../utils/expensePayment';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import TableExport from './TableExport';
 import ActionsMenu from './ActionsMenu';
 import { useCostCentres } from './useCostCentres';
@@ -305,17 +306,12 @@ export default function ExpenseTracker() {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Expenses <HelpButton title="Expenses — how to use" doc="expenses" size={16} /></h1>
-            <p className="page-subtitle">Track business expenses for P&L and ITC claims</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Expense</button>
-        </div>
-      </div>
+      <PageHeader
+        title="Expenses"
+        help={{ title: 'Expenses — how to use', doc: 'expenses' }}
+        subtitle="Track business expenses for P&L and ITC claims"
+        primary={<button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Expense</button>}
+      />
 
       <UnassignedBanner
         count={unassignedExpenses.length}

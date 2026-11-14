@@ -247,7 +247,7 @@ export default [
 <section id="bank-matching">
 <h2>Bank matching</h2>
 <p>Bank matching checks your bank statement against your books: every payment that came into or went out of the bank should be on an invoice, a purchase bill or an expense. It shows which lines are matched and which are still to match, and records the payments you have not entered yet.</p>
-<p>Open ${ui('Cash book')} in the sidebar and click ${ui('Bank matching')} at the top right (${ui('Cash')} goes back). Each business has its own statements, like its cash book.</p>
+<p>Open ${ui('Cash book')} in the sidebar and click ${ui('Bank matching')} next to the title at the top (${ui('Cash')} goes back). Each business has its own statements, like its cash book.</p>
 </section>
 
 <section id="bank-import">

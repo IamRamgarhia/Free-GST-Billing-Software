@@ -13,7 +13,7 @@ export default [
 <h2>The client list</h2>
 <p>${ui('Clients')} in the sidebar opens a list of everyone you sell to. Use it to see at a glance who owes you money, to open one client's account, and to keep their address and GSTIN ready for the next invoice.</p>
 <p>Every client you have saved, and every name you have ever invoiced, appears as a card. The clients who owe you the most are at the top, so the people to call first are always first.</p>
-<p>The buttons at the top of the screen:</p>
+<p>The buttons at the top of the screen. Small buttons show only an icon: point at one to see its name. In a narrow window, and on a phone, they are in the ${ui('⋯')} button instead, with their names.</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Import CSV')}</td><td>Adds many clients at once from a spreadsheet. See <a href="#import-csv">Importing clients</a>.</td></tr>

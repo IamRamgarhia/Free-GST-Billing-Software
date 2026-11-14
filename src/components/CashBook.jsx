@@ -9,6 +9,7 @@ import { CASH_CATEGORIES, validateCashEntry, linkedCashLines, ownCashLines, cash
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import TableExport from './TableExport';
 import BankMatching from './BankMatching';
 import ComboInput from './ComboInput';
@@ -218,15 +219,12 @@ function CashBookMain({ tabs, onOpenView }) {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Cash book <HelpButton title="Cash book" doc="cash-book" size={16} /></h1>
-            <p className="page-subtitle">Cash in and out, with the cash in hand</p>
-          </div>
-        </div>
-        {tabs}
-      </div>
+      <PageHeader
+        title="Cash book"
+        help={{ title: 'Cash book', doc: 'cash-book' }}
+        subtitle="Cash in and out, with the cash in hand"
+        extras={tabs}
+      />
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
         <div className="stat-card">

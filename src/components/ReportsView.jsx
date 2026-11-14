@@ -5,6 +5,7 @@ import { costOfGoodsSold, costOfGoodsSoldIn } from '../utils/products';
 import { formatCurrency, getFYOptions, belongsToProfile, isCancelledBill, salesSign, countsAsSales, parseLocalDate, amountDue } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import PartyOutstandingReport from './PartyOutstandingReport';
 import StockReport from './StockReport';
 import TableExport from './TableExport';
@@ -248,14 +249,11 @@ export default function ReportsView() {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Reports <HelpButton title="Reports — how to use" doc="reports" size={16} /></h1>
-            <p className="page-subtitle">Financial reports and receivables analysis</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Reports"
+        help={{ title: 'Reports — how to use', doc: 'reports' }}
+        subtitle="Financial reports and receivables analysis"
+      />
 
       {/* Tab Selector — v1.9.5 adds Client + Product tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>

@@ -22,6 +22,7 @@ import {
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import ComboInput from './ComboInput';
 
 const FILTERS = [['open', 'To match'], ['all', 'All lines'], ['done', 'Matched'], ['ignored', 'Ignored']];
@@ -338,13 +339,12 @@ export default function BankMatching({ tabs }) {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Bank matching <HelpButton title="Bank matching" doc="cash-book#bank-matching" size={16} /></h1>
-          <p className="page-subtitle">Your bank statement, matched to invoices, bills and expenses</p>
-        </div>
-        {tabs}
-      </div>
+      <PageHeader
+        title="Bank matching"
+        help={{ title: 'Bank matching', doc: 'cash-book#bank-matching' }}
+        subtitle="Your bank statement, matched to invoices, bills and expenses"
+        extras={tabs}
+      />
 
       <div className="glass-panel p-4 mb-6">
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>

@@ -498,10 +498,9 @@ body {
    the phone top bar instead. */
 .app-topbar {
   display: flex;
-  justify-content: flex-end;
   align-items: center;
   gap: 0.4rem;
-  margin: -1.25rem 0 0.6rem;
+  margin: -1.25rem 0 1rem;
 }
 .topbar-free {
   margin-right: 0.35rem;
@@ -554,6 +553,58 @@ body {
   align-items: center;
   justify-content: center;
 }
+/* v1.10.86 - one line at the top of every screen (maintainer, 15 Nov: "what
+   if we have all things in one in top bar"): the page title, its (?), count
+   and extras on the left, then the search, the page's icon buttons and main
+   button, then the app's own icons. The screen fills .page-bar-title and
+   .page-bar-actions (components/PageHeader.jsx). When the line is too full
+   the bar steps down (components/pageBarSlots.js): .fit-search-icon (the
+   search box becomes an icon), .fit-more (the page's icons go into a ⋯ menu),
+   .fit-wrap (the title's own controls take a second line), .fit-wrap-all
+   (the whole bar wraps, the last resort). */
+.app-topbar > * { flex-shrink: 0; }
+.page-bar-actions:empty { display: none; }
+/* Pushes the rest to the right; it stays (empty) on the invoice screen. */
+.page-bar-title { min-width: 0; margin-right: auto; }
+.page-bar-head { display: flex; align-items: center; gap: 0.4rem 0.6rem; min-width: 0; }
+.page-bar-head .page-title { display: inline-flex; align-items: center; margin: 0; font-size: 1.3rem; white-space: nowrap; }
+.page-bar-meta { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.page-bar-head .card-period, .page-bar-field { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 500; white-space: nowrap; }
+.page-bar-head .filter-select, .page-bar-head .page-bar-select { width: auto; min-width: 0; height: 36px; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.page-bar-head .card-period .filter-select { max-width: 7.5rem; }
+.page-bar-head .page-bar-select { max-width: 8rem; font-size: 0.85rem; padding-left: 0.6rem; padding-right: 1.8rem; }
+.page-bar-head [role="group"] .btn { height: 36px; padding: 0 0.8rem; }
+.page-bar-actions { display: flex; align-items: center; gap: 0.4rem; }
+.page-bar-actions > .btn { height: 36px; padding: 0 0.95rem; white-space: nowrap; }
+.topbar-global { display: flex; align-items: center; gap: 0.4rem; padding-left: 0.6rem; margin-left: 0.2rem; border-left: 1px solid var(--border-color); }
+.topbar-search > svg, .topbar-search-kbd { flex-shrink: 0; }
+.fit-search-icon .topbar-search { width: 36px; padding: 0; justify-content: center; cursor: pointer; }
+.fit-search-icon .topbar-search-text, .fit-search-icon .topbar-search-kbd { display: none; }
+/* The page's icon buttons; the ⋯ button only when they are in its menu. */
+.page-bar-more { position: relative; display: flex; }
+.page-bar-more:has(> .page-bar-secondary:empty) { display: none; }
+.page-bar-secondary { display: flex; align-items: center; gap: 0.4rem; }
+.page-bar-btn:disabled { opacity: 0.45; cursor: default; }
+a.page-bar-btn { text-decoration: none; }
+.page-bar-btn .pb-label, .page-bar-more-btn { display: none; }
+.fit-more .page-bar-more-btn { display: inline-flex; }
+.fit-more .page-bar-secondary {
+  display: none; position: absolute; top: calc(100% + 4px); right: 0; z-index: 950;
+  flex-direction: column; align-items: stretch; gap: 0; min-width: 210px; padding: 4px;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+[data-theme="dark"] .fit-more .page-bar-secondary { background: var(--bg-primary); }
+.fit-more .page-bar-secondary.is-open { display: flex; }
+.fit-more .page-bar-secondary .page-bar-btn {
+  width: 100%; height: auto; justify-content: flex-start; gap: 0.5rem; padding: 0.45rem 0.6rem;
+  border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 0.84rem; text-align: left;
+}
+.fit-more .page-bar-secondary .page-bar-btn:hover:not(:disabled) { background: var(--bg-secondary); color: var(--text); }
+.fit-more .page-bar-secondary .pb-label { display: inline; }
+.fit-wrap .page-bar-title { flex: 1 1 0; }
+.fit-wrap .page-bar-head, .fit-wrap .page-bar-field, .fit-wrap .card-period { flex-wrap: wrap; }
+.fit-wrap-all { flex-wrap: wrap; row-gap: 0.5rem; }
 /* v1.10.86 - a search box you can see; it opens the Ctrl+K quick search.
    On a phone it is a search icon like the buttons next to it. */
 .topbar-search {
@@ -561,8 +612,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   height: 36px;
-  min-width: 240px;
-  margin-right: auto;
+  flex-shrink: 0;
   padding: 0 0.5rem 0 0.75rem;
   border-radius: 9px;
   border: 1px solid var(--border-color);
@@ -605,8 +655,22 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-search { background: rgba(1
 
 .mobile-topbar,
 .sidebar-backdrop { display: none; }
+/* v1.10.86 - on a phone the bar is a row under the phone top bar: the title,
+   the ⋯ menu and the main button; the count and extras on a line below. The
+   search and the app's icons are in the phone top bar. */
 @media (max-width: 768px) {
-  .app-topbar { display: none; }
+  .app-topbar { margin: 0 0 0.9rem; justify-content: flex-start; flex-wrap: wrap; row-gap: 0.5rem; column-gap: 0.6rem; }
+  .app-topbar:not(:has(.page-title)) { display: none; }
+  .app-topbar > .topbar-search, .app-topbar > .topbar-global { display: none; }
+  .app-topbar .page-bar-title, .app-topbar .page-bar-head { display: contents; }
+  .app-topbar .page-title { order: 1; font-size: 1.2rem; white-space: normal; }
+  .app-topbar .page-bar-actions { order: 2; margin-left: auto; }
+  .app-topbar .page-bar-actions > .btn { padding: 0 0.75rem; }
+  .app-topbar:has(.page-bar-head > :nth-child(2))::after { content: ""; order: 3; flex-basis: 100%; height: 0; }
+  .app-topbar .page-bar-meta { order: 4; }
+  .app-topbar .page-bar-head > :not(.page-title):not(.page-bar-meta) { order: 5; max-width: 100%; }
+  .app-topbar :is(.page-bar-field, .card-period) { flex-wrap: wrap; }
+  .app-topbar .page-bar-field > select { flex: 1 1 auto; max-width: none; }
 }
 @media (max-width: 768px) {
   .mobile-topbar {
@@ -1002,29 +1066,8 @@ html:not([data-theme="dark"]) .profile-switcher-item + .profile-switcher-details
 }
 
 /* ========= Page Headers ========= */
-/* v1.10.37 — All page headers get the treatment introduced in the
-   Settings redesign: soft primary-accent gradient card, rounded 12px
-   corners, subtle border. Reported: "I like the heading you gave into
-   Settings — I want you to do in all the pages, that looks better."
-   By upgrading the shared class instead of each file, every page
-   (Dashboard, Clients, Inventory, GST Returns, Income Tax, Reports,
-   Purchase Bills, Recurring Invoices, Expenses, Receipts, User Guide,
-   Settings) inherits the same visual identity automatically. Right-
-   side action slot is preserved via the existing justify-content:
-   space-between + align-items: center. */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding: 1.1rem 1.35rem;
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), var(--card-bg));
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-}
-
+/* v1.10.86 - the page header is part of the top bar now (.page-bar-* in the
+   top bar section above); the v1.10.37 gradient card is gone. */
 .page-title {
   font-size: 1.55rem;
   font-weight: 700;
@@ -1038,15 +1081,6 @@ html:not([data-theme="dark"]) .profile-switcher-item + .profile-switcher-details
   font-size: 0.86rem;
   margin: 0;
 }
-/* Fallback for dark mode — some browsers render color-mix() with
-   `oklab` slightly differently; the fallback ensures the gradient
-   still reads correctly. */
-[data-theme="dark"] .page-header {
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.14), var(--card-bg));
-}
-/* v1.10.77 (#84) - compact header (Dashboard): a plain title row. */
-.page-header.page-header-compact,
-[data-theme="dark"] .page-header.page-header-compact { padding: 0; background: none; border: 0; border-radius: 0; }
 
 .section-title {
   font-size: 0.95rem;
@@ -1233,8 +1267,6 @@ textarea.form-input { resize: vertical; min-height: 60px; }
    order follows the order chosen (the blocks only have bottom margins, so the
    spacing is the same as before). */
 .dashboard-blocks { display: flex; flex-direction: column; }
-.dash-customise-phone { display: none; vertical-align: middle; margin-left: 0.25rem; }
-@media (max-width: 480px) { .dash-customise-btn { display: none; } .dash-customise-phone { display: inline-flex; } }
 .dash-customise-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; }
 .dash-customise-list li { display: flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.6rem; border-top: 1px solid var(--border); }
 .dash-customise-list li:first-child { border-top: 0; }
@@ -1269,12 +1301,8 @@ th[aria-sort="descending"] .th-sort::after { content: "\25BC"; opacity: 1; font-
 /* v1.10.86 - the Dashboard on fewer lines (maintainer: "all things should be
    in one line"): "Totals for" in the title row, the filters, Dates & more,
    Print and Columns on one row at 1366, the total cards laid out alike. */
-.page-header.page-header-compact { justify-content: flex-start; } /* wrapped, the count stays by the title */
 /* The ⋯ / Print menus were white with light text in dark mode. */
 [data-theme="dark"] .actions-menu { background: var(--bg-primary) !important; }
-.page-header-compact .card-period { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: 0.85rem; vertical-align: middle; }
-.page-header-compact .card-period label { font-size: 0.8rem; font-weight: 500; }
-.page-header-compact .card-period .filter-select { padding-top: 0.35rem; padding-bottom: 0.35rem; min-width: 0; }
 .dash-filters .search-box { flex: 1 1 160px; min-width: 160px; }
 .dash-filters .dash-type-select { max-width: 11rem; } /* "Composition (Bill of Supply)" made it 214 px */
 .dash-filter-btn { font-size: 0.8rem; padding: 0.45rem 0.7rem; gap: 0.35rem; white-space: nowrap; }
@@ -4156,9 +4184,6 @@ html:not([data-theme="dark"]) .welcome-card-close:hover { background: rgba(15, 2
   /* Income tax: Old vs New regime side by side did not fit a phone. */
   .regime-cards { grid-template-columns: 1fr !important; }
 
-  /* Page headers: the action buttons wrap under the title (Clients' "New
-     Invoice" ran past the card's right edge). */
-  .page-header > div { flex-wrap: wrap; min-width: 0; }
   /* Client cards: the totals go under the name, which had a 100 px column. */
   .client-card-header { flex-wrap: wrap; gap: 0.75rem; padding: 1rem; }
   .client-card-stats { flex-wrap: wrap; gap: 0.75rem 1.25rem; }

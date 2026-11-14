@@ -15,6 +15,7 @@ import WhatsNew from './WhatsNew';
 import SupportersList from './SupportersList';
 import ProblemLog from './ProblemLog';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import { SafePrivateSection } from './SafePrivateNote';
 
 const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
@@ -82,12 +83,11 @@ export default function SupportView() {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Support &amp; About <HelpButton title="Support & About" doc="support" size={16} style={{ marginLeft: 6 }} /></h1>
-          <p className="page-subtitle">Who makes Free GST Billing, and how you can help it grow</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Support & About"
+        help={{ title: 'Support & About', doc: 'support' }}
+        subtitle="Who makes Free GST Billing, and how you can help it grow"
+      />
 
       <div className="glass-panel" style={{ ...card, marginBottom: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
         <Heart size={28} style={{ color: '#e11d48', flexShrink: 0, marginTop: 2 }} />

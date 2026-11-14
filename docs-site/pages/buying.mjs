@@ -15,7 +15,7 @@ export default [
 <section id="purchase-list">
 <h2>The purchase list</h2>
 <p>Open <b>Purchases</b> from the menu. The screen is called <b>Purchases</b>, like the menu item. Then two buttons sit under the title: ${ui('Purchase bills')} (the list on this page) and ${ui('Purchase orders')}.</p>
-<p>The buttons at the top right:</p>
+<p>The buttons at the top right. Small buttons show only an icon: point at one to see its name. In a narrow window, and on a phone, they are in the ${ui('⋯')} button instead, with their names.</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Import from image (OCR)')}</td><td>Reads a photo of a supplier's bill and fills the form for you. See <a href="#ocr">Reading a bill from a photo</a>.</td></tr>
@@ -315,7 +315,7 @@ export default [
 
 <section id="ocr">
 <h2>Reading a bill from a photo</h2>
-<p>Instead of typing a long bill, let the app read it from a photo or scan. Click ${ui('Import from image (OCR)')}. The window <b>Import from bill image (OCR)</b> opens.</p>
+<p>Instead of typing a long bill, let the app read it from a photo or scan. Click ${ui('Import from image (OCR)')} (the magic-wand icon at the top). The window <b>Import from bill image (OCR)</b> opens.</p>
 <ol class="steps">
   <li><strong>Choose the picture</strong>Click the dashed box, or drag a photo or scan of the bill onto it: PNG, JPG or WebP, up to 8 MB. PDFs are not accepted; take a screenshot of the page instead. A preview appears.</li>
   <li><strong>Read it</strong>Click ${ui('Extract fields')}. <b>Reading image…</b> shows a percentage. It takes a few seconds, longer on an older computer.</li>
@@ -361,7 +361,7 @@ export default [
 
 <section id="csv-purchases">
 <h2>Importing purchase bills from CSV</h2>
-<p>Use this to bring in many bills at once: from another billing program, from Tally, or a sheet your accountant keeps. Click ${ui('Import / export CSV')} at the top of Purchases. The window <b>Purchase bills: Import / export CSV</b> opens.</p>
+<p>Use this to bring in many bills at once: from another billing program, from Tally, or a sheet your accountant keeps. Click ${ui('Import / export CSV')} (the sheet icon) at the top of Purchases. The window <b>Purchase bills: Import / export CSV</b> opens.</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Template')}</td><td>Downloads <code>Purchase-import-template.csv</code>: the right columns and one example bill.</td></tr>

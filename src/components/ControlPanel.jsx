@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, RefreshCw, Package, FolderOpen, HardDrive, StopCircle, Upload, AlertCircle, CheckCircle, Trash2, RotateCcw } from 'lucide-react';
+import { Download, RefreshCw, Package, FolderOpen, StopCircle, Upload, AlertCircle, CheckCircle, Trash2, RotateCcw } from 'lucide-react';
 import PageHeader from './PageHeader';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
@@ -195,12 +195,11 @@ export default function ControlPanel() {
   return (
     <div className="dashboard-container">
       <PageHeader
-        icon={<HardDrive size={22} />}
-        title={<>Control Panel <HelpButton title="Control Panel — how to use" doc="control-panel" size={16} /></>}
-        subtitle="Manage the app — update, backup, restore, move to another PC — without touching batch files."
+        title="Control Panel"
+        help={{ title: 'Control Panel — how to use', doc: 'control-panel' }}
+        subtitle="Manage the app — update, backup, restore, move to another PC — without touching batch files"
         meta={status && !status.error ? installedWith(status) : null}
-      >
-      </PageHeader>
+      />
 
       {scriptsUnavailable && (
         <div className="notice notice-warn" style={{ marginBottom: '1rem' }}>
