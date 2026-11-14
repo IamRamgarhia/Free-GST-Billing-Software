@@ -6,7 +6,7 @@
 # check). From outside, v1.10.85: docker-compose.yml sets FGSB_PHONE_ACCESS=1,
 # so port 47443 answers over HTTPS, and only devices paired with a one-time
 # code and the PIN (FGSB_PIN) get in. See server.js PHONE / TABLET ACCESS.
-FROM node:20.19.0-bookworm-slim
+FROM node:26.13.1-bookworm-slim
 
 ENV NODE_ENV=production \
     FGSB_HOME=/data

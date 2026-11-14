@@ -187,7 +187,7 @@ export default [
   <li><strong>Windows, v1.10.81 or newer:</strong> click ${ui('Install')} or ${ui('Open App')} again, with the internet on. The app fetches a current Node.js into its own folder by itself (about 30 MB, once) and leaves your other Node.js alone.</li>
   <li><strong>Windows, older version:</strong> install Node.js LTS from <a href="https://nodejs.org">nodejs.org</a>, delete the <code>_system\\node_modules</code> folder (the <code>_system</code> folder is hidden: in File Explorer, <b>View → Show → Hidden items</b>), and click ${ui('Install')} again.</li>
   <li><strong>Mac:</strong> install the LTS <b>macOS Installer (.pkg)</b> from <a href="https://nodejs.org/en/download">nodejs.org</a>, or run <code>brew install node@20</code>, then open the launcher again. See <a href="install-mac.html#node">Part 1: Install Node.js</a>.</li>
-  <li><strong>Linux or NAS:</strong> install Node.js 20 with the commands in <a href="install-linux.html#node">Step 1: Install Node.js 20</a> (the window also prints the command for your system), then start the app again.</li>
+  <li><strong>Linux or NAS:</strong> install Node.js 26 with the commands in <a href="install-linux.html#node">Step 1: Install Node.js 26</a> (the window also prints the command for your system), then start the app again.</li>
 </ol>
 <p>Only the <code>node_modules</code> folder may be deleted. Never delete the <code>data</code> folder.</p>
 </section>

@@ -30,7 +30,7 @@ const CACHE = join(ROOT, '.cache', 'linux-build');
 const WORK = join(CACHE, 'work');
 const { version } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
-const NODE_VERSION = 'v20.19.0'; // same as release-templates/_system-scripts/ensure-node.ps1
+const NODE_VERSION = 'v26.13.1'; // v1.10.86 - 26 LTS; same as release-templates/_system-scripts/ensure-node.ps1
 const NODE_BASE = `https://nodejs.org/dist/${NODE_VERSION}`;
 const NODE_FILE = `node-${NODE_VERSION}-linux-x64.tar.gz`;
 // Pinned releases; the SHA256 values are the digests GitHub publishes for them.

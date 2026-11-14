@@ -30,7 +30,7 @@ import { tmpdir } from 'os';
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const OUT_DIR = join(REPO_ROOT, 'release-build');
-const IMAGES = { alpine: 'node:20-alpine', slim: 'node:20-bookworm-slim' };
+const IMAGES = { alpine: 'node:26-alpine', slim: 'node:26-bookworm-slim' };
 
 const run = (cmd, args, opts = {}) =>
   spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });

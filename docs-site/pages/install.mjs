@@ -382,15 +382,15 @@ ${which}
 </section>
 
 <section id="node">
-<h2>Step 1: Install Node.js 20</h2>
+<h2>Step 1: Install Node.js 26</h2>
 <p>The Node.js in Ubuntu's own store is often too old for the app, so it comes from NodeSource, the official source for Linux. Paste these one at a time, pressing ${key('Enter')} after each:</p>
 <pre><code>sudo apt install -y curl unzip</code></pre>
-<pre><code>curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -</code></pre>
+<pre><code>curl -fsSL https://deb.nodesource.com/setup_26.x | sudo -E bash -</code></pre>
 <pre><code>sudo apt install -y nodejs</code></pre>
 <p><b>When it asks for your password</b>, type the password you use to log in and press ${key('Enter')}. <b>Nothing appears while you type</b>, not even dots; that is normal.</p>
 <p>Check it worked:</p>
 <pre><code>node -v</code></pre>
-<p>It should print <code>v20</code> or higher, for example <code>v20.19.0</code>.</p>
+<p>It should print <code>v26</code>, for example <code>v26.13.1</code> (<code>v22</code> or newer also works).</p>
 <p><b>Fedora:</b> <code>sudo dnf install nodejs npm</code>. <b>Arch:</b> <code>sudo pacman -S nodejs npm</code>. <b>Alpine / NAS:</b> <code>sudo apk add nodejs npm</code>.</p>
 </section>
 
