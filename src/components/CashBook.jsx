@@ -11,6 +11,8 @@ import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import TableExport from './TableExport';
 import BankMatching from './BankMatching';
+import ComboInput from './ComboInput';
+import EditDialog from './EditDialog';
 
 const PERIODS = [['month', 'This month'], ['lastMonth', 'Last month'], ['fy', 'This financial year'], ['all', 'All dates'], ['custom', 'Choose dates']];
 const SOURCE_SCREEN = { receipts: 'Receipts', dashboard: 'the Dashboard', expenses: 'Expenses', purchases: 'Purchases' };
@@ -20,6 +22,73 @@ const inOut = (type, on) => ({
   flex: 1, justifyContent: 'center', fontWeight: 600, whiteSpace: 'nowrap',
   ...(on ? { background: type === 'in' ? 'var(--success)' : 'var(--danger)', color: '#fff', borderColor: 'transparent' } : {}),
 });
+const formFrom = (entry) => ({ type: entry.type, amount: String(entry.amount), name: entry.name || '', note: entry.note || '', category: entry.category || '', date: entry.date });
+
+// v1.10.86 - the In / Out buttons and the boxes of a cash entry: in a row in
+// the New entry form, two to a line in the Edit entry window.
+function EntryFields({ form, update, names, idPrefix, amountRef, inWindow }) {
+  const cell = inWindow ? {} : { margin: 0, flex: '1 1 150px', minWidth: 0 };
+  const wide = inWindow ? { className: 'form-group ed-wide' } : { className: 'form-group' };
+  const id = (k) => `${idPrefix}-${k}`;
+  return (
+    <>
+      <div {...wide} style={inWindow ? undefined : { margin: 0, flex: '2 1 250px' }}>
+        <span className="form-label">In or out *</span>
+        <div style={{ display: 'flex', gap: '0.4rem' }} role="group" aria-label="Money in or money out">
+          <button type="button" className="btn btn-secondary" style={inOut('in', form.type === 'in')} aria-pressed={form.type === 'in'} onClick={() => update('type', 'in')}><ArrowDownLeft size={15} /> Money in</button>
+          <button type="button" className="btn btn-secondary" style={inOut('out', form.type === 'out')} aria-pressed={form.type === 'out'} onClick={() => update('type', 'out')}><ArrowUpRight size={15} /> Money out</button>
+        </div>
+      </div>
+      <div className="form-group" style={cell}>
+        <label className="form-label" htmlFor={id('amount')}>Amount *</label>
+        <input id={id('amount')} ref={amountRef} type="number" inputMode="decimal" min="0" step="0.01" className="form-input" placeholder="0.00"
+          data-autofocus value={form.amount} onChange={(e) => update('amount', e.target.value)} />
+      </div>
+      <div className="form-group" style={cell}>
+        <label className="form-label" htmlFor={id('name')}>Name (who / what)</label>
+        <ComboInput id={id('name')} type="text" className="form-input" options={names} maxLength={120} placeholder="e.g. Ramesh, milk, auto"
+          listLabel="Names used before" value={form.name} onChange={(e) => update('name', e.target.value)} />
+      </div>
+      <div className="form-group" style={cell}>
+        <label className="form-label" htmlFor={id('category')}>Category</label>
+        <ComboInput id={id('category')} type="text" className="form-input" options={CASH_CATEGORIES} maxLength={60} placeholder="Pick or type"
+          listLabel="Categories" value={form.category} onChange={(e) => update('category', e.target.value)} />
+      </div>
+      <div className="form-group" style={cell}>
+        <label className="form-label" htmlFor={id('date')}>Date *</label>
+        <input id={id('date')} type="date" className="form-input" value={form.date} onChange={(e) => update('date', e.target.value)} />
+      </div>
+      <div {...wide} style={inWindow ? undefined : { ...cell, flex: '3 1 220px' }}>
+        <label className="form-label" htmlFor={id('note')}>Note</label>
+        <input id={id('note')} type="text" className="form-input" maxLength={500} placeholder="Optional"
+          value={form.note} onChange={(e) => update('note', e.target.value)} />
+      </div>
+    </>
+  );
+}
+
+// v1.10.86 - the pencil opens the entry in its own window; the New entry form
+// at the top stays for adding.
+function EditEntryDialog({ entry, names, onSave, onDelete, onClose }) {
+  const [form, setForm] = useState(() => formFrom(entry));
+  const [saving, setSaving] = useState(false);
+  const amountRef = useRef(null);
+  const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const save = async () => {
+    setSaving(true);
+    const ok = await onSave(form, entry, () => amountRef.current?.focus());
+    setSaving(false);
+    if (ok) onClose();
+  };
+  const remove = async () => { if (await onDelete(entry)) onClose(); };
+  return (
+    <EditDialog title="Edit entry" help="cash-book#edit-entry" onClose={onClose} onSave={save} onDelete={remove} saving={saving}>
+      <div className="ed-grid">
+        <EntryFields form={form} update={update} names={names} idPrefix="cash-edit" amountRef={amountRef} inWindow />
+      </div>
+    </EditDialog>
+  );
+}
 
 // v1.10.85 (#175) - two tabs: the cash book, and Bank matching for the bank
 // statement (money in and out of the bank, next to the cash).
@@ -76,59 +145,63 @@ function CashBookMain({ tabs, onOpenView }) {
     : PERIODS.find(([k]) => k === period)[1];
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
-  const resetForm = () => { setForm(emptyForm()); setEditing(null); };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (saving) return;
+  // Saves the New entry form, or the Edit entry window (editing = the entry
+  // as it was). True when saved.
+  const persist = async (values, editing, focusAmount) => {
     const entry = {
       ...(editing ? { id: editing.id, createdAt: editing.createdAt } : {}),
-      type: form.type, date: form.date, amount: Number(form.amount),
-      name: form.name, note: form.note, category: form.category,
+      type: values.type, date: values.date, amount: Number(values.amount),
+      name: values.name, note: values.note, category: values.category,
       // A new entry belongs to the business selected now; an edited one keeps its own.
       ownerGstin: editing ? editing.ownerGstin || '' : profile?.gstin || '',
       ownerName: editing ? editing.ownerName || '' : profile?.businessName || '',
     };
     const problem = validateCashEntry(entry);
-    if (problem) { toast(problem, 'warning'); amountRef.current?.focus(); return; }
-    setSaving(true);
+    if (problem) { toast(problem, 'warning'); focusAmount(); return false; }
     try {
       const saved = await saveCashEntry(entry);
       setEntries((prev) => [...prev.filter((x) => x.id !== saved.id), saved]);
       if (saved.name && !names.includes(saved.name)) setNames((prev) => [...prev, saved.name].sort());
-      toast(editing ? 'Entry updated' : `${form.type === 'in' ? 'Money in' : 'Money out'} of ${formatCurrency(saved.amount)} saved`, 'success');
-      // Ready for the next one: same In/Out and date, the rest cleared.
-      setForm((prev) => ({ ...emptyForm(), type: prev.type, date: editing ? localToday() : prev.date }));
-      setEditing(null);
-      amountRef.current?.focus();
+      // v1.10.86 - say so when the list will not show it (dated outside the dates chosen).
+      const hidden = (range.from && saved.date < range.from) || (range.to && saved.date > range.to)
+        ? ` It is dated ${showDate(saved.date)}, outside ${periodLabel}: choose All dates to see it.` : '';
+      toast(`${editing ? 'Entry updated.' : `${values.type === 'in' ? 'Money in' : 'Money out'} of ${formatCurrency(saved.amount)} saved.`}${hidden}`, 'success');
+      return true;
     } catch (err) {
       toast(err?.message && err.status === 400 ? err.message : 'Could not save the entry. Try again.', 'error');
-    } finally {
-      setSaving(false);
+      return false;
     }
   };
 
-  const startEdit = (entry) => {
-    setEditing(entry);
-    setForm({ type: entry.type, amount: String(entry.amount), name: entry.name || '', note: entry.note || '', category: entry.category || '', date: entry.date });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setTimeout(() => amountRef.current?.focus(), 50);
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    const ok = await persist(form, null, () => amountRef.current?.focus());
+    setSaving(false);
+    if (!ok) return;
+    // Ready for the next one: same In/Out and date, the rest cleared.
+    setForm((prev) => ({ ...emptyForm(), type: prev.type, date: prev.date }));
+    amountRef.current?.focus();
   };
 
+  // True when deleted.
   const handleDelete = async (entry) => {
     const ok = await confirmAction({
       title: 'Delete this cash entry?',
       message: `${entry.type === 'in' ? 'Money in' : 'Money out'} of ${formatCurrency(entry.amount)} on ${showDate(entry.date)}${entry.name ? ` (${entry.name})` : ''} is removed from the cash book, and cash in hand changes by that much.`,
       confirmLabel: 'Delete', tone: 'danger',
     });
-    if (!ok) return;
+    if (!ok) return false;
     try {
       await deleteCashEntry(entry.id);
       setEntries((prev) => prev.filter((x) => x.id !== entry.id));
-      if (editing?.id === entry.id) resetForm();
       toast('Entry deleted', 'success');
+      return true;
     } catch {
       toast('Could not delete the entry. Try again.', 'error');
+      return false;
     }
   };
 
@@ -141,7 +214,6 @@ function CashBookMain({ tabs, onOpenView }) {
   ] : [];
 
   const muted = { color: 'var(--text-muted)', fontSize: '0.8rem' };
-  const field = { margin: 0, flex: '1 1 150px', minWidth: 0 };
   const money = (type) => ({ textAlign: 'right', fontWeight: 600, color: type === 'in' ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' });
 
   return (
@@ -178,49 +250,19 @@ function CashBookMain({ tabs, onOpenView }) {
       {/* Quick entry: Enter saves. */}
       <form className="glass-panel p-4 mb-6" onSubmit={handleSave} aria-label="Cash entry">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.75rem' }}>
-          <h3 className="section-title" style={{ margin: 0 }}>{editing ? 'Edit entry' : 'New entry'}</h3>
-          <HelpButton title={editing ? 'Edit entry' : 'Adding a cash entry'} doc={editing ? 'cash-book#edit-entry' : 'cash-book#add-entry'} size={16} />
+          <h3 className="section-title" style={{ margin: 0 }}>New entry</h3>
+          <HelpButton title="Adding a cash entry" doc="cash-book#add-entry" size={16} />
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ margin: 0, flex: '2 1 250px' }}>
-            <span className="form-label">In or out *</span>
-            <div style={{ display: 'flex', gap: '0.4rem' }} role="group" aria-label="Money in or money out">
-              <button type="button" className="btn btn-secondary" style={inOut('in', form.type === 'in')} aria-pressed={form.type === 'in'} onClick={() => update('type', 'in')}><ArrowDownLeft size={15} /> Money in</button>
-              <button type="button" className="btn btn-secondary" style={inOut('out', form.type === 'out')} aria-pressed={form.type === 'out'} onClick={() => update('type', 'out')}><ArrowUpRight size={15} /> Money out</button>
-            </div>
-          </div>
-          <div className="form-group" style={field}>
-            <label className="form-label" htmlFor="cash-amount">Amount *</label>
-            <input id="cash-amount" ref={amountRef} type="number" inputMode="decimal" min="0" step="0.01" className="form-input" placeholder="0.00"
-              value={form.amount} onChange={(e) => update('amount', e.target.value)} />
-          </div>
-          <div className="form-group" style={field}>
-            <label className="form-label" htmlFor="cash-name">Name (who / what)</label>
-            <input id="cash-name" type="text" className="form-input" list="cash-names" maxLength={120} placeholder="e.g. Ramesh, milk, auto"
-              value={form.name} onChange={(e) => update('name', e.target.value)} />
-            <datalist id="cash-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
-          </div>
-          <div className="form-group" style={field}>
-            <label className="form-label" htmlFor="cash-category">Category</label>
-            <input id="cash-category" type="text" className="form-input" list="cash-categories" maxLength={60} placeholder="Pick or type"
-              value={form.category} onChange={(e) => update('category', e.target.value)} />
-            <datalist id="cash-categories">{CASH_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
-          </div>
-          <div className="form-group" style={field}>
-            <label className="form-label" htmlFor="cash-date">Date *</label>
-            <input id="cash-date" type="date" className="form-input" value={form.date} onChange={(e) => update('date', e.target.value)} />
-          </div>
-          <div className="form-group" style={{ ...field, flex: '3 1 220px' }}>
-            <label className="form-label" htmlFor="cash-note">Note</label>
-            <input id="cash-note" type="text" className="form-input" maxLength={500} placeholder="Optional"
-              value={form.note} onChange={(e) => update('note', e.target.value)} />
-          </div>
+          <EntryFields form={form} update={update} names={names} idPrefix="cash" amountRef={amountRef} />
           <div style={{ display: 'flex', gap: '0.5rem', flex: '1 1 140px' }}>
-            <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}><Save size={16} /> {editing ? 'Update' : 'Save'}</button>
-            {editing && <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>}
+            <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}><Save size={16} /> Save</button>
           </div>
         </div>
       </form>
+      {editing && (
+        <EditEntryDialog key={editing.id} entry={editing} names={names} onSave={persist} onDelete={handleDelete} onClose={() => setEditing(null)} />
+      )}
 
       <div className="glass-panel p-4 mb-6">
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -305,7 +347,7 @@ function CashBookMain({ tabs, onOpenView }) {
                     <td>
                       {l.source === 'own' && (
                         <div className="table-actions" style={{ justifyContent: 'center' }}>
-                          <button className="icon-btn icon-btn-blue" onClick={() => startEdit(l.entry)} title="Edit" aria-label={`Edit ${l.name || 'entry'}`}><Edit3 size={15} /></button>
+                          <button className="icon-btn icon-btn-blue" onClick={() => setEditing(l.entry)} title="Edit" aria-label={`Edit ${l.name || 'entry'}`}><Edit3 size={15} /></button>
                           <button className="icon-btn icon-btn-red" onClick={() => handleDelete(l.entry)} title="Delete" aria-label={`Delete ${l.name || 'entry'}`}><Trash2 size={15} /></button>
                         </div>
                       )}

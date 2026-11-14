@@ -3,12 +3,13 @@
 // documents and reports still point at a centre, so it is archived instead
 // (it stops showing in the pickers, and stays in lists and reports).
 import { useState, useEffect } from 'react';
-import { Plus, Save, Edit3, Archive, RotateCcw, X } from 'lucide-react';
+import { Plus, Edit3, Archive, RotateCcw } from 'lucide-react';
 import { getCostCentres, saveCostCentres } from '../store';
 import { businessKeyOf } from '../utils';
 import { centresForBusiness, centreLabel } from '../utils/costCentres';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
+import EditDialog from './EditDialog';
 
 const MAX_NAME = 60;
 const newId = () => `cc_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -17,7 +18,7 @@ export default function CostCentreSettings({ profile }) {
   const [all, setAll] = useState([]);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [editingId, setEditingId] = useState(null);
+  const [editing, setEditing] = useState(null); // v1.10.86 - { id, name, code } in the Edit window
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { getCostCentres().then(setAll).catch(() => toast('Could not load cost centres', 'error')); }, []);
@@ -38,19 +39,28 @@ export default function CostCentreSettings({ profile }) {
     } finally { setBusy(false); }
   };
 
-  const reset = () => { setName(''); setCode(''); setEditingId(null); };
+  // The tidied name, or null (and a message) when it cannot be used.
+  const checkName = (raw, id) => {
+    const n = raw.trim().replace(/\s+/g, ' ');
+    if (!n) { toast('Enter a name for the cost centre', 'warning'); return null; }
+    if (n.length > MAX_NAME) { toast(`Keep the name under ${MAX_NAME} letters`, 'warning'); return null; }
+    if (mine.some((x) => x.id !== id && x.name.toLowerCase() === n.toLowerCase())) { toast('A cost centre with this name already exists', 'warning'); return null; }
+    return n;
+  };
 
   const submit = async (e) => {
     e.preventDefault();
-    const n = name.trim().replace(/\s+/g, ' ');
-    const c = code.trim();
-    if (!n) { toast('Enter a name for the cost centre', 'warning'); return; }
-    if (n.length > MAX_NAME) { toast(`Keep the name under ${MAX_NAME} letters`, 'warning'); return; }
-    if (mine.some((x) => x.id !== editingId && x.name.toLowerCase() === n.toLowerCase())) { toast('A cost centre with this name already exists', 'warning'); return; }
-    const ok = editingId
-      ? await update((list) => list.map((x) => (x.id === editingId ? { ...x, name: n, code: c } : x)), 'Cost centre saved')
-      : await update((list) => [...list, { id: newId(), name: n, code: c, archived: false, business: businessKeyOf(profile) }], 'Cost centre added');
-    if (ok) reset();
+    const n = checkName(name, null);
+    if (!n) return;
+    const ok = await update((list) => [...list, { id: newId(), name: n, code: code.trim(), archived: false, business: businessKeyOf(profile) }], 'Cost centre added');
+    if (ok) { setName(''); setCode(''); }
+  };
+
+  const saveEdit = async () => {
+    const n = checkName(editing.name, editing.id);
+    if (!n) return;
+    const c = editing.code.trim();
+    if (await update((list) => list.map((x) => (x.id === editing.id ? { ...x, name: n, code: c } : x)), 'Cost centre saved')) setEditing(null);
   };
 
   const setArchived = (id, archived) => update(
@@ -73,11 +83,24 @@ export default function CostCentreSettings({ profile }) {
           <label className="form-label" htmlFor="cc-code">Code (optional)</label>
           <input id="cc-code" className="form-input" value={code} maxLength={20} onChange={(e) => setCode(e.target.value)} placeholder="e.g. LDH" />
         </div>
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {editingId ? <><Save size={16} /> Save cost centre</> : <><Plus size={16} /> Add cost centre</>}
-        </button>
-        {editingId && <button type="button" className="btn btn-secondary" onClick={reset}><X size={16} /> Cancel</button>}
+        <button type="submit" className="btn btn-primary" disabled={busy}><Plus size={16} /> Add cost centre</button>
       </form>
+      {editing && (
+        <EditDialog title="Edit cost centre" help="reports#cost-centres" saving={busy} onSave={saveEdit} onClose={() => setEditing(null)}>
+          <div className="ed-grid">
+            <div className="form-group ed-wide">
+              <label className="form-label" htmlFor="cc-edit-name">Name</label>
+              <input id="cc-edit-name" className="form-input" value={editing.name} maxLength={MAX_NAME}
+                onChange={(e) => setEditing((x) => ({ ...x, name: e.target.value }))} placeholder="e.g. Site A - Ludhiana" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="cc-edit-code">Code (optional)</label>
+              <input id="cc-edit-code" className="form-input" value={editing.code} maxLength={20}
+                onChange={(e) => setEditing((x) => ({ ...x, code: e.target.value }))} placeholder="e.g. LDH" />
+            </div>
+          </div>
+        </EditDialog>
+      )}
       {mine.length === 0 ? (
         <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No cost centres yet.</p>
       ) : (
@@ -93,7 +116,7 @@ export default function CostCentreSettings({ profile }) {
                   <td>
                     <div className="table-actions">
                       <button type="button" className="icon-btn icon-btn-blue" disabled={busy} title="Edit" aria-label={`Edit ${c.name}`}
-                        onClick={() => { setEditingId(c.id); setName(c.name); setCode(c.code || ''); }}><Edit3 size={15} /></button>
+                        onClick={() => setEditing({ id: c.id, name: c.name, code: c.code || '' })}><Edit3 size={15} /></button>
                       {c.archived ? (
                         <button type="button" className="icon-btn" disabled={busy} title="Restore" aria-label={`Restore ${c.name}`} onClick={() => setArchived(c.id, false)}><RotateCcw size={15} /></button>
                       ) : (

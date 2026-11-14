@@ -27,9 +27,10 @@ import { rekeyCentres } from '../utils/costCentres';
 import InvoiceNumberSettings from './InvoiceNumberSettings';
 import InvoiceStartSettings from './InvoiceStartSettings';
 import SignatureImages, { SIGN_LAYOUTS } from './SignatureImages';
-import { PURPOSE_CODES } from '../utils/purposeCodes';
+import { PURPOSE_CODE_OPTIONS } from '../utils/purposeCodes';
 import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, runUpdateNow, getBackupFolder, setBackupFolder } from '../store';
 import { QUICK_TERMS } from '../utils/termsDefaults';
+import ComboInput from './ComboInput';
 
 // v1.10.36 — Section order for the jump-nav pill bar. Keeping this at
 // module scope so the scroll-spy effect below can reference it without
@@ -1416,12 +1417,9 @@ export default function SettingsView({ onSaved }) {
                       </div>
                       <div className="form-group">
                         <label className="form-label">Purpose code for payments from abroad (optional) <HelpButton title="Purpose codes" doc="settings#paid-from-abroad" size={14} /></label>
-                        <input type="text" className="form-input" list="purpose-codes" value={editingAccount.purposeCode || ''}
+                        <ComboInput type="text" className="form-input" options={PURPOSE_CODE_OPTIONS} listLabel="Purpose codes" value={editingAccount.purposeCode || ''}
                           onChange={e => setEditingAccount(a => ({ ...a, purposeCode: e.target.value.toUpperCase().trim() }))}
                           placeholder="e.g. P0802 for software work" />
-                        <datalist id="purpose-codes">
-                          {PURPOSE_CODES.map(p => <option key={p.code} value={p.code}>{`${p.code} - ${p.label}`}</option>)}
-                        </datalist>
                         <small style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>The RBI code for what you are paid for. Printed with these bank details on invoices to clients abroad, so they can quote it on the transfer. Your bank can confirm it.</small>
                       </div>
                       <div className="form-group">

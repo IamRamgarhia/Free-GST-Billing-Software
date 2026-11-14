@@ -6,6 +6,7 @@ import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import ComboInput from './ComboInput';
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
 
@@ -395,9 +396,8 @@ export default function ReceiptVoucher() {
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label" htmlFor="receipt-client">Received From (Client Name) *</label>
-                <input id="receipt-client" type="text" className="form-input" list="receipt-clients" autoComplete="off" placeholder="Start typing a client name"
+                <ComboInput id="receipt-client" type="text" className="form-input" options={clientNames} listLabel="Clients" placeholder="Start typing a client name"
                   value={form.clientName} onChange={e => updateField('clientName', e.target.value)} />
-                <datalist id="receipt-clients">{clientNames.map((n) => <option key={n} value={n} />)}</datalist>
               </div>
               <div className="form-group">
                 <label className="form-label">Amount *</label>

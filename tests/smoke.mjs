@@ -237,16 +237,21 @@ try {
   await sleep(1200);
   // The suggestions come from products and past purchases loaded in the
   // background: on a slow machine (Docker) a fixed wait read them too early.
-  for (let i = 0; i < 16 && !(await page.locator('#fgsb-item-history option').count()); i++) await sleep(500);
+  // v1.10.86 - the app's own list (ComboInput), open while the box is clicked.
+  const itemBox = page.locator('input[data-list="fgsb-item-history"]').first();
+  for (let i = 0; i < 16 && !(await page.locator('#fgsb-item-history [role="option"]').count()); i++) {
+    await itemBox.click().catch(() => {});
+    await sleep(500);
+  }
 
   const opts = await page.evaluate(() =>
-    [...document.querySelectorAll('#fgsb-item-history option')].map((o) => ({
-      value: o.value,
-      // ERR-008: Firefox renders label/text INSTEAD of value. Assert on what
-      // the user would actually SEE, not on the data behind the option — the
-      // original test checked .value and passed against the broken build.
-      displayed: o.getAttribute('label') || (o.textContent || '').trim() || o.value,
+    [...document.querySelectorAll('#fgsb-item-history [role="option"]')].map((o) => ({
+      value: o.dataset.value,
+      // ERR-008: Firefox rendered a datalist label INSTEAD of the value. Assert
+      // on what the user would actually SEE, not on the data behind the option.
+      displayed: (o.querySelector('.combo-opt-value')?.textContent || '').trim(),
     })));
+  if (await page.locator('.combo-pop').count()) await page.keyboard.press('Escape'); // closes the list, not the form
 
   check('#42 product catalogue appears in item suggestions',
     opts.some((o) => o.value === 'Mouse') && opts.some((o) => o.value === 'Pen drive'),
@@ -257,9 +262,9 @@ try {
     opts.find((o) => o.displayed !== o.value)?.displayed || '');
 
   // ---- Purchase bill: re-selection refreshes details ---------------------
-  const item = page.locator('input[list="fgsb-item-history"]').first();
+  const item = page.locator('input[data-list="fgsb-item-history"]').first();
   const rowVals = () => page.evaluate(() => {
-    const el = document.querySelector('input[list="fgsb-item-history"]');
+    const el = document.querySelector('input[data-list="fgsb-item-history"]');
     const wrap = el.closest('div[style*="flex"]')?.parentElement;
     return [...(wrap?.querySelectorAll('input.form-input') || [])].map((i) => i.value);
   });
@@ -290,7 +295,7 @@ try {
     edited[1] === 'MYOWN', `hsn=${edited[1]}`);
 
   // ---- Purchase bill: supplier re-selection ------------------------------
-  const sup = page.locator('input[list="fgsb-supplier-history"]');
+  const sup = page.locator('input[data-list="fgsb-supplier-history"]');
   const gstinBox = page.locator('input[placeholder="15-digit GSTIN"]');
   await sup.fill('Alpha Traders'); await sleep(600);
   await sup.fill('Beta Supplies'); await sleep(600);
@@ -2932,7 +2937,7 @@ try {
     await sleep(300);
     await page.getByRole('button', { name: /Make purchase order/ }).first().click();
     await sleep(3500);
-    const poNames = await page.evaluate(() => [...document.querySelectorAll('input[list="fgsb-item-history"]')].map((i) => i.value));
+    const poNames = await page.evaluate(() => [...document.querySelectorAll('input[data-list="fgsb-item-history"]')].map((i) => i.value));
     check('v85 low stock -> Make purchase order opens the PO form with the low product in it', poNames.includes('Smoke Formal Shirt'), JSON.stringify(poNames));
     await page.getByRole('button', { name: /^Cancel$/ }).first().click().catch(() => {});
 

@@ -22,6 +22,7 @@ import {
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import ComboInput from './ComboInput';
 
 const FILTERS = [['open', 'To match'], ['all', 'All lines'], ['done', 'Matched'], ['ignored', 'Ignored']];
 const SHOW_MAX = 300; // ponytail: a plain list; search or pick a statement to see older lines.
@@ -297,8 +298,7 @@ export default function BankMatching({ tabs }) {
           {line.debit > 0 && (
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.75rem' }}>
               <label className="form-label" htmlFor="bank-exp-cat" style={{ margin: 0 }}>Or add as an expense, category</label>
-              <input id="bank-exp-cat" className="form-input" style={{ width: 200 }} list="bank-exp-cats" maxLength={60} value={category} onChange={(e) => setCategory(e.target.value)} />
-              <datalist id="bank-exp-cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+              <ComboInput id="bank-exp-cat" className="form-input" style={{ width: 200 }} options={categories} listLabel="Expense categories" maxLength={60} value={category} onChange={(e) => setCategory(e.target.value)} />
               <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => addExpense(line)}><Receipt size={15} /> Add as expense</button>
             </div>
           )}

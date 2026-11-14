@@ -48,6 +48,7 @@ const SORT_GETTERS = {
 };
 // v1.10.86 - (#148, #194) a supplier's statement, from the Purchase Records header.
 import SupplierStatement from './SupplierStatement';
+import ComboInput from './ComboInput';
 // v1.10.86 - (#175) a bill handed over from GST Returns -> GSTR-2B ("2B only").
 import { takeTwoBDraft, isTwoBPlaceholder, markBackToTwoB } from '../utils/gstr2bBill';
 
@@ -1104,6 +1105,9 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
 
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }, [products, purchases]);
+  // v1.10.86 - the names for the item boxes' suggestion lists (ComboInput), and the units on an order.
+  const itemNames = useMemo(() => itemHistory.map(i => i.name), [itemHistory]);
+  const unitNames = getAllUnits().map(u => u.label);
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -1568,26 +1572,16 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
               )}
               <div className="form-group">
                 <label className="form-label">Supplier Name *</label>
-                {/* v1.10.50 (#39) — recall previously used suppliers. A native
-                    <datalist> rather than a custom dropdown: it is keyboard
-                    accessible for free, does not trap focus, and degrades to a
-                    plain text field, which matters because a supplier not yet
-                    in the history must still be typeable. */}
-                <input type="text" className="form-input" value={form.supplierName}
-                  list="fgsb-supplier-history" autoComplete="off"
+                {/* v1.10.50 (#39) — recall previously used suppliers; a
+                    supplier not yet in the history must still be typeable.
+                    v1.10.86 - the app's own list (ComboInput) in place of the
+                    browser's <datalist>. Still the name only (#40: Firefox
+                    showed a datalist label INSTEAD of the value); the GSTIN is
+                    filled in on picking anyway. */}
+                <ComboInput type="text" className="form-input" value={form.supplierName} listId="fgsb-supplier-history" listLabel="Previous suppliers"
+                  options={supplierHistory.map(s => s.name)}
                   onChange={e => updateSupplierName(e.target.value)}
                   placeholder={supplierHistory.length ? 'Type or pick a previous supplier' : 'Vendor / Supplier name'} />
-                {/* v1.10.52 (#40) — value ONLY, never child text or a label
-                    attribute. Browsers disagree about which one they show:
-                    Chrome lists the value with the label as secondary text,
-                    Firefox shows the label INSTEAD of the value. v1.10.50 put
-                    the GSTIN in the child text as a hint, so Firefox users got
-                    a list of GST numbers where supplier names should be.
-                    The GSTIN is auto-filled on selection anyway, so the hint
-                    bought nothing and cost the actual name. */}
-                <datalist id="fgsb-supplier-history">
-                  {supplierHistory.map(s => <option key={s.name} value={s.name} />)}
-                </datalist>
               </div>
               <div className="form-group">
                 <label className="form-label">Supplier GSTIN</label>
@@ -1677,27 +1671,15 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                 </label>
               )}
             </div>
-            {/* Rendered once for all rows — a <datalist> is referenced by id,
-                so duplicating it per row would only bloat the DOM. */}
-            {/* Same rule as the supplier list above — value only. */}
-            <datalist id="fgsb-item-history">
-              {itemHistory.map(i => <option key={i.name} value={i.name} />)}
-            </datalist>
-            {isPo && (
-              <datalist id="fgsb-unit-list">
-                {getAllUnits().map(u => <option key={u.label} value={u.label} />)}
-              </datalist>
-            )}
             {form.items.map((item, idx) => (
               <div key={idx} data-focus-key={item._focusKey} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div className="form-group" style={{ flex: isPo ? 1.2 : 2, margin: 0 }}>
                   {idx === 0 && <label className="form-label">Name</label>}
                   {/* v1.10.50 (#39) — recall previously purchased items along
-                      with their HSN, rate and tax rates. One shared datalist
-                      serves every row; the browser scopes suggestions to the
-                      focused input. */}
-                  <input type="text" className="form-input" value={item.name}
-                    list="fgsb-item-history" autoComplete="off"
+                      with their HSN, rate and tax rates. v1.10.86 - in the
+                      app's own list (ComboInput); the name only, as above. */}
+                  <ComboInput type="text" className="form-input" value={item.name}
+                    listId="fgsb-item-history" listLabel="Previous items" options={itemNames}
                     onChange={e => updateItemName(idx, e.target.value)}
                     // #137 barcodes - a scanned (or typed) barcode + Enter puts in its product.
                     // Only with Barcodes on, and not when a product is called exactly what was typed.
@@ -1743,8 +1725,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                   return isPo && (
                     <div className="form-group" style={{ flex: 0.8, margin: 0 }}>
                       {idx === 0 && <label className="form-label">Unit</label>}
-                      <input type="text" className="form-input" value={item.unit || ''} list="fgsb-unit-list"
-                        autoComplete="off" onChange={e => updateItem(idx, 'unit', e.target.value)} placeholder="Nos" />
+                      <ComboInput type="text" className="form-input" value={item.unit || ''} options={unitNames} listLabel="Units"
+                        onChange={e => updateItem(idx, 'unit', e.target.value)} placeholder="Nos" />
                     </div>
                   );
                 })()}

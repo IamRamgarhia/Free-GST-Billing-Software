@@ -13,6 +13,7 @@ import { returnableLines, returnProblem, debitNoteFromBill, debitNoteTotals, deb
 import { purchaseLineTax } from '../utils/purchaseOrders';
 import { getPrintSettings } from '../utils/printSettings';
 import { getAllProducts, applyStockChanges, saveDebitNote, deleteDebitNote, getNextDnNumber } from '../store';
+import ComboInput from './ComboInput';
 
 const showDate = (d) => (d ? parseLocalDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -205,8 +206,7 @@ export function ReturnToSupplierModal({ bill, debitNotes, ownerProfile, onClose,
           <div className="form-group"><label className="form-label">Debit note date</label>
             <input type="date" className="form-input" value={date} onChange={e => setDate(e.target.value)} /></div>
           <div className="form-group"><label className="form-label">Reason</label>
-            <input className="form-input" list="dn-reasons" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Damaged goods" maxLength={120} />
-            <datalist id="dn-reasons">{REASONS.map(r => <option key={r} value={r} />)}</datalist></div>
+            <ComboInput className="form-input" options={REASONS} listLabel="Reasons" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Damaged goods" maxLength={120} /></div>
           <div className="form-group"><label className="form-label">Note (optional)</label>
             <input className="form-input" value={note} onChange={e => setNote(e.target.value)} maxLength={300} placeholder="e.g. sent back by VRL, LR 4471" /></div>
         </div>
