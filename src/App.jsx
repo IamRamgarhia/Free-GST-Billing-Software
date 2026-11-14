@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart, Banknote } from 'lucide-react';
-import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
+import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
 import SidebarMenu from './components/SidebarMenu';
@@ -30,6 +30,8 @@ import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
 import { WhatsNewAfterUpdate } from './components/WhatsNewSlides';
 const SettingsView = lazy(() => import('./components/SettingsView'));
+// v1.10.86 - loaded on first Ctrl+K (it carries the How do I… list and the help index).
+const QuickSearch = lazy(() => import('./components/QuickSearch'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
 const InventoryView = lazy(() => import('./components/InventoryView'));
 const ReportsView = lazy(() => import('./components/ReportsView'));
@@ -280,32 +282,11 @@ function App() {
   // invoice from anywhere; Ctrl+/ shows the full shortcuts list. Ctrl+S /
   // Ctrl+P live in InvoiceGenerator (they need invoice-form context). All
   // global handlers also accept Meta (⌘) for macOS users.
+  // v1.10.86 - the search itself (results, "How do I…", keyboard) is
+  // components/QuickSearch.jsx; it reads invoices, clients and products each
+  // time it opens.
   const [showPalette, setShowPalette] = useState(false);
-  const [paletteQuery, setPaletteQuery] = useState('');
-  const [paletteIdx, setPaletteIdx] = useState(0);
-  // v1.9.4 — pre-load searchable content so Ctrl+K acts as a true global
-  // search across invoices, clients, products, and settings sections.
-  // Small cost (fires once on mount + when palette opens); big UX win.
-  const [searchCorpus, setSearchCorpus] = useState({ bills: [], clients: [], products: [] });
-  useEffect(() => {
-    Promise.all([
-      getAllBills().catch(() => []),
-      getAllClients().catch(() => []),
-      getAllProducts().catch(() => []),
-    ]).then(([bills, clients, products]) => {
-      setSearchCorpus({
-        bills: bills.slice(0, 100),
-        clients: clients.slice(0, 200),
-        products: products.slice(0, 200),
-      });
-    });
-  }, [showPalette]); // refresh when palette opens
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-
-  // Palette useMemo + dependent effects are declared further down, AFTER
-  // `navItems` and `handleNewInvoice` exist. Declaring them up here would
-  // throw "Cannot access 'X' before initialization" at render time because
-  // useMemo's dependency array is evaluated synchronously every render.
 
   // v1.10.69 - see runUpdateNow() in store.js for why this is no longer a link.
   const [updating, setUpdating] = useState(false);
@@ -650,7 +631,7 @@ function App() {
   }, [pageLabel, windowName, updateNote]);
   // v1.10.86 - a search box you can see (it opens the Ctrl+K quick search);
   // a search icon on a phone (CSS hides the words).
-  const openPalette = () => { setPaletteQuery(''); setPaletteIdx(0); setShowPalette(true); };
+  const openPalette = () => setShowPalette(true);
   const searchBox = (
     <button type="button" className="topbar-search" onClick={openPalette}
       title="Search or jump to a page (Ctrl+K)" aria-label="Search or jump to a page (Ctrl+K)">
@@ -695,95 +676,6 @@ function App() {
     ),
   })[id]);
 
-  // Command palette actions — declared here (not earlier) because the deps
-  // array references `navItems` and `handleNewInvoice`, which are consts.
-  // Reading a const before its declaration triggers a Temporal Dead Zone
-  // ReferenceError ("Cannot access 'X' before initialization") at runtime.
-  const paletteActions = useMemo(() => {
-    const acts = [
-      { label: 'New Invoice', hint: 'Ctrl+N', category: 'action', run: () => { handleNewInvoice(); } },
-    ];
-    navItems.forEach(item => {
-      if (item.id === 'new') return; // already covered above
-      acts.push({ label: `Go to ${item.label}`, hint: '', category: 'nav', run: item.onClick || (() => setCurrentView(item.id)) });
-    });
-    acts.push({ label: 'Go to Settings', hint: '', category: 'nav', run: () => setCurrentView('settings') });
-    // v1.10.74 - Control Panel has its own sidebar button but was missing here.
-    // v1.10.83 - and, like every menu item, not when it is switched off.
-    if (bottomIds.includes('controlpanel')) acts.push({ label: 'Go to Control Panel', hint: '', category: 'nav', run: () => setCurrentView('controlpanel') });
-    acts.push({ label: 'Go to Support & About', hint: '', category: 'nav', run: () => setCurrentView('support') });
-    if (topIds.includes('guide')) acts.push({ label: 'Open the User Guide', hint: '', category: 'help', run: openDocs });
-    acts.push({ label: 'Toggle dark mode', hint: '', category: 'action', run: () => setDarkMode(d => !d) });
-    acts.push({ label: 'Show keyboard shortcuts', hint: 'Ctrl+/', category: 'help', run: () => setShowShortcutsHelp(true) });
-    if (updateInfo?.updateAvailable) {
-      acts.push({ label: `View update — v${updateInfo.latest}`, hint: '', category: 'update', run: () => setShowUpdateModal(true) });
-    }
-    // v1.9.4 — cross-app search: invoices, clients, products
-    // v1.10.5 — audit H24 fix. Prior code dispatched
-    // `CustomEvent('fgsb-open-bill', { detail: b.id })` but no one
-    // listened for it — selecting an invoice in the palette silently
-    // dropped the ID and just landed on Dashboard. Now: reuse
-    // handleEditInvoice() directly, which is already the canonical way
-    // to open a bill for editing (works from Dashboard row-click too).
-    searchCorpus.bills.forEach(b => {
-      acts.push({
-        label: `📄 ${b.invoiceNumber || 'INV-?'} — ${b.clientName || 'No client'}`,
-        hint: b.invoiceDate ? new Date(b.invoiceDate).toLocaleDateString('en-IN') : '',
-        category: 'invoice',
-        run: () => handleEditInvoice(b),
-      });
-    });
-    searchCorpus.clients.forEach(c => {
-      acts.push({
-        label: `👤 ${c.name} — client${c.gstin ? ' · GSTIN: ' + c.gstin : ''}`,
-        hint: c.phone || c.email || '',
-        category: 'client',
-        run: () => setCurrentView('clients'),
-      });
-    });
-    // v1.10.83 - a product result opens Products, so none while it is hidden.
-    if (navItems.some(i => i.id === 'inventory')) searchCorpus.products.forEach(p => {
-      acts.push({
-        label: `📦 ${p.name} — product${p.hsn ? ' · HSN: ' + p.hsn : ''}`,
-        hint: trackedStock(p) === null ? '' : trackedStock(p) + ' in stock',
-        category: 'product',
-        run: () => setCurrentView('inventory'),
-      });
-    });
-    // Settings sections (jump to specific area)
-    // v1.10.74 - these all used to just open Settings at the top. Each now
-    // names its section id; after Settings mounts (it's lazy-loaded, so retry
-    // briefly) we click that section's "Jump to" chip, which already scrolls
-    // below the sticky bars.
-    // v1.10.84 - Settings has 6 tabs of several sections: it opens the
-    // section's tab and scrolls to it (first open: sessionStorage; already
-    // open: the event SettingsView listens for).
-    const openSettingsAt = (sectionId) => {
-      try { sessionStorage.setItem('gst_settingsTab', sectionId); } catch { /* storage blocked */ }
-      setCurrentView('settings');
-      setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: sectionId })), 80);
-    };
-    const settingsJumps = [
-      ['Company profile', 'section-company'], ['Payment accounts', 'section-company'],
-      ['Print & PDF Settings', 'section-print'], ['PDF Style Editor', 'section-print'],
-      ['Business type presets', 'section-print'], ['Section labels', 'section-print'],
-      ['Watermarks', 'section-print'], ['Multi-copy print', 'section-print'],
-      ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
-      ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
-      ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
-      // v1.10.86
-      ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'],
-    ];
-    settingsJumps.forEach(([s, sectionId]) => {
-      acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => openSettingsAt(sectionId) });
-    });
-    return acts;
-  }, [navItems, bottomIds, topIds, updateInfo, handleNewInvoice, searchCorpus]);
-
-  const filteredPalette = paletteActions.filter(a =>
-    !paletteQuery.trim() || a.label.toLowerCase().includes(paletteQuery.toLowerCase())
-  );
-
   // Global keyboard shortcuts. Lives down here for the same TDZ reason —
   // the handler closes over `handleNewInvoice` which is declared above only.
   useEffect(() => {
@@ -795,8 +687,6 @@ function App() {
       if (e.key === 'k' || e.key === 'K') {
         e.preventDefault();
         setShowPalette(p => !p);
-        setPaletteQuery('');
-        setPaletteIdx(0);
       } else if (e.key === '/') {
         e.preventDefault();
         setShowShortcutsHelp(s => !s);
@@ -862,24 +752,6 @@ function App() {
     window.addEventListener('keydown', onEsc);
     return () => { observer.disconnect(); window.removeEventListener('keydown', onEsc); };
   }, [showPalette]);
-
-  // Palette-only arrow / Enter / Esc nav. Filtered list dep keeps the
-  // handler in sync with the user's current query.
-  useEffect(() => {
-    if (!showPalette) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); setShowPalette(false); return; }
-      if (e.key === 'ArrowDown') { e.preventDefault(); setPaletteIdx(i => Math.min(i + 1, filteredPalette.length - 1)); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setPaletteIdx(i => Math.max(i - 1, 0)); }
-      else if (e.key === 'Enter') {
-        e.preventDefault();
-        const action = filteredPalette[paletteIdx];
-        if (action) { action.run(); setShowPalette(false); }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [showPalette, paletteIdx, filteredPalette]);
 
   // v1.10.84 (maintainer, 7 Nov: "this window should never come") - inside the
   // Windows Setup's own window (WebView2 gives every page window.chrome.webview)
@@ -1305,48 +1177,15 @@ function App() {
         </div>
       )}
 
-      {/* Command palette — Ctrl/Cmd+K. Spotlight-style: type to filter actions,
-          ↑/↓ to navigate, Enter to run, Esc to close. */}
+      {/* Quick search - Ctrl/Cmd+K or the search box (v1.10.86: components/QuickSearch.jsx). */}
       {showPalette && (
-        <div className="modal-overlay" onClick={() => setShowPalette(false)}>
-          <div className="modal-content" style={{ maxWidth: '520px', padding: 0, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color)' }}>
-              <Search size={16} style={{ color: 'var(--text-muted)' }} />
-              <input autoFocus type="text" placeholder="Type a command or page name…"
-                value={paletteQuery}
-                onChange={e => { setPaletteQuery(e.target.value); setPaletteIdx(0); }}
-                className="form-input" style={{ border: 0, background: 'transparent', flex: 1, fontSize: '0.95rem' }} />
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Esc</span>
-            </div>
-            <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
-              {filteredPalette.length === 0 && (
-                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1.25rem', margin: 0, fontSize: '0.85rem' }}>
-                  Nothing matches "{paletteQuery}".
-                </p>
-              )}
-              {filteredPalette.map((a, i) => (
-                <button key={a.label} type="button"
-                  onClick={() => { a.run(); setShowPalette(false); }}
-                  onMouseEnter={() => setPaletteIdx(i)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    width: '100%', padding: '0.6rem 1rem', border: 0, cursor: 'pointer',
-                    background: i === paletteIdx ? 'var(--bg-tertiary)' : 'transparent',
-                    color: 'var(--text-primary)', textAlign: 'left', fontSize: '0.88rem',
-                  }}>
-                  <span>{a.label}</span>
-                  {a.hint && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{a.hint}</span>}
-                </button>
-              ))}
-            </div>
-            <div style={{ padding: '0.4rem 1rem', borderTop: '1px solid var(--border-color)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span><Command size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />Ctrl+K to toggle · ↑↓ navigate · Enter run <HelpButton title="Quick search" doc="shortcuts#command-palette" size={16} /></span>
-              <button type="button" onClick={() => { setShowPalette(false); setShowShortcutsHelp(true); }} style={{ background: 'none', border: 0, color: 'var(--primary)', cursor: 'pointer', fontSize: '0.7rem' }}>
-                All shortcuts (Ctrl+/)
-              </button>
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={null}>
+          <QuickSearch onClose={() => setShowPalette(false)}
+            navItems={navItems} bottomIds={bottomIds} topIds={topIds} updateInfo={updateInfo}
+            onNewInvoice={handleNewInvoice} onEditInvoice={handleEditInvoice} onView={setCurrentView}
+            onSettings={openSettingsSection} onDarkMode={() => setDarkMode(d => !d)}
+            onShortcuts={() => setShowShortcutsHelp(true)} onUpdate={() => setShowUpdateModal(true)} onOpenDocs={openDocs} />
+        </Suspense>
       )}
 
       {/* Keyboard-shortcuts help — Ctrl/Cmd+/. Single-pane reference. */}

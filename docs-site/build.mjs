@@ -19,34 +19,16 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import { NAV, SITE, SEO } from './site.mjs';
-import start from './pages/start.mjs';
-import gstBasics from './pages/gst-basics.mjs';
-import install from './pages/install.mjs';
-import daily from './pages/daily.mjs';
-import clients from './pages/clients.mjs';
-import products from './pages/products.mjs';
-import payments from './pages/payments.mjs';
-import buying from './pages/buying.mjs';
-import money from './pages/money.mjs';
-import reports from './pages/reports.mjs';
-import incomeTax from './pages/income-tax.mjs';
-import setup from './pages/setup.mjs';
-import invoice from './pages/invoice.mjs';
-import print from './pages/print.mjs';
-import help from './pages/help.mjs';
-import about from './pages/about.mjs';
-import security from './pages/security.mjs';
+// v1.10.86 - the pages, text() and sectionsOf() live in sections.mjs (the app's quick search reads them too).
+import { PAGES, text, sectionsOf } from './sections.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'out', SITE.folder);
 const IMG_SRC = join(HERE, 'assets', 'img');
-const PAGES = [...start, ...gstBasics, ...install, ...invoice, ...daily, ...clients, ...products, ...payments, ...buying, ...money, ...reports, ...incomeTax, ...setup, ...print, ...help, ...about, ...security];
 const TODAY = new Date().toISOString().slice(0, 10);
 const BRAND = 'Free GST Billing Software';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
-  .replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim();
 const pageUrl = (slug) => (slug === 'index' ? SITE.url : `${SITE.url}${slug}.html`);
 // Search results show about 155 characters; cut on a word, never mid-word.
 const clip = (s, n = 155) => (s.length <= n ? s : `${s.slice(0, s.lastIndexOf(' ', n - 1))}…`);
@@ -59,10 +41,6 @@ for (const group of NAV) for (const slug of group.pages) {
 for (const p of PAGES) {
   if (!NAV.some((g) => g.pages.includes(p.slug))) throw new Error(`page "${p.slug}" is not in the sidebar`);
 }
-// v1.10.83 - an <h3> section is an entry under the <h2> group before it (the
-// Troubleshooting error catalogue): linkable and searchable, not in the TOC.
-const sectionsOf = (p) => [...p.body.matchAll(/<section id="([a-z0-9-]+)"[^>]*>\s*<h([23])>([\s\S]*?)<\/h\2>/g)]
-  .map((m) => ({ id: m[1], title: text(m[3]), level: Number(m[2]) }));
 for (const p of PAGES) {
   const ids = sectionsOf(p).map((s) => s.id);
   const dupe = ids.find((id, i) => ids.indexOf(id) !== i);
