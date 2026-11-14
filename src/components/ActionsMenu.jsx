@@ -10,7 +10,7 @@
 // and took its clicks.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, ChevronDown } from 'lucide-react';
 
 // Below the button, or above it when there is no room below.
 function placeFor(r, count) {
@@ -19,7 +19,8 @@ function placeFor(r, count) {
 }
 
 // v1.10.86 - icon / className / iconSize: the top bar's Help (?) button is one of these too.
-export default function ActionsMenu({ items, label = 'More actions', icon, className = 'icon-btn', iconSize = 15 }) {
+// v1.10.86 - text: a word on the button and a ▾ (the Dashboard's Print menu); disabled while busy.
+export default function ActionsMenu({ items, label = 'More actions', icon, className = 'icon-btn', iconSize = 15, text, disabled = false }) {
   const ButtonIcon = icon || MoreHorizontal;
   const [pos, setPos] = useState(null); // { top, right } while open
   const btn = useRef(null);
@@ -70,9 +71,9 @@ export default function ActionsMenu({ items, label = 'More actions', icon, class
 
   return (
     <>
-      <button ref={btn} type="button" className={className} onClick={toggle} title={label}
+      <button ref={btn} type="button" className={className} onClick={toggle} title={label} disabled={disabled}
         aria-label={label} aria-haspopup="menu" aria-expanded={!!pos}>
-        <ButtonIcon size={iconSize} />
+        <ButtonIcon size={iconSize} />{text && <>{text}<ChevronDown size={14} /></>}
       </button>
       {pos && createPortal(
         <div ref={menu} role="menu" className="actions-menu" aria-label={label} onKeyDown={onMenuKey} style={{

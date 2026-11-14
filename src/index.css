@@ -1238,6 +1238,38 @@ th[aria-sort="descending"] .th-sort::after { content: "\25BC"; opacity: 1; font-
 .scan-return-actions .btn { font-size: 0.8rem; padding: 0.4rem 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
 .scan-return-hint { margin: 0; padding: 0.35rem 1.25rem; font-size: 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
 @media (max-width: 600px) { .scan-return-actions { width: 100%; } .scan-return-actions .btn { flex: 1 1 auto; justify-content: center; } }
+/* v1.10.86 - the Dashboard on fewer lines (maintainer: "all things should be
+   in one line"): "Totals for" in the title row, the filters, Dates & more,
+   Print and Columns on one row at 1366, the total cards laid out alike. */
+.page-header.page-header-compact { justify-content: flex-start; } /* wrapped, the count stays by the title */
+/* The ⋯ / Print menus were white with light text in dark mode. */
+[data-theme="dark"] .actions-menu { background: var(--bg-primary) !important; }
+.page-header-compact .card-period { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: 0.85rem; vertical-align: middle; }
+.page-header-compact .card-period label { font-size: 0.8rem; font-weight: 500; }
+.page-header-compact .card-period .filter-select { padding-top: 0.35rem; padding-bottom: 0.35rem; min-width: 0; }
+.dash-filters .search-box { flex: 1 1 160px; min-width: 160px; }
+.dash-filters .dash-type-select { max-width: 11rem; } /* "Composition (Bill of Supply)" made it 214 px */
+.dash-filter-btn { font-size: 0.8rem; padding: 0.45rem 0.7rem; gap: 0.35rem; white-space: nowrap; }
+.dash-filter-btn.is-set { border-color: var(--primary); color: var(--primary); }
+.dash-filter-icon { padding: 0.45rem; }
+.dash-filter-end { margin-left: auto; display: inline-flex; gap: 0.5rem; }
+.filter-popover-wrap { position: relative; }
+.filter-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  width: max-content; max-width: calc(100vw - 32px);
+  display: flex; flex-direction: column; gap: 0.6rem; padding: 0.85rem;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+[data-theme="dark"] .filter-popover { background: var(--bg-secondary); }
+.filter-popover.align-right { left: auto; right: 0; }
+.filter-popover label { display: grid; grid-template-columns: 6.5rem 1fr; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: var(--text-muted); }
+.dash-totals > .stat-card { align-items: flex-start; padding: 1.25rem; gap: 0.75rem; }
+.dash-totals .stat-icon { width: 40px; height: 40px; border-radius: 10px; }
+.dash-totals .stat-label { display: flex; align-items: center; white-space: nowrap; min-height: 22px; margin-bottom: 0.3rem; }
+/* A narrow card (a small laptop) keeps the label on one line: the icon makes room. */
+@container (max-width: 186px) { .dash-totals .stat-icon { display: none; } }
+
 /* v1.10.86 - saved filter sets above the invoice list. */
 .saved-filters { padding: 0.5rem 0.85rem; display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
 .saved-filters-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
