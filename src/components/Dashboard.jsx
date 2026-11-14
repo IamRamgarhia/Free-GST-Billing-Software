@@ -7,7 +7,9 @@ import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../ut
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
 import { EInvoiceReport } from './EInvoiceModal';
-import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
+import { openWhatsAppShare, invoiceShareMessage, sendPdfOnWhatsApp } from '../utils/share';
+// v1.10.86 - the single-invoice PDF moved to utils/billPdf.js (Clients uses it too).
+import { addCanvasAsA4Pages, safeBreaks, billPdfBlob, billPdfName } from '../utils/billPdf';
 import PageHeader from './PageHeader';
 import LockButton from './LockButton';
 import ActionsMenu from './ActionsMenu';
@@ -49,48 +51,6 @@ const SO_STATUS_COLORS = {
 // user reported "NEW ISSUE IN CASE OF DARK MODE". rgba() with 12%
 // alpha lets the underlying row bg show through and works in both
 // themes.
-// v1.10.79 - put a captured invoice on A4 pages. It used to be drawn into one
-// page whatever its height (`Math.min(h, 297)`), so a long invoice shared on
-// WhatsApp or in Bulk PDF came out squashed into a single page. Now each
-// 297 mm slice is its own page.
-// `breaks` are canvas heights where a page may end (row and block bottoms,
-// see safeBreaks): a page ends at the last one that fits, so rows and the
-// signature are not cut in half.
-function addCanvasAsA4Pages(doc, canvas, startOnNewPage, breaks = []) {
-  const pageW = 210;
-  const pageH = 297;
-  const slicePx = Math.floor((canvas.width * pageH) / pageW);
-  for (let y = 0, page = 0; y < canvas.height; page++) {
-    let h = Math.min(slicePx, canvas.height - y);
-    if (y + h < canvas.height) {
-      const cut = breaks.filter((b) => b > y + slicePx * 0.5 && b <= y + slicePx).pop();
-      if (cut) h = cut - y;
-    }
-    if (page > 0 && h < 4) break; // a sliver of white margin is not worth a page
-    const slice = document.createElement('canvas');
-    slice.width = canvas.width;
-    slice.height = h;
-    const ctx = slice.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, slice.width, slice.height);
-    ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
-    if (page > 0 || startOnNewPage) doc.addPage();
-    doc.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, (h * pageW) / canvas.width, undefined, 'FAST');
-    y += h;
-  }
-}
-
-// Heights (in canvas pixels) where a page may end: the bottom of each table
-// row and of each block the editor's own PDF also keeps whole.
-function safeBreaks(el, canvas) {
-  const top = el.getBoundingClientRect().top;
-  const scale = canvas.height / Math.max(1, el.getBoundingClientRect().height);
-  return [...el.querySelectorAll('tr, .inv-footer-block, [data-pdf-page-boundary], .inv-signature')]
-    .map((n) => Math.round((n.getBoundingClientRect().bottom - top) * scale))
-    .filter((b) => b > 0 && b < canvas.height)
-    .sort((a, b) => a - b);
-}
-
 const STATUS_CONFIG = {
   unpaid:  { label: 'Unpaid',  icon: Clock,          color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.14)' },
   partial: { label: 'Partial', icon: Clock,          color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.14)' },
@@ -1390,44 +1350,6 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     await bulkExportPDF(targetBills);
   };
 
-  // v1.10.22 — Generate a single-bill PDF as a Blob. Split out of the
-  // bulk-export path so the WhatsApp / native share flows can attach the
-  // actual PDF via navigator.share (with a text-only URL fallback on
-  // desktop / browsers that don't support file sharing yet).
-  const generateSingleBillPdfBlob = async (bill) => {
-    const data = bill.data || {};
-    const { jsPDF } = await import('jspdf');
-    const html2canvas = (await import('html2canvas')).default;
-    const InvoicePreviewMod = await import('./InvoicePreview');
-    const { createRoot } = await import('react-dom/client');
-    const { createElement } = await import('react');
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;';
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    try {
-      await new Promise((resolve) => {
-        root.render(createElement(InvoicePreviewMod.default, {
-          profile: data.profile, client: data.client, details: data.details, items: data.items,
-          totals: data.totals, invoiceType: data.invoiceType, customTerms: data.customTerms,
-          customNotes: data.customNotes, extraSections: data.extraSections, options: data.invoiceOptions,
-          cancelled: bill.status === 'cancelled', einvoice: bill.einvoice,
-        }));
-        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
-      });
-      const capScale = Math.min(4, Math.max(2, Math.round((window.devicePixelRatio || 1) * 1.2)));
-      const canvas = await html2canvas(container.firstElementChild || container, {
-        scale: capScale, backgroundColor: '#ffffff', useCORS: false, logging: false,
-      });
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-      addCanvasAsA4Pages(doc, canvas, false, safeBreaks(container.firstElementChild || container, canvas));
-      return doc.output('blob');
-    } finally {
-      root.unmount();
-      document.body.removeChild(container);
-    }
-  };
-
   // v1.10.24 — Build a rich WhatsApp / Email caption that carries the full
   // payment status. Reported: "please forward with text message too with
   // status op payment." On mobile the message rides as WhatsApp caption
@@ -1436,56 +1358,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // v1.10.84 (#156) - the one message every screen sends (utils/share.js).
   const buildShareMessage = (bill) => invoiceShareMessage(bill, profile);
 
-  const shareWhatsApp = async (bill) => {
-    const msg = buildShareMessage(bill);
-    // v1.10.22 — try the native Web Share API first, with the actual PDF
-    // attached. On mobile Chrome / Safari the share sheet lets the user
-    // pick WhatsApp (or any other target). Falls through to the text-only
-    // wa.me URL on desktop and older browsers.
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try {
-        toast('Preparing PDF for share…', 'info', 1500);
-        const blob = await generateSingleBillPdfBlob(bill);
-        const file = new File([blob], `${bill.invoiceNumber}.pdf`, { type: 'application/pdf' });
-        const canShareFile = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
-        if (canShareFile) {
-          await navigator.share({
-            title: `Invoice ${bill.invoiceNumber}`,
-            text: msg,
-            files: [file],
-          });
-          return;
-        }
-      } catch (e) {
-        // AbortError = user dismissed the share sheet; not an error.
-        if (e?.name !== 'AbortError') console.warn('Web Share failed, falling back to WhatsApp URL:', e);
-        else return;
-      }
-    }
-    // Fallback (desktop): WhatsApp Web cannot be handed a file by a web page
-    // (a browser security rule), so the PDF is downloaded and the client's
-    // chat opened with the message, ready to drag the file in.
-    // v1.10.81 (#117) - the client's saved number is used (it was only the
-    // number on the invoice record, which is rarely set), and the PDF is
-    // downloaded for them instead of "download it yourself".
-    const phone = getClientPhone(bill);
-    // Opened first, while it still counts as the click: opened after the PDF
-    // is made, browsers block it as a popup.
-    openWhatsAppShare(phone, msg);
-    let downloaded = false;
-    try {
-      const blob = await generateSingleBillPdfBlob(bill);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `${String(bill.invoiceNumber).replace(/[\\/:*?"<>|]+/g, '-')}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      downloaded = true;
-    } catch { /* PDF failed: still open the chat with the text */ }
-    toast(downloaded
-      ? `PDF downloaded. Drag it into the WhatsApp chat${phone ? '' : ' (choose the contact there)'} — browsers can't attach it for you.`
-      : 'WhatsApp opened with the invoice details. Download the PDF from the invoice to send the file.', 'info', 7000);
-  };
+  // v1.10.86 - the PDF goes along: copied to the clipboard on the PC (Ctrl+V in
+  // the chat), the Share sheet on a phone (utils/share.js sendPdfOnWhatsApp).
+  // v1.10.81 (#117) - the client's saved number is used.
+  const shareWhatsApp = (bill) => sendPdfOnWhatsApp({
+    phone: getClientPhone(bill), toast,
+    prepare: async () => ({ blob: await billPdfBlob(bill), fileName: billPdfName(bill), message: buildShareMessage(bill) }),
+  });
 
   const shareEmail = (bill) => {
     // v1.10.24 — same rich payment status as the WhatsApp share (strip

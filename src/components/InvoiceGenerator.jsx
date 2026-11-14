@@ -8,7 +8,7 @@ import { receiptForPayment } from '../utils/bankMatch';
 import { PAID_MODES, lastPaidMode, rememberPaidMode } from './askPaidMode';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { fitItemTable, pdfScalePlan } from '../utils/invoiceFit';
-import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
+import { sendPdfOnWhatsApp, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect } from './CostCentrePicker';
@@ -3936,15 +3936,29 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // number that appears on the PDF and gets saved as bill.totalAmount.
     // v1.10.84 (#156) - the same full message as the Invoices list, built
     // from the form (payments and status from the saved invoice, if any).
-    const bill = {
-      invoiceNumber: details.invoiceNumber, invoiceDate: details.invoiceDate, clientName: client?.name,
-      totalAmount: totals.total, currency: invoiceOptions.currency || 'INR',
-      payments: editingBill?._isDuplicate ? [] : editingBill?.payments,
-      paidAmount: editingBill?._isDuplicate ? 0 : editingBill?.paidAmount,
-      status: editingBill?._isDuplicate ? '' : editingBill?.status,
-      data: { details, invoiceOptions, totals },
-    };
-    openWhatsAppShare(client?.phone, invoiceShareMessage(bill, profile));
+    // v1.10.86 - the PDF goes along (copied for Ctrl+V in the chat on the PC,
+    // the Share sheet on a phone). Like Save PDF, the invoice is saved first,
+    // so the PDF and the message carry the number it was saved under.
+    if (!printRef.current) return;
+    const problem = validateForSave();
+    if (problem) { toast(problem, 'warning'); return; }
+    sendPdfOnWhatsApp({ phone: client?.phone, toast, prepare: async () => {
+      setSaving(true);
+      try {
+        const savedNumber = await saveForOutput();
+        if (!savedNumber) return null;
+        const bill = {
+          invoiceNumber: savedNumber, invoiceDate: details.invoiceDate, clientName: client?.name,
+          totalAmount: totals.total, currency: invoiceOptions.currency || 'INR',
+          payments: editingBill?._isDuplicate ? [] : editingBill?.payments,
+          paidAmount: editingBill?._isDuplicate ? 0 : editingBill?.paidAmount,
+          status: editingBill?._isDuplicate ? '' : editingBill?.status,
+          data: { details, invoiceOptions, totals },
+        };
+        const pdf = await buildPDF();
+        return { blob: pdf.output('blob'), fileName: `${typeConfig.prefix}_${savedNumber.replace(/\//g, '-')}.pdf`, message: invoiceShareMessage(bill, profile) };
+      } finally { setSaving(false); }
+    } });
   };
 
   const exportEWayBill = () => {

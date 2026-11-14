@@ -7,7 +7,7 @@ import ActionsMenu from './ActionsMenu';
 import { formatCurrency, splitPurchaseTax, parseLocalDate, numberToWords } from '../utils';
 import { purchaseTotals, poStatus, PO_STATUS_LABELS, purchaseLineTax } from '../utils/purchaseOrders';
 import { getPrintSettings } from '../utils/printSettings';
-import { openWhatsAppShare } from '../utils/share';
+import { sendPdfOnWhatsApp } from '../utils/share';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
@@ -181,18 +181,12 @@ export default function PurchaseOrders({ orders, purchases, ownerProfile, onNew,
       if (!window.open(doc.output('bloburl'), '_blank')) doc.save(pdfName(po));
     } catch (err) { console.error('PO print failed:', err); toast('Could not make the PDF', 'error'); }
   };
-  // On a phone that can share files, the PDF goes along; otherwise the text.
-  const shareWhatsApp = async (po) => {
-    const text = poMessage(po, ownerProfile);
-    try {
-      const file = new File([(await buildPoPdf(po, ownerProfile)).output('blob')], pdfName(po), { type: 'application/pdf' });
-      if (navigator.canShare?.({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-        await navigator.share({ files: [file], text: text.replace(/\*/g, '') });
-        return;
-      }
-    } catch { /* fall back to the text */ }
-    openWhatsAppShare('', text);
-  };
+  // v1.10.86 - the PDF goes along: the Share sheet on a phone, copied for
+  // Ctrl+V in the chat on the PC (utils/share.js sendPdfOnWhatsApp).
+  const shareWhatsApp = (po) => sendPdfOnWhatsApp({
+    phone: '', toast,
+    prepare: async () => ({ blob: (await buildPoPdf(po, ownerProfile)).output('blob'), fileName: pdfName(po), message: poMessage(po, ownerProfile) }),
+  });
   const shareEmail = (po) => {
     const subject = `Purchase order ${po.poNumber}${ownerProfile?.businessName ? ` from ${ownerProfile.businessName}` : ''}`;
     const body = `Dear ${po.supplierName || 'Sir/Madam'},\n\nPlease supply the following.\n\n${poMessage(po, ownerProfile).replace(/\*/g, '')}\n\nRegards`;

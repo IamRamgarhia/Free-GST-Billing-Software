@@ -467,7 +467,7 @@ export default [
   <tr><td>${ui('Close')}</td><td>Closes the window.</td></tr>
   <tr><td>${ui('Duplicate')}</td><td>A new PO with the same supplier and items.</td></tr>
   <tr><td>${ui('Edit')}</td><td>Open orders only.</td></tr>
-  <tr><td>${ui('WhatsApp')}</td><td>On a phone that can share files, sends the PDF with a short message. On a computer, opens WhatsApp with the message (PO number, date, items, quantities, rates and total) for you to pick the supplier; attach the PDF yourself if you want it.</td></tr>
+  <tr><td>${ui('WhatsApp')}</td><td>On a phone that can share files, sends the PDF with a short message. On a computer, copies the PDF and opens WhatsApp with the message (PO number, date, items, quantities, rates and total): pick the supplier, press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the chat to attach the PDF, then Send.</td></tr>
   <tr><td>${ui('Email')}</td><td>Opens your email program with the subject <b>Purchase order</b> <i>number</i> and the order typed out. Add the supplier's email address, and attach the PDF from ${ui('Download PDF')} if you want.</td></tr>
   <tr><td>${ui('Print')}</td><td>Opens the PDF ready to print. If pop-ups are blocked, it downloads instead.</td></tr>
   <tr><td>${ui('Download PDF')}</td><td>Saves the PDF, named after the PO number with <code>_</code> for each slash, such as <code>PO_26-27_0001.pdf</code>.</td></tr>

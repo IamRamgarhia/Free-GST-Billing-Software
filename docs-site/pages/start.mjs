@@ -196,7 +196,7 @@ export default [
 <section id="send">
 <h2>Send it</h2>
 <ul>
-  <li>${ui('WhatsApp')} opens a message to the client. On a phone the PDF is attached for you; on a computer, WhatsApp does not let websites attach files, so download the PDF and drag it into the chat.</li>
+  <li>${ui('WhatsApp')} sends the PDF to the client. On a phone the share menu opens with the PDF attached; on a computer the PDF is copied and the chat opens: press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the chat, then Send.</li>
   <li>${ui('Print')} opens your printer directly, including thermal receipt printers.</li>
   <li>Or attach the downloaded PDF to an email yourself.</li>
 </ul>
