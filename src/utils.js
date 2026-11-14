@@ -2082,7 +2082,6 @@ export const MENU_ITEMS = [
   { id: 'notifications', label: 'Notifications', module: 'notifications', section: 'top', help: 'Bell at the top right: overdue invoices, GST due dates and low stock.' },
   // v1.10.86 - pair a phone or tablet (QR code) from any screen.
   { id: 'phone', label: 'Pair a phone', module: 'phoneButton', section: 'top', help: 'Phone button at the top right: the QR code to use the app on a phone or tablet on the same Wi-Fi.' },
-  { id: 'lock', label: 'Lock app', module: null, section: 'top', help: 'Padlock at the top right, shown only when a PIN is set.' },
   { id: 'offline', label: 'Offline mode', module: 'offlineButton', section: 'top', help: 'Wi-Fi button at the top right: turn Offline mode on or off, and see what changes.' },
   { id: 'darkMode', label: 'Dark mode', module: 'darkMode', section: 'top', help: 'Moon / sun button at the top right: light or dark screens.' },
   { id: 'support', label: 'Support & About', module: null, section: 'bottom', help: 'Who makes this app, version and how to get help.' },

@@ -41,7 +41,6 @@ const ControlPanel = lazy(() => import('./components/ControlPanel'));
 const SupportView = lazy(() => import('./components/SupportView'));
 import StarBanner from './components/StarBanner';
 import AppFooter from './components/AppFooter';
-import LockButton from './components/LockButton';
 import OfflineModeButton from './components/OfflineModeButton';
 import PhonePairButton from './components/PhonePairButton';
 import { isOfflineMode } from './utils/offlineMode';
@@ -640,8 +639,6 @@ function App() {
       setCurrentView('settings');
       setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: 'section-phone' })), 80);
     }} />,
-    /* v1.10.80 (#98) - only when a PIN is set. */
-    lock: <LockButton key={id} className="topbar-btn" label={null} />,
     /* v1.10.83 - Offline mode on / off, and what it changes. */
     offline: <OfflineModeButton key={id} className="topbar-btn" onOpenSettings={() => {
       try { sessionStorage.setItem('gst_settingsTab', 'section-privacy'); } catch { /* storage blocked */ }

@@ -20,6 +20,14 @@ import { runUpdateNow } from '../store';
 // reports `controlScriptsAvailable: false` and the buttons are
 // visibly disabled with an inline explanation. Nothing crashes.
 
+// v1.10.86 - "win32" is Node's name for every Windows, 64-bit too: show plain words.
+const OS_NAMES = { win32: 'Windows', darwin: 'Mac', linux: 'Linux' };
+const ARCH_BITS = { x64: '64-bit', arm64: 'ARM 64-bit', ia32: '32-bit', arm: 'ARM' };
+const platformName = (platform, arch) => {
+  const os = OS_NAMES[platform] || platform || '';
+  return ARCH_BITS[arch] ? `${os} (${ARCH_BITS[arch]})` : os;
+};
+
 export default function ControlPanel() {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(null); // action name currently in flight
@@ -203,7 +211,7 @@ export default function ControlPanel() {
       {/* Install info card */}
       {status && !status.error && (
         <div className="glass-panel p-6 mb-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-          <StatCell label="Platform"       value={status.platform} />
+          <StatCell label="Computer"       value={platformName(status.platform, status.arch)} />
           <StatCell label="Node version"   value={status.node} />
           <StatCell label="Server port"    value={status.port} />
           <StatCell label="Data folder size" value={formatSize(status.dataSizeBytes)} />

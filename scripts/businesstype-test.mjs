@@ -55,7 +55,7 @@ eq(core.sort(), ['clients', 'dashboard', 'invoicing'], 'core: dashboard, new inv
 for (const t of BUSINESS_TYPES) eq(core.every(id => shown(t.id, id)), true, `${t.id}: core stays on`);
 eq(core.every(id => isModuleEnabled(id, { dashboard: false, invoicing: false, clients: false })), true, 'core ignores a saved "off"');
 const always = MENU_ITEMS.filter(m => !m.module).map(m => m.id).sort();
-eq(always, ['lock', 'settings', 'support'], 'Settings, Support & About and Lock app have no switch');
+eq(always, ['settings', 'support'], 'Settings and Support & About have no switch');
 eq(SWITCHABLE_MODULES.some(id => ['settings', 'support'].includes(id)), false, 'no type can hide Settings or Support');
 for (const t of BUSINESS_TYPES) eq(['guide', 'notifications', 'controlPanel', 'offlineButton', 'phoneButton'].every(id => shown(t.id, id)), true, `${t.id}: app helpers stay on (incl. the Offline mode and phone buttons)`);
 
@@ -94,7 +94,8 @@ const idsIn = (section) => MENU_ITEMS.filter(m => m.section === section).map(m =
 eq(moveMenuItem([], idsIn('main').at(-1), +1), def, 'last of the top part cannot jump into the bottom part');
 eq(moveMenuItem([], idsIn('bottom')[0], -1), def, 'first of the bottom part cannot jump into the top part');
 eq(moveMenuItem([], idsIn('top')[0], -1), def, 'first top-bar button cannot jump into another part');
-eq(['guide', 'notifications', 'lock', 'darkMode'].every(id => idsIn('top').includes(id)), true, 'dark mode, notifications, guide and lock are top-bar buttons');
+eq(['guide', 'notifications', 'darkMode'].every(id => idsIn('top').includes(id)), true, 'dark mode, notifications and guide are top-bar buttons');
+eq(idsIn('top').includes('lock'), false, 'no second lock button in the top bar (v1.10.86: the Lock button on the Dashboard is the one)');
 o = moveMenuItem([], 'settings', -1);
 eq(o.indexOf('settings') < o.indexOf('controlpanel'), true, 'bottom items reorder among themselves');
 eq(moveMenuItem([], 'nope', 1), def, 'unknown item: no change');

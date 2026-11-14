@@ -2290,6 +2290,8 @@ app.get('/api/control-panel/status', (req, res) => {
   } catch { /* keep fallback */ }
   res.json({
     platform: process.platform,
+    // v1.10.86 - shown as "Windows (64-bit)": win32 is Node's name for every Windows.
+    arch: process.arch,
     node: process.version,
     controlScriptsAvailable: !!controlScriptDir,
     actions: controlActions(),
