@@ -97,7 +97,7 @@ const late = { id: 'l', date: '2026-11-20', description: 'UPI', reference: '', c
 eq(suggestFor(late, entries).length, 0, 'Date window: a payment recorded 13 days earlier is not suggested');
 eq(best({ ...late, date: '2026-11-14' })?.key, 'invoice:b3:pay_x', '... 7 days later it is (the payment already recorded)');
 eq(suggestFor({ ...late, credit: 502 }, entries).length, 0, 'More than a rupee apart is not a match');
-const twoSame = bookEntries({ bills: [{ ...invUnpaid, id: 'n1', invoiceNumber: 'INV-A', clientName: 'Alpha Stores' }, { ...invUnpaid, id: 'n2', invoiceNumber: 'INV-B', clientName: 'Kaveri Ventures' }] });
+const twoSame = bookEntries({ bills: [{ ...invUnpaid, id: 'n1', invoiceNumber: 'INV-A', clientName: 'Alpha Stores' }, { ...invUnpaid, id: 'n2', invoiceNumber: 'INV-B', clientName: 'Beta Ventures' }] });
 eq(suggestFor({ ...lines[0], description: 'NEFT KAVERI VENTURES' }, twoSame)[0].id, 'n2', 'Name hint: of two invoices of the same amount, the one whose client is named comes first');
 eq(suggestFor({ ...lines[0], description: 'NEFT INVB' }, twoSame)[0].id, 'n2', 'Number hint: the invoice number in the description comes first');
 eq(nameInText('The Traders Pvt Ltd', 'neftsomeone'), false, 'Common words of a name are not a hint');
