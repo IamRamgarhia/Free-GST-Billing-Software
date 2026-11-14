@@ -845,12 +845,12 @@ export default function SettingsView({ onSaved }) {
            card, gear glyph in a rounded badge for visual identity, and
            a subtle count chip showing how many sections there are so
            the user has a scale expectation before diving in. */}
-      {/* v1.10.86 - in the top bar (the tabs and the Save bar stay as they were). */}
+      {/* v1.10.86 - in the top bar (the tabs and the Save bar stay as they were);
+          the "7 tabs" count is gone: the tabs are right under it. */}
       <PageHeader
         title="Settings"
         help={{ title: 'Settings', doc: SETTINGS_TAB_DOCS[sectionsOf(activeSection)[0]] || 'settings' }}
         subtitle="Business profile, branding, integrations & data"
-        meta={`${SETTINGS_TABS.length} tabs`}
       />
 
       {/* v1.10.75 - the section buttons, pinned at the top. They wrap onto a
