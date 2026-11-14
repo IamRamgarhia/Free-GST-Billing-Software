@@ -207,5 +207,25 @@ ok(DEVICE_COOKIE.startsWith('__Host-'), 'cookie name has the __Host- prefix (HTT
   ok(got.authorized === true, 'trusted once accepted (the certificate is its own authority)', JSON.stringify(got));
 }
 
+// ---- v1.10.86 - the pages a phone sees before it is paired ----
+{
+  const { pairPageHtml, guidePageHtml, guidePageCsp, pairPageCsp, UNLOCKED_SESSION_KEY } = await import('../src/utils/pairPage.js');
+  const { UNLOCKED_KEY } = await import('../src/utils/appLock.js');
+  ok(UNLOCKED_SESSION_KEY === UNLOCKED_KEY, 'the pairing page unlocks the app lock with its own key (PIN typed once)');
+  const pair = pairPageHtml({ fingerprint: 'AB CD', nonce: 'n1' });
+  ok(pair.includes(`sessionStorage.setItem('${UNLOCKED_KEY}', '1')`) && /x\.s === 200\) \{ try \{ sessionStorage/.test(pair), 'only a successful pairing marks this tab unlocked');
+  ok(/location\.hash/.test(pair) && /history\.replaceState/.test(pair), 'pairing page reads the code after # and drops it from the address');
+  const g = guidePageHtml({ fingerprint: 'AB CD EF', address: '192.168.1.5', pairUrl: 'https://192.168.1.5:47443/pair', nonce: 'n2' });
+  ok(g.includes('href="https://192.168.1.5:47443/pair"') && g.includes('AB CD EF') && g.includes('Proceed to 192.168.1.5') && g.includes('nonce="n2"'), 'guide page: Continue to HTTPS, the security code, the address to tap');
+  ok(g.includes('Advanced') && g.includes('Show Details') && g.includes('visit this website'), 'guide page: Chrome and Safari steps');
+  ok(!/\bsrc=|<link rel="stylesheet|fetch\(|<form|<iframe/.test(g.replace('<link rel="icon" href="data:," />', '')), 'guide page loads nothing and sends nothing');
+  ok(/\[#&\]code=\(\[A-Za-z0-9\]\{4,12\}\)/.test(g), 'guide page takes only letters and digits from #code=');
+  const evil = guidePageHtml({ fingerprint: '<b>', address: '"><script>x</script>', pairUrl: 'https://"><script>/pair', nonce: '"x' });
+  ok(!evil.includes('<script>x') && !evil.includes('"><script>/pair') && !evil.includes('nonce=""x'), 'guide page escapes what it shows');
+  const csp = guidePageCsp('abc');
+  ok(/default-src 'none'/.test(csp) && /script-src 'nonce-abc'/.test(csp) && !/connect-src/.test(csp) && /form-action 'none'/.test(csp) && /frame-ancestors 'none'/.test(csp), 'guide page CSP: nothing but its own script, no fetch, no forms, no frames');
+  ok(/connect-src 'self'/.test(pairPageCsp('x')), 'pairing page CSP unchanged (it calls /api/pair)');
+}
+
 console.log(`phone-access: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

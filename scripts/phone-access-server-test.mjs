@@ -16,12 +16,15 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import https from 'https';
+import http from 'http';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { lanAddresses } from '../src/utils/phoneAccess.js';
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '..', '..');
 const PORT = 47466, PHONE = 47467, NAS_PORT = 47468, NAS_PHONE = 47469;
+// v1.10.86 - the guide page is on the phone port + 1.
+const GUIDE = PHONE + 1, NAS_GUIDE = NAS_PHONE + 1;
 const PIN = '13572468';
 let passed = 0, failed = 0;
 const ok = (cond, label, extra = '') => { if (cond) { passed++; console.log(`  ok ${label}`); } else { failed++; console.log(`  FAIL ${label} ${extra}`); } };
@@ -89,6 +92,20 @@ function phoneReq(port, method, url, { cookie, origin, host, body, keepAlive = f
   });
 }
 
+// v1.10.86 - the guide page: plain HTTP to the LAN address, like a phone.
+function guideReq(port, method, url, { host } = {}) {
+  return new Promise((resolve) => {
+    const req = http.request({ host: LAN, port, method, path: url, headers: host ? { Host: host } : {}, agent: false, timeout: 5000 }, (res) => {
+      let text = '';
+      res.on('data', (d) => { text += d; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text }));
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', (e) => resolve({ error: e.code || e.message }));
+    req.end();
+  });
+}
+
 try {
   // ---- 1. off by default ----
   const BOOKS = path.join(T, 'books');
@@ -98,6 +115,7 @@ try {
   ok(st && st.enabled === false && st.listening === false && st.pinSet === false && st.devices.length === 0, 'off by default, no PIN, no devices', JSON.stringify(st));
   ok((await phoneReq(PHONE, 'GET', '/api/bills')).error === 'ECONNREFUSED', 'off: nothing answers on the network port');
   ok((await phoneReq(PORT, 'GET', '/api/bills')).error === 'ECONNREFUSED', 'the PC port is not reachable from the network either');
+  ok((await guideReq(GUIDE, 'GET', '/')).error === 'ECONNREFUSED', 'off: no guide page either');
   const noPin = await pc(PORT, 'POST', '/api/phone-access', { enabled: true });
   ok(noPin.status === 409 && noPin.json?.code === 'pin-needed', 'cannot switch on without a PIN', JSON.stringify(noPin));
 
@@ -117,12 +135,23 @@ try {
   ok(pairPage.status === 200 && pairPage.text.includes(st.shortFingerprint) && /nonce-/.test(pairPage.headers['content-security-policy'] || ''), 'pairing page shows the short fingerprint, under a strict CSP');
   ok((await phoneReq(PHONE, 'GET', '/api/export')).status === 401, 'unpaired: no export (all the books)');
   ok((await phoneReq(PHONE, 'GET', '/pair', { host: 'evil.example' })).json?.code === 'bad-host', 'DNS rebinding Host refused');
+  // v1.10.86 - the guide page (plain HTTP): one static page, nothing else.
+  ok(await until(async () => (await guideReq(GUIDE, 'GET', '/')).status === 200, 5000), 'on: the guide page answers on the phone port + 1');
+  const guide = await guideReq(GUIDE, 'GET', '/');
+  const gcsp = guide.headers?.['content-security-policy'] || '';
+  ok(guide.text?.includes(`href="https://${LAN}:${PHONE}/pair"`) && guide.text.includes(st.shortFingerprint) && /Advanced/.test(guide.text), 'guide page: the security code and Continue to the HTTPS pairing page', guide.text?.slice(0, 200));
+  ok(/default-src 'none'/.test(gcsp) && /nonce-/.test(gcsp) && !/connect-src/.test(gcsp) && !guide.headers['set-cookie'] && guide.headers['cache-control'] === 'no-store' && guide.headers['x-frame-options'] === 'DENY', 'guide page: strict CSP (no fetch), no cookie, not cached, not in a frame', JSON.stringify(guide.headers));
+  ok((await guideReq(GUIDE, 'GET', '/', { host: 'evil.example' })).status === 403, 'guide page: DNS rebinding Host refused');
+  const guideApi = await guideReq(GUIDE, 'GET', '/api/bills');
+  ok(guideApi.status === 404 && !guideApi.text.includes('['), 'guide port: no API (404)', JSON.stringify(guideApi));
+  ok((await guideReq(GUIDE, 'GET', '/pair')).status === 404 && (await guideReq(GUIDE, 'GET', '/index.html')).status === 404, 'guide port: no pairing page, no app files');
+  ok((await guideReq(GUIDE, 'POST', '/')).status === 405, 'guide port: nothing but GET');
 
   // ---- 3. pairing ----
   const noCode = await phoneReq(PHONE, 'POST', '/api/pair', { origin: home, body: { code: 'AAAAAAAA', pin: PIN } });
   ok(noCode.status === 403 && noCode.json?.code === 'pairing-code', 'right PIN but no valid code: refused', JSON.stringify(noCode));
   const codeRes = (await pc(PORT, 'POST', '/api/phone-access/pairing-code')).json;
-  ok(/^[A-Z2-9]{8}$/.test(codeRes?.code) && codeRes.urls.includes(`${home}/pair?code=${codeRes.code}`) && codeRes.expiresAt - Date.now() > 9 * 60000, 'PC shows a one-time code (10 minutes) in the QR link', JSON.stringify(codeRes));
+  ok(/^[A-Z2-9]{8}$/.test(codeRes?.code) && codeRes.urls.includes(`${home}/pair#code=${codeRes.code}`) && codeRes.guideUrls.includes(`http://${LAN}:${GUIDE}/#code=${codeRes.code}`) && codeRes.expiresAt - Date.now() > 9 * 60000, 'PC shows a one-time code (10 minutes) in the QR link, after # (guide page first, HTTPS as the fallback)', JSON.stringify(codeRes));
   const crossSite = await phoneReq(PHONE, 'POST', '/api/pair', { origin: 'https://evil.example', body: { code: codeRes.code, pin: PIN } });
   ok(crossSite.status === 403 && crossSite.json?.code === 'cross-origin', 'pairing from another site refused');
   ok((await phoneReq(PHONE, 'POST', '/api/pair', { body: { code: codeRes.code, pin: PIN } })).status === 403, 'pairing without Origin refused');
@@ -181,6 +210,7 @@ try {
   const afterOff = await phoneReq(PHONE, 'GET', '/api/bills', { cookie: cookie2, keepAlive: true });
   ok(afterOff.error && afterOff.status === undefined, 'switch off: the open connection is cut', JSON.stringify(afterOff));
   ok((await phoneReq(PHONE, 'GET', '/api/bills', { cookie: cookie2 })).error === 'ECONNREFUSED', 'switch off: connection refused');
+  ok((await guideReq(GUIDE, 'GET', '/')).error === 'ECONNREFUSED', 'switch off: the guide page is gone too');
   ok((await pc(PORT, 'GET', '/api/bills')).status === 200, 'the PC itself works as before');
 
   // Removing the PIN turns phone access off too.
@@ -195,12 +225,13 @@ try {
   // ---- 6. a server with no screen (the NAS image) ----
   const NAS = path.join(T, 'nas');
   const n = start(NAS, NAS_PORT, { FGSB_PHONE_ACCESS: '1', FGSB_PIN: '24681357', FGSB_PHONE_PORT: String(NAS_PHONE), FGSB_PHONE_HOSTS: 'my-nas', FGSB_ALLOW_UNSAFE_LAN: '1' });
-  ok(await until(() => /pair\?code=([A-Z2-9]{8})/.test(n.out), 20000), 'NAS: the log shows a pairing link for the first device', n.out);
+  ok(await until(() => /pair#code=([A-Z2-9]{8})/.test(n.out), 20000), 'NAS: the log shows a pairing link for the first device', n.out);
   ok(/no longer used/.test(n.out), 'NAS: FGSB_ALLOW_UNSAFE_LAN is ignored, with a warning');
   ok((await phoneReq(NAS_PORT, 'GET', '/api/bills')).error === 'ECONNREFUSED', 'NAS: the plain-HTTP port is not on the network, even with FGSB_ALLOW_UNSAFE_LAN');
   const nasHome = `https://${LAN}:${NAS_PHONE}`;
   ok((await phoneReq(NAS_PHONE, 'GET', '/api/bills')).status === 401, 'NAS: unpaired request refused');
-  const nasCode = /pair\?code=([A-Z2-9]{8})/.exec(n.out)[1];
+  ok((await guideReq(NAS_GUIDE, 'GET', '/')).error === 'ECONNREFUSED', 'NAS: no guide page (Docker publishes the HTTPS port only)');
+  const nasCode = /pair#code=([A-Z2-9]{8})/.exec(n.out)[1];
   const nasPair = await phoneReq(NAS_PHONE, 'POST', '/api/pair', { origin: nasHome, body: { code: nasCode, pin: '24681357' } });
   const nasCookie = String(nasPair.headers?.['set-cookie'] || '').split(';')[0];
   ok(nasPair.status === 200 && nasCookie, 'NAS: paired with the code from the log and FGSB_PIN', JSON.stringify(nasPair));

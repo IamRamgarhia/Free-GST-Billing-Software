@@ -531,6 +531,8 @@ body {
   justify-content: center;
 }
 .mobile-topbar .topbar-btn { flex-shrink: 0; border-color: transparent; background: rgba(255,255,255,0.08); color: inherit; }
+/* v1.10.86 - a phone-wide bar has no room for the pairing button (Settings has it). */
+@media (max-width: 480px) { .mobile-topbar .topbar-phone { display: none; } }
 
 .mobile-topbar,
 .sidebar-backdrop { display: none; }

@@ -2061,6 +2061,9 @@ try {
       await dismissFirstRun(page);
       const withPin = await phoneCard();
       check('v85 with a PIN the switch can be turned on', withPin.sw && !withPin.disabled && !withPin.needsPin && !withPin.checked, JSON.stringify(withPin));
+      // v1.10.86 - the boxes in the phone card have a gap between them.
+      const phoneGap = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#section-phone .phone-access-body') || document.body).rowGap) || 0);
+      check('v86 the phone card keeps a gap between its boxes', phoneGap >= 12, String(phoneGap));
       // Turning it on opens a port on the network (and Windows asks about the
       // firewall), so only against a server started for that:
       // FGSB_PHONE_LISTEN=127.0.0.1 FGSB_PHONE_PORT=<test port> + SMOKE_PHONE=1.
@@ -2068,10 +2071,21 @@ try {
         // The switch follows the server's answer, so click and wait for it.
         await page.locator('#phone-access-switch').click();
         await sleep(2000);
-        await page.getByRole('button', { name: /Pair a phone or tablet/ }).click({ timeout: 15000 });
+        await page.locator('#section-phone').getByRole('button', { name: /Pair a phone or tablet/ }).click({ timeout: 15000 });
         await sleep(1500);
         const pc = await page.evaluate(() => ({ qr: !!document.querySelector('.phone-pair img[src^="data:image/png"]'), fp: document.querySelector('.phone-fingerprint')?.innerText.trim() || '' }));
         const st = (await get77('/api/phone-access')).json;
+        // v1.10.86 - the phone button at the top shows the same QR code; the
+        // address it shows is the guide page (port + 1), HTTPS as the fallback.
+        await page.locator('.app-topbar .topbar-phone').click();
+        await sleep(1500);
+        const top = await page.evaluate(() => {
+          const d = document.querySelector('[aria-labelledby="phone-pair-title"]');
+          return { qr: !!d?.querySelector('.phone-pair img[src^="data:image/png"]'), address: d?.querySelector('.phone-address')?.innerText.trim() || '', https: d?.querySelector('.phone-https-address')?.innerText.trim() || '' };
+        });
+        check('v86 the phone button at the top shows the pairing QR code, the guide page address and the HTTPS one',
+          top.qr && top.address === `http://127.0.0.1:${st.port + 1}` && top.https === `https://127.0.0.1:${st.port}`, JSON.stringify(top));
+        await page.locator('[aria-labelledby="phone-pair-title"]').getByRole('button', { name: 'Close' }).click();
         const code = (await post77('/api/phone-access/pairing-code', {})).json.code;
         const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
         const ph = await phoneCtx.newPage();
@@ -2080,7 +2094,17 @@ try {
         const base = `https://127.0.0.1:${st.port}`;
         await ph.goto(`${base}/`, { waitUntil: 'networkidle' });
         const sentToPair = new URL(ph.url()).pathname === '/pair';
-        await ph.goto(`${base}/pair?code=${code}`, { waitUntil: 'networkidle' });
+        // v1.10.86 - the QR code opens the guide page (plain HTTP); Continue
+        // goes to the HTTPS pairing page with the code after #.
+        await ph.goto(`http://127.0.0.1:${st.port + 1}/#code=${code}`, { waitUntil: 'networkidle' });
+        const guide = await ph.evaluate(() => ({ text: /not private/.test(document.body.innerText) && /Advanced/.test(document.body.innerText) && /Show Details/.test(document.body.innerText),
+          fp: document.querySelector('.fp')?.innerText.trim() || '', href: document.getElementById('go')?.href || '', wide: document.documentElement.scrollWidth <= 390 }));
+        await ph.locator('#go').click();
+        await ph.waitForURL(`${base}/pair`, { timeout: 15000 }).catch(() => {});
+        const codeAsked = await ph.locator('#codeBox').isVisible();
+        check('v86 guide page: the warning explained, the security code, Continue to the HTTPS pairing page with the code (not asked again), fits 390px',
+          guide.text && guide.fp === st.shortFingerprint && guide.href === `${base}/pair#code=${code}` && guide.wide && new URL(ph.url()).pathname === '/pair' && !codeAsked,
+          JSON.stringify({ guide, url: ph.url(), codeAsked }));
         const phoneFp = (await ph.locator('#fp').innerText()).trim();
         await ph.locator('#pin').fill('11112222');
         await ph.locator('#go').click();
@@ -2091,6 +2115,15 @@ try {
         await ph.waitForURL(`${base}/`, { timeout: 20000 }).catch(() => {});
         await sleep(3000);
         const appOnPhone = await ph.evaluate(() => /Enter your PIN|Dashboard|New Invoice/.test(document.body.innerText));
+        // v1.10.86 - the PIN is typed once: no lock screen right after pairing,
+        // but a new session on the phone asks for it again.
+        const pinOnce = await ph.evaluate(() => !/Enter your PIN/.test(document.body.innerText) && sessionStorage.getItem('gst_unlocked') === '1');
+        const ph2 = await phoneCtx.newPage();
+        await ph2.goto(`${base}/`, { waitUntil: 'networkidle' });
+        await sleep(2000);
+        const askedAgain = await ph2.evaluate(() => /Enter your PIN/.test(document.body.innerText));
+        await ph2.close();
+        check('v86 after pairing the app opens without asking the PIN again; a new tab asks for it', pinOnce && askedAgain, JSON.stringify({ pinOnce, askedAgain }));
         const devices = (await get77('/api/phone-access')).json.devices || [];
         check('v85 pairing screen: QR code and the security code on the PC; the phone is sent to the pairing page, sees the same code, a wrong PIN is refused, the right one opens the app',
           pc.qr && pc.fp && pc.fp === st.shortFingerprint && sentToPair && phoneFp === pc.fp && /Wrong PIN/.test(wrongMsg) && appOnPhone && devices.length === 1,
