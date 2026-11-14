@@ -126,6 +126,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   packages, Docker and the Mac / Linux install line; Macs before macOS 13.5,
   32-bit Windows and 32-bit ARM keep Node.js 22.
 - **Hide for 7 days** on the support card (was 30).
+- **One line at the top of every screen**: the page name, its (?) and count,
+  the screen's own choices (Totals for, Year, the GST period), the search
+  box, the screen's buttons and the app's small buttons share one row, so the
+  page starts higher. The main button keeps its words (New Invoice, Add
+  Product…); the others are small icons (point at one to see its name). In a
+  narrower window the search becomes a magnifying glass and the icons move
+  into a ⋯ button. The line that used to sit under a page's name now shows
+  when you point at its (?).
+- **The Control Panel is now part of Settings**: Update, Restart, Stop and
+  Remove are in **Settings -> App & updates**; Backup ZIP, Restore, Move to
+  another PC and the Open folder buttons are in **Settings -> Data & Backups
+  -> Backup files (ZIP)**. One Check for Updates and one Update Now. The menu
+  is one item shorter; an old bookmark to the Control Panel opens App &
+  updates, and the guide's Control Panel page says where each button went.
+- **Packages**: DOMPurify 3.4.18, Vite 7.3.8.
 
 ### Fixed
 - **Update Now on the ZIP copy no longer stays on "Updating..." for ever**
