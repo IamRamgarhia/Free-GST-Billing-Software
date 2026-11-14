@@ -4449,3 +4449,13 @@ html[data-compact] .client-card-header .client-avatar { width: 32px; height: 32p
 .inv-row3 [data-invoice-currency] .form-label { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; height: 1.5rem; margin: 0 0 0.4rem; flex-wrap: nowrap; }
 .inv-row3 [data-invoice-currency] .form-label { justify-content: flex-start; gap: 0.35rem; }
 .inv-row3 .label-with-toggle .form-label { margin: 0; white-space: nowrap; }
+
+/* v1.10.86 - classes the screens used but nothing defined (boxes in "More
+   invoice details" touched side by side). tests/css-classes-test.mjs now fails
+   on any spacing / button class that is used but not defined. */
+.gap-3 { gap: 0.75rem; }
+.p-0 { padding: 0; }
+.p-3 { padding: 0.75rem; }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+.btn-link, .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-decoration: underline; }
+.stat-icon-red { background: var(--danger-light); color: var(--danger); }
