@@ -95,17 +95,17 @@ async function settle(page) {
 }
 
 /** Things that differ by machine or by day, not by design: covered in the screenshot. */
-async function markMasks(page, selectors) {
-  await page.evaluate((selectors) => {
+async function markMasks(page, selectors, port) {
+  await page.evaluate(({ selectors, port }) => {
     document.querySelectorAll('[data-dc-mask]').forEach((e) => e.removeAttribute('data-dc-mask'));
     const leafs = [...document.querySelectorAll('body *')].filter((e) => e.children.length === 0 && e.textContent.trim());
     for (const e of leafs) {
       const t = e.textContent;
       // Versions (the app's, Node's), the port, folder paths and sizes.
-      if (/\bv?\d+\.\d+\.\d+\b|localhost:\d+|^\s*\d{4,5}\s*$|\d\s?(KB|MB|GB|bytes)\b|[A-Z]:\\|\/tmp\//.test(t)) e.setAttribute('data-dc-mask', '');
+      if (/\bv?\d+\.\d+\.\d+\b|localhost:\d+|\d\s?(KB|MB|GB|bytes)\b|[A-Z]:\\|\/tmp\//.test(t) || t.trim() === port) e.setAttribute('data-dc-mask', '');
     }
     for (const sel of selectors) document.querySelectorAll(sel).forEach((e) => e.setAttribute('data-dc-mask', ''));
-  }, selectors);
+  }, { selectors, port });
 }
 
 function comparePng(basePath, png) {
@@ -211,7 +211,7 @@ try {
 
         // The part of the screen this one is about, at the top of the shot.
         if (screen.focus) await page.locator(screen.focus).first().evaluate((e) => { e.style.scrollMarginTop = '72px'; e.scrollIntoView({ block: 'start' }); });
-        await markMasks(page, ALLOW.mask);
+        await markMasks(page, ALLOW.mask, new URL(APP).port);
         const file = path.join(BASELINE_DIR, `${name}.png`);
         const current = path.join(OUT, `${name}.png`);
         await shoot(page, current);

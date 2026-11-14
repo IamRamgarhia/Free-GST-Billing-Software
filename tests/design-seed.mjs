@@ -155,6 +155,8 @@ export async function seedBooks(app) {
     freegstbill_starBanner: JSON.stringify({ done: true }),
     freegstbill_supportNudge: JSON.stringify({ done: true }),
     freegstbill_notifyAsked: '1',
+    // No "What's new" slides: this version counts as seen.
+    freegstbill_lastSeenVersion: (await json('/api/version')).current,
   };
   // Removing a key the same call sets would drop it again (the server removes after it sets).
   await post('/api/local-prefs', { set, remove: Object.keys(prefs).filter((k) => !(k in set)) });

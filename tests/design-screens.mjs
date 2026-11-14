@@ -81,7 +81,7 @@ export const SCREENS = [
   view('products', 'Products'),
   { name: 'product-form', go: (page) => clickText(page, 'button', /^\s*Add Product\s*$/) },
   view('purchases', 'Purchases'),
-  { name: 'purchase-form', go: (page) => clickText(page, 'button', /^\s*Add Purchase\s*$/) },
+  { name: 'purchase-form', go: (page) => clickText(page, 'button', /^\s*Add Purchase( Bill)?\s*$/) },
   view('expenses', 'Expenses'),
   view('receipts', 'Receipts'),
   view('cashbook', 'Cash book'),
