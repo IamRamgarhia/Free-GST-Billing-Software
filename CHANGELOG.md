@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - planned for Saturday 21 November 2026 (v1.10.86)
+
+### Added
+- **MRP on products and on the invoice** (#189, #192): an optional MRP on
+  each product (form, list, CSV / Excel import and export). It comes onto the
+  invoice line when you pick the product, and you can change it there; on a
+  line sold in the second unit (Box = 12 Pcs) it is the piece MRP x 12. A new
+  **MRP column** switch in Customize (off to start) prints it in all five
+  designs, and on the item line of thermal receipts. It never changes the
+  rate, GST or total.
+- **Supplier statement** (#148, #194): on Purchases, a supplier's bills,
+  payments, TDS kept back and returns for any dates, with a running balance
+  and what you still owe, as a PDF with Download, Print, WhatsApp and Email.
+- **GSTR-2B: Add as purchase bill** (#175): on entries that are in 2B but not
+  in your books. It opens a purchase bill filled in from 2B for you to check
+  and save; it then shows as matched.
+- **Reverse charge on purchase bills**: tick **Reverse charge** for a
+  transporter (GTA), an advocate or other reverse-charge purchases. GSTR-3B
+  shows the tax in 3.1(d), adds it to the cash to pay, and gives it back as
+  credit in 4(A)(3). The supplier is owed the bill without its GST. GSTR-2B
+  **Add as purchase bill** ticks it from 2B.
+- **You can see an update running**: Update Now (Control Panel, Settings ->
+  Updates, or the update window) shows a window in the middle of the app with
+  a progress bar and what it is doing, reloads on the new version by itself,
+  and says what went wrong if it could not finish.
+- **A phone button at the top** of every screen shows the QR code to pair a
+  phone or tablet (or says what to turn on first). It can be hidden in
+  Settings -> Features.
+- **Pairing a phone is easier**: the QR code first opens a simple page that
+  shows where to tap when the browser warns "Your connection is not private"
+  (Chrome and Safari) and the PC's security code; Continue then opens the
+  encrypted pairing page. The PIN is typed only once when pairing, and the PC
+  shows "Paired: <name>" at once.
+
+### Changed
+- **The Windows Setup says "Updating"** when it updates the installed app
+  (window title, pages and the Update button), instead of "Installing".
+- **A shorter What's new** on Support & About: only the main titles of each
+  version, with **Read the full notes** for the full list on GitHub.
+
+### Fixed
+- **Update Now on the ZIP copy no longer stays on "Updating..." for ever**
+  (ERR-089): the update finishes and the app restarts on the new version.
+  Restore no longer hangs the same way.
+- **An invoice no longer runs wider than A4** (#188): a long word with no
+  spaces (a code, email or web address) breaks inside its box, and with every
+  column on and large amounts the item table steps down to a smaller size
+  instead of running off the page.
+- PDF pages no longer end through a line of text (Boxed design: bank details
+  / totals) or through the table's column titles.
+- PDF font scale above 100% no longer cuts off both sides of the invoice.
+- Dashboard and Purchases: large totals (Rs 10 lakh and up) no longer make
+  the screen scroll sideways on a 1366 px laptop.
+- On a phone: New Invoice scrolls as one page, the Save / PDF / Print buttons
+  sit in one row, buttons and help icons are big enough to tap, and Clients,
+  the invoice list and Income Tax fit the screen.
+- More space between boxes, notices and rows of buttons, so they no longer
+  look joined. Settings -> Use on phone or tablet: the switch, the Windows
+  note and the Pair button no longer touch.
+
+---
+
 ## [1.10.85] - 2026-11-14
 
 ### How to update
