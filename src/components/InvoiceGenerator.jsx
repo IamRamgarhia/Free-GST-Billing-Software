@@ -15,6 +15,7 @@ import { centreFields } from '../utils/costCentres';
 import { isExportOrSez, lutCoversDate, normaliseLutArn, fyOf } from '../utils/lut';
 import { PURPOSE_CODES } from '../utils/purposeCodes';
 import { baseCurrencyOf, currencyForClient, isForeignClient, currencyCountryMismatch } from '../utils/fx';
+import { costOfGoodsSold } from '../utils/products';
 import InvoiceCurrency from './InvoiceCurrency';
 import PrintPreviewModal from './PrintPreviewModal';
 import { ensureToken, findOrCreateFolder, uploadPDF } from '../services/googleDrive';
@@ -838,7 +839,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // email/phone/isSEZ must be part of initial state — otherwise the SEZ flag
   // set inside ClientModal is silently discarded on save, and reopening the
   // bill can never restore contact fields even if the saved client has them.
-  const [client, setClient] = useState(draft?.client || { name: '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false, isDeemedExport: false });
+  // v1.10.85 (#147) - with Start with "Cash Sale" on, a new invoice starts with that customer.
+  const [client, setClient] = useState(draft?.client || { name: !editingBill && isModuleEnabled('cashSaleDefault', getEnabledModules()) ? 'Cash Sale' : '', address: '', city: '', pin: '', state: '', gstin: '', country: '', email: '', phone: '', isSEZ: false, isDeemedExport: false });
   // v1.9.1 — preview zoom (session-only). Reads from printSettings for the
   // initial value so the user's preference carries across bill switches.
   // v1.10.33 — Was READ-ONLY: the initial-load line pulled from
@@ -1732,6 +1734,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const paidSoFar = Math.round(paidWhenOpened.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100;
   const canReceiveNow = SALES_INVOICE_TYPES.includes(invoiceType) && !readOnlyDoc && paidWhenOpened.length === 0;
   const receivableNow = Math.max(0, Math.round((amountDue({ totalAmount: totals.total, data: { totals } }) - (editingBill ? 0 : creditToApply)) * 100) / 100);
+  // v1.10.85 (#189, #147) - profit on this bill: value before GST less what the
+  // goods cost (each product's Purchase price, see costOfGoodsSold). Sales in
+  // the business's own currency only (purchase prices are in it). Shown on
+  // screen only; Hide is remembered (the customer may see the screen).
+  const [profitShown, setProfitShownState] = useState(() => { try { return localStorage.getItem('fgsb_billProfitHidden') !== '1'; } catch { return true; } });
+  const setProfitShown = (on) => { setProfitShownState(on); try { localStorage.setItem('fgsb_billProfitHidden', on ? '0' : '1'); } catch { /* storage blocked */ } };
+  const billProfit = useMemo(() => {
+    if (!SALES_INVOICE_TYPES.includes(invoiceType) || (invoiceOptions.currency || baseCurrency) !== baseCurrency) return null;
+    const lines = (items || []).filter((i) => String(i.name || '').trim() && !i.isCharge);
+    if (!lines.length) return null;
+    const { cost, missing } = costOfGoodsSold([{ invoiceType, data: { items: lines } }], products);
+    if (!(cost > 0)) return null; // nothing with a purchase price: no figure to show
+    const revenue = Number(totals.taxableAmount) || 0;
+    const profit = Math.round((revenue - cost) * 100) / 100;
+    return { profit, margin: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : null, missing: missing.length };
+  }, [invoiceType, invoiceOptions.currency, baseCurrency, items, products, totals.taxableAmount]);
   const billItems = useMemo(
     // (review) only while GST is charged, as in computeInvoiceTotals.
     () => spreadBillDiscount(items, { invoiceDiscountBeforeGst: !!discBeforeGst && showGST, invoiceDiscountValue: discValue, invoiceDiscountType: discType }, !showGST || taxInclusive),
@@ -5317,6 +5335,25 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     ? 'More than the balance: the extra is kept as the client\'s credit.'
                     : 'Saved as a payment with the invoice. Cash also goes into the Cash book.'}
                 </span>
+              </div>
+            )}
+            {/* v1.10.85 (#189, #147) - profit on this bill: on screen only, never printed. */}
+            {billProfit && (
+              <div data-testid="bill-profit" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: '0.6rem', fontSize: '0.82rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                {profitShown ? (
+                  <>
+                    <span>Profit on this bill: <strong style={{ color: billProfit.profit >= 0 ? 'var(--success, #16a34a)' : 'var(--danger)' }}>{formatCurrency(billProfit.profit, baseCurrency)}</strong>
+                      {billProfit.margin !== null && <> ({billProfit.margin}%)</>}</span>
+                    {billProfit.missing > 0 && (
+                      <span style={{ fontSize: '0.72rem', fontStyle: 'italic' }}>{billProfit.missing} item{billProfit.missing !== 1 ? 's have' : ' has'} no purchase price (counted at 0)</span>
+                    )}
+                    <button type="button" className="btn btn-secondary" onClick={() => setProfitShown(false)} title="Hide it (for example when the customer can see the screen)"
+                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}><EyeOff size={12} /> Hide</button>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-secondary" onClick={() => setProfitShown(true)}
+                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}><Eye size={12} /> Show profit</button>
+                )}
               </div>
             )}
             <CreditLimitWarning savedClient={savedClientNow} bills={allBillsForCredit} profile={profile}

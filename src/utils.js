@@ -2113,6 +2113,8 @@ export const FEATURE_GROUPS = [
       // wholesale, manufacturing and everything business types.
       { id: 'salesOrders', label: 'Sales orders', help: "Take the customer's order (or turn a quotation into one), send it in parts with delivery challans and invoice it. A Sales orders tab on the Dashboard shows Open, Partly dispatched, Dispatched or Invoiced.", defaultOn: false },
       { id: 'upiQr', label: 'UPI QR code', help: 'Print a UPI QR code so customers can pay by scanning.', defaultOn: true, indiaOnly: true },
+      // v1.10.85 (#147) - counter shops: a new invoice starts with the customer "Cash Sale".
+      { id: 'cashSaleDefault', label: 'Start with "Cash Sale"', help: 'New invoices start with the customer "Cash Sale", for walk-in counter sales. Type or pick a name to bill someone else.', defaultOn: false },
       // v1.10.84 (#140) - glass, mirror, flex, tile shops; off until wanted.
       { id: 'sizeBilling', label: 'Size billing (Sq.ft)', help: 'For glass, mirror, flex and tile shops: an item line can be "Sq.ft" - type Length x Width in inches and the pieces, pick 3 or 6 inch rounding, and the square feet and amount are worked out. An "Rft" line (polish, channel) takes the square feet or the edges of the glass lines. The invoice prints Size and SQFT columns.', defaultOn: false },
       // v1.10.85 - off until wanted; the level names are set below the switch.

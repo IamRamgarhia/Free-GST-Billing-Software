@@ -331,6 +331,12 @@ export default [
 <p>An invoice that already has payments when you open it shows <b>Paid so far</b> instead; record or change its payments with ${ui('₹')} on the Dashboard. If the books are closed for the invoice's date, nothing is saved: neither the invoice nor the payment.</p>
 </section>
 
+<section id="bill-profit">
+<h3>Profit on this bill</h3>
+<p>Under the totals, a sales invoice shows <b>Profit on this bill</b>: the value before GST less what the goods cost you (each product's <b>Purchase price</b> on the Products page, times the quantity), with the margin as a percentage. It is shown on the screen only and never printed. Click ${ui('Hide')} if the customer can see your screen; the app remembers it, and ${ui('Show profit')} brings it back.</p>
+<p>It shows once at least one item on the bill has a purchase price. Items with no purchase price count as costing nothing, and the line says how many there are, so fill in their purchase price for a true figure. Services cost nothing here. It is worked out in your own currency only.</p>
+</section>
+
 <section id="gst">
 <h2>How GST is worked out</h2>
 <p>You never choose between CGST, SGST and IGST. The app decides from your state and the place of supply (the client's state, unless you set Place of Supply):</p>

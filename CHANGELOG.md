@@ -278,6 +278,11 @@ a backup is made first.
   column and a **Trade discount (before GST)** line in the totals. Invoices
   saved before are unchanged. The sales CSV import takes an optional
   **Bill Discount Before GST** column (Yes/No).
+- **Profit on this bill** (#189, #147): New Invoice shows the bill's profit
+  and margin under the totals, from each product's Purchase price. On screen
+  only, never printed; **Hide** it when the customer can see your screen.
+- **Start with "Cash Sale"** (#147): a switch in **Settings → Features** so
+  every new invoice starts with the customer *Cash Sale*, for counter sales.
 
 ### Fixed
 - Purchase returns: editing a bill can no longer cut a returned line below

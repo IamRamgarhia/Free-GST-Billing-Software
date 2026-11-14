@@ -359,6 +359,7 @@ export default [
 <p>Unticked things disappear from the menu and the screens. <b>Nothing is deleted</b>: your data is kept, and ticking it again brings it all back. Each switch has a line saying what it does.</p>
 <figure><img src="assets/img/settings-features.png" alt="Settings, Features tab: tick boxes for the top of the menu, the bottom of the menu and the buttons at the top right, each with arrows to change the order." loading="lazy"><figcaption>The Features tab. Tick what you want in the menu, and use the arrows to change its order.</figcaption></figure>
 <p>${ui('Reset to my business type')}, at the top right, sets every switch back to what your <a href="#business-type">business type</a> gives; save to apply it. Before a business type is chosen, the button is ${ui('Reset to default')}.</p>
+<p><b>Start with "Cash Sale"</b> (off to start) makes every new invoice start with the customer <b>Cash Sale</b>, for walk-in counter sales; type or pick a name to bill someone else. It is not added to your Clients.</p>
 <p>When <b>Cost centres</b> is on, a <b>Cost centres</b> card appears under Features on this tab, to add your branches, sites or projects: see <a href="reports.html#cost-centres">Cost centres</a>.</p>
 <h3>Something wrong?</h3>
 <ul>
