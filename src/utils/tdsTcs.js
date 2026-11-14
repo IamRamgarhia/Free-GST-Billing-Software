@@ -8,7 +8,7 @@
 //   - TDS you deducted from suppliers on purchase bills (purchase.tdsAmount):
 //     what you deposit and report in your own TDS return (Form 26Q).
 
-import { countsAsSales, sectionShort } from '../utils.js';
+import { countsAsSales, sectionShort, tdsSectionsFor, tcsSectionsFor, TDS_SECTIONS_2025, TCS_SECTIONS_2025, TDS_SECTIONS, TCS_SECTIONS, NEW_ACT_FROM, underNewAct, newActCode, isPurchaseOfGoodsTds } from '../utils.js';
 import { billInInr } from './fx.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -118,6 +118,73 @@ export const totalsBy = (rows, keyOf) => {
     map.set(k, g);
   }
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+};
+
+// v1.10.86 (#180 part 2) — work out which TDS / TCS provision applies from the
+// kind of payment, the payee's constitution and the transaction date, instead
+// of the user ticking a section by hand. Returns { section, rate, base, amount,
+// act } or null when nothing applies. `act` is '1961' or '2025' so the voucher
+// and the return quote the right Act. The rate follows the section's usual rate
+// for the Act the transaction is under; a rate typed for a lower-deduction
+// certificate is never guessed (the user keeps it).
+export const suggestTds = (payee = {}, taxable, invoiceDate, opts = {}) => {
+  const act = underNewAct(invoiceDate) ? '2025' : '1961';
+  const list = act === '2025' ? TDS_SECTIONS_2025 : TDS_SECTIONS;
+  const pan = String(payee.pan || panFromGstin(payee.gstin) || '').trim().toUpperCase();
+  const hasPan = /^[A-Z]{5}\d{4}[A-Z]$/.test(pan);
+  const isCompany = /(^|,)(company|pvt ltd|private limited|ltd)(,|$)/i.test(String(payee.constitution || '')) || /^\d{5}[A-Z]{2}[A-Z]{4}\d[A-Z]/.test(String(payee.gstin || ''));
+  const kind = String(opts.paymentKind || '').toLowerCase();
+  const code = act === '2025'
+    ? (kind === 'contractor' ? (isCompany ? '393-6i-oth' : '393-6i-ind')
+      : kind === 'commission' ? '393-1ii'
+      : kind === 'professional' ? '393-6iii-prof'
+      : kind === 'technical' ? '393-6iii-tech'
+      : kind === 'rent' ? '393-2ii-lb'
+      : kind === 'goods' ? '393-8ii'
+      : kind === 'partner' ? '393-7'
+      : null)
+    : (kind === 'contractor' ? (isCompany ? '194C-co' : '194C')
+      : kind === 'commission' ? '194H'
+      : kind === 'professional' ? '194J'
+      : kind === 'technical' ? '194J-tech'
+      : kind === 'rent' ? '194I'
+      : kind === 'goods' ? '194Q'
+      : kind === 'partner' ? '195'
+      : null);
+  if (!code) return null;
+  const section = list.find((s) => s.code === code);
+  if (!section) return null;
+  // Higher TDS rate when the payee has no PAN (20% under both Acts) — the
+  // software cannot apply it automatically without a PAN, so it is a warning.
+  const rate = hasPan ? section.rate : (section.rate > 0 ? 20 : section.rate);
+  return { section: code, rate, base: r2(Number(taxable) || 0), amount: r2((Number(taxable) || 0) * rate / 100), act, panMissing: !hasPan && rate > section.rate };
+};
+
+// v1.10.86 (#180 part 2) — work out which TCS provision applies on a sale.
+export const suggestTcs = (payee = {}, invoiceValue, invoiceDate, opts = {}) => {
+  const act = underNewAct(invoiceDate) ? '2025' : '1961';
+  const list = act === '2025' ? TCS_SECTIONS_2025 : TCS_SECTIONS;
+  const kind = String(opts.transactionKind || '').toLowerCase();
+  const code = act === '2025'
+    ? (kind === 'liquor' ? '394-1'
+      : kind === 'tendu' ? '394-2'
+      : kind === 'timber' ? '394-3'
+      : kind === 'scrap' ? '394-4'
+      : kind === 'coal' ? '394-5'
+      : kind === 'motor-vehicle' ? '394-6'
+      : kind === 'lrs-edu' ? '394-7'
+      : kind === 'lrs-other' ? '394-8'
+      : kind === 'tour' ? '394-10'
+      : kind === 'parking' ? '394-9'
+      : null)
+    : null;
+  if (!code) return null;
+  const section = list.find((s) => s.code === code);
+  if (!section) return null;
+  // TCS is worked out on the gross invoice value, GST included (CBDT Circular
+  // 17/2020), except CGST section 52, which is on the net taxable value.
+  const base = code === '52' ? r2(Number(invoiceValue?.taxable) || 0) : r2(Number(invoiceValue?.gross) || 0);
+  return { section: code, rate: section.rate, base, amount: r2(base * section.rate / 100), act };
 };
 
 // A client paid less because they deducted TDS the invoice did not show: the

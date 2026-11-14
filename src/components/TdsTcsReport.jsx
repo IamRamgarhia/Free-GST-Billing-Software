@@ -4,7 +4,7 @@
 // sums are in utils/tdsTcs.js.
 import { useState, useEffect } from 'react';
 import { getAllPurchases, getProfile, saveBill } from '../store';
-import { formatCurrency, getFYOptions, belongsToProfile } from '../utils';
+import { formatCurrency, getFYOptions, belongsToProfile, underNewAct } from '../utils';
 import { salesTaxRows, purchaseTdsRows, totalsBy, fyQuarterRange } from '../utils/tdsTcs';
 import HelpButton from './HelpButton';
 import TableExport from './TableExport';
@@ -224,6 +224,53 @@ export default function TdsTcsReport({ bills, businessName, onBillsChanged }) {
           <TotalsTable title="By section" label="Section" rows={totalsBy(own, (r) => r.section)} />
           <TotalsTable title="By quarter" label="Quarter" rows={totalsBy(own, (r) => r.quarter)} />
         </div>
+      </div>
+
+      {/* (d) TDS return file (Form 26Q) — one CSV per quarter, the way the
+      // portal wants it: deductee PAN, section, taxable value, TDS. The Act is
+      // written in the filename so a return for FY 2026-27 carries the 2025
+      // Act's sections (393(1) Sl. 6(i)...) and an older one keeps 194C. */}
+      <div className="glass-panel" style={{ padding: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem' }}>TDS return file (Form 26Q)<HelpButton title="TDS return file" doc="reports#tds-return" size={16} /></h3>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+              const rows = own.filter((r) => r.quarter === q);
+              return (
+                <button key={q} type="button" className="btn btn-ghost btn-sm" disabled={!rows.length}
+                  onClick={() => {
+                    const act = rows[0]?.date && underNewAct(rows[0].date) ? 'Income-tax-Act-2025' : 'Income-tax-Act-1961';
+                    downloadCSV(`TDS_26Q_${fyLabel.replace(/ /g, '_')}_${q}_${act}.csv`,
+                      ['Deductee PAN', 'Section', 'Rate %', 'Taxable Value', 'TDS Amount'],
+                      rows.map((r) => [r.pan || '', r.section, r.rate, r.taxable, r.amount]));
+                    toast(`Form 26Q ${q} exported`, 'success');
+                  }}>
+                  {q} ({rows.length})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="text-muted" style={{ margin: '0 0 0.75rem', fontSize: '0.8rem' }}>
+          One file per quarter for the TDS return. From 1 April 2026 the sections are the Income-tax Act, 2025 (393(1) Table Sl. 6(i) for contractors, Sl. 8(ii) for purchase of goods…); bills dated before that keep 194C/194Q. Upload each file at <a href="https://www.tin-nsdl.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>tin-nsdl.com</a> or hand it to your CA.
+        </p>
+        {own.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: '0.85rem', textAlign: 'center', padding: '0.75rem' }}>No purchase bills with TDS in this period — nothing to file.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table" style={{ minWidth: 640, fontSize: '0.8rem', marginBottom: 0 }}>
+              <thead><tr><th>Quarter</th><th>Deductee PAN</th><th>Section</th><th style={right}>Rate</th><th style={right}>Taxable</th><th style={right}>TDS</th></tr></thead>
+              <tbody>
+                {['Q1', 'Q2', 'Q3', 'Q4'].flatMap((q) => own.filter((r) => r.quarter === q).map((r) => (
+                  <tr key={r.id}>
+                    <td>{q}</td><td style={{ fontFamily: 'monospace', fontSize: '0.72rem' }}>{r.pan || '—'}</td><td>{r.section}</td>
+                    <td style={right}>{r.rate}%</td><td style={right}>{formatCurrency(r.taxable)}</td><td style={{ ...right, fontWeight: 700 }}>{formatCurrency(r.amount)}</td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );

@@ -5,7 +5,7 @@
 
 import { computeInvoiceTotals, generateEWayBillJSON, amountDue, paymentStatusFor, TCS_SECTIONS, TDS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, newActCode, sectionShort, sectionPrint, sectionOptionLabel, movedSection, withNewActSections } from '../src/utils.js';
 import { fyOf, isLikelyLutArn, normaliseLutArn, lutCoversDate, isExportOrSez, exportDeclaration, lutFyOptions, LUT_DECLARATION, IGST_PAID_DECLARATION } from '../src/utils/lut.js';
-import { quarterOf, fyQuarterRange, inRange, panFromGstin, salesTaxRows, purchaseTdsAmount, paidToSupplier, purchaseTdsRows, totalsBy, withClientTds } from '../src/utils/tdsTcs.js';
+import { quarterOf, fyQuarterRange, inRange, panFromGstin, salesTaxRows, purchaseTdsAmount, paidToSupplier, purchaseTdsRows, totalsBy, withClientTds, suggestTds, suggestTcs } from '../src/utils/tdsTcs.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -162,6 +162,70 @@ console.log('\n[#180] TDS / TCS under the Income-tax Act, 2025 (from 1 April 202
   eq([goods('393-8ii', 0), goods('393-8ii', 4500000), goods('194Q', 4500000)], [0, 500, 500], 'Sl. 8(ii): nothing up to ₹50 lakh a year, 0.1% on what is above (same as 194Q)');
   const fees = computeInvoiceTotals({ items, profile, client: usClient, details: { invoiceDate: '2026-11-07' }, showGST: false, invoiceOptions: { showTDS: true, tdsSection: '393-6iii-prof', tdsRate: 10 } }).tdsAmount;
   eq(fees, 10000, 'Sl. 6(iii) fees: 10% from the first rupee (the user ticks TDS when it applies)');
+}
+
+console.log('\n[#180 part 2] suggestTds / suggestTcs auto-suggest from payment kind and payee');
+{
+  // TDS: contractor, individual/HUF → 393-6i-ind (1%), company → 393-6i-oth (2%)
+  const contractorInd = suggestTds({ gstin: '29AAACB1234C1Z5', constitution: 'Individual' }, 100000, '2026-10-01', { paymentKind: 'contractor' });
+  eq([contractorInd?.section, contractorInd?.rate, contractorInd?.act], ['393-6i-ind', 1, '2025'], 'contractor + individual under 2025 Act → 393(1) Sl. 6(i) 1%');
+  const contractorCo = suggestTds({ gstin: '29AAACB1234C1Z5', constitution: 'Private Limited' }, 100000, '2026-10-01', { paymentKind: 'contractor' });
+  eq([contractorCo?.section, contractorCo?.rate, contractorCo?.act], ['393-6i-oth', 2, '2025'], 'contractor + company under 2025 Act → 393(1) Sl. 6(i) 2%');
+  const contractorOld = suggestTds({ gstin: '29AAACB1234C1Z5', constitution: 'Private Limited' }, 100000, '2026-03-15', { paymentKind: 'contractor' });
+  eq([contractorOld?.section, contractorOld?.rate, contractorOld?.act], ['194C-co', 2, '1961'], 'contractor + company under 1961 Act → 194C-co 2%');
+  // Commission → 393-1ii (2%)
+  const commission = suggestTds({ pan: 'ABCDE1234F' }, 50000, '2026-10-01', { paymentKind: 'commission' });
+  eq([commission?.section, commission?.rate], ['393-1ii', 2], 'commission → 393(1) Sl. 1(ii) 2%');
+  // Professional → 393-6iii-prof (10%)
+  const prof = suggestTds({ pan: 'ABCDE1234F' }, 100000, '2026-10-01', { paymentKind: 'professional' });
+  eq([prof?.section, prof?.rate], ['393-6iii-prof', 10], 'professional → 393(1) Sl. 6(iii) 10%');
+  // Technical → 393-6iii-tech (2%)
+  const tech = suggestTds({ pan: 'ABCDE1234F' }, 100000, '2026-10-01', { paymentKind: 'technical' });
+  eq([tech?.section, tech?.rate], ['393-6iii-tech', 2], 'technical → 393(1) Sl. 6(iii) 2%');
+  // Rent land/building → 393-2ii-lb (10%)
+  const rentLb = suggestTds({ pan: 'ABCDE1234F' }, 50000, '2026-10-01', { paymentKind: 'rent' });
+  eq([rentLb?.section, rentLb?.rate], ['393-2ii-lb', 10], 'rent land/building → 393(1) Sl. 2(ii) 10%');
+  // Purchase of goods → 393-8ii (0.1%)
+  const goods = suggestTds({ pan: 'ABCDE1234F' }, 1000000, '2026-10-01', { paymentKind: 'goods' });
+  eq([goods?.section, goods?.rate], ['393-8ii', 0.1], 'purchase of goods → 393(1) Sl. 8(ii) 0.1%');
+  // Partner remuneration → 393-7 (10%)
+  const partner = suggestTds({ pan: 'ABCDE1234F' }, 500000, '2026-10-01', { paymentKind: 'partner' });
+  eq([partner?.section, partner?.rate], ['393-7', 10], 'partner remuneration → 393(3) Sl. 7 10%');
+  // No PAN → 20% higher rate warning
+  const noPan = suggestTds({ constitution: 'Individual' }, 100000, '2026-10-01', { paymentKind: 'contractor' });
+  eq([noPan?.rate, noPan?.panMissing], [20, true], 'no PAN → 20% higher rate with panMissing flag');
+  // Unknown kind → null
+  eq(suggestTds({ pan: 'ABCDE1234F' }, 100000, '2026-10-01', { paymentKind: 'unknown' }), null, 'unknown kind → null');
+
+  // TCS: scrap → 394-4 (2%), tour → 394-10 (2% flat), LRS edu → 394-7 (2%), LRS other → 394-8 (20%)
+  const scrap = suggestTcs({ pan: 'ABCDE1234F' }, { gross: 500000 }, '2026-10-01', { transactionKind: 'scrap' });
+  eq([scrap?.section, scrap?.rate, scrap?.base, scrap?.amount], ['394-4', 2, 500000, 10000], 'scrap TCS → 394(1) Sl. 4 2% on gross');
+  const tour = suggestTcs({ pan: 'ABCDE1234F' }, { gross: 200000 }, '2026-10-01', { transactionKind: 'tour' });
+  eq([tour?.section, tour?.rate, tour?.base, tour?.amount], ['394-10', 2, 200000, 4000], 'overseas tour TCS → 394(1) Sl. 8 2% flat');
+  const lrsEdu = suggestTcs({ pan: 'ABCDE1234F' }, { gross: 1200000 }, '2026-10-01', { transactionKind: 'lrs-edu' });
+  eq([lrsEdu?.section, lrsEdu?.rate], ['394-7', 2], 'LRS education/medical → 394(1) Sl. 7 2%');
+  const lrsOther = suggestTcs({ pan: 'ABCDE1234F' }, { gross: 1200000 }, '2026-10-01', { transactionKind: 'lrs-other' });
+  eq([lrsOther?.section, lrsOther?.rate], ['394-8', 20], 'LRS other → 394(1) Sl. 7 20%');
+  // CGST 52 base is taxable value, not gross — scrap under 394-4 uses gross
+  const scrapBase = suggestTcs({ pan: 'ABCDE1234F' }, { taxable: 200000, gross: 236000 }, '2026-10-01', { transactionKind: 'scrap' });
+  eq([scrapBase?.section, scrapBase?.base], ['394-4', 236000], 'scrap 394-4 uses gross invoice value (GST included)');
+  // Under 1961 Act, TCS suggestions not implemented (all new provisions are 2025)
+  eq(suggestTcs({ pan: 'ABCDE1234F' }, { gross: 500000 }, '2026-03-15', { transactionKind: 'scrap' }), null, 'TCS suggestions only for 2025 Act');
+}
+
+console.log('\n[#180 part 2] New TDS sections: 392 (salary), 393-7 (partner)');
+{
+  const r = (code, list = TDS_SECTIONS_2025) => list.find((s) => s.code === code);
+  eq([r('392')?.rate, r('392')?.old, r('392')?.short], [0, '192', '392'], 'Section 392 — salary');
+  eq([r('393-7')?.rate, r('393-7')?.old, r('393-7')?.short], [10, '194T', '393(3) Sl. 7'], 'Section 393(3) Sl. 7 — partner remuneration');
+}
+
+console.log('\n[#180 part 2] New TCS sections: 394-7 (LRS edu), 394-8 (LRS other), 394-10 (tour)');
+{
+  const r = (code, list = TCS_SECTIONS_2025) => list.find((s) => s.code === code);
+  eq([r('394-7')?.rate, r('394-7')?.old, r('394-7')?.short], [2, '206C(1)', '394(1) Sl. 7'], 'LRS education/medical');
+  eq([r('394-8')?.rate, r('394-8')?.old, r('394-8')?.short], [20, '206C(1)', '394(1) Sl. 7'], 'LRS other purposes');
+  eq([r('394-10')?.rate, r('394-10')?.old, r('394-10')?.short], [2, '206C(1C)', '394(1) Sl. 8'], 'Overseas tour package');
 }
 
 console.log('\n────────────────────────────────────────');
