@@ -379,7 +379,7 @@ export default [
 <p><b>WhatsApp</b> (in the ${ui('⋯')} menu) sends a message with the invoice number, date and due date, client, total, what is paid or still due (or "FULLY PAID"), the status, and your business name.</p>
 <ul>
   <li><b>On a phone or tablet</b> (Chrome or Safari): the app makes the PDF and opens your phone's share menu with it attached. Pick WhatsApp and the client.</li>
-  <li><b>On a computer</b>: WhatsApp does not let any website attach a file. So the client's chat opens in a new tab with the message, using the phone number saved for them, and the PDF is downloaded to your Downloads folder. Drag that PDF into the chat and send. If no number is saved, choose the contact in WhatsApp yourself.</li>
+  <li><b>On a computer</b>: the app copies the PDF to the clipboard and opens the client's chat in a new tab with the message, using the phone number saved for them. Press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the chat to attach the PDF, then Send. If no number is saved, choose the contact in WhatsApp yourself first. If the PDF could not be copied, it is downloaded instead: drag it into the chat.</li>
 </ul>
 <p><b>Email</b> opens your email program (Outlook, Windows Mail, Gmail if set as your mail app) with the subject <b>Invoice INV/0012 - ₹11,800</b>, a short "Dear …" message with the same details, and the client's email address filled in when the invoice or the saved client has one. Email links cannot attach files, so attach the PDF yourself: download it first with ${ui('Save PDF')} on the invoice screen, or tick the invoice and use ${ui('One merged PDF')}.</p>
 <div class="note tip"><strong>Something wrong?</strong>

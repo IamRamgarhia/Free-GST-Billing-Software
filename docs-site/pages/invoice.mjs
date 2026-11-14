@@ -37,7 +37,7 @@ export default [
   <tr><td>${ui('Save')}</td><td>Saves the invoice without making a PDF. <kbd>Ctrl</kbd> + <kbd>S</kbd> does the same.</td></tr>
   <tr><td>${ui('Save PDF')}</td><td>Saves the invoice and downloads the PDF. See <a href="#save-download">Save PDF</a>.</td></tr>
   <tr><td>${ui('Print')}</td><td>Saves the invoice, then prints it. See <a href="#print">Printing</a>.</td></tr>
-  <tr><td>${ui('WhatsApp')}</td><td>Opens WhatsApp with the invoice details typed in. See <a href="#whatsapp">Sending on WhatsApp</a>.</td></tr>
+  <tr><td>${ui('WhatsApp')}</td><td>Saves the invoice and sends its PDF on WhatsApp with the invoice details typed in. See <a href="#whatsapp">Sending on WhatsApp</a>.</td></tr>
   <tr><td>${ui('E-Way Bill')}</td><td>Only on tax invoices and delivery challans, and only while <b>E-way bill</b> is on in <a href="settings.html#features">Settings, Features</a>. Downloads the e-way bill file. See <a href="#eway-bill">E-way bill</a>.</td></tr>
   <tr><td>${ui('E-invoice')}</td><td>Only when <b>E-invoicing (IRN)</b> is on in Settings, Features, and only on tax invoices and credit notes. Downloads the e-invoice file and takes back the IRN. A ✓ after the name means this invoice already has an IRN. See <a href="gst-returns.html#e-invoice">E-invoicing</a>.</td></tr>
   <tr><td>${ui('Customize')}</td><td>Opens the panel that controls what prints, the paper size, currency and more. While it is open the button reads ${ui('Hide Options')}. See <a href="invoice-options.html">Customize: what prints and how</a>.</td></tr>
@@ -577,8 +577,12 @@ export default [
 
 <section id="whatsapp">
 <h2>Sending on WhatsApp</h2>
-<p>${ui('WhatsApp')} opens WhatsApp with this message typed in: your business name, the client, the invoice number and date (and due date), the total, what is paid and still due, the status, and your UPI ID while money is due on a rupee invoice. The Invoices list and the Clients page send the same message. If the client is saved with a phone number, the chat opens with them; otherwise you choose the contact. It does not save the invoice.</p>
-<p>From the invoice screen the PDF is not attached. Download it with ${ui('Save PDF')} and drag it into the chat. The WhatsApp button on the <a href="dashboard.html#row-actions">Dashboard</a> can attach the PDF on phones.</p>
+<p>${ui('WhatsApp')} opens WhatsApp with this message typed in: your business name, the client, the invoice number and date (and due date), the total, what is paid and still due, the status, and your UPI ID while money is due on a rupee invoice. The Invoices list and the Clients page send the same message. If the client is saved with a phone number, the chat opens with them; otherwise you choose the contact. Like ${ui('Save PDF')}, it saves the invoice first, so the PDF carries the number it is saved under.</p>
+<ul>
+  <li><b>On a PC</b>: the app copies the PDF to the clipboard and opens the chat. Press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the WhatsApp message box: the PDF is attached, with the message as its caption. Then press Send. Works in WhatsApp Web and in the WhatsApp app for Windows or Mac.</li>
+  <li><b>On a phone or tablet</b>: your phone's share menu opens with the PDF attached. Pick WhatsApp and the client.</li>
+</ul>
+<p>If the PDF could not be copied (on Linux the app needs <code>xclip</code> for this), it is downloaded instead: drag it from your Downloads folder into the chat. The WhatsApp buttons on the <a href="dashboard.html#row-actions">Dashboard</a> and the <a href="clients.html">Clients</a> page work the same way.</p>
 </section>
 
 <section id="eway-bill">

@@ -4,7 +4,8 @@ import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, saveBill, getProfile, deleteReceipt, trashBill, getAllReceipts } from '../store';
 import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, belongsToProfile } from '../utils';
 import { getPrintSettings } from '../utils/printSettings';
-import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
+import { sendPdfOnWhatsApp, invoiceShareMessage, openWhatsAppShare } from '../utils/share';
+import { billPdfBlob, billPdfName } from '../utils/billPdf';
 import { confirmAction } from './ConfirmModal';
 import { askPaidMode } from './askPaidMode';
 import { billInInr, baseCurrencyOf } from '../utils/fx';
@@ -757,7 +758,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint, onNew
     // v1.10.84 (#156) - the same full message as the Invoices list, sent to
     // the number on the invoice or, failing that, the client's saved number.
     const phone = bill.clientPhone || bill.data?.client?.phone || clients.find(c => c.name === bill.clientName)?.phone;
-    openWhatsAppShare(phone, invoiceShareMessage(bill, profileForStatement));
+    // v1.10.86 - with the invoice PDF (copied for Ctrl+V on the PC, the Share sheet on a phone).
+    sendPdfOnWhatsApp({ phone, toast, prepare: async () => ({ blob: await billPdfBlob(bill), fileName: billPdfName(bill), message: invoiceShareMessage(bill, profileForStatement) }) });
   };
 
   // v1.10.86 - "Send reminder" on a client's account: one WhatsApp message

@@ -177,7 +177,7 @@ export default [
   <tr><td>👁 View</td><td>Shows the invoice as it prints, without opening the editor, as on the <a href="dashboard.html#print-preview">Dashboard</a>.</td></tr>
   <tr><td>Edit (pencil)</td><td>Opens the invoice on the invoice screen to change it.</td></tr>
   <tr><td>${ui('⋯')} Duplicate</td><td>A new invoice with the same client and items, a new number and today's date.</td></tr>
-  <tr><td>${ui('⋯')} WhatsApp</td><td>Opens WhatsApp with a short message: invoice number, amount, date and status. It goes to the phone number saved on that invoice. The PDF is not attached; send it from the invoice screen if you need it (see <a href="invoices.html#whatsapp">WhatsApp</a>).</td></tr>
+  <tr><td>${ui('⋯')} WhatsApp</td><td>Sends the invoice PDF on WhatsApp with the invoice details, to the phone number on that invoice or saved for the client. On a PC the PDF is copied for you: the chat opens, press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the message box to attach it, then Send. On a phone, the share menu opens with the PDF: pick WhatsApp. See <a href="invoices.html#whatsapp">WhatsApp</a>.</td></tr>
   <tr><td>${ui('⋯')} Email</td><td>Opens your email program with a message about the invoice, addressed to the client's saved email.</td></tr>
   <tr><td>${ui('⋯')} Delete</td><td>Asks first, then moves the invoice to the Trash for 30 days and puts its stock back.</td></tr>
 </table></div>
@@ -233,7 +233,7 @@ export default [
 <p>Two buttons at the top of an opened client make PDFs you can send them or keep. Each one opens a preview first, so you can read it without downloading. At the bottom of the preview:</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
-  <tr><td>${ui('WhatsApp')}</td><td>On a phone, the share sheet opens with the PDF: pick WhatsApp. On a PC, the PDF downloads and WhatsApp opens at the client's chat (from their saved phone) with a short message; drag the PDF into the chat. Browsers do not let a web page attach a file to WhatsApp, as for <a href="invoices.html#whatsapp">invoices</a>.</td></tr>
+  <tr><td>${ui('WhatsApp')}</td><td>On a phone, the share sheet opens with the PDF: pick WhatsApp. On a PC, the PDF is copied and WhatsApp opens at the client's chat (from their saved phone) with a short message: press <b>Ctrl+V</b> (Mac: <b>Cmd+V</b>) in the chat to attach the PDF, then Send. As for <a href="invoices.html#whatsapp">invoices</a>.</td></tr>
   <tr><td>${ui('Email')}</td><td>The PDF downloads and your email program opens, addressed to the client's saved email, with a short message. Attach the PDF to the mail.</td></tr>
   <tr><td>${ui('Download')}</td><td>Saves the PDF.</td></tr>
   <tr><td>${ui('Print')}</td><td>Opens the print window for the PDF.</td></tr>

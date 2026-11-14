@@ -24,6 +24,7 @@ import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './
 import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
 import { updateHintFor, updateDownloadUrlFor, updateStepFromLine } from './src/utils/installKind.js';
 import { STANDARD_TERMS } from './src/utils/termsDefaults.js';
+import { PDF_CLIP_MAX, sanitizePdfName, isPdfBytes, cleanShareTmp, clipboardCommand } from './src/utils/pdfClipboard.js';
 // v1.10.85 - phone / tablet access on the same Wi-Fi (off by default).
 import https from 'https';
 import http from 'http';
@@ -2364,6 +2365,37 @@ app.post('/api/control-panel/open-backups-folder', (req, res) => {
     else if (isMac) spawn('open', [backupsHome], { detached: true }).unref();
     else spawn('xdg-open', [backupsHome], { detached: true }).unref();
     res.json({ ok: true, path: backupsHome });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// v1.10.86 - WhatsApp on the PC: the page sends the PDF here; it is written to
+// a share folder in the system temp folder and the FILE is put on the
+// clipboard, so the user presses Ctrl+V in the WhatsApp chat (a web page can
+// only hand WhatsApp text). PC-only: it lives under /api/control-panel/.
+// Never takes a path from the page; only the file just written is copied.
+const SHARE_TMP = path.join(os.tmpdir(), 'free-gst-billing-share');
+function runClipboard({ cmd, args, env, input }) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { env: { ...process.env, ...env }, windowsHide: true, stdio: [input ? 'pipe' : 'ignore', 'ignore', 'ignore'] });
+    } catch (e) { resolve(e.message); return; }
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } resolve('timed out'); }, 15000);
+    child.on('error', (e) => { clearTimeout(timer); resolve(e.code === 'ENOENT' ? 'not-supported' : e.message); });
+    child.on('exit', (code) => { clearTimeout(timer); resolve(code === 0 ? '' : `exit code ${code}`); });
+    if (input) child.stdin.end(input);
+  });
+}
+app.post('/api/control-panel/copy-pdf', express.raw({ type: 'application/pdf', limit: PDF_CLIP_MAX }), async (req, res) => {
+  if (!isPdfBytes(req.body)) return res.status(400).json({ ok: false, error: 'not-a-pdf' });
+  try {
+    if (!fs.existsSync(SHARE_TMP)) makeDir(SHARE_TMP);
+    cleanShareTmp(SHARE_TMP);
+    const fileName = sanitizePdfName(req.query.name);
+    const file = path.join(SHARE_TMP, fileName);
+    fs.writeFileSync(file, req.body);
+    const error = await runClipboard(clipboardCommand(process.platform, file));
+    res.json(error ? { ok: false, error } : { ok: true, fileName });
   } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
