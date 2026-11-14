@@ -1183,9 +1183,9 @@ console.log('\n[v1.10.85 #190] Whole-bill discount before GST (trade discount)')
   const tiAfter = run(incl, { invoiceDiscountValue: 223 }, { taxInclusive: true });
   eq([tiAfter.taxableAmount, tiAfter.total], [2000, 2007], 'inclusive After GST unchanged: taxable 2,000, 2,230 - 223');
 
-  // Bill of supply (no GST): just comes off the value.
+  // Bill of supply (no GST): Before GST does not apply; the discount comes off the total as before (review).
   const bos = run(two, { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 1000 }, { showGST: false });
-  eq([bos.taxableAmount, bos.total], [9000, 9000], 'bill of supply: 10,000 - 1,000');
+  eq([bos.taxableAmount, bos.total], [10000, 9000], 'bill of supply: no GST, so the discount comes off the total (10,000 - 1,000), lines unchanged');
 
   // Cess follows the reduced value too.
   const cessT = run([{ quantity: 1, rate: 1000, taxPercent: 28, cessPercent: 12 }], { invoiceDiscountBeforeGst: true, invoiceDiscountValue: 100 });

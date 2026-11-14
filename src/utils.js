@@ -139,7 +139,8 @@ export const spreadBillDiscount = (items, invoiceOptions = {}, taxIncluded = fal
   });
   const opts = invoiceOptions || {};
   const value = finiteNonNeg(opts.invoiceDiscountValue);
-  if (!opts.invoiceDiscountBeforeGst || value <= 0) return list;
+  // (review) only while GST is charged: with GST off it is an ordinary discount.
+  if (!opts.invoiceDiscountBeforeGst || opts.showGST === false || value <= 0) return list;
   const bases = list.map((it) => Math.max(0,
     finiteNonNeg(it?.quantity) * finiteNonNeg(it?.rate) - lineOwnDiscount(it || {}, taxIncluded)));
   const totalBase = bases.reduce((s, b) => s + b, 0);
@@ -275,8 +276,8 @@ export function computeInvoiceTotals(opts) {
   const invoiceOptions = rawOpts.invoiceOptions || {};
   // v1.10.85 (#190) - a whole-bill discount before GST goes onto the lines
   // first (their part is in each line's discount from here on).
-  const discBeforeGst = !!invoiceOptions.invoiceDiscountBeforeGst;
-  const items = spreadBillDiscount(rawOpts.items || [], invoiceOptions, !showGST || taxInclusive);
+  const discBeforeGst = !!invoiceOptions.invoiceDiscountBeforeGst && showGST;
+  const items = spreadBillDiscount(rawOpts.items || [], discBeforeGst ? invoiceOptions : { ...invoiceOptions, invoiceDiscountBeforeGst: false }, !showGST || taxInclusive);
 
   const warnings = [];
   const isIndia = (profile.country || 'India') === 'India';

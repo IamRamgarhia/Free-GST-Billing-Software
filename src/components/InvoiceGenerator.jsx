@@ -1441,7 +1441,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           delete persisted.paymentAccountSnapshot; stripLutOptions(persisted);
           // showRoundOff: a saved bill that never stored it was not rounded
           // (OPTIONS_OFF_BY_DEFAULT); the new ON default must not change its total.
-          mergedOpts = { ...DEFAULT_OPTIONS, ...persisted, showRoundOff: false, ...d.invoiceOptions };
+          // v1.10.85 (review) - a bill saved before the before-GST discount existed
+          // took its whole-bill discount after GST: never let the last new
+          // invoice's choice change an issued bill's GST.
+          mergedOpts = { ...DEFAULT_OPTIONS, ...persisted, showRoundOff: false, invoiceDiscountBeforeGst: false, ...d.invoiceOptions };
         } catch { mergedOpts = { ...DEFAULT_OPTIONS, showRoundOff: false, ...d.invoiceOptions }; }
         // Backfilling only happens if the bill genuinely has no snapshot.
         // Check d.invoiceOptions directly (not mergedOpts) to sidestep any
@@ -1479,7 +1482,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           // supply) stays off as a credit note; it used to come back on.
           const fromNoGstType = INVOICE_TYPES[d.invoiceType || 'tax-invoice']?.showGST === false;
           if (config) setInvoiceOptions(prev => {
-            const on = convertType === 'bill-of-supply' ? false : (fromNoGstType || prev.showGST !== false ? config.showGST : false);
+            // (review) from a no-GST type the new type's default applies only to a
+            // sales invoice: a bill of supply's credit note stays without GST.
+            const on = !!config.showGST && (prev.showGST !== false || (fromNoGstType && SALES_INVOICE_TYPES.includes(convertType)));
             return { ...prev, showGST: on, showPlaceOfSupply: on };
           });
         }
@@ -1653,7 +1658,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // new type's own setting applies.
       const fromNoGstType = INVOICE_TYPES[invoiceType]?.showGST === false;
       setInvoiceOptions(prev => {
-        const on = fromNoGstType || prev.showGST !== false ? config.showGST : false;
+        const on = !!config.showGST && (prev.showGST !== false || (fromNoGstType && SALES_INVOICE_TYPES.includes(type)));
         return { ...prev, showGST: on, showPlaceOfSupply: on };
       });
     }
@@ -1728,7 +1733,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const canReceiveNow = SALES_INVOICE_TYPES.includes(invoiceType) && !readOnlyDoc && paidWhenOpened.length === 0;
   const receivableNow = Math.max(0, Math.round((amountDue({ totalAmount: totals.total, data: { totals } }) - (editingBill ? 0 : creditToApply)) * 100) / 100);
   const billItems = useMemo(
-    () => spreadBillDiscount(items, { invoiceDiscountBeforeGst: discBeforeGst, invoiceDiscountValue: discValue, invoiceDiscountType: discType }, !showGST || taxInclusive),
+    // (review) only while GST is charged, as in computeInvoiceTotals.
+    () => spreadBillDiscount(items, { invoiceDiscountBeforeGst: !!discBeforeGst && showGST, invoiceDiscountValue: discValue, invoiceDiscountType: discType }, !showGST || taxInclusive),
     [items, discBeforeGst, discValue, discType, showGST, taxInclusive],
   );
 
@@ -1881,14 +1887,29 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const productNames = useMemo(() => new Set(products.map((p) => String(p.name || '').trim().toLowerCase())), [products]);
   const isUnknownItem = (item) => products.length > 0 && !item.isCharge && !item.productId
     && String(item.name || '').trim().length > 1 && !productNames.has(String(item.name).trim().toLowerCase());
+  // (review) a SAC code (99...) saves a service, not goods; one save at a time
+  // and a fresh look at Products first, so a double click makes no twin. The
+  // line is not linked to it: this invoice moves no stock of a product that
+  // has none entered (products picked from now on are linked as usual).
+  const savingProduct = useRef(false);
   const saveLineAsProduct = useCallback(async (item) => {
+    if (savingProduct.current) return;
+    savingProduct.current = true;
     try {
-      const saved = await saveProduct({ name: String(item.name).trim(), hsn: item.hsn || '', unit: item.unit || 'Nos',
-        sellingPrice: Number(item.rate) || 0, rate: Number(item.rate) || 0, taxPercent: Number(item.taxPercent) || 0, kind: 'goods' });
+      const name = String(item.name).trim();
+      const latest = await getAllProducts();
+      if (latest.some((p) => String(p.name || '').trim().toLowerCase() === name.toLowerCase())) {
+        setProducts(latest);
+        toast(`${name} is already in Products`, 'info');
+        return;
+      }
+      const service = /^99/.test(String(item.hsn || '').trim());
+      const saved = await saveProduct({ name, hsn: item.hsn || '', unit: item.unit || 'Nos',
+        sellingPrice: Number(item.rate) || 0, rate: Number(item.rate) || 0, taxPercent: Number(item.taxPercent) || 0, kind: service ? 'service' : 'goods' });
       setProducts(await getAllProducts());
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, productId: saved.id } : i)));
       toast(`${saved.name} saved to Products`, 'success');
     } catch { toast('Could not save it to Products.', 'error'); }
+    finally { savingProduct.current = false; }
   }, []);
 
   const getProductSuggestions = useCallback((itemId) => {
@@ -2309,17 +2330,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ? receivedNowPayment({ id: ownNowId, amount: receivedNow.amount, mode: receivedNow.mode, date: details.invoiceDate, recordedAt: receivedPay.current?.recordedAt })
       : null;
     if (nowPayment) seedPayments.push(nowPayment);
-    // Cleared (or no longer a sale): its receipt goes first, as on the
-    // Dashboard (#175): a receipt left behind would bring the payment back.
-    if (ownNowId && !nowPayment) {
-      try { await deleteReceipt(ownNowId); } catch (err) {
-        if (err?.status !== 404) {
-          toast(err?.status === 423 && err.message ? err.message : 'Could not remove the receipt of the payment received, so nothing was saved. Try again.', 'error');
-          return null;
-        }
-      }
-      receivedReceipt.current = '';
-    }
+    // Cleared (or no longer a sale): its receipt is removed once the bill
+    // without the payment is saved (review: removed first, a refused save left
+    // the payment on the saved bill with no receipt).
+    const removeNowReceipt = ownNowId && !nowPayment ? ownNowId : '';
     const seedPaidAmount = seedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     // v1.10.41 — Recompute status from the merged paid amount rather
     // than trusting editingBill.status. If a payment was recorded on
@@ -2544,6 +2558,12 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // book pairs them). Only after the bill: a refused save (period lock, 423)
     // has thrown before this, leaving nothing half-saved.
     receivedPay.current = nowPayment ? { id: nowPayment.id, recordedAt: nowPayment.recordedAt } : null;
+    if (removeNowReceipt) {
+      try { await deleteReceipt(removeNowReceipt); } catch (err) {
+        if (err?.status !== 404) toast('The invoice is saved without the payment, but its receipt could not be removed. Delete it on the Receipts page.', 'warning', 8000);
+      }
+      receivedReceipt.current = '';
+    }
     if (nowPayment) {
       const receipt = receiptForPayment({ ...bill, id: savedNumber, invoiceNumber: savedNumber }, nowPayment);
       const sig = JSON.stringify(receipt);

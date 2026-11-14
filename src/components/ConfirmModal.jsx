@@ -175,7 +175,9 @@ export default function ConfirmModalContainer() {
               // v1.10.85 - a prompt with options is a choice: [[value, label], ...].
               <form onSubmit={(e) => { e.preventDefault(); confirm(); }}>
                 <select ref={inputRef} className="form-input" value={value} aria-label={modal.title}
-                  onChange={(e) => setValue(e.target.value)} style={{ marginTop: '0.9rem', width: '100%' }}>
+                  onChange={(e) => setValue(e.target.value)} style={{ marginTop: '0.9rem', width: '100%' }}
+                  // Chromium does not submit a form on Enter from a select.
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirm(); } }}>
                   {modal.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
                 </select>
               </form>
