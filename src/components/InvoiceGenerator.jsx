@@ -5170,71 +5170,76 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <input type="text" className="form-input" value={client.address}
                   onChange={(e) => setClient({ ...client, address: e.target.value })} placeholder="Street address, locality" />
               </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="client-country">Country</label>
-                <select id="client-country" className="form-input" value={client.country || profile?.country || 'India'}
-                  onChange={(e) => {
-                    setClient({ ...client, country: e.target.value, state: '' });
-                    // v1.10.83 - a client abroad: their currency, on a new invoice.
-                    if (!editingSaved) setCurrency(currencyForClient({ country: e.target.value }, profile, { lastForeign: invoiceOptions.lastForeignCurrency }));
-                  }}>
-                  {(() => {
-                    const visible = getCountriesForRegion(getRegionMode());
-                    const cur = client.country || profile?.country;
-                    const out = [];
-                    if (cur && !visible.some(c => c.name === cur)) {
-                      out.push(<option key={cur} value={cur}>{cur}</option>);
-                    }
-                    return out.concat(visible.map(c => <option key={c.code} value={c.name}>{c.name}</option>));
-                  })()}
-                </select>
+              {/* v1.10.86 - Country, City and State on one row; PIN and GSTIN last. */}
+              <div className="form-group full-width inv-row3">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="client-country">Country</label>
+                  <select id="client-country" className="form-input" value={client.country || profile?.country || 'India'}
+                    onChange={(e) => {
+                      setClient({ ...client, country: e.target.value, state: '' });
+                      // v1.10.83 - a client abroad: their currency, on a new invoice.
+                      if (!editingSaved) setCurrency(currencyForClient({ country: e.target.value }, profile, { lastForeign: invoiceOptions.lastForeignCurrency }));
+                    }}>
+                    {(() => {
+                      const visible = getCountriesForRegion(getRegionMode());
+                      const cur = client.country || profile?.country;
+                      const out = [];
+                      if (cur && !visible.some(c => c.name === cur)) {
+                        out.push(<option key={cur} value={cur}>{cur}</option>);
+                      }
+                      return out.concat(visible.map(c => <option key={c.code} value={c.name}>{c.name}</option>));
+                    })()}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">City</label>
+                  <input type="text" className="form-input" value={client.city}
+                    onChange={(e) => setClient({ ...client, city: e.target.value })} placeholder="e.g. Mumbai" />
+                </div>
+                {invoiceOptions.showState && (() => {
+                  const cc = getCountryConfig(client.country || profile?.country);
+                  const stateOpts = getStatesForCountry(client.country || profile?.country);
+                  return (
+                    <div className="form-group">
+                      <label className="form-label">{cc.stateLabel}</label>
+                      {stateOpts.length > 0 ? (
+                        <select className="form-input" value={client.state} onChange={(e) => setClient({ ...client, state: e.target.value })}>
+                          <option value="">Select {cc.stateLabel}</option>
+                          {stateOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <input type="text" className="form-input" value={client.state}
+                          onChange={(e) => setClient({ ...client, state: e.target.value })} placeholder={cc.stateLabel} />
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="form-group">
-                <label className="form-label">City</label>
-                <input type="text" className="form-input" value={client.city}
-                  onChange={(e) => setClient({ ...client, city: e.target.value })} placeholder="e.g. Mumbai" />
+              <div className="form-group full-width inv-row3">
+                <div className="form-group">
+                  {(() => { const cc = getCountryConfig(client.country || profile?.country); return <label className="form-label">{cc.postalLabel}</label>; })()}
+                  <input type="text" className="form-input" value={client.pin}
+                    onChange={(e) => setClient({ ...client, pin: e.target.value })} placeholder="Postal / PIN code" />
+                </div>
+                {invoiceOptions.showGSTIN && (() => {
+                  const cc = getCountryConfig(client.country || profile?.country);
+                  return (
+                    <div className="form-group">
+                      <label className="form-label">{cc.taxIdLabel}</label>
+                      <input type="text" className="form-input" value={client.gstin}
+                        // v1.10.74 - drop the old hint on edit; it is re-checked on blur.
+                        onChange={(e) => { setClient({ ...client, gstin: e.target.value.toUpperCase() }); setGstinHint(null); }}
+                        onBlur={handleClientGstinBlur} placeholder="Optional" maxLength={20} />
+                      {gstinHint && (
+                        <small style={{ color: gstinHint.tone === 'warn' ? '#d97706' : '#16a34a', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
+                          {gstinHint.tone === 'warn' ? '⚠' : '✓'} {gstinHint.message}
+                          <HelpButton title="What the GSTIN check tells you" doc="invoices#gstin-check" size={16} />
+                        </small>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="form-group">
-                {(() => { const cc = getCountryConfig(client.country || profile?.country); return <label className="form-label">{cc.postalLabel}</label>; })()}
-                <input type="text" className="form-input" value={client.pin}
-                  onChange={(e) => setClient({ ...client, pin: e.target.value })} placeholder="Postal / PIN code" />
-              </div>
-              {invoiceOptions.showState && (() => {
-                const cc = getCountryConfig(client.country || profile?.country);
-                const stateOpts = getStatesForCountry(client.country || profile?.country);
-                return (
-                  <div className="form-group">
-                    <label className="form-label">{cc.stateLabel}</label>
-                    {stateOpts.length > 0 ? (
-                      <select className="form-input" value={client.state} onChange={(e) => setClient({ ...client, state: e.target.value })}>
-                        <option value="">Select {cc.stateLabel}</option>
-                        {stateOpts.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    ) : (
-                      <input type="text" className="form-input" value={client.state}
-                        onChange={(e) => setClient({ ...client, state: e.target.value })} placeholder={cc.stateLabel} />
-                    )}
-                  </div>
-                );
-              })()}
-              {invoiceOptions.showGSTIN && (() => {
-                const cc = getCountryConfig(client.country || profile?.country);
-                return (
-                  <div className="form-group">
-                    <label className="form-label">{cc.taxIdLabel}</label>
-                    <input type="text" className="form-input" value={client.gstin}
-                      // v1.10.74 - drop the old hint on edit; it is re-checked on blur.
-                      onChange={(e) => { setClient({ ...client, gstin: e.target.value.toUpperCase() }); setGstinHint(null); }}
-                      onBlur={handleClientGstinBlur} placeholder="Optional" maxLength={20} />
-                    {gstinHint && (
-                      <small style={{ color: gstinHint.tone === 'warn' ? '#d97706' : '#16a34a', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
-                        {gstinHint.tone === 'warn' ? '⚠' : '✓'} {gstinHint.message}
-                        <HelpButton title="What the GSTIN check tells you" doc="invoices#gstin-check" size={16} />
-                      </small>
-                    )}
-                  </div>
-                );
-              })()}
               {/* v1.10.11 — Ship-to = Bill-to checkbox. When unchecked,
                    4 shipping fields appear. Rendered next to the billing
                    block in the PDF preview. */}

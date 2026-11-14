@@ -67,7 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Add a client in one click**: a blue **New client** button next to Client
   Name on New Invoice opens the client window, and **Add Client** is the
   main button on the Clients screen again. Invoice Details uses both
-  columns: Due Date, Currency and Place of Supply sit on one row.
+  columns: Due Date, Currency and Place of Supply sit on one row, and the client's
+  Country, City and State share a row with PIN and GSTIN below. Boxes in
+  More invoice details no longer touch side by side.
 - **Invoice number limit for GST**: with a GSTIN, the Invoice Number box on a
   tax invoice or credit note takes at most 16 characters (letters, digits,
   - and /) and shows a 12/16 count, so GSTR-1 never refuses the number.
