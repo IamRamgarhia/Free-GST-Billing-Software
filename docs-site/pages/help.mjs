@@ -34,7 +34,7 @@ export default [
 </ul>
 <p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
 <p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
-<p><b>At the top right of every screen</b> are small buttons: <b>?</b> opens this User Guide in your browser (it needs internet), the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
+<p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
 <p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
 <figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
 </section>
@@ -75,7 +75,7 @@ export default [
 
 <section id="command-palette">
 <h2>Quick search: Ctrl + K</h2>
-<p>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> anywhere, even while typing, and start typing. You can:</p>
+<p>Click the <b>Search or jump to…</b> box at the top of every screen (on a phone, the magnifying glass at the top), or press <kbd>Ctrl</kbd> + <kbd>K</kbd> anywhere, even while typing, and start typing. You can:</p>
 <ul>
   <li>go to any screen, or start a new invoice;</li>
   <li>open an invoice by its number or client;</li>
@@ -83,7 +83,7 @@ export default [
   <li>jump to Settings, switch dark mode, or see what is new in an update.</li>
 </ul>
 <ol class="steps">
-  <li><strong>Open it</strong>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Type a command or page name…</b></li>
+  <li><strong>Open it</strong>Click <b>Search or jump to…</b> at the top, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Type a command or page name…</b></li>
   <li><strong>Type a few letters</strong>For example <code>gst</code>, an invoice number such as <code>0012</code>, or part of a client's name. The list narrows as you type.</li>
   <li><strong>Pick one</strong>Move with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>Enter</kbd>, or click it. The box closes and the screen opens.</li>
 </ol>
@@ -93,11 +93,14 @@ export default [
 
 <section id="keyboard">
 <h2>Keyboard shortcuts</h2>
+<p>The list is also in the app: click the ${ui('?')} button at the top right and pick <b>Keyboard shortcuts (Ctrl+/)</b>. The same button's <b>User guide (opens in your browser)</b> opens this guide.</p>
 <table>
-  <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Quick search</td></tr>
-  <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>New invoice</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Quick search (the <b>Search or jump to…</b> box)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>New invoice (when you are not typing in a box)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save the invoice (on the invoice screen)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td><td>Download the PDF (on the invoice screen)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Add an item row (on the invoice screen)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></td><td>Copy the last item row (on the invoice screen)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td><td>Lock the app (when a PIN is set)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Show or hide the <b>Keyboard Shortcuts</b> window, which lists these</td></tr>
   <tr><td><kbd>Esc</kbd></td><td>Close a dialog</td></tr>

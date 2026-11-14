@@ -160,14 +160,15 @@ export default [
 
 <section id="client-invoices">
 <h3>The invoice rows</h3>
-<p>Each row has the <b>Date</b>, <b>Invoice No.</b>, <b>Type</b> (Tax Invoice, Quotation, Credit Note and so on), <b>Amount</b>, <b>Status</b> and these buttons:</p>
+<p>Each row has the <b>Date</b>, <b>Invoice No.</b>, <b>Type</b> (Tax Invoice, Quotation, Credit Note and so on), <b>Amount</b>, <b>Status</b> (where you mark it paid) and these buttons, in the same order as on the Dashboard:</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
-  <tr><td>Edit Invoice (pencil)</td><td>Opens the invoice on the invoice screen to change it.</td></tr>
-  <tr><td>Duplicate Invoice</td><td>A new invoice with the same client and items, a new number and today's date.</td></tr>
-  <tr><td>WhatsApp</td><td>Opens WhatsApp with a short message: invoice number, amount, date and status. It goes to the phone number saved on that invoice. The PDF is not attached; send it from the invoice screen if you need it (see <a href="invoices.html#whatsapp">WhatsApp</a>).</td></tr>
-  <tr><td>Email</td><td>Opens your email program with a message about the invoice, addressed to the client's saved email.</td></tr>
-  <tr><td>Delete Invoice (bin)</td><td>Asks first, then moves the invoice to the Trash for 30 days and puts its stock back.</td></tr>
+  <tr><td>👁 View</td><td>Shows the invoice as it prints, without opening the editor, as on the <a href="dashboard.html#print-preview">Dashboard</a>.</td></tr>
+  <tr><td>Edit (pencil)</td><td>Opens the invoice on the invoice screen to change it.</td></tr>
+  <tr><td>${ui('⋯')} Duplicate</td><td>A new invoice with the same client and items, a new number and today's date.</td></tr>
+  <tr><td>${ui('⋯')} WhatsApp</td><td>Opens WhatsApp with a short message: invoice number, amount, date and status. It goes to the phone number saved on that invoice. The PDF is not attached; send it from the invoice screen if you need it (see <a href="invoices.html#whatsapp">WhatsApp</a>).</td></tr>
+  <tr><td>${ui('⋯')} Email</td><td>Opens your email program with a message about the invoice, addressed to the client's saved email.</td></tr>
+  <tr><td>${ui('⋯')} Delete</td><td>Asks first, then moves the invoice to the Trash for 30 days and puts its stock back.</td></tr>
 </table></div>
 <p>A row past its due date and not paid is highlighted as overdue. Under the status, <b>Last paid</b> shows the date of the latest payment on that invoice.</p>
 <p>Deleted by mistake? Restore it from <a href="backup.html#trash">Settings, Trash bin</a> within 30 days. For an invoice already given to the client, <a href="dashboard.html#cancel">cancel it</a> on the Dashboard instead of deleting, so its number stays in your records.</p>
@@ -276,7 +277,7 @@ export default [
 Demo Traders,27AAAAA0000A1Z5,9800000001,accounts@demo-traders.example,"Shop 4, Demo Market, Pune",Maharashtra
 Sample Studio,,9800000002,hello@sample-studio.example,"12 Sample Street, Kolkata",West Bengal</code></pre>
 <p>Clients you already have (same name, any capitals) are skipped, and so are repeats inside the file, so importing the same file twice is safe. Other columns, such as city or PIN, are ignored: add them later with ${ui('Edit Client')}. Imported GSTINs are not checked; open the client and click into the GSTIN box and out again to check one.</p>
-<div class="note info"><p><b>Old invoices</b> are imported on the Dashboard, with ${ui('CSV import / export')}: it can add their clients to this list at the same time. See <a href="dashboard.html#csv">Importing and exporting invoices as CSV</a>.</p></div>
+<div class="note info"><p><b>Old invoices</b> are imported on the Dashboard, with ${ui('Import / export CSV')}: it can add their clients to this list at the same time. See <a href="dashboard.html#csv">Importing and exporting invoices as CSV</a>.</p></div>
 <div class="note tip"><strong>Something wrong?</strong><p>Nothing is read: the file is not a plain CSV, or the headings are not in the first row. An <code>.xlsx</code> file renamed to <code>.csv</code> does not work. See <a href="troubleshooting.html#csv-import">A CSV import did not work</a>.</p><p>An address with a comma in it must be inside double quotes, <code>"12, MG Road"</code>. Excel does this for you when it saves as CSV.</p></div>
 </section>
 `,

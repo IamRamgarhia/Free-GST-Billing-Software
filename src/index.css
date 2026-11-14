@@ -544,6 +544,51 @@ body {
   align-items: center;
   justify-content: center;
 }
+/* v1.10.86 - a search box you can see; it opens the Ctrl+K quick search.
+   On a phone it is a search icon like the buttons next to it. */
+.topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 36px;
+  min-width: 240px;
+  margin-right: auto;
+  padding: 0 0.5rem 0 0.75rem;
+  border-radius: 9px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: text;
+}
+.topbar-search:hover { border-color: var(--primary); color: var(--text-secondary); }
+.topbar-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.topbar-search-text { flex: 1; text-align: left; }
+.topbar-search-kbd {
+  font-family: inherit;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.mobile-topbar .topbar-search {
+  min-width: 0;
+  width: 36px;
+  padding: 0;
+  margin-right: 0;
+  justify-content: center;
+  flex-shrink: 0;
+  border-color: transparent;
+  background: rgba(255,255,255,0.08);
+  color: inherit;
+  cursor: pointer;
+}
+.mobile-topbar .topbar-search-text,
+.mobile-topbar .topbar-search-kbd { display: none; }
+html:not([data-theme="dark"]) .mobile-topbar .topbar-search { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
 .mobile-topbar .topbar-btn { flex-shrink: 0; border-color: transparent; background: rgba(255,255,255,0.08); color: inherit; }
 /* v1.10.86 - a phone-wide bar has no room for the pairing button (Settings has it). */
 @media (max-width: 480px) { .mobile-topbar .topbar-phone { display: none; } }

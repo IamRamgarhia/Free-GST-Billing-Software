@@ -23,7 +23,6 @@ import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice'
 // once fetched.
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
-import SetupWizard from './components/SetupWizard';
 import ToastContainer, { toast } from './components/Toast';
 import UpdateOverlay from './components/UpdateOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -50,8 +49,8 @@ import PhonePairButton from './components/PhonePairButton';
 import { isOfflineMode } from './utils/offlineMode';
 import { startView } from './utils/listPrefs';
 import HelpButton from './components/HelpButton';
+import ActionsMenu from './components/ActionsMenu';
 import { lockNow } from './utils/appLock';
-import { getPrintSettings } from './utils/printSettings';
 
 const openDocs = () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer');
 
@@ -75,10 +74,8 @@ function ViewLoading() {
 const MENU_BRAND_KEY = 'gst_menuBrand';
 
 function App() {
-  // v1.9.3 — Setup Wizard shown on first-run (before onboardingComplete = true)
-  const [showWizard, setShowWizard] = useState(() => {
-    try { return !getPrintSettings().onboardingComplete; } catch { return false; }
-  });
+  // v1.10.86 - the second first-run window (SetupWizard: business type, paper,
+  // language) is gone; the welcome asks the business type itself.
   const [currentView, setCurrentView] = useState(() => {
     // PWA manifest "shortcuts" deep-link in via ?view=X (e.g. right-clicking
     // the pinned taskbar icon → "New Invoice" opens /?view=new). Honour that
@@ -639,12 +636,24 @@ function App() {
   useEffect(() => {
     document.title = (pageLabel ? `${pageLabel} - ${windowName}` : windowName) + updateNote;
   }, [pageLabel, windowName, updateNote]);
+  // v1.10.86 - a search box you can see (it opens the Ctrl+K quick search);
+  // a search icon on a phone (CSS hides the words).
+  const openPalette = () => { setPaletteQuery(''); setPaletteIdx(0); setShowPalette(true); };
+  const searchBox = (
+    <button type="button" className="topbar-search" onClick={openPalette}
+      title="Search or jump to a page (Ctrl+K)" aria-label="Search or jump to a page (Ctrl+K)">
+      <Search size={16} />
+      <span className="topbar-search-text">Search or jump to…</span>
+      <kbd className="topbar-search-kbd">Ctrl+K</kbd>
+    </button>
+  );
   const topActions = topIds.map(id => ({
+    // v1.10.86 - Help (?) is a small menu: the user guide and the keyboard shortcuts.
     guide: (
-      <button key={id} type="button" className="topbar-btn" onClick={openDocs}
-        title="User guide (opens in your browser)" aria-label="User guide">
-        <HelpCircle size={18} />
-      </button>
+      <ActionsMenu key={id} label="Help" icon={HelpCircle} iconSize={18} className="topbar-btn" items={[
+        { label: 'User guide (opens in your browser)', icon: BookOpen, onClick: openDocs },
+        { label: 'Keyboard shortcuts (Ctrl+/)', icon: Command, onClick: () => setShowShortcutsHelp(true) },
+      ]} />
     ),
     /* Opens the list of overdue / due-soon invoices, GST filing deadlines and
        low-stock items, each a click away from the page that fixes it. */
@@ -927,45 +936,20 @@ function App() {
           if (p) setProfile(p);
           setShowWelcome(false);
         }} />
+        {/* v1.10.86 - mounted (and blocked) during the welcome so a new install
+            marks this version's slides as seen: none right after setup. */}
+        <WhatsNewAfterUpdate blocked />
         <ToastContainer />
         <ConfirmModalContainer />
       </>
     );
   }
 
-  // v1.10.33 — "Finish setup" bottom-right pill. Shown when the user
-  // hit Skip on the wizard (onboardingSkipped=true) so they can come
-  // back later without hunting through Settings. Hidden after they
-  // finish setup (finish() clears the flag) or if they explicitly said
-  // "None of these — I'll configure manually".
-  const showResumeSetupPill = (() => {
-    try {
-      const ps = getPrintSettings();
-      return !showWizard && ps.onboardingComplete === true && ps.onboardingSkipped === true;
-    } catch { return false; }
-  })();
-
   return (
     <div className={`app-layout${sidebarAutoHide ? ' sidebar-autohide' : ''}`}>
-      {showWizard && <SetupWizard onClose={() => setShowWizard(false)} />}
-      {/* v1.10.86 - "What's new" slides, once after an update (not during setup). */}
-      <WhatsNewAfterUpdate blocked={showWizard} />
-      {showResumeSetupPill && (
-        <button type="button"
-          onClick={() => setShowWizard(true)}
-          title="Come back to the setup wizard — pick a business type, paper size, and language."
-          style={{
-            // Above the docked Save bar on Settings, so it never covers Save.
-            position: 'fixed', bottom: currentView === 'settings' ? '5.5rem' : '1.25rem', right: '1.25rem', zIndex: 9998,
-            padding: '0.6rem 1rem', borderRadius: 999,
-            background: 'var(--primary)', color: '#fff', border: 'none',
-            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-            boxShadow: '0 6px 20px rgba(30,64,175,0.35), 0 2px 4px rgba(0,0,0,0.15)',
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-          }}>
-          ✨ Finish setup
-        </button>
-      )}
+      {/* v1.10.86 - "What's new" slides, once after an update (never during the
+          first-run welcome, which renders above instead of this layout). */}
+      <WhatsNewAfterUpdate blocked={showWelcome} />
       {/* v1.10.66 (#59) — phone-only top bar with the menu button. CSS hides it
           on wider screens, where the sidebar is always shown. */}
       <div className="mobile-topbar">
@@ -975,6 +959,7 @@ function App() {
         </button>
         <span className="mobile-topbar-title">GST Billing</span>
         <span className="mobile-topbar-business">{profile?.businessName || ''}</span>
+        {searchBox}
         {topActions}
       </div>
       {navOpen && <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
@@ -1141,6 +1126,7 @@ function App() {
         <div className="app-topbar">
           {/* v1.10.83 - the promise, on every screen (it was under the app name in the menu). */}
           <span className="topbar-free" title="Free forever: no paid version, no locked features, no ads, no tracking. Works on this computer, even offline.">Free forever</span>
+          {searchBox}
           {topActions}
         </div>
         {/* v1.10.83 - a screen that throws shows "ran into a problem" here
@@ -1162,7 +1148,7 @@ function App() {
              matched view's chunk actually loads; others stay unfetched. */}
         <Suspense fallback={<ViewLoading />}>
         {currentView === 'clients' && (
-          <ClientsView key={businessKey} onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
+          <ClientsView key={businessKey} onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onPrint={handlePrintInvoice} />
         )}
         {currentView === 'inventory' && (
           // v1.10.83 (#115) - remounted per business, like the screens below, so its production list follows the switch.
@@ -1359,12 +1345,16 @@ function App() {
             </div>
             <table className="kv-list">
               <tbody>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>K</kbd></td><td>Open command palette (jump to any page)</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>N</kbd></td><td>New invoice</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>S</kbd></td><td>Save current invoice (when on the invoice form)</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>P</kbd></td><td>Download PDF (when on the invoice form)</td></tr>
+                {/* v1.10.86 - each one checked in the code: App.jsx (K, /, N, Shift+L)
+                    and InvoiceGenerator.jsx (S, P, Enter, Shift+D). */}
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>K</kbd></td><td>Search or jump to a page (the search box at the top)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>N</kbd></td><td>New invoice (when not typing in a box)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>S</kbd></td><td>Save the invoice (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>P</kbd></td><td>Download the PDF (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Enter</kbd></td><td>Add an item row (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>D</kbd></td><td>Copy the last item row (on New Invoice)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>L</kbd></td><td>Lock the app (when a PIN is set)</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>/</kbd></td><td>Toggle this help</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>/</kbd></td><td>Show or hide this list</td></tr>
                 <tr><td><kbd>Esc</kbd></td><td>Close any open modal</td></tr>
               </tbody>
             </table>

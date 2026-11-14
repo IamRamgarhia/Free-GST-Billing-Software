@@ -319,6 +319,10 @@ export function pdfAccentRGB() {
   return [30, 64, 175];
 }
 
+// v1.10.86 - fired when print settings change outside Print & PDF (Settings →
+// Company → Business type), so the open Print & PDF panel reloads them.
+export const PRINT_SETTINGS_EVENT = 'fgsb:print-settings';
+
 export function savePrintSettings(settings) {
   try {
     localStorage.setItem('gst_printSettings', JSON.stringify(settings));

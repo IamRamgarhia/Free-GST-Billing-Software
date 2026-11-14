@@ -8,6 +8,7 @@ import { EXPENSE_PAYMENT, expenseStatus, expensePaid, expenseDue } from '../util
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import TableExport from './TableExport';
+import ActionsMenu from './ActionsMenu';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect, CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
@@ -529,11 +530,14 @@ export default function ExpenseTracker() {
                     </td>
                     <td>
                       <div className="table-actions">
+                        {/* v1.10.86 - the same order as every list: (View) · Edit · Payment · More. */}
+                        <button className="icon-btn icon-btn-blue" onClick={() => openEdit(exp)} title="Edit" aria-label={`Edit expense: ${exp.description || exp.category || ''}`}><Edit3 size={15} /></button>
                         {expenseDue(exp) > 0 && (
-                          <button className="icon-btn" onClick={() => markPaid(exp)} title="Mark as paid" aria-label="Mark as paid"><CheckCircle size={15} /></button>
+                          <button className="icon-btn icon-btn-green" onClick={() => markPaid(exp)} title="Mark as paid" aria-label="Mark as paid"><CheckCircle size={15} /></button>
                         )}
-                        <button className="icon-btn icon-btn-blue" onClick={() => openEdit(exp)} title="Edit"><Edit3 size={15} /></button>
-                        <button className="icon-btn icon-btn-red" onClick={() => handleDelete(exp.id)} title="Delete"><Trash2 size={15} /></button>
+                        <ActionsMenu label="More actions for this expense" items={[
+                          { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDelete(exp.id) },
+                        ]} />
                       </div>
                     </td>
                   </tr>

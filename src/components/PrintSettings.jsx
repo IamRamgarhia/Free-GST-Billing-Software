@@ -3,8 +3,8 @@ import { Printer, TestTube, RotateCcw, Info, Save as SaveIcon, Trash2 } from 'lu
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import InvoicePreview from './InvoicePreview';
-import { getProfile, getInvoiceDisplayOptions, saveInvoiceDisplayOptions } from '../store';
-import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampleInvoice, BUSINESS_PRESETS, applyBusinessPreset, LABEL_PRESETS } from '../utils/printSettings';
+import { getProfile, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getBusinessType } from '../store';
+import { DEFAULT_PRINT_SETTINGS, getPrintSettings, savePrintSettings, buildSampleInvoice, BUSINESS_PRESETS, applyBusinessPreset, LABEL_PRESETS, PRINT_SETTINGS_EVENT } from '../utils/printSettings';
 import HelpButton from './HelpButton';
 
 // v1.9.9 — Visual design presets. Each is a starting point that flips
@@ -205,6 +205,12 @@ export default function PrintSettings() {
   const [previewMode, setPreviewMode] = useState('pdf'); // 'pdf' | 'thermal' | 'both'
 
   useEffect(() => { getProfile().then(setProfile).catch(() => {}); }, []);
+  // v1.10.86 - Settings → Company → Business type sets the print style too.
+  useEffect(() => {
+    const reload = () => setSettings(getPrintSettings());
+    window.addEventListener(PRINT_SETTINGS_EVENT, reload);
+    return () => window.removeEventListener(PRINT_SETTINGS_EVENT, reload);
+  }, []);
 
   const set = (patch) => {
     const next = { ...settings, ...patch };
@@ -239,7 +245,7 @@ export default function PrintSettings() {
   // option isn't there when their picked preset doesn't need it.
   const HIDDEN_HINT = activeBiz ? (
     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-      Some options are hidden because they don't apply to your "{BUSINESS_PRESETS[activeBiz]?.label}" workflow. Change or clear the business type above to see everything.
+      Some options are hidden because they don't apply to your "{BUSINESS_PRESETS[activeBiz]?.label}" print style. Click Show all options to see everything.
     </span>
   ) : null;
 
@@ -375,15 +381,8 @@ export default function PrintSettings() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" style={{ fontSize: '0.82rem' }}
-            onClick={() => {
-              const next = { ...settings, onboardingComplete: false };
-              setSettings(next); savePrintSettings(next);
-              toast('Setup wizard will re-open on next page reload', 'info');
-            }}
-            title="Show the first-run wizard again">
-            🚀 Run setup wizard
-          </button>
+          {/* v1.10.86 - "Run setup wizard" removed with the wizard: the business
+              type is in Settings → Company, paper and language are on this page. */}
           <button className="btn btn-secondary" style={{ fontSize: '0.82rem' }} onClick={reset}>
             <RotateCcw size={14} /> Reset defaults
           </button>
@@ -418,11 +417,23 @@ export default function PrintSettings() {
         borderRadius: 10,
         marginBottom: '1rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '0.9rem' }}>⚡ Business type <HelpButton title="Business type preset" doc="print-settings#business-type" size={16} style={{ marginLeft: 6 }} /> <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: 6 }}>sets up to a dozen settings to match your workflow</span></strong>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Pick this first. Every setting below is still editable.</span>
+        {/* v1.10.86 - one Business type picker (Settings → Company); this used to
+             be a second one with other wording. It only says which print style
+             the business type set; the styles stay one click away below. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.88rem' }}>
+          <span>
+            Print style: <strong>{BUSINESS_PRESETS[activeBiz]?.label.replace(/^\W+\s*/u, '') || 'Standard'}</strong>
+            {activeBiz && activeBiz === getBusinessType() && <span style={{ color: 'var(--text-muted)' }}> (from your business type)</span>}
+          </span>
+          <button type="button" className="btn-link" onClick={() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: 'section-biztype' }))}
+            style={{ background: 'none', border: 0, color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}>
+            Change business type
+          </button>
+          <HelpButton title="Print style" doc="print-settings#business-type" size={16} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
+        <details style={{ marginTop: '0.5rem' }}>
+          <summary style={{ cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Use another print style (keeps your business type)</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
           {Object.entries(BUSINESS_PRESETS).map(([key, preset]) => {
             const active = settings.activeBusinessPresetId === key;
             return (
@@ -457,6 +468,7 @@ export default function PrintSettings() {
             );
           })}
         </div>
+        </details>
       </div>
 
       {/* v1.10.36 — Info banner shown when a business preset is active,
@@ -708,7 +720,7 @@ export default function PrintSettings() {
         /* v1.10.36 — Thermal block hidden for non-thermal presets.
            Show a subtle note so the user knows it's not missing. */
         <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          🖨 Thermal receipt settings (font, cut mark, feed lines, contrast) are hidden — the <strong>{BUSINESS_PRESETS[activeBiz]?.label}</strong> preset uses A4/A5 PDFs. Switch business type above if you also print thermal receipts.
+          🖨 Thermal receipt settings (font, cut mark, feed lines, contrast) are hidden — the <strong>{BUSINESS_PRESETS[activeBiz]?.label}</strong> print style uses A4/A5 PDFs. Use another print style (at the top) if you also print thermal receipts.
         </div>
       )}
 

@@ -9,6 +9,7 @@ import { DEFAULT_LEVEL_NAMES, normaliseLevelNames, priceLevelList } from './util
 
 import { logProblem } from './utils/problemLog';
 import { setUpdateProgress } from './utils/updateNotice';
+import { defaultTermsFor } from './utils/termsDefaults';
 
 const API = '/api';
 
@@ -432,6 +433,13 @@ export const saveTermsTemplate = async (template) => {
   const res = await apiFetch(`${API}/templates`, { method: 'POST', body: JSON.stringify(template) });
   if (res.id) template.id = res.id;
   return template;
+};
+
+// v1.10.86 - a business type rewords the starting "Standard Terms" to the
+// matching ready-made terms, unless the user wrote or changed them.
+export const applyTypeTerms = async (typeId) => {
+  const next = defaultTermsFor(await getTermsTemplates(), typeId);
+  if (next) await saveTermsTemplate(next);
 };
 
 export const deleteTermsTemplate = async (id) => {
