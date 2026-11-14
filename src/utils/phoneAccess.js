@@ -248,6 +248,16 @@ export function createPhoneGate({ isOn, deviceFor, names = () => [], headless = 
   };
 }
 
+// v1.10.86 - the guide page's port: the phone port + 1, or 0 (no guide page,
+// the QR code goes straight to HTTPS) when that would take the app's own port
+// or a port of its start-up range (47371-47420: it moves up when one is busy).
+export const APP_PORT_RANGE = [47371, 47420];
+export function guidePortFor(phonePort, appPort, ranges = [APP_PORT_RANGE]) {
+  const p = phonePort < 65535 ? phonePort + 1 : phonePort - 1;
+  if (p === appPort || ranges.some(([lo, hi]) => p >= lo && p <= hi)) return 0;
+  return p;
+}
+
 // The short form of the certificate's SHA-256 fingerprint shown on the PC and
 // on the phone: the first 8 bytes, as phone browsers print them.
 export const shortFingerprint = (fingerprint256) => String(fingerprint256 || '').split(':').slice(0, 8).join(' ');

@@ -205,7 +205,7 @@ export default [
   lead: 'Open the app on your phone or tablet while your books stay on your PC: on the same Wi-Fi only, over an encrypted connection, with each device paired once using a QR code and the app\'s PIN.',
   body: `
 <div class="note tip"><strong>In short</strong>
-<p>Set a PIN, tick ${ui('Use on phone or tablet')} in ${ui('Settings')} → ${ui('Privacy &amp; Security')}, click ${ui('Pair a phone or tablet')} and scan the QR code with the phone. The phone's browser warns once that the connection is "not private"; compare the security code, continue, type the PIN. Done: the phone opens the app. The PC must be on, with the app running, and both on the same Wi-Fi.</p></div>
+<p>Set a PIN, tick ${ui('Use on phone or tablet')} in ${ui('Settings')} → ${ui('Privacy &amp; Security')}, click ${ui('Pair a phone or tablet')} (or the phone button at the top right of any screen) and scan the QR code with the phone. The phone first shows a page that says where to tap; then its browser warns once that the connection is "not private"; continue, compare the security code, type the PIN. Done: the phone opens the app. The PC must be on, with the app running, and both on the same Wi-Fi.</p></div>
 
 <section id="turn-on">
 <h2>Turn it on (on the PC)</h2>
@@ -220,12 +220,15 @@ export default [
 <section id="pair">
 <h2>Pair a phone or tablet</h2>
 <ol class="steps">
-  <li><strong>Show the QR code</strong>On the PC click ${ui('Pair a phone or tablet')}. A QR code appears with the address in words, a pairing code, and this PC's <b>security code</b> (eight pairs of letters and digits).</li>
-  <li><strong>Scan it</strong>Connect the phone to <b>the same Wi-Fi</b> as the PC (not mobile data), open its camera and point it at the QR code, then tap the link. No camera app that reads QR codes? Type the address shown on the PC (it starts with <code>https://</code>) in the phone's browser; the page then asks for the pairing code too.</li>
-  <li><strong>The warning, once</strong>The browser says <i>Your connection is not private</i> (Chrome) or <i>This Connection Is Not Private</i> (Safari). This is expected; <a href="#certificate-warning">here is why</a>. Tap <b>Advanced</b> → <b>Proceed to ...</b> (Chrome), or <b>Show Details</b> → <b>visit this website</b> (Safari).</li>
+  <li><strong>Show the QR code</strong>On the PC click ${ui('Pair a phone or tablet')} in the card, or the <b>phone button</b> at the top right of any screen. A QR code appears with the address in words, a pairing code, and this PC's <b>security code</b> (eight pairs of letters and digits). If phone access is off or there is no PIN yet, the phone button says so and ${ui('Open phone settings')} takes you to the card.</li>
+  <li><strong>Scan it</strong>Connect the phone to <b>the same Wi-Fi</b> as the PC (not mobile data), open its camera and point it at the QR code, then tap the link. No camera app that reads QR codes? Type the address shown on the PC (it starts with <code>http://</code> and ends with <code>:47444</code>) in the phone's browser; the pairing page then asks for the pairing code too.</li>
+  <li><strong>Read the first page</strong>The phone shows <b>Connect this phone to your PC</b>: it says the browser will warn next, with a drawing of where to tap, and this PC's security code. Tap ${ui('Continue')}. That page does not open? Type the second address shown on the PC (it starts with <code>https://</code>) instead.</li>
+  <li><strong>The warning, once</strong>The browser says <i>Your connection is not private</i> (Chrome) or <i>This Connection Is Not Private</i> (Safari). This is expected; <a href="#certificate-warning">here is why</a>. Tap <b>Advanced</b> → <b>Proceed to ...</b> (Chrome), or <b>Show Details</b> → <b>visit this website</b> → <b>Visit Website</b> (Safari).</li>
   <li><strong>Compare the security code</strong>The phone's <b>Pair this device</b> page shows a security code. It must be <b>exactly</b> the one on the PC. If it is different, stop and close the page. The sure check is the browser's own: see <a href="#certificate-warning">how to check it fully</a>.</li>
-  <li><strong>Type the PIN</strong>The app's PIN, and a name for the device if you like (it is shown on the PC). Tap ${ui('Pair this device')}. The app opens on the phone and asks for the PIN, as on the PC.</li>
+  <li><strong>Type the PIN</strong>The app's PIN, and a name for the device if you like (it is shown on the PC). Tap ${ui('Pair this device')}. The app opens on the phone straight away: the PIN is not asked a second time. Later, when the app is opened again in a new tab, or after the phone's browser forgets the session, it asks for the PIN, as on the PC.</li>
+  <li><strong>Check on the PC</strong>The PC shows <b>Paired: ...</b> as soon as a device pairs, and adds it to <b>Paired devices</b>. Check that the list shows only your own devices. If the phone said the code was not valid any more after you typed the PIN, someone else may have used it: ${ui('Remove')} any device you do not know and change the PIN.</li>
 </ol>
+<p><b>Why a first page in plain <code>http://</code>?</b> It only explains the warning: it has nothing of yours, cannot open the app or your data, and is there only while phone access is on. The pairing code in the QR code is after a <code>#</code>, the part of an address a browser never sends, so it does not travel over plain <code>http://</code>. Everything after ${ui('Continue')} is encrypted.</p>
 <p>Each QR code works <b>once</b>, for <b>10 minutes</b>, so a photo of an old one is useless. ${ui('Show a new QR code')} makes a fresh one (the old one stops working). Five wrong PINs in a row: wait 30 seconds, and show a new QR code.</p>
 <p><b>Tip:</b> in the phone's browser menu choose <b>Add to Home screen</b> to open the app like any other.</p>
 </section>
@@ -254,7 +257,8 @@ export default [
 <h2>Phones cannot connect</h2>
 <ul>
   <li><b>Same Wi-Fi?</b> The phone must be on the PC's Wi-Fi, not mobile data. A <b>guest</b> Wi-Fi often keeps devices apart: use the main one.</li>
-  <li><b>Clicked Cancel on the firewall question?</b> Open <b>Windows Security</b> → <b>Firewall &amp; network protection</b> → <b>Allow an app through firewall</b> → ${ui('Change settings')}. Find <b>Node.js JavaScript Runtime</b> (there may be two lines), tick <b>Private</b> on each, and click ${ui('OK')}. This needs an administrator.</li>
+  <li><b>Clicked Cancel on the firewall question?</b> Open <b>Windows Security</b> → <b>Firewall &amp; network protection</b> → <b>Allow an app through firewall</b> → ${ui('Change settings')}. Find <b>Node.js JavaScript Runtime</b> (there may be two lines), tick <b>Private</b> on each, and click ${ui('OK')}. This needs an administrator. Windows allows the program, so this covers both of the app's phone ports (47443 and the first page's 47444).</li>
+  <li><b>The QR code's first page does not open, but the <code>https://</code> address does</b>: another program uses port 47444. Pair with the <code>https://</code> address shown under the QR code; everything else works the same.</li>
   <li><b>Windows calls your Wi-Fi "Public"?</b> Then the firewall blocks it. <b>Settings</b> → <b>Network &amp; internet</b> → <b>Wi-Fi</b> → your network → <b>Private network</b> (only for your own home or shop Wi-Fi).</li>
   <li><b>The PC's address changed</b> (the router gave it a new one after a restart): the old link or home-screen icon stops working. Click ${ui('Pair a phone or tablet')} again and scan the new QR code. To keep the address the same, ask whoever set up your router to give the PC a fixed address.</li>
   <li><b>"Port 47443 is used by another program"</b> on the card: another program uses that port. Close it, then untick and tick the switch.</li>
@@ -268,6 +272,7 @@ export default [
 <ul>
   <li><strong>Off by default.</strong> Until you tick the switch, the app listens on the PC itself only (<code>127.0.0.1</code>), as it always did.</li>
   <li><strong>Your own network only.</strong> The app answers only addresses of a home or office network (<code>192.168.x.x</code>, <code>10.x.x.x</code>, <code>172.16-31.x.x</code>) and refuses anything from the internet. Never forward its port (47443) on your router.</li>
+  <li><strong>The first page has nothing to take.</strong> The page the QR code opens (port 47444, plain <code>http://</code>) is one fixed page of help text: no app, no data, no cookies, under the same "own network, own address" checks, and only while phone access is on. The pairing code never goes over it.</li>
   <li><strong>Encrypted.</strong> HTTPS with the PC's own certificate. Its private key stays in the books' <code>data\phone-access</code> folder, is never sent anywhere, and is never put in a backup.</li>
   <li><strong>Paired devices only.</strong> A device without a pairing gets only the pairing page; the app and your data answer nobody else. Pairing needs a one-time code from the PC's screen (10 minutes, once) <b>and</b> the PIN, which the PC checks: five wrong tries and it waits 30 seconds, and the code is thrown away.</li>
   <li><strong>A long random key per device</strong>, kept by the phone's browser where web pages cannot read it (an HttpOnly, Secure, SameSite=Strict cookie). The PC keeps only a fingerprint of it (a hash), so even its own files cannot be used to get in.</li>

@@ -43,6 +43,7 @@ import StarBanner from './components/StarBanner';
 import AppFooter from './components/AppFooter';
 import LockButton from './components/LockButton';
 import OfflineModeButton from './components/OfflineModeButton';
+import PhonePairButton from './components/PhonePairButton';
 import { isOfflineMode } from './utils/offlineMode';
 import HelpButton from './components/HelpButton';
 import { lockNow } from './utils/appLock';
@@ -633,6 +634,12 @@ function App() {
         {notifTotal > 0 && <span className="topbar-badge">{notifTotal > 99 ? '99+' : notifTotal}</span>}
       </button>
     ),
+    /* v1.10.86 - the pairing QR code, or why it cannot be shown yet. */
+    phone: <PhonePairButton key={id} className="topbar-btn topbar-phone" onOpenSettings={() => {
+      try { sessionStorage.setItem('gst_settingsTab', 'section-phone'); } catch { /* storage blocked */ }
+      setCurrentView('settings');
+      setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: 'section-phone' })), 80);
+    }} />,
     /* v1.10.80 (#98) - only when a PIN is set. */
     lock: <LockButton key={id} className="topbar-btn" label={null} />,
     /* v1.10.83 - Offline mode on / off, and what it changes. */

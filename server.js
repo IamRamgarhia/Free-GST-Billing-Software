@@ -25,12 +25,14 @@ import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from 
 import { updateHintFor, updateDownloadUrlFor, updateStepFromLine } from './src/utils/installKind.js';
 // v1.10.85 - phone / tablet access on the same Wi-Fi (off by default).
 import https from 'https';
+import http from 'http';
 import {
   DEFAULT_PHONE_PORT, DEVICE_COOKIE, createPhoneGate, createPairing, createTryLimiter, hashToken, newToken, readCookie,
-  deviceCookie, cleanDeviceName, deviceLabel, lanAddresses, isPrivateIp, isLoopbackIp, shortFingerprint,
+  deviceCookie, cleanDeviceName, deviceLabel, lanAddresses, isPrivateIp, isLoopbackIp, shortFingerprint, hostAllowed,
+  guidePortFor,
 } from './src/utils/phoneAccess.js';
 import { makeSelfSignedCert, certStillGood } from './src/utils/selfSignedCert.js';
-import { pairPageHtml, pairPageCsp } from './src/utils/pairPage.js';
+import { pairPageHtml, pairPageCsp, guidePageHtml, guidePageCsp } from './src/utils/pairPage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // v1.10.84 - data/, Saved Invoices/ and Trash/ live in APP_HOME: the folder
@@ -1345,7 +1347,8 @@ const PHONE_PORT = (() => { const n = Number(process.env.FGSB_PHONE_PORT); retur
 const PHONE_LISTEN = process.env.FGSB_PHONE_LISTEN === '127.0.0.1' ? '127.0.0.1' : '0.0.0.0';
 const PHONE_EXTRA_HOSTS = String(process.env.FGSB_PHONE_HOSTS || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
 const phoneHostNames = () => [os.hostname(), `${os.hostname()}.local`, ...PHONE_EXTRA_HOSTS];
-const phone = { server: null, sockets: new Set(), error: '', fingerprint: '' };
+// v1.10.86 - guide / guidePort / guideSockets: the guide page (see startGuideListener).
+const phone = { server: null, sockets: new Set(), error: '', fingerprint: '', guide: null, guidePort: 0, guideSockets: new Set() };
 const pairing = createPairing();
 
 const readPhoneState = () => {
@@ -1399,28 +1402,103 @@ function startPhoneListener() {
   server.requestTimeout = 120000;
   server.maxConnections = 64;
   // Refused before the TLS handshake: anything not on the local network.
-  server.on('connection', (socket) => {
-    if (!isPrivateIp(socket.remoteAddress) && !isLoopbackIp(socket.remoteAddress)) { socket.destroy(); return; }
-    phone.sockets.add(socket);
-    socket.on('close', () => phone.sockets.delete(socket));
-  });
+  server.on('connection', localNetworkOnly(phone.sockets));
   server.on('error', (err) => {
     phone.error = err.code === 'EADDRINUSE' || err.code === 'EACCES'
       ? `Port ${PHONE_PORT} is used by another program, so phones cannot connect. Close that program, then turn this off and on again.`
       : `Could not open the network connection (${err.code || err.message}).`;
     console.warn(`[phone] ${phone.error}`);
-    if (phone.server === server) phone.server = null;
+    if (phone.server === server) { phone.server = null; stopGuideListener(); }
   });
   server.listen(PHONE_PORT, PHONE_LISTEN, () => {
     phone.error = '';
     console.log(`  Phone / tablet access is on: ${phoneUrls()[0] || `https://<this-pc-address>:${PHONE_PORT}`}`);
     announceFirstPairing();
+    if (phone.server === server) startGuideListener();
   });
   phone.server = server;
 }
 
+// A connection from outside the local network is cut before anything is read.
+// v1.10.86 - perIp: at most that many open connections from one address.
+function localNetworkOnly(sockets, perIp = Infinity) {
+  return (socket) => {
+    if (!isPrivateIp(socket.remoteAddress) && !isLoopbackIp(socket.remoteAddress)) { socket.destroy(); return; }
+    let same = 0;
+    for (const s of sockets) if (s.remoteAddress === socket.remoteAddress) same += 1;
+    if (same >= perIp) { socket.destroy(); return; }
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  };
+}
+
+// v1.10.86 - the guide page: what the QR code opens first, before the
+// browser's "Your connection is not private" warning (src/utils/pairPage.js
+// guidePageHtml). Plain HTTP on the phone port + 1, open only while the phone
+// listener is. It answers GET / with that one page and nothing else: this
+// listener never reaches the app (no API, no app files, no cookies, no data),
+// with the phone listener's local-network and Host checks. The pairing code
+// rides after # in the QR link, so it is never sent over plain HTTP.
+// Not on a server with no screen (Docker): it publishes the HTTPS port only,
+// and its log links straight there. Windows Firewall allows Node.js as a
+// program (all its ports), so this second port asks nothing new.
+function guidePage(req, res) {
+  // A request with a body, or that is not GET / HEAD, gets its answer and
+  // the connection is closed (nothing here reads a body).
+  const readOnly = req.method === 'GET' || req.method === 'HEAD';
+  if (!readOnly || Number(req.headers['content-length']) > 0 || req.headers['transfer-encoding'] !== undefined) {
+    res.setHeader('Connection', 'close');
+    res.on('finish', () => req.socket.destroySoon());
+  }
+  const send = (status, text, extra = {}) => {
+    res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra });
+    res.end(text);
+  };
+  const ip = req.socket.remoteAddress;
+  if (!phone.server || (!isPrivateIp(ip) && !isLoopbackIp(ip))) return send(403, 'Phone access is turned off on the PC.');
+  if (!hostAllowed(req.headers.host, phoneHostNames())) return send(403, 'Open the address shown on the PC.');
+  if (!readOnly) return send(405, 'Not allowed.', { Allow: 'GET, HEAD' });
+  if (String(req.url).split('?')[0] !== '/') return send(404, 'Not found.');
+  // hostAllowed let only an IP address or this PC's name through.
+  const address = String(req.headers.host).trim().replace(/:\d+$/, '');
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': guidePageCsp(nonce), 'Cache-Control': 'no-store',
+    'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
+  });
+  return res.end(guidePageHtml({ fingerprint: shortFingerprint(phone.fingerprint), address, pairUrl: `https://${address}:${PHONE_PORT}/pair`, nonce }));
+}
+function startGuideListener() {
+  if (PHONE_HEADLESS || phone.guide) return;
+  // Never a port the app itself may take (its own, or its start-up range).
+  const port = guidePortFor(PHONE_PORT, activeServer?.address()?.port);
+  if (!port) { console.warn(`[phone] No phone guide page: port ${PHONE_PORT + 1} is in the app's own port range. The QR code goes straight to the HTTPS address.`); return; }
+  const server = http.createServer({ connectionsCheckingInterval: 2000, keepAliveTimeout: 2000 }, guidePage);
+  server.headersTimeout = 10000;
+  server.requestTimeout = 15000;
+  server.maxConnections = 32;
+  server.on('connection', localNetworkOnly(phone.guideSockets, 8));
+  // Not fatal: the QR code then goes straight to the HTTPS address.
+  server.on('error', (err) => {
+    console.warn(`[phone] The phone guide page could not open on port ${port} (${err.code || err.message}); the QR code goes straight to the HTTPS address.`);
+    if (phone.guide === server) phone.guide = null;
+  });
+  server.listen(port, PHONE_LISTEN, () => console.log(`  Phone guide page: ${guideUrls()[0] || `http://<this-pc-address>:${port}`}`));
+  phone.guide = server;
+  phone.guidePort = port;
+}
+function stopGuideListener() {
+  const server = phone.guide;
+  if (!server) return;
+  phone.guide = null;
+  server.close();
+  for (const socket of phone.guideSockets) socket.destroy();
+  phone.guideSockets.clear();
+}
+
 // Off means off at once: open connections are cut, not left to finish.
 function stopPhoneListener() {
+  stopGuideListener();
   const server = phone.server;
   if (!server) return;
   phone.server = null;
@@ -1437,7 +1515,8 @@ function announceFirstPairing() {
   if (!PHONE_HEADLESS || !phone.server || phoneState.devices.length || pairing.active()) return;
   const { code } = pairing.issue();
   const where = PHONE_EXTRA_HOSTS[0] || '<your-NAS-address>';
-  console.log(`\n  Pair your first phone, tablet or PC: open https://${where}:${PHONE_PORT}/pair?code=${code}`);
+  // v1.10.86 - the code after #, as in the QR code: never sent to a server.
+  console.log(`\n  Pair your first phone, tablet or PC: open https://${where}:${PHONE_PORT}/pair#code=${code}`);
   console.log(`  (or open https://${where}:${PHONE_PORT}/pair and type the code ${code}). It works for 10 minutes; a new one is printed here after that.\n`);
 }
 if (PHONE_HEADLESS) setInterval(announceFirstPairing, 30 * 1000).unref();
@@ -1449,6 +1528,10 @@ const phoneUrls = (req) => {
   if (req?.socket.encrypted) return [`https://${req.headers.host}`]; // checked by the gate
   return PHONE_EXTRA_HOSTS.map((h) => `https://${h}:${PHONE_PORT}`);
 };
+// v1.10.86 - the guide page's address for each of them (none in Docker, or
+// when its port could not open).
+const guideUrlFor = (httpsUrl) => (phone.guide?.listening ? httpsUrl.replace(/^https:/, 'http:').replace(/:\d+$/, `:${phone.guidePort}`) : '');
+const guideUrls = () => (PHONE_HEADLESS ? [] : phoneUrls().map(guideUrlFor).filter(Boolean));
 const phoneStatus = (req) => ({
   enabled: PHONE_HEADLESS || phoneState.enabled,
   headless: PHONE_HEADLESS,
@@ -1478,7 +1561,16 @@ app.post('/api/phone-access', (req, res) => {
 app.post('/api/phone-access/pairing-code', (req, res) => {
   if (!phone.server) return res.status(409).json({ error: 'Phone access is off', code: 'off' });
   const { code, expiresAt } = pairing.issue();
-  return res.json({ code, expiresAt, urls: phoneUrls(req).map((u) => `${u}/pair?code=${code}`), shortFingerprint: shortFingerprint(phone.fingerprint) });
+  // v1.10.86 - each address twice: the guide page (what the QR code opens:
+  // it explains the browser's warning first) and the HTTPS pairing page
+  // (shown as the fallback). The code is after #, never in a request.
+  const urls = phoneUrls(req);
+  const guide = PHONE_HEADLESS ? [] : urls.map(guideUrlFor);
+  return res.json({
+    code, expiresAt, shortFingerprint: shortFingerprint(phone.fingerprint),
+    urls: urls.map((u) => `${u}/pair#code=${code}`),
+    guideUrls: guide.map((u) => (u ? `${u}/#code=${code}` : '')),
+  });
 });
 
 app.delete('/api/phone-access/devices/:id', (req, res) => {

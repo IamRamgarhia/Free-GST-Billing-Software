@@ -3,7 +3,7 @@
 // phoneAccess.js); this card switches it, shows the pairing QR code and lists
 // the paired devices. Every sentence here matches docs-site security.mjs
 // (page "phone"); change them together.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Trash2, QrCode } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { toast } from './Toast';
@@ -20,8 +20,44 @@ const openPinCard = () => {
   card?.querySelector('button.btn')?.click();
 };
 
-function PairPanel({ pair, onNew }) {
-  const [url, setUrl] = useState(pair.urls[0] || '');
+// v1.10.86 - also shown by the phone button at the top (PhonePairButton.jsx).
+// The QR code opens the guide page (plain HTTP, it explains the browser's
+// warning, then goes on to HTTPS); the HTTPS address is shown as the fallback.
+// Docker has no guide page: there the QR code is the HTTPS address.
+const mono = { fontFamily: 'ui-monospace, Consolas, monospace' };
+const addressOf = (u) => String(u || '').replace(/\/?(pair)?#.*$/, '');
+// v1.10.86 (review) - while the code is on screen, the PC asks every 3 seconds
+// who is paired, so a pairing shows at once ("Paired: ..."), also one the
+// owner did not expect. devices: the paired devices when the code was shown.
+const POLL_MS = 3000;
+function usePairedWatch(pair, devices, onPaired) {
+  const [list, setList] = useState(devices || []);
+  const known = useRef(new Set((devices || []).map((d) => d.id)));
+  const onPairedRef = useRef(onPaired);
+  onPairedRef.current = onPaired;
+  useEffect(() => {
+    const until = pair.expiresAt + 60000;
+    const timer = setInterval(() => {
+      if (Date.now() > until) { clearInterval(timer); return; }
+      getPhoneAccess().then((s) => {
+        const fresh = s.devices.filter((d) => !known.current.has(d.id));
+        if (!fresh.length) return;
+        fresh.forEach((d) => { known.current.add(d.id); toast(`Paired: ${d.name}`, 'success', 8000); });
+        setList(s.devices);
+        onPairedRef.current?.(s);
+      }).catch(() => { /* asked again in 3 seconds */ });
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [pair.expiresAt]);
+  return list;
+}
+
+export function PairPanel({ pair, onNew, devices, onPaired, showDevices = false }) {
+  const paired = usePairedWatch(pair, devices, onPaired);
+  const [i, setI] = useState(0);
+  const httpsUrl = pair.urls[i] || '';
+  const guideUrl = pair.guideUrls?.[i] || '';
+  const url = guideUrl || httpsUrl;
   const [qr, setQr] = useState('');
   useEffect(() => {
     let live = true;
@@ -31,26 +67,29 @@ function PairPanel({ pair, onNew }) {
     return () => { live = false; };
   }, [url]);
   if (!url) return <p className="notice notice-warn">This PC has no Wi-Fi or network address right now. Connect it to your Wi-Fi, then click Show a new QR code.</p>;
-  const address = url.replace(/\?.*$/, '');
+  const address = addressOf(url);
   return (
-    <div className="phone-pair" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start', margin: '0.75rem 0' }}>
+    <div className="phone-pair" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
       <div style={{ background: '#fff', padding: 8, borderRadius: 8, lineHeight: 0 }}>
         {qr ? <img src={qr} width={220} height={220} alt={`QR code for ${address}`} /> : <div style={{ width: 220, height: 220 }} />}
       </div>
       <div style={{ flex: '1 1 260px', minWidth: 0, fontSize: '0.88rem' }}>
         <ol style={{ margin: 0, paddingLeft: '1.2rem', display: 'grid', gap: '0.4rem' }}>
-          <li>Connect the phone or tablet to <b>the same Wi-Fi</b> as this PC, open its camera and scan the code. Or type this address in its browser: <code style={{ wordBreak: 'break-all' }}>{address}</code></li>
-          <li>The browser warns <i>Your connection is not private</i>. That is expected: the app uses this PC&apos;s own certificate, which the browser does not know. The phone&apos;s page shows a security code: it must be <b className="phone-fingerprint" style={{ fontFamily: 'ui-monospace, Consolas, monospace' }}>{pair.shortFingerprint}</b>. Then tap <b>Advanced</b> and <b>Proceed</b> (Chrome), or <b>Show Details</b> and <b>visit this website</b> (Safari). This is asked once per phone.</li>
-          <li>Type the app&apos;s PIN on the phone. Pairing code, if it asks: <b style={{ fontFamily: 'ui-monospace, Consolas, monospace' }}>{pair.code.slice(0, 4)} {pair.code.slice(4)}</b></li>
+          <li>Connect the phone or tablet to <b>the same Wi-Fi</b> as this PC, open its camera and scan the code. Or type this address in its browser: <code className="phone-address" style={{ overflowWrap: 'anywhere' }}>{address}</code></li>
+          <li>{guideUrl ? <>The phone shows a page that says where to tap. Then its browser warns <i>Your connection is not private</i>.</> : <>The browser warns <i>Your connection is not private</i>.</>} That is expected: the app uses this PC&apos;s own certificate, which the browser does not know. Tap <b>Advanced</b> and <b>Proceed</b> (Chrome), or <b>Show Details</b> and <b>visit this website</b> (Safari). The phone&apos;s page shows a security code: it must be <b className="phone-fingerprint" style={mono}>{pair.shortFingerprint}</b>. This is asked once per phone.</li>
+          <li>Type the app&apos;s PIN on the phone. The app opens. Pairing code, if it asks: <b style={mono}>{pair.code.slice(0, 4)} {pair.code.slice(4)}</b></li>
         </ol>
+        {guideUrl && httpsUrl && <p style={{ ...muted, margin: '0.5rem 0 0' }}>The page does not open? Type this instead: <code className="phone-https-address" style={{ overflowWrap: 'anywhere' }}>{addressOf(httpsUrl)}</code></p>}
         {pair.urls.length > 1 && (
           <label style={{ display: 'block', marginTop: '0.5rem', ...muted }}>Address for the code:{' '}
-            <select className="form-input" style={{ width: 'auto', display: 'inline-block' }} value={url} onChange={(e) => setUrl(e.target.value)}>
-              {pair.urls.map((u) => <option key={u} value={u}>{u.replace(/^https:\/\/|\/pair\?.*$/g, '')}</option>)}
+            <select className="form-input" style={{ width: 'auto', display: 'inline-block' }} value={i} onChange={(e) => setI(Number(e.target.value))}>
+              {pair.urls.map((u, n) => <option key={u} value={n}>{addressOf(u).replace(/^https:\/\/|:\d+$/g, '')}</option>)}
             </select>
           </label>
         )}
         <p style={{ ...muted, margin: '0.5rem 0' }}>This code works once, until {new Date(pair.expiresAt).toLocaleTimeString('en-IN', { timeStyle: 'short' })} (10 minutes). <button type="button" className="btn btn-secondary btn-sm" onClick={onNew}>Show a new QR code</button></p>
+        {showDevices && paired.length > 0 && <p className="phone-paired-now" style={{ margin: '0.5rem 0', fontSize: '0.85rem' }}><b>Paired devices:</b> {paired.map((d) => d.name).join(', ')}</p>}
+        <p style={{ ...muted, margin: '0.5rem 0 0' }}>After pairing, check that <b>Paired devices</b> shows only your own devices. If the phone said the code was not valid any more after you typed the PIN, remove any device you do not know and change the PIN.</p>
       </div>
     </div>
   );
@@ -96,10 +135,13 @@ export default function PhoneAccessSettings() {
   if (!status) return null;
   const on = status.enabled;
 
+  // v1.10.86 - one gap between every block (the switch, the notes, the
+  // button and the list touched each other).
   return (
     <div>
       {title}
-      <p style={{ ...muted, marginTop: 0 }}>
+      <div className="phone-access-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <p style={{ ...muted, margin: 0 }}>
         Open the app on a phone or tablet on <b>the same Wi-Fi</b> as this PC: make invoices, look up clients and stock. Your books stay on this PC. The connection is encrypted (HTTPS), each device is paired once with a QR code and the app&apos;s PIN, and you can remove any device here. Off: nothing on the network can reach the app.
       </p>
       {status.headless ? (
@@ -123,14 +165,14 @@ export default function PhoneAccessSettings() {
           <p className="notice notice-note" style={{ fontSize: '0.85rem' }}><span>
             <b>Windows may ask</b> whether to allow <i>Node.js JavaScript Runtime</i> on networks. Tick <b>Private networks</b> (your home or shop Wi-Fi), leave <b>Public networks</b> unticked, and click <b>Allow</b>. If you clicked Cancel, phones cannot connect: see the ? for how to fix it.
           </span></p>
-          {pair ? <PairPanel key={pair.code} pair={pair} onNew={showCode} /> : (
-            <button type="button" className="btn btn-primary" onClick={showCode} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><QrCode size={16} /> Pair a phone or tablet</button>
+          {pair ? <PairPanel key={pair.code} pair={pair} onNew={showCode} devices={status.devices} onPaired={setStatus} /> : (
+            <button type="button" className="btn btn-primary" onClick={showCode} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}><QrCode size={16} /> Pair a phone or tablet</button>
           )}
-          <p style={{ ...muted, margin: '0.6rem 0 0' }}>Security code of this PC: <b style={{ fontFamily: 'ui-monospace, Consolas, monospace' }}>{status.shortFingerprint}</b></p>
+          <p style={{ ...muted, margin: 0 }}>Security code of this PC: <b style={mono}>{status.shortFingerprint}</b></p>
         </>
       )}
       {status.devices.length > 0 && (
-        <div style={{ marginTop: '1rem' }}>
+        <div>
           <strong style={{ fontSize: '0.9rem' }}>Paired devices</strong>
           <ul className="phone-devices" style={{ listStyle: 'none', padding: 0, margin: '0.4rem 0 0', display: 'grid', gap: '0.4rem' }}>
             {status.devices.map((d) => (
@@ -142,6 +184,7 @@ export default function PhoneAccessSettings() {
           </ul>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -41,6 +41,8 @@ services:
       # pairing link in the log, and the certificate). Example: 192.168.1.50
       FGSB_PHONE_HOSTS: ""
       TZ: Asia/Kolkata
+    # Only the HTTPS port. (On a PC the QR code first opens a help page on
+    # 47444; in Docker there is none: the link in the log goes straight here.)
     ports:
       - "47443:47443"
     volumes:
