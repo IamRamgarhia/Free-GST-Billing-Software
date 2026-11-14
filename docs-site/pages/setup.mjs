@@ -371,10 +371,11 @@ export default [
 
 <section id="features-menu">
 <h3>Menu: show, hide and reorder</h3>
-<p>The <b>Menu</b> part lists every item of the sidebar in two boxes, <b>Top of the menu</b> and <b>Bottom of the menu</b>, in the order they appear, and a third box, <b>Buttons at the top right</b>, for the User Guide, Notifications, Lock and Dark mode buttons.</p>
+<p>The <b>Menu</b> part lists every item of the sidebar in two boxes, <b>Top of the menu</b> (in its groups: Sales, Stock &amp; buying, Money &amp; reports) and <b>Bottom of the menu</b>, in the order they appear, and a third box, <b>Buttons at the top right</b>, for the User Guide, Notifications, Lock and Dark mode buttons.</p>
 <ul>
   <li>The tick box shows or hides the item.</li>
-  <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. ${ui('Default order')}, shown once you have moved something, puts the menu back in the usual order.</li>
+  <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. In the top box an item at the top or bottom of a group moves on into the next group, and the arrows beside a group's name move the whole group. ${ui('Reset menu')}, shown once you have moved something, puts back the usual groups and order.</li>
+  <li>You can also arrange the menu in the sidebar itself, by dragging or with ${ui('Arrange menu')}: see <a href="shortcuts.html#menu-groups">The sidebar</a>. Both always show the same order.</li>
   <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, <b>Support &amp; About</b> and <b>Lock app</b> (shown only when a PIN is set) say <b>(always shown)</b> and have no tick box. You can still move them.</li>
 </ul>
 <p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything hidden. Save with ${ui('Save all changes')}.</p>

@@ -82,22 +82,24 @@ eq(featureChanges({}, applyBusinessType('freelancer', {})), businessTypeChanges(
 
 console.log('Sidebar order');
 const def = MENU_ITEMS.map(m => m.id);
+// v1.10.86 - saved orders now carry group markers; compare the items only.
+const flat = (order) => orderedMenu(order).map(m => m.id);
 eq(orderedMenu([]).map(m => m.id), def, 'no saved order = default');
-eq(orderedMenu(['ghost', 'reports']).map(m => m.id)[0], 'reports', 'saved first item comes first, unknown ids ignored');
+eq(flat(['ghost', 'reports', 'cashbook']).filter(id => id === 'reports' || id === 'cashbook'), ['reports', 'cashbook'], 'saved item order is kept (inside its group), unknown ids ignored');
 eq(orderedMenu(undefined).length, MENU_ITEMS.length, 'bad saved order is safe');
 let o = moveMenuItem([], 'reports', -1);
 const aboveReports = def[def.indexOf('reports') - 1];
 eq(o.indexOf('reports') < o.indexOf(aboveReports), true, `Reports moved above ${aboveReports}`);
-eq(moveMenuItem(o, 'reports', +1), def, 'moving back down restores');
-eq(moveMenuItem([], 'dashboard', -1), def, 'first item cannot go up');
+eq(flat(moveMenuItem(o, 'reports', +1)), def, 'moving back down restores');
+eq(flat(moveMenuItem([], 'dashboard', -1)), def, 'first item cannot go up');
 const idsIn = (section) => MENU_ITEMS.filter(m => m.section === section).map(m => m.id);
-eq(moveMenuItem([], idsIn('main').at(-1), +1), def, 'last of the top part cannot jump into the bottom part');
-eq(moveMenuItem([], idsIn('bottom')[0], -1), def, 'first of the bottom part cannot jump into the top part');
-eq(moveMenuItem([], idsIn('top')[0], -1), def, 'first top-bar button cannot jump into another part');
+eq(flat(moveMenuItem([], idsIn('main').at(-1), +1)), def, 'last of the top part cannot jump into the bottom part');
+eq(flat(moveMenuItem([], idsIn('bottom')[0], -1)), def, 'first of the bottom part cannot jump into the top part');
+eq(flat(moveMenuItem([], idsIn('top')[0], -1)), def, 'first top-bar button cannot jump into another part');
 eq(['guide', 'notifications', 'lock', 'darkMode'].every(id => idsIn('top').includes(id)), true, 'dark mode, notifications, guide and lock are top-bar buttons');
 o = moveMenuItem([], 'settings', -1);
 eq(o.indexOf('settings') < o.indexOf('controlpanel'), true, 'bottom items reorder among themselves');
-eq(moveMenuItem([], 'nope', 1), def, 'unknown item: no change');
+eq(flat(moveMenuItem([], 'nope', 1)), def, 'unknown item: no change');
 
 console.log('[ERR-033] The wizard keeps the language and paper picked in it');
 for (const biz of ['retail_shop', 'freelancer', 'wholesale', 'service']) {

@@ -8,7 +8,7 @@
 //
 // Applying a type only changes what is SHOWN. Nothing is ever deleted.
 
-import { FEATURE_GROUPS, MENU_ITEMS, isModuleEnabled } from '../utils.js';
+import { FEATURE_GROUPS, isModuleEnabled } from '../utils.js';
 import { applyBusinessPreset } from './printSettings.js';
 
 // ERR-033 - what the first-run wizard saves. The business preset goes first,
@@ -102,30 +102,5 @@ const LABELS = Object.fromEntries(FEATURE_GROUPS.flatMap(g => g.modules).map(m =
 export const moduleLabel = (id) => LABELS[id] || id;
 
 // ---- Sidebar order ----
-// `order` is the saved list of item ids. Items missing from it (new in a
-// later version) keep their place after the saved ones; unknown ids are
-// ignored, so an old saved order never breaks the menu.
-export const orderedMenu = (order = []) => {
-  const saved = Array.isArray(order) ? order : [];
-  const rank = (item) => {
-    const i = saved.indexOf(item.id);
-    return i === -1 ? saved.length + MENU_ITEMS.indexOf(item) : i;
-  };
-  return [...MENU_ITEMS].sort((a, b) => rank(a) - rank(b));
-};
-
-// Move one item up (-1) or down (+1) inside its own part of the sidebar.
-// Returns the new order (all ids); the same order if it cannot move.
-export const moveMenuItem = (order, id, dir) => {
-  const list = orderedMenu(order).map(m => m.id);
-  const item = MENU_ITEMS.find(m => m.id === id);
-  if (!item) return list;
-  const sameSection = list.filter(x => MENU_ITEMS.find(m => m.id === x).section === item.section);
-  const pos = sameSection.indexOf(id);
-  const other = sameSection[pos + dir];
-  if (!other) return list;
-  const a = list.indexOf(id), b = list.indexOf(other);
-  const next = [...list];
-  [next[a], next[b]] = [next[b], next[a]];
-  return next;
-};
+// v1.10.86 - the order now has groups; it lives in utils/menuGroups.js.
+export { orderedMenu, moveMenuItem } from './menuGroups.js';
