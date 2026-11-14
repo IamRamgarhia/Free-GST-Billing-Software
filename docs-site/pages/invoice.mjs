@@ -28,7 +28,7 @@ export default [
 <section id="toolbar">
 <h2>The toolbar</h2>
 <p>The toolbar stays at the top of the screen as you scroll, so Save, Print and the rest are always in reach on a long invoice.</p>
-<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save and Download, Print, WhatsApp, E-Way Bill, Customize, Hide Preview"></figure>
+<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save and Download, Print, WhatsApp, E-Way Bill, E-invoice, Customize, Hide Preview"></figure>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('←')} ${ui('Back')}</td><td>Leaves the invoice. If you have changed something that is not saved, you are asked first (see <a href="#leaving">Leaving with unsaved changes</a>).</td></tr>

@@ -21,7 +21,7 @@ export default [
   <tr><td>${ui('New Invoice')}</td><td>Starts a blank invoice. See <a href="invoices.html">Making an invoice</a>.</td></tr>
 </table>
 <p>From top to bottom the screen then shows: the welcome note and the Getting started list (new users only), the support card, the red overdue banner (only when something is overdue), the four totals, the low-stock strip (only when a product is running low), and the invoice list with its filters.</p>
-<figure><img src="assets/img/app-dashboard.png" alt="The Dashboard: CSV import / export, Import IRN and New Invoice at the top right, a red banner for two overdue invoices, the four total cards in rupees and dollars, low stock, and the invoice list." loading="lazy"><figcaption>The Dashboard with two overdue invoices, the four totals, low stock and the buttons at the top right.</figcaption></figure>
+<figure><img src="assets/img/app-dashboard.png" alt="The Dashboard: CSV import / export, Import IRN and New Invoice at the top right, a red banner for two overdue invoices, the Totals for period box, the four total cards in rupees and dollars, the low-stock strip with Make purchase order, and the invoice list with its Invoices, Sales orders, Cancelled and Trash tabs." loading="lazy"><figcaption>The Dashboard with two overdue invoices, the four totals, low stock and the buttons at the top right.</figcaption></figure>
 </section>
 
 <section id="welcome-card">

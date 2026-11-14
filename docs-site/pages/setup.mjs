@@ -46,7 +46,7 @@ export default [
 <h2>Business type</h2>
 <p>The first tab. Pick what kind of business you run, and the app shows the screens and features that business needs and hides the rest, so the menu stays short. Use it when you first set the app up, or when the menu shows things you never use.</p>
 <p>The card shows <b>Your business type:</b> with the type that is saved now, or <b>Not chosen yet</b>.</p>
-<figure><img src="assets/img/settings-business-type.png" alt="Settings, Business type tab: the row of Settings tabs at the top and seven business type cards, with Everything picked." loading="lazy"><figcaption>The Business type tab. The saved type is shown in blue; the Save all changes bar is at the bottom.</figcaption></figure>
+<figure><img src="assets/img/settings-business-type.png" alt="Settings, Company tab: the row of six Settings tabs at the top, then the Business type card with seven business type cards, Everything picked, and Company Details starting below it." loading="lazy"><figcaption>The Business type card at the top of the Company tab. The saved type is shown in blue; the Save all changes bar is at the bottom.</figcaption></figure>
 <ol class="steps">
   <li><strong>Pick a type</strong>Click one of the seven cards. Each says in one line who it is for.</li>
   <li><strong>Check what will change</strong>A yellow box, <b>Not saved yet</b>, lists what will be turned on (<i>Turn on: …</i>) and turned off (<i>Turn off: …</i>). The tick boxes on the Features tab are filled in to match.</li>

@@ -78,7 +78,7 @@ export default [
   <li>${ui('Thank you to our N supporters - see all')} opens the list of names, newest first, with the date and amount where known. ${ui('Hide the list')} closes it.</li>
   <li>With six or more names, a <b>Find your name</b> box searches the list.</li>
 </ul>
-<figure><img src="assets/img/support-supporters.png" alt="The supporters card on Support and About: the amount received so far from six supporters, the goal with its progress bar, and the open list of names with date and amount, plus a Find your name box." loading="lazy"><figcaption>The supporters card with the list open.</figcaption></figure>
+<figure><img src="assets/img/support-supporters.png" alt="The supporters card on Support and About: the amount received so far and from how many supporters, the goal with its progress bar, and the open list of names with date and amount, plus a Find your name box." loading="lazy"><figcaption>The supporters card with the list open.</figcaption></figure>
 <p>Paid but not on the list yet? The list is updated by hand, so a new payment can take a little while to appear. Paying with <b>Include my business name</b> ticked helps us match your payment.</p>
 </section>
 

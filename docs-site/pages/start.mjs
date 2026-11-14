@@ -190,7 +190,7 @@ export default [
   <li><strong>Check the tax</strong>The preview on the right shows the totals. Same state as you: CGST and SGST. Another state: IGST. You do not need to choose.</li>
   <li><strong>Save and download</strong>Click ${ui('Save &amp; Download')}. The invoice gets its number, is saved to your records, and downloads as a PDF.</li>
 </ol>
-<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save and Download, Print, WhatsApp, E-Way Bill, Customize, Hide Preview"><figcaption>The invoice toolbar stays at the top of the screen as you scroll.</figcaption></figure>
+<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save and Download, Print, WhatsApp, E-Way Bill, E-invoice, Customize, Hide Preview"><figcaption>The invoice toolbar stays at the top of the screen as you scroll.</figcaption></figure>
 </section>
 
 <section id="send">
