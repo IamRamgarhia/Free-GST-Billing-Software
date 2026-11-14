@@ -7,6 +7,7 @@ import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2
 import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
+import PageHeader, { BarButton } from './PageHeader';
 import { billInInr } from '../utils/fx';
 import { zeroRatedTotals, withoutZeroRated } from '../utils/lut';
 // v1.10.86 - (#175) a "2B only" row opens a purchase bill filled in from 2B.
@@ -1532,58 +1533,45 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
 
   return (
     <div className="dashboard-container">
-      {/* Header row: title + period selector + portal link */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-        <h1 className="page-title" style={{ margin: 0 }}>GST Returns</h1>
-        <HelpButton title="GST Returns — how to use" doc="gst-returns" />
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1, flexWrap: 'wrap' }}>
-          <select className="form-input" value={filterMode} onChange={e => setFilterMode(e.target.value)} style={{ width: 'auto', minWidth: '120px' }}>
+      {/* v1.10.86 - in the top bar: the title, the return period and the
+          filed status on one line; the GST Portal link is an icon. */}
+      <PageHeader
+        title="GST Returns"
+        help={{ title: 'GST Returns — how to use', doc: 'gst-returns' }}
+        extras={<span className="page-bar-field">
+          <select className="form-input page-bar-select" value={filterMode} onChange={e => setFilterMode(e.target.value)} aria-label="Return period">
             <option value="month">Monthly</option>
             <option value="quarter">Quarterly (QRMP)</option>
             <option value="fy">Full Year</option>
           </select>
           {filterMode === 'fy' ? (
-            <select className="form-input" value={fyFilter} onChange={e => setFyFilter(e.target.value)} style={{ width: 'auto' }}>
+            <select className="form-input page-bar-select" value={fyFilter} onChange={e => setFyFilter(e.target.value)} aria-label="Financial year">
               {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
             </select>
           ) : filterMode === 'quarter' ? (
             <>
-              <select className="form-input" value={quarterFilter} onChange={e => setQuarterFilter(e.target.value)} style={{ width: 'auto' }}>
+              <select className="form-input page-bar-select" value={quarterFilter} onChange={e => setQuarterFilter(e.target.value)} aria-label="Quarter">
                 {QUARTERS.map(q => <option key={q.id} value={q.id}>{q.label}</option>)}
               </select>
-              <select className="form-input" value={yearFilter} onChange={e => setYearFilter(e.target.value)} style={{ width: 'auto', minWidth: '80px' }}>
+              <select className="form-input page-bar-select" value={yearFilter} onChange={e => setYearFilter(e.target.value)} aria-label="Year">
                 {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </>
           ) : (
             <>
-              <select className="form-input" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={{ width: 'auto' }}>
+              <select className="form-input page-bar-select" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} aria-label="Month">
                 {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
               </select>
-              <select className="form-input" value={yearFilter} onChange={e => setYearFilter(e.target.value)} style={{ width: 'auto', minWidth: '80px' }}>
+              <select className="form-input page-bar-select" value={yearFilter} onChange={e => setYearFilter(e.target.value)} aria-label="Year">
                 {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </>
           )}
-          {/* Filing status — v1.10.18: clickable to toggle. Reported: "in
-              every option give option to change or edit because by mistake
-              if click happens user can change that". */}
-          <button type="button" onClick={() => toggleFiled('gstr1')}
-            title={periodFiling.gstr1 ? 'Click to mark as pending' : 'Click to mark as filed'}
-            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: periodFiling.gstr1 ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr1 ? '#059669' : '#dc2626', fontWeight: 600 }}>
-            R1 {periodFiling.gstr1 ? 'Filed' : 'Pending'}
-          </button>
-          <button type="button" onClick={() => toggleFiled('gstr3b')}
-            title={periodFiling.gstr3b ? 'Click to mark as pending' : 'Click to mark as filed'}
-            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: periodFiling.gstr3b ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr3b ? '#059669' : '#dc2626', fontWeight: 600 }}>
-            3B {periodFiling.gstr3b ? 'Filed' : 'Pending'}
-          </button>
-          <HelpButton title="Return period and filed status" doc="gst-returns#period" size={16} />
-        </div>
-        <a href="https://gst.gov.in" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-          <ExternalLink size={14} /> GST Portal
-        </a>
-      </div>
+          <HelpButton title="Return period" doc="gst-returns#period" size={16} />
+        </span>}
+        secondary={<BarButton icon={ExternalLink} label="GST Portal" href="https://gst.gov.in" target="_blank" rel="noopener noreferrer"
+          title="GST Portal: open gst.gov.in in your browser" />}
+      />
 
       {/* Warnings — collapsed by default, only errors show */}
       {warnings.filter(w => w.type === 'error').length > 0 && (
@@ -1645,6 +1633,24 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
           </button>
         ))}
         <HelpButton title="This tab" doc={{ gstr1: 'gst-returns#gstr-1', gstr3b: 'gst-returns#gstr-3b', gstr2b: 'gst-returns#gstr-2b', tds: 'gst-returns#tds-tcs', guide: 'gst-returns#filing-guide' }[activeTab]} size={16} style={{ alignSelf: 'center' }} />
+        {/* v1.10.86 - the filed status moved here from the page title row
+            (the title row is the top bar now and has no room for it). */}
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          {/* Filing status — v1.10.18: clickable to toggle. Reported: "in
+              every option give option to change or edit because by mistake
+              if click happens user can change that". */}
+          <button type="button" onClick={() => toggleFiled('gstr1')}
+            title={periodFiling.gstr1 ? 'Click to mark as pending' : 'Click to mark as filed'}
+            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: periodFiling.gstr1 ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr1 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+            R1 {periodFiling.gstr1 ? 'Filed' : 'Pending'}
+          </button>
+          <button type="button" onClick={() => toggleFiled('gstr3b')}
+            title={periodFiling.gstr3b ? 'Click to mark as pending' : 'Click to mark as filed'}
+            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', background: periodFiling.gstr3b ? '#ecfdf5' : '#fef2f2', color: periodFiling.gstr3b ? '#059669' : '#dc2626', fontWeight: 600 }}>
+            3B {periodFiling.gstr3b ? 'Filed' : 'Pending'}
+          </button>
+          <HelpButton title="Filed status" doc="gst-returns#period" size={16} />
+        </span>
       </div>
 
       {/* ===================== GSTR-1 TAB ===================== */}

@@ -11,12 +11,12 @@ export default [
 <section id="header">
 <h2>At the top</h2>
 <p>The Dashboard is the first screen you see. It lists every invoice of the business selected in the sidebar, with the totals above and the actions on each row. If you run more than one business, <a href="shortcuts.html#switch-business">switch business</a> in the sidebar and the Dashboard shows only that business's invoices straight away. An old invoice that cannot be matched to any business is shown under every business, so nothing is ever hidden.</p>
-<p>The count beside the title (for example <b>42 invoices</b>) is every document of that business: tax invoices, quotations, proformas, challans, credit notes and cancelled invoices too. The buttons on the right:</p>
+<p>The count beside the title (for example <b>42 invoices</b>) is every document of that business: tax invoices, quotations, proformas, challans, credit notes and cancelled invoices too. The buttons on the right (the small ones are icons: point at one to see its name; in a narrow window or on a phone they are in the ${ui('⋯')} button):</p>
 <table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('?')}</td><td>Opens this page in your browser. The small ${ui('?')} next to each card's title on the Dashboard opens the part of this page about that card.</td></tr>
   <tr><td>${ui('Lock')}</td><td>Locks the app straight away. It shows only when a <a href="settings.html#lock">PIN</a> is set.</td></tr>
-  <tr><td>${ui('Customise')}</td><td>Choose which parts of the Dashboard show, in what order, and the screen the app opens on. See <a href="#customise">Customise Dashboard</a>. On a phone it is the small sliders button beside the title.</td></tr>
+  <tr><td>${ui('Customise')}</td><td>The sliders icon. Choose which parts of the Dashboard show, in what order, and the screen the app opens on. See <a href="#customise">Customise Dashboard</a>.</td></tr>
   <tr><td>${ui('Import / export CSV')}</td><td>Brings in many invoices from a spreadsheet, or saves all of them to one. See <a href="#csv">Importing and exporting invoices as CSV</a>.</td></tr>
   <tr><td>${ui('Import IRN')}</td><td>Only when <b>E-invoicing (IRN)</b> is on in <a href="settings.html#features">Settings, Features</a>. Reads the file the e-invoice portal gives back and saves each IRN on its invoice. See <a href="#einvoice">E-invoicing from the Dashboard</a>.</td></tr>
   <tr><td>${ui('New Invoice')}</td><td>Starts a blank invoice. See <a href="invoices.html">Making an invoice</a>.</td></tr>
@@ -27,7 +27,7 @@ export default [
 
 <section id="customise">
 <h2>Customise Dashboard</h2>
-<p>${ui('Customise')} at the top right opens <b>Customise Dashboard</b>, a list of the parts of this screen: <b>Welcome note and Getting started</b>, <b>Support card</b>, <b>Overdue invoices strip</b>, <b>Totals cards</b>, <b>Low stock strip</b> and <b>Invoice list</b>.</p>
+<p>${ui('Customise')} (the sliders icon at the top right) opens <b>Customise Dashboard</b>, a list of the parts of this screen: <b>Welcome note and Getting started</b>, <b>Support card</b>, <b>Overdue invoices strip</b>, <b>Totals cards</b>, <b>Low stock strip</b> and <b>Invoice list</b>.</p>
 <ul>
   <li>Untick a part to hide it; tick it to show it again. A part that has nothing to show (no overdue invoice, nothing low in stock) stays out of the way either way.</li>
   <li>The up and down arrows move a part up or down the screen, for example the invoice list to the top.</li>
@@ -404,7 +404,7 @@ export default [
 <h2>Importing and exporting invoices as CSV</h2>
 <p>For moving many invoices in from Excel, Tally or another program, including <b>old invoices</b> from before you started using the app, or out to your CA, in one go. A CSV file is a plain spreadsheet file that Excel and Google Sheets can open and save.</p>
 <ol class="steps">
-  <li><strong>Open it</strong>Click ${ui('Import / export CSV')} at the top of the Dashboard. The window <b>Sales invoices: Import / export CSV</b> opens.</li>
+  <li><strong>Open it</strong>Click ${ui('Import / export CSV')} (the sheet icon) at the top of the Dashboard. The window <b>Sales invoices: Import / export CSV</b> opens.</li>
   <li><strong>Start from the template</strong>${ui('Template')} downloads <code>Sales-import-template.csv</code> with the right columns and one example invoice of two items. Open it in Excel or Google Sheets, replace the example with your invoices, and save it as <b>CSV (Comma delimited)</b>.</li>
   <li><strong>Fill in your invoices</strong>One row per item; an invoice of three items is three rows with the same invoice number. Write the client name and invoice date on each invoice's first row. The table below says what goes in each column. Save as CSV again when done.</li>
   <li><strong>Choose the two options</strong><b>Take sold quantities out of product stock</b> (off to start): tick it for new sales; leave it off for old invoices whose stock you have already counted. <b>Add new clients to Clients</b> (on to start): clients not yet saved are added to your client list. A client is found by its <b>GSTIN</b> first: a row with a saved client's GSTIN goes to that client under its saved name, even if the name in the file is spelt differently, so no duplicate is made.</li>

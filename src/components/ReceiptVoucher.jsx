@@ -6,6 +6,7 @@ import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import PageHeader from './PageHeader';
 import ComboInput from './ComboInput';
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
@@ -328,15 +329,12 @@ export default function ReceiptVoucher() {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Receipts <HelpButton title="Receipts — how to use" doc="receipts" size={16} /></h1>
-            <p className="page-subtitle">Generate payment receipts for clients</p>
-          </div>
-        </div>
-        <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> New Receipt</button>
-      </div>
+      <PageHeader
+        title="Receipts"
+        help={{ title: 'Receipts — how to use', doc: 'receipts' }}
+        subtitle="Generate payment receipts for clients"
+        primary={<button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> New Receipt</button>}
+      />
 
       <UnassignedBanner
         count={unassignedReceipts.length}

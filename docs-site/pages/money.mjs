@@ -44,8 +44,7 @@ export default [
   <tr><td>Month and year (Monthly)</td><td>January to December, and a year from this year back five years.</td></tr>
   <tr><td>Quarter and year (Quarterly)</td><td>Q1 (Apr–Jun), Q2 (Jul–Sep), Q3 (Oct–Dec) or Q4 (Jan–Mar). The year is the calendar year of those months, so the Jan–Mar 2027 quarter is <b>Q4</b> with <b>2027</b>, and Apr–Jun 2026 is <b>Q1</b> with <b>2026</b>.</td></tr>
   <tr><td>Financial year (Full Year)</td><td>A financial year, such as FY 2026-27 (April to March). Useful for checking a whole year, or for your CA.</td></tr>
-  <tr><td><b>R1 Pending / R1 Filed</b> and <b>3B Pending / 3B Filed</b></td><td>Whether you have filed GSTR-1 and GSTR-3B for this period. Click to switch. See <a href="#filed-status">Filed status</a>.</td></tr>
-  <tr><td>${ui('GST Portal')}</td><td>Opens gst.gov.in in your browser.</td></tr>
+  <tr><td>${ui('GST Portal')}</td><td>The small icon at the top right (an arrow out of a box). Opens gst.gov.in in your browser.</td></tr>
 </table></div>
 <p>An invoice, purchase or expense belongs to the period of its <b>date</b>. Everything shown is for the business selected at the top of the sidebar only: each GSTIN files its own returns.</p>
 <p>The files the app makes carry the <b>return period</b> the portal expects: the month for a monthly return, the <em>last month of the quarter</em> for a quarterly one (Q1 2026 is 062026), and March of the closing year for a full year.</p>
@@ -84,7 +83,7 @@ export default [
 
 <section id="filed-status">
 <h3>Filed status (R1 and 3B)</h3>
-<p>The two small pills in the period row remember whether you have filed:</p>
+<p>The two small pills at the right of the row of tabs (GSTR-1, GSTR-3B...) remember whether you have filed:</p>
 <ul>
   <li><strong>R1 Pending</strong> (red) or <strong>R1 Filed</strong> (green): GSTR-1.</li>
   <li><strong>3B Pending</strong> (red) or <strong>3B Filed</strong> (green): GSTR-3B.</li>

@@ -6,8 +6,10 @@ import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { getLockStatus } from '../store';
 import { lockNow, LOCK_CHANGED_EVENT } from '../utils/appLock';
+import { BarButton } from './PageHeader';
 
-export default function LockButton({ className = 'btn btn-secondary', label = 'Lock' }) {
+// v1.10.86 - an icon in the Dashboard's top bar (its name stays "Lock").
+export default function LockButton() {
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
     const load = () => getLockStatus().then((s) => setEnabled(!!s?.enabled)).catch(() => setEnabled(false));
@@ -17,8 +19,6 @@ export default function LockButton({ className = 'btn btn-secondary', label = 'L
   }, []);
   if (!enabled) return null;
   return (
-    <button type="button" className={className} onClick={lockNow} title="Lock the app now (Ctrl+Shift+L). Your PIN opens it again.">
-      <Lock size={18} /> {label}
-    </button>
+    <BarButton icon={Lock} label="Lock" onClick={lockNow} title="Lock the app now (Ctrl+Shift+L). Your PIN opens it again." />
   );
 }

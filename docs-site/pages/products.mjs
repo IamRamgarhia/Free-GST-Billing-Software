@@ -14,7 +14,7 @@ export default [
 <h2>The product list</h2>
 <p>${ui('Products')} in the sidebar opens your catalogue: the goods and services you sell or buy, with their prices, GST rate and stock. Save an item here once, and on every invoice you just type a few letters of its name to fill in the HSN, rate, unit and GST.</p>
 <figure><img src="${img('app-products.png')}" alt="The product list. Low stock shows in amber, none in red." loading="lazy"><figcaption>The product list. Low stock shows in amber, none in red.</figcaption></figure>
-<p>The buttons at the top of the screen:</p>
+<p>The buttons at the top of the screen. Small buttons show only an icon: point at one to see its name. In a narrow window, and on a phone, they are in the ${ui('⋯')} button instead, with their names.</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Import CSV')}</td><td>Adds many products at once from a spreadsheet. See <a href="#import">Importing products</a>.</td></tr>

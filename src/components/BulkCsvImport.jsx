@@ -6,6 +6,7 @@
 // sheet with the most invoices, others can be picked, and what a "Sale Report"
 // sheet says was received becomes the payments.
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FileSpreadsheet, Upload, Download, X } from 'lucide-react';
 import {
   getProfile, getAllBills, saveBill, getAllProducts, saveProduct, applyStockChanges,
@@ -19,6 +20,7 @@ import {
 import { fileToSheets, bestSheet } from '../utils/importFile';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
+import { BarButton } from './PageHeader';
 
 const download = (text, name) => {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8;' }));
@@ -168,11 +170,11 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
   const ready = r ? (sales ? r.bills.length : r.purchases.length) : 0;
   return (
     <>
-      <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}
-        title={`Import ${sales ? 'invoices' : 'purchase bills'} from a CSV file, or export them as CSV`}>
-        <FileSpreadsheet size={16} /> Import / export CSV
-      </button>
-      {open && (
+      {/* v1.10.86 - an icon in the top bar; the window is drawn on <body>, so
+          it stays open when the button sits in the bar's ⋯ menu. */}
+      <BarButton icon={FileSpreadsheet} label="Import / export CSV" onClick={() => setOpen(true)}
+        title={`Import / export CSV: import ${sales ? 'invoices' : 'purchase bills'} from a CSV or Excel file, or export them as CSV`} />
+      {open && createPortal(
         <div className="modal-overlay" onClick={close}>
           <div className="modal-content" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -232,7 +234,8 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

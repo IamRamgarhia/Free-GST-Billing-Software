@@ -55,6 +55,7 @@ import { startView } from './utils/listPrefs';
 import HelpButton from './components/HelpButton';
 import ActionsMenu from './components/ActionsMenu';
 import { lockNow } from './utils/appLock';
+import { PageBarSlots, fitPageBar } from './components/pageBarSlots';
 
 const openDocs = () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer');
 
@@ -657,10 +658,26 @@ function App() {
     <button type="button" className="topbar-search" onClick={openPalette}
       title="Search or jump to a page (Ctrl+K)" aria-label="Search or jump to a page (Ctrl+K)">
       <Search size={16} />
-      <span className="topbar-search-text">Search or jump to…</span>
+      {/* v1.10.86 - shorter: the page title and its buttons share this line now. */}
+      <span className="topbar-search-text">Search…</span>
       <kbd className="topbar-search-kbd">Ctrl+K</kbd>
     </button>
   );
+  // v1.10.86 - the page title and the page's buttons sit in the top bar, in
+  // these two boxes (components/PageHeader.jsx fills them). The bar steps down
+  // (search icon, then a ⋯ menu, then a second line) only when it must.
+  const [barTitleEl, setBarTitleEl] = useState(null);
+  const [barActionsEl, setBarActionsEl] = useState(null);
+  const barSlots = useMemo(() => (barTitleEl && barActionsEl ? { title: barTitleEl, actions: barActionsEl } : null), [barTitleEl, barActionsEl]);
+  const barRef = useRef(null);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => fitPageBar(bar));
+    ro.observe(bar);
+    for (const el of bar.children) ro.observe(el); // the title and buttons change with the screen
+    return () => ro.disconnect();
+  }, [barTitleEl, barActionsEl]);
   const topActions = topIds.map(id => ({
     // v1.10.86 - Help (?) is a small menu: the user guide and the keyboard shortcuts.
     guide: (
@@ -1029,10 +1046,13 @@ function App() {
           onOpenFeatures={() => { setShowMenuEditor(false); openSettingsSection('section-modules'); }} />
       )}
       <div className="main-content">
-        <div className="app-topbar">
+        <div className="app-topbar" ref={barRef}>
+          <div className="page-bar-title" ref={setBarTitleEl} />
           {searchBox}
-          {topActions}
+          <div className="page-bar-actions" ref={setBarActionsEl} />
+          <div className="topbar-global">{topActions}</div>
         </div>
+        <PageBarSlots.Provider value={barSlots}>
         {/* v1.10.83 - a screen that throws shows "ran into a problem" here
             instead of blanking the app; keyed by screen so the sidebar works
             and opening another screen starts clean. */}
@@ -1100,6 +1120,7 @@ function App() {
         {/* Version + DiceCodes line: Dashboard only, so it never takes space on working screens. */}
         {currentView === 'dashboard' && <AppFooter onOpenSupport={() => setCurrentView('support')} />}
         </ErrorBoundary>
+        </PageBarSlots.Provider>
       </div>
 
       {/* Update modal — release notes + Export-backup-first nudge + Update Now */}

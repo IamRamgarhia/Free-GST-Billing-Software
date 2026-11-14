@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { ShoppingCart, Plus, Edit3, Trash2, Search, X, Save, Download, Wand2, Eye, ClipboardList, IndianRupee, RotateCcw, FileText } from 'lucide-react';
 import HelpButton from './HelpButton';
+import PageHeader, { BarButton } from './PageHeader';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes, saveDebitNote } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS_2025, tdsSectionsFor, movedSection, sectionOptionLabel, sectionShort } from '../utils';
 import { purchaseTdsAmount } from '../utils/tdsTcs';
@@ -1262,28 +1263,21 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            {/* v1.10.86 - one name: the menu and the page say Purchases; a bill is a Purchase Bill. */}
-            <h1 className="page-title">Purchases <HelpButton title="Purchases — how to use" doc="purchases" size={16} /></h1>
-            <p className="page-subtitle">Track supplier invoices for ITC claims in GSTR-3B</p>
-          </div>
-        </div>
-        {tab === 'orders' ? (
-          <div className="flex gap-2">
-            <button className="btn btn-primary" onClick={() => openNewPo()}><Plus size={18} /> New purchase order</button>
-          </div>
-        ) : (
-        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={() => setShowOCR(true)} title="Extract fields from a bill photo/scan">
-            <Wand2 size={16} /> Import from image (OCR)
-          </button>
+      {/* v1.10.86 - one name: the menu and the page say Purchases; a bill is a Purchase Bill.
+          In the top bar: Import from image and Import / export CSV as icons. */}
+      <PageHeader
+        title="Purchases"
+        help={{ title: 'Purchases — how to use', doc: 'purchases' }}
+        subtitle="Track supplier invoices for ITC claims in GSTR-3B"
+        secondary={tab !== 'orders' && <>
+          <BarButton icon={Wand2} label="Import from image (OCR)" onClick={() => setShowOCR(true)}
+            title="Import from image (OCR): fill in a bill from a photo or scan of it" />
           <BulkCsvImport kind="purchase" onDone={() => { loadPurchases(); loadProducts(); }} />
-          <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase Bill</button>
-        </div>
-        )}
-      </div>
+        </>}
+        primary={tab === 'orders'
+          ? <button className="btn btn-primary" onClick={() => openNewPo()}><Plus size={18} /> New purchase order</button>
+          : <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase Bill</button>}
+      />
 
       {/* v1.10.83 (#112) - Purchase bills | Purchase orders, only when the
           Purchase orders feature is on. */}

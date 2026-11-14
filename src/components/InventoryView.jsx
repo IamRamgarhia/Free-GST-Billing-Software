@@ -11,6 +11,7 @@ import { BomEditor, MakeModal, ProductionList } from './Manufacturing';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
+import PageHeader, { BarButton } from './PageHeader';
 import ProductBulkEdit from './ProductBulkEdit';
 import TableExport from './TableExport';
 import BarcodeLabels from './BarcodeLabels';
@@ -301,33 +302,23 @@ export default function InventoryView({ onOpenPurchases }) {
 
   return (
     <div className="dashboard-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div>
-            <h1 className="page-title">Products <HelpButton title="Products — how to use" doc="products" size={16} /></h1>
-            <p className="page-subtitle">Manage your products and services catalog</p>
-          </div>
-        </div>
-        {/* Wraps on a phone: with Make there are four buttons (v1.10.83, #115). */}
-        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={() => setShowImport(true)} title="Add products from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)">
-            <Upload size={16} /> Import CSV
-          </button>
-          <button className="btn btn-secondary" onClick={() => setBulkEdit(true)} disabled={!products.length || bulkEdit}
-            title="Edit name, HSN, prices, GST %, unit and stock of many products at once">
-            <Table2 size={16} /> Bulk edit
-          </button>
+      {/* v1.10.86 - in the top bar: Import CSV, Bulk edit and Make as icons. */}
+      <PageHeader
+        title="Products"
+        help={{ title: 'Products — how to use', doc: 'products' }}
+        subtitle="Manage your products and services catalog"
+        secondary={<>
+          <BarButton icon={Upload} label="Import CSV" onClick={() => setShowImport(true)}
+            title="Import CSV: add products from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)" />
+          <BarButton icon={Table2} label="Bulk edit" onClick={() => setBulkEdit(true)} disabled={!products.length || bulkEdit}
+            title="Bulk edit: change name, HSN, prices, GST %, unit and stock of many products at once" />
           {mfgOn && (
-            <button className="btn btn-secondary" onClick={() => setShowMake(true)} disabled={bulkEdit}
-              title="Record production: uses up raw materials and adds the finished product to stock">
-              <Factory size={16} /> Make
-            </button>
+            <BarButton icon={Factory} label="Make" onClick={() => setShowMake(true)} disabled={bulkEdit}
+              title="Make: record production - uses up raw materials and adds the finished product to stock" />
           )}
-          <button className="btn btn-primary" onClick={openAdd}>
-            <Plus size={18} /> Add Product
-          </button>
-        </div>
-      </div>
+        </>}
+        primary={<button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Product</button>}
+      />
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
           intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, MRP (optional), GST %, Stock (leave Stock blank for a service) and Barcode (optional).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}

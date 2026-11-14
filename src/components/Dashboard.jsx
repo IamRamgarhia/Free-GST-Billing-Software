@@ -10,7 +10,7 @@ import { EInvoiceReport } from './EInvoiceModal';
 import { openWhatsAppShare, invoiceShareMessage, sendPdfOnWhatsApp } from '../utils/share';
 // v1.10.86 - the single-invoice PDF moved to utils/billPdf.js (Clients uses it too).
 import { addCanvasAsA4Pages, safeBreaks, billPdfBlob, billPdfName } from '../utils/billPdf';
-import PageHeader from './PageHeader';
+import PageHeader, { BarButton } from './PageHeader';
 import LockButton from './LockButton';
 import ActionsMenu from './ActionsMenu';
 import BulkCsvImport from './BulkCsvImport';
@@ -1486,47 +1486,45 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
   return (
     <div className="dashboard-container dashboard-blocks">
+      {/* v1.10.86 - in the top bar, on one line: the title and "Totals for"
+          keep their words, Lock / Customise / CSV / IRN are icons, New Invoice
+          is the main button. */}
       <PageHeader
-        compact
-        icon="📊"
-        title={<>Dashboard <HelpButton title="Dashboard — how to use" doc="dashboard" size={16} />
-          {/* v1.10.86 - on a phone Customise sits here, so the header buttons keep to one row. */}
-          <button type="button" className="icon-btn dash-customise-phone" onClick={() => setShowCustomise(true)} aria-label="Customise Dashboard" title="Customise Dashboard"><SlidersHorizontal size={16} /></button></>}
+        title="Dashboard"
+        help={{ title: 'Dashboard — how to use', doc: 'dashboard' }}
         subtitle="Overview of your invoices"
-        meta={<>{bills.length} invoice{bills.length === 1 ? '' : 's'}
-          {/* v1.10.86 - "Totals for" sits up here, not on a line of its own above the cards. */}
-          {blockOn('totals') && (
-            <span className="card-period">
-              <label htmlFor="card-period">Totals for</label>
-              <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
-                <option value="all">All time</option>
-                <option value="this-month">This month</option>
-                <option value="last-month">Last month</option>
-                <option value="month">Choose a month…</option>
-                {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
-              {cardPeriod === 'month' && (
-                <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
-              )}
-            </span>
-          )}</>}>
-        <LockButton />
-        {/* v1.10.86 - which blocks show, in what order; the screen the app opens on. */}
-        <button type="button" className="btn btn-secondary dash-customise-btn" onClick={() => setShowCustomise(true)} title="Customise Dashboard: show, hide and move the blocks of this page" aria-label="Customise Dashboard">
-          <SlidersHorizontal size={16} /> Customise
-        </button>
-        <BulkCsvImport kind="sales" onDone={loadBills} />
-        {einvoiceOn && (
-          <>
-            <input ref={irnFileRef} type="file" accept=".json,application/json" onChange={importIrnFile} style={{ display: 'none' }} />
-            <button type="button" className="btn btn-secondary" disabled={bulkBusy} onClick={() => irnFileRef.current?.click()}
-              title="Choose the JSON file the e-invoice portal gave back, to save each IRN on its invoice">
-              <Upload size={16} /> Import IRN
-            </button>
-          </>
+        meta={`${bills.length} invoice${bills.length === 1 ? '' : 's'}`}
+        extras={blockOn('totals') && (
+          <span className="card-period">
+            <label htmlFor="card-period">Totals for</label>
+            <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
+              <option value="all">All time</option>
+              <option value="this-month">This month</option>
+              <option value="last-month">Last month</option>
+              <option value="month">Choose a month…</option>
+              {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </select>
+            {cardPeriod === 'month' && (
+              <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
+            )}
+          </span>
         )}
-        <button className="btn btn-primary" onClick={onNew}><Plus size={18} /> New Invoice</button>
-      </PageHeader>
+        secondary={<>
+          <LockButton />
+          {/* v1.10.86 - which blocks show, in what order; the screen the app opens on. */}
+          <BarButton icon={SlidersHorizontal} label="Customise Dashboard" onClick={() => setShowCustomise(true)}
+            title="Customise Dashboard: show, hide and move the blocks of this page" />
+          <BulkCsvImport kind="sales" onDone={loadBills} />
+          {einvoiceOn && (
+            <>
+              <input ref={irnFileRef} type="file" accept=".json,application/json" onChange={importIrnFile} style={{ display: 'none' }} />
+              <BarButton icon={Upload} label="Import IRN" disabled={bulkBusy} onClick={() => irnFileRef.current?.click()}
+                title="Import IRN: choose the JSON file the e-invoice portal gave back, to save each IRN on its invoice" />
+            </>
+          )}
+        </>}
+        primary={<button className="btn btn-primary" onClick={onNew}><Plus size={18} /> New Invoice</button>}
+      />
 
       {/* v1.10.69 - a new user used to land here on "No invoices yet." and
           nothing else. The welcome wizard does end with a list of what to do,

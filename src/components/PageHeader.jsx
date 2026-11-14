@@ -1,75 +1,91 @@
-// v1.10.37 — Reusable page-header card. Reported: "I like the heading
-// that you gave into this page — I want you to do in all the pages,
-// that looks better". Extracted from the SettingsView v1.10.36 header
-// so every page gets a consistent visual identity: gradient card +
-// icon badge + title + subtitle + optional meta chip + right-side
-// action slot.
+// v1.10.37 - Reusable page header (was a gradient card with an icon badge,
+// a title, a subtitle line and the action buttons on the right).
+//
+// v1.10.86 - the header is the top bar now (maintainer, 15 Nov: "what if we
+// have all things in one in top bar", chosen: one line, some icons). It is
+// drawn into App.jsx's top bar through two portals (components/pageBarSlots.js):
+//   [title (?) meta extras]   [search]   [secondary icons][primary]   [? bell ...]
 //
 // Props:
-//   icon        emoji / string / element rendered inside the 44px badge
-//   title       page title (h1)
-//   subtitle    one-line description shown below the title
-//   meta        optional short string rendered as a pill next to the
-//               subtitle (e.g. "231 invoices", "11 sections", "FY 2025-26")
-//   children    right-hand slot for action buttons, HelpButton, etc.
-//   compact     v1.10.77 (#84): a slim title row, no card, icon or subtitle,
-//               for screens where the table needs the room (the Dashboard).
+//   title      the page name (plain words; the (?) is added from `help`)
+//   help       { title, doc } for the (?) button next to the title
+//   subtitle   the line that was under the title: now the (?) button's tooltip
+//   meta       a short count or note after the title ("26 invoices")
+//   extras     controls that belong to the title (Dashboard's "Totals for",
+//              a Year box, Cash / Bank tabs); they keep their words
+//   secondary  the screen's other buttons, as <BarButton>s (icons with a
+//              tooltip); in the "⋯" menu on a phone or a narrow window
+//   primary    the screen's main button, with its words ("New Invoice")
+import { useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MoreHorizontal } from 'lucide-react';
+import HelpButton from './HelpButton';
+import { PageBarSlots } from './pageBarSlots';
 
-export default function PageHeader({ icon, title, subtitle, meta, children, compact = false }) {
-  if (compact) {
-    return (
-      <div className="page-header page-header-compact" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
-        <h1 className="page-title" style={{ margin: 0, fontSize: '1.3rem' }}>{title}</h1>
-        {meta && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>{meta}</span>}
-        {/* v1.10.83 - wraps on a phone; "New Invoice" ran past the right edge at 390px. */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', minWidth: 0 }}>{children}</div>
-      </div>
-    );
-  }
+// An icon button for the top bar. `label` is its name (what it said before it
+// became an icon, so screen readers and the tests find it the same way); it is
+// shown again as words inside the ⋯ menu. With `href` it is a link.
+export function BarButton({ icon, label, title, ...rest }) {
+  const Icon = icon;
+  const Tag = rest.href ? 'a' : 'button';
   return (
-    <div className="page-header" style={{
-      padding: '1.1rem 1.35rem',
-      background: 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), var(--card-bg))',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      marginBottom: '1.25rem',
-    }}>
-      {/* v1.10.83 - flex: 1 so the help / action buttons sit at the right edge;
-          the row was only as wide as its text, leaving them mid-header. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
-        {icon !== undefined && (
-          <div style={{
-            width: 44, height: 44,
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--primary), var(--primary-darker))',
-            color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.15rem',
-            boxShadow: '0 6px 18px rgba(var(--primary-rgb), 0.35)',
-            flexShrink: 0,
-          }}>{icon}</div>
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 className="page-title" style={{ margin: 0 }}>{title}</h1>
-          {(subtitle || meta) && (
-            <p className="page-subtitle" style={{ margin: '0.15rem 0 0', display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-              {subtitle && <span>{subtitle}</span>}
-              {meta && (
-                <span style={{
-                  fontSize: '0.7rem',
-                  padding: '0.1rem 0.5rem',
-                  borderRadius: 999,
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                }}>{meta}</span>
-              )}
-            </p>
+    <Tag type={rest.href ? undefined : 'button'} className="topbar-btn page-bar-btn" title={title || label} aria-label={label} {...rest}>
+      <Icon size={18} aria-hidden="true" /><span className="pb-label">{label}</span>
+    </Tag>
+  );
+}
+
+export default function PageHeader({ title, help, subtitle, meta, extras, secondary, primary }) {
+  const slots = useContext(PageBarSlots);
+  const [open, setOpen] = useState(false);
+  const moreRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => {
+      if (e.type === 'keydown' ? e.key === 'Escape' : !moreRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+
+  // The bar mounts in the same render as the first screen; the portals follow
+  // straight after (before anything is painted).
+  if (!slots?.title || !slots?.actions) return null;
+  return (
+    <>
+      {createPortal(
+        <div className="page-bar-head">
+          <h1 className="page-title">
+            {title}
+            {help && <HelpButton title={help.title} doc={help.doc} hint={subtitle} size={16} />}
+          </h1>
+          {meta ? <span className="page-bar-meta">{meta}</span> : null}
+          {extras}
+        </div>,
+        slots.title,
+      )}
+      {createPortal(
+        <>
+          {secondary && (
+            <div className="page-bar-more" ref={moreRef}>
+              <button type="button" className="topbar-btn page-bar-more-btn" onClick={() => setOpen((o) => !o)}
+                title="More buttons for this page" aria-label="More buttons" aria-haspopup="true" aria-expanded={open}>
+                <MoreHorizontal size={18} />
+              </button>
+              <div className={`page-bar-secondary${open ? ' is-open' : ''}`} onClick={() => setOpen(false)}>
+                {secondary}
+              </div>
+            </div>
           )}
-        </div>
-        {children}
-      </div>
-    </div>
+          {primary}
+        </>,
+        slots.actions,
+      )}
+    </>
   );
 }

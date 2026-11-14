@@ -9,7 +9,7 @@ import { toast } from './Toast';
 import HelpButton from './HelpButton';
 
 /*
- * v1.10.86 - the quick search (Ctrl+K, and the "Search or jump to…" box),
+ * v1.10.86 - the quick search (Ctrl+K, and the "Search…" box),
  * moved out of App.jsx. Besides screens, Settings sections, invoices,
  * clients and products it now answers "How do I…" questions
  * (src/utils/howTo.js): Enter / click takes you there in the app, the Guide
