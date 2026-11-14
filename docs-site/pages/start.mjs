@@ -64,18 +64,48 @@ export default [
   slug: 'first-run',
   title: 'The first-run setup',
   nav: 'First-run setup',
-  lead: 'The screens you see the first time the app opens: a four-step welcome for your business details, then a three-step setup for how your invoices look. Both can be skipped and changed later.',
+  lead: 'The screens you see the first time the app opens: one four-step welcome that asks what kind of business you run, your business details and your bank details. You can skip it and change everything later.',
   body: `
 <section id="welcome">
-<h2>Step 1 of the welcome: where you invoice from</h2>
-<p>The first screen explains what the app does, and asks <b>Where will you be invoicing from?</b></p>
-<p>A small <b>Safe and private</b> box on it sums up how your data is kept: on this computer, with no account, working offline, in open-source code anyone can check. Its ${ui('How we keep it safe')} link opens <a href="security.html">Is it safe? Security and privacy</a>.</p>
+<h2>Step 1 of the welcome: your business type and where you invoice from</h2>
+<p>The first screen asks two things. The buttons at the bottom, ${ui('Skip Setup')} and ${ui('Get Started')}, stay on screen while you scroll, on a PC and on a phone.</p>
+<p>A small <b>Safe and private</b> box at the bottom sums up how your data is kept: on this computer, with no account, working offline, in open-source code anyone can check. Its ${ui('How we keep it safe')} link opens <a href="security.html">Is it safe? Security and privacy</a>.</p>
+</section>
+
+<section id="business-type">
+<h3>What kind of business do you run?</h3>
+<p>Click the card that fits you best; it turns blue (click it again to un-pick it). Each card has a one-line hint:</p>
+<div class="table-wrap"><table>
+  <tr><th>Card</th><th>For</th></tr>
+  <tr><td>Retail shop / kirana</td><td>Selling from a counter, keeping stock, buying from suppliers.</td></tr>
+  <tr><td>Freelancer / consultant</td><td>Billing for your time or services, no stock.</td></tr>
+  <tr><td>Restaurant / cafe</td><td>Quick bills, UPI payments, buying supplies.</td></tr>
+  <tr><td>Wholesale / trading</td><td>Buying and selling goods in bulk and sending them with e-way bills.</td></tr>
+  <tr><td>Manufacturing</td><td>Making products from raw material.</td></tr>
+  <tr><td>Service / repair shop</td><td>Repairs and services, spare parts in stock, yearly contracts.</td></tr>
+  <tr><td>Everything</td><td>Every feature the app has.</td></tr>
+</table></div>
+<p>When you finish (or skip) the welcome, your choice:</p>
+<ul>
+  <li>decides which screens the sidebar shows (a freelancer, for example, does not see Products or Purchases). Hidden screens are only hidden: nothing is deleted, and you can switch any feature back on in <a href="settings.html#features">Settings → Features</a>;</li>
+  <li>sets a matching <a href="print-settings.html#business-type">print style</a>;</li>
+  <li>puts the matching ready-made terms on your bills instead of the general <b>Standard Terms</b> (see <a href="settings.html#business-type">what a business type sets</a>);</li>
+  <li>for a retail shop or restaurant, starts every new invoice with the customer <b>Cash Sale</b>.</li>
+</ul>
+<p>Pick none and every feature stays as it is. You can change the type any time in <a href="settings.html#business-type">Settings → Company → Business type</a>.</p>
+<div class="note tip"><strong>Not sure?</strong>
+<p>Pick the one closest to what you do most. A shop that also repairs things can pick Retail shop / kirana. If you want to see everything first, pick <b>Everything</b> and hide what you do not use later.</p>
+</div>
+</section>
+
+<section id="region">
+<h3>Where will you be invoicing from?</h3>
 <table>
   <tr><td>🇮🇳 India</td><td>GST, GSTR-1 and 3B, UPI. The default.</td></tr>
   <tr><td>🌍 Outside India</td><td>VAT and other local taxes</td></tr>
   <tr><td>🌐 Both</td><td>India, with clients abroad</td></tr>
 </table>
-<p>${ui('Get Started')} carries on. ${ui('Skip Setup')} goes straight to the app; fill in <a href="settings.html#company-details">Settings</a> later.</p>
+<p>${ui('Get Started')} carries on. ${ui('Skip Setup')} goes straight to the app (with the business type you picked, if any); fill in <a href="settings.html#company-details">Settings</a> later. Paper size and the language of the printed headings are in <a href="print-settings.html">Print and PDF settings</a>.</p>
 </section>
 
 <section id="business-details">
@@ -84,8 +114,8 @@ export default [
 <table>
   <tr><td>Business Name</td><td>Required</td></tr>
   <tr><td>Address</td><td>Your full address</td></tr>
+  <tr><td>GSTIN</td><td>Leave blank if you are not registered. Typing all 15 characters fills in the State and PAN for you (only if they are empty)</td></tr>
   <tr><td>State</td><td>Needed to work out CGST and SGST versus IGST</td></tr>
-  <tr><td>GSTIN</td><td>Leave blank if you are not registered</td></tr>
   <tr><td>PAN, Phone, Email</td><td>Optional</td></tr>
 </table>
 <p>${ui('Next')} stays greyed out until a Business Name is typed. ${ui('Back')} returns to the first screen without losing what you typed.</p>
@@ -110,61 +140,6 @@ export default [
 <p>A short list of what to do next: make your first invoice, download or share it, check the GST reports, and file your returns. ${ui('Start Billing')} saves everything; your bank details become your first <a href="settings.html#payment-accounts">payment account</a>. You see <b>Setup complete! Start creating invoices.</b> and the app opens.</p>
 <p>If you see <b>Failed to save. Try again.</b>, the app's engine stopped: check it is still running (see <a href="troubleshooting.html#cannot-connect">Failed to fetch</a>) and click ${ui('Start Billing')} again.</p>
 <p>Next: <a href="first-invoice.html">make your first invoice</a>.</p>
-</section>
-
-<section id="setup-wizard">
-<h2>Then: setting up your invoices</h2>
-<p>Next, a three-step window sets up printing.</p>
-<ol class="steps">
-  <li><strong>What kind of business do you run?</strong>Pick one: Retail shop / kirana, Freelancer / consultant, Restaurant / cafe, Wholesale / trading, Manufacturing, Service / repair shop, or Everything. It decides which features the app shows: a freelancer, for example, does not see Products or Purchases. See <a href="settings.html#business-type">Business type</a> for what each one shows and hides; nothing is deleted, and you can change it any time in Settings. It also sets an invoice style to match (see <a href="print-settings.html#business-type">Print and PDF: business type</a>). Or choose <b>None of these</b> to keep every feature as it is and set things up yourself.</li>
-  <li><strong>Paper size and language</strong>Pick what you mostly print on: A4, A5, 80 mm or 58 mm thermal. It becomes the paper size of new invoices. Then the language for section labels such as BILL TO: English, Hindi, Tamil, Marathi or Bengali.</li>
-  <li><strong>Ready to go</strong>A summary of your choices. ${ui('Finish setup')} applies them.</li>
-</ol>
-<p>${ui('Skip setup')}, or the ${ui('✕')}, closes it. A ${ui('✨ Finish setup')} button then waits at the bottom right of the screen, for whenever you want to come back to it. Everything it sets can also be changed in <a href="print-settings.html">Print and PDF settings</a>.</p>
-<p>The top of the window shows <b>Step 1 of 3</b> and a bar that fills as you go. ${ui('Continue')} moves on, ${ui('Back')} goes back without losing your choices.</p>
-</section>
-
-<section id="wizard-business-type">
-<h3>What kind of business do you run?</h3>
-<p>Click the card that fits you best; it turns blue. Each card has a one-line hint:</p>
-<figure><img src="assets/img/setup-business-type.png" alt="Step 1 of the setup window: seven business type cards, with Freelancer / consultant picked and shown in blue." loading="lazy" style="max-width:min(480px,100%)"><figcaption>Step 1 of 3: the picked card turns blue. ${ui('Continue')} moves to paper size and language.</figcaption></figure>
-<div class="table-wrap"><table>
-  <tr><th>Card</th><th>For</th></tr>
-  <tr><td>Retail shop / kirana</td><td>Selling from a counter, keeping stock, buying from suppliers.</td></tr>
-  <tr><td>Freelancer / consultant</td><td>Billing for your time or services, no stock.</td></tr>
-  <tr><td>Restaurant / cafe</td><td>Quick bills, UPI payments, buying supplies.</td></tr>
-  <tr><td>Wholesale / trading</td><td>Buying and selling goods in bulk and sending them with e-way bills.</td></tr>
-  <tr><td>Manufacturing</td><td>Making products from raw material.</td></tr>
-  <tr><td>Service / repair shop</td><td>Repairs and services, spare parts in stock, yearly contracts.</td></tr>
-  <tr><td>Everything</td><td>Every feature the app has.</td></tr>
-</table></div>
-<p>Your choice decides which screens the sidebar shows and sets a matching invoice style. Hidden screens are only hidden: nothing is deleted, and you can switch any feature back on later in <a href="settings.html#features">Settings → Features</a> or change the type in <a href="settings.html#business-type">Settings → Business type</a>.</p>
-<p>${ui("None of these — I'll configure manually")} closes the window at once and changes nothing: every feature stays as it is, and the ✨ Finish setup button does not appear.</p>
-<div class="note tip"><strong>Not sure?</strong>
-<p>Pick the one closest to what you do most. A shop that also repairs things can pick Retail shop / kirana. If you want to see everything first, pick <b>Everything</b> and hide what you do not use later.</p>
-</div>
-</section>
-
-<section id="wizard-paper-language">
-<h3>Paper size + language</h3>
-<p><b>Paper size</b>: what you mostly print on. It becomes the paper size of every new invoice; you can still change it on any one invoice.</p>
-<div class="table-wrap"><table>
-  <tr><td>A4 · Standard</td><td>Normal office paper and laser or inkjet printers. The usual choice.</td></tr>
-  <tr><td>A5 · Compact</td><td>Half of A4. For short bills.</td></tr>
-  <tr><td>80mm Thermal</td><td>The common shop receipt printer (about 8 cm wide roll).</td></tr>
-  <tr><td>58mm Thermal</td><td>Small receipt printers (about 6 cm wide roll).</td></tr>
-</table></div>
-<p>Not sure which thermal printer you have? Measure the paper roll, or see <a href="thermal-printing.html#setup">Thermal printing</a>.</p>
-<p><b>Section label language</b>: the language of the printed headings such as BILL TO and TOTAL: English, हिन्दी (Hindi), தமிழ் (Tamil), मराठी (Marathi) or বাংলা (Bengali). Your item names, addresses and the rest stay exactly as you type them; the app's own screens stay in English.</p>
-</section>
-
-<section id="wizard-ready">
-<h3>Ready to go</h3>
-<p>A summary of the three choices: <b>Business type</b>, <b>Default paper size</b> and <b>Section label language</b>. Check them, then click ${ui('Finish setup')}. You see <b>Setup complete! Your defaults are configured.</b> and land on the Dashboard. Your next new invoice uses these settings.</p>
-<div class="note tip"><strong>Something wrong?</strong>
-<p><b>A screen I need is missing from the sidebar.</b> Your business type hid it. Turn it back on in <a href="settings.html#features">Settings → Features</a>.</p>
-<p><b>Invoices print on the wrong paper.</b> Change the paper size on the invoice (<a href="invoice-options.html#paper-size">Paper / print size</a>), or the default in <a href="print-settings.html">Print and PDF settings</a>.</p>
-</div>
 </section>
 `,
 },

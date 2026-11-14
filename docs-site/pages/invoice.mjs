@@ -43,7 +43,7 @@ export default [
   <tr><td>${ui('Customize')}</td><td>Opens the panel that controls what prints, the paper size, currency and more. While it is open the button reads ${ui('Hide Options')}. See <a href="invoice-options.html">Customize: what prints and how</a>.</td></tr>
   <tr><td>${ui('Hide Preview')}</td><td>Hides the preview so the form uses the whole width, handy for long invoices. ${ui('Show Preview')} brings it back. The app remembers your choice in this browser. Save PDF and Print still work while it is hidden.</td></tr>
 </table></div>
-<p>While a save, download or print is running, the buttons are greyed out and Save PDF reads <b>Generating...</b>. Wait for it to finish.</p>
+<p>While a save, download or print is running, the buttons are greyed out and while the PDF is being made Save PDF reads <b>Generating...</b> with a thin moving bar along its foot. Wait for it to finish. A saved invoice shows a green <i>Invoice saved</i> message at the top right, with a tick that draws itself (no movement if Windows has animations turned off).</p>
 </section>
 
 <section id="invoice-types">
@@ -91,7 +91,7 @@ export default [
   <li>the <b>Unit</b> column, while the unit is not printed;</li>
   <li>the ${ui('Delivery charges')} button;</li>
   <li>the <b>Ship to</b> box;</li>
-  <li>the goods boxes under <b>Order, dispatch &amp; reference details</b> (vehicle no, delivery note, dispatch, destination, terms of delivery). The PO number, service period and work details stay.</li>
+  <li>the goods boxes under <b>More invoice details</b> (vehicle no, delivery note, dispatch, destination, terms of delivery). The PO number, service period and work details stay.</li>
 </ul>
 <p>The <b>Discount</b> on a line is just an amount or a percent, and the discount on the whole bill is behind ${ui('+ Discount on the whole bill')}. Anything already filled in still shows. Click <b>Goods</b> or <b>Mixed</b> to get every box back.</p>
 <p><b>Long item names.</b> The item box grows as you type, so a long name stays readable. Drag its bottom corner to make it taller. Press <kbd>Enter</kbd> to add the next row; a name stays on one line. Use ${ui('+ Add description')} for more detail under the item.</p>
@@ -658,6 +658,7 @@ export default [
   <li><strong>Enter what is being credited</strong>Add the returned items, or the price difference, with the same GST rates as the original.</li>
   <li><strong>Save</strong>Its total is subtracted from your sales on the Dashboard, returned goods go back into stock, and it goes into GSTR-1 as a credit note.</li>
 </ol>
+<p><b>Quicker, for a return:</b> on the Dashboard, type or scan the invoice number, order ID or AWB in the Invoices search and click ${ui('Return / credit note')} on the invoice it finds. The credit note opens with the client, items, quantities, rates and order details of the invoice, and the invoice already in <b>Original Invoice Reference</b>. Lower a quantity for a part return, then ${ui('Save')}. See <a href="dashboard.html#scan-a-return">Scan a return</a>.</p>
 </section>
 
 <section id="proforma-to-invoice">
@@ -683,7 +684,7 @@ export default [
   <tr><td>Invoiced</td><td>Invoices cover every item.</td></tr>
   <tr><td>Cancelled</td><td>You cancelled it (${ui('⋯')}, ${ui('Cancel order')}). It keeps its number and moves to the Cancelled tab.</td></tr>
 </table></div>
-<p>Under the status each order shows how much has gone (<b>4 of 10 sent</b>, and how much is invoiced) and the numbers of its challans and invoices. Opening a saved order shows the same under the type chips; a challan or invoice made from an order says <b>Made from sales order</b> with its number. The order's number prints on them as <b>Buyer's Order No</b> with the order date, or, when the order already has the customer's PO number there, as <b>Reference No &amp; Date</b>.</p>
+<p>Under the status each order shows how much has gone (<b>4 of 10 sent</b>, and how much is invoiced) and the numbers of its challans and invoices. Opening a saved order shows the same under the document type; a challan or invoice made from an order says <b>Made from sales order</b> with its number. The order's number prints on them as <b>Buyer's Order No</b> with the order date, or, when the order already has the customer's PO number there, as <b>Reference No &amp; Date</b>.</p>
 <p>The status is worked out from the challans and invoices made from the order each time you look, so cancelling or deleting one of them puts its quantity back on the order. Items are matched by their line on the order, so keep each item on its own line.</p>
 </section>
 

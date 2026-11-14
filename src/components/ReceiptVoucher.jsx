@@ -475,7 +475,7 @@ export default function ReceiptVoucher() {
           <div className="empty-state">
             <Receipt size={48} />
             <p>{receipts.length === 0 ? 'No receipts generated yet.' : 'No receipts match your search.'}</p>
-            {receipts.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Create Receipt</button>}
+            {receipts.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> New Receipt</button>}
           </div>
         ) : (
           <div className="table-scroll">

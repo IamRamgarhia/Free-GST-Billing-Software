@@ -117,9 +117,9 @@ async function cleanup(page) {
  * far less than one that simply clears the way and carries on.
  */
 async function dismissFirstRun(page) {
-  // A fresh install shows TWO screens in sequence, and their buttons are
-  // capitalised differently: a region step ("Skip Setup") and then a
-  // business-type step ("Skip setup"). Clearing one reveals the other.
+  // A fresh install shows the welcome ("Skip Setup"). Until v1.10.86 a second
+  // window followed it (business type, "Skip setup"); the patterns below still
+  // clear either, so the suite also runs against an older build.
   //
   // The visibility test matters as much as the clicking. An earlier version
   // used `offsetParent !== null`, which is ALWAYS null for a
@@ -2561,7 +2561,9 @@ try {
       items: [{ name: 'Smoke Return Item', hsn: '9608', quantity: 10, rate: 100, taxPercent: 18, cessPercent: 0 }], totalAmount: 1180, totalTax: 180, taxableAmount: 1000 });
     const itcBefore = await netItc();
     await reopenView('Purchases');
-    await page.getByRole('button', { name: 'Return goods on SMK-RET-85 to supplier' }).click();
+    // v1.10.86 - Return to supplier is in the row's More menu.
+    await page.getByRole('button', { name: 'More actions for SMK-RET-85' }).click();
+    await page.getByRole('menuitem', { name: 'Return to supplier (debit note)' }).click();
     await page.getByLabel('Return quantity of Smoke Return Item').fill('3');
     await page.getByRole('button', { name: 'Save debit note' }).click();
     await sleep(2500);

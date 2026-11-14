@@ -5,11 +5,11 @@ export default [
 {
   slug: 'settings',
   title: 'Settings',
-  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
+  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups, Appearance and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
   body: `
 <section id="save-bar">
 <h2>Settings tabs and the Save all changes bar</h2>
-<p>Open ${ui('Settings')} from the sidebar. Settings is split into six <b>tabs</b>, a row of buttons at the top of the page. Each tab shows its cards one under the other:</p>
+<p>Open ${ui('Settings')} from the sidebar. Settings is split into seven <b>tabs</b>, a row of buttons at the top of the page. Each tab shows its cards one under the other:</p>
 <div class="table-wrap"><table>
   <tr><th>Tab</th><th>Cards in it</th></tr>
   <tr><td>${ui('Company')}</td><td>Business type, Company details (with payment accounts), Business profiles, Terms</td></tr>
@@ -17,6 +17,7 @@ export default [
   <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
   <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), <a href="phone.html">Use on phone or tablet</a>, Privacy &amp; internet</td></tr>
   <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, <a href="backup.html#close-books">Close the books</a> and the edit history, Google Drive, Import/Export</td></tr>
+  <tr><td>${ui('Appearance')}</td><td><a href="#appearance">App colour, Text size and Compact lists</a></td></tr>
   <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
 </table></div>
 <p>Click a tab to show it; the tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two lines; nothing is hidden. Searching with ${ui('Ctrl + K')} for a setting (for example "Google Drive") opens its tab at that card.</p>
@@ -64,7 +65,13 @@ export default [
   <tr><td>Everything</td><td>Nothing: every feature is shown</td></tr>
 </table></div>
 <p>Every type keeps Dashboard, New invoice, Clients, Settings, Support &amp; About, User guide, Notifications, Dark mode and Control Panel. E-invoicing is only for businesses with a yearly turnover above ₹5 crore, so only <b>Everything</b> turns it on; tick it in Features if you need it.</p>
-<p>The choice is kept on this computer and is the same for every business you run in the app. It is not the same as the <b>Business type</b> on the <a href="print-settings.html#business-type">Print &amp; PDF</a> tab, which only changes how invoices look.</p>
+<p>The choice is kept on this computer and is the same for every business you run in the app.</p>
+<p id="business-type-print">Saving a business type also:</p>
+<ul>
+  <li>sets the matching <a href="print-settings.html#business-type">print style</a> (Print &amp; PDF shows <b>Print style: … (from your business type)</b>); Everything leaves your print settings alone;</li>
+  <li>rewords the <b>Standard Terms</b> a new install starts with to the matching ready-made <a href="#terms">terms</a>: <i>Goods &amp; Products</i> for a shop, wholesale or restaurant, <i>Manufacturing &amp; Trading</i>, <i>Freelancer (Simple)</i>, or <i>Services</i> for a service or repair shop. Only while those terms are still word for word as they came: terms you wrote, edited or renamed are never changed;</li>
+  <li>for <b>Retail shop / kirana</b> and <b>Restaurant / cafe</b>, switches on <b>Start with "Cash Sale"</b> (<a href="#features">Features</a>), so a new invoice starts with the walk-in customer.</li>
+</ul>
 <h3>Something wrong?</h3>
 <ul>
   <li><b>A screen I use has gone from the menu</b>: open the <a href="#features">Features</a> tab, tick it, and click ${ui('Save all changes')}.</li>
@@ -84,7 +91,7 @@ export default [
   <tr><td>Address</td><td>Street, building and area. Two lines are enough.</td></tr>
   <tr><td>City, PIN Code</td><td>Your town and 6-digit PIN code.</td></tr>
   <tr><td>State</td><td><b>The one to get right.</b> GST depends on it: a sale inside your state is charged CGST + SGST, a sale to another state IGST. Pick it from the list.</td></tr>
-  <tr><td>GSTIN</td><td>Your 15-character GST number, such as <code>22AAAAA0000A1Z5</code>. Leave it blank if you are not registered. When you click out of the box, the app checks the pattern and shows <i>GSTIN format looks unusual</i> in orange if a character looks wrong. It is only a warning; you can still save.</td></tr>
+  <tr><td>GSTIN</td><td>Your 15-character GST number, such as <code>22AAAAA0000A1Z5</code>. Leave it blank if you are not registered. Typing all 15 characters fills in an empty <b>State</b> and <b>PAN</b> from it (a state or PAN you typed is never changed). When you click out of the box, the app checks the pattern and shows <i>GSTIN format looks unusual</i> in orange if a character looks wrong. It is only a warning; you can still save.</td></tr>
   <tr><td>Email, Phone</td><td>Printed on the invoice so clients can reach you.</td></tr>
 </table></div>
 <p>Below these come the <a href="#gstr-details">GSTR filing details</a> (Indian businesses only), <a href="#payment-accounts">Payment Accounts</a>, <a href="#invoice-numbers">Invoice Number Format</a> and <a href="#branding">Branding</a>.</p>
@@ -327,6 +334,7 @@ export default [
 <section id="terms">
 <h2>Terms &amp; Conditions Templates</h2>
 <p>The ${ui('Terms')} tab. The terms you print at the bottom of invoices, such as payment due dates, interest on late payment and returns, kept as templates so you pick one instead of typing it each time. On a new invoice your first template is loaded for you; see <a href="invoices.html#terms-notes">Terms and notes on an invoice</a>.</p>
+<p>A new install starts with one template, <b>Standard Terms</b>. Choosing your <a href="#business-type">business type</a> rewords it to the matching Quick Start terms while it is still unchanged.</p>
 <h3>Quick Start</h3>
 <p>Under <b>Quick Start — Pick a template for your business</b>, one click adds a ready-made set of Indian terms: <b>Services (IT, Consulting, Freelance)</b>, <b>Goods &amp; Products (Retail, Wholesale)</b>, <b>Manufacturing &amp; Trading</b>, <b>Export / International</b> or <b>Freelancer (Simple)</b>. It is saved straight away; clicking the same one again says <i>You already have this template</i>. Edit it afterwards to put in your own city, days and rates.</p>
 <h3>Your own template</h3>
@@ -385,13 +393,14 @@ export default [
 
 <section id="features-menu">
 <h3>Menu: show, hide and reorder</h3>
-<p>The <b>Menu</b> part lists every item of the sidebar in two boxes, <b>Top of the menu</b> and <b>Bottom of the menu</b>, in the order they appear, and a third box, <b>Buttons at the top right</b>, for the User Guide, Notifications, Pair a phone, Offline mode and Dark mode buttons.</p>
+<p>The <b>Menu</b> part lists every item of the sidebar in two boxes, <b>Top of the menu</b> (in its groups: Sales, Stock &amp; buying, Money &amp; reports) and <b>Bottom of the menu</b>, in the order they appear, and a third box, <b>Buttons at the top right</b>, for the User Guide, Notifications, Pair a phone, Offline mode and Dark mode buttons.</p>
 <ul>
   <li>The tick box shows or hides the item.</li>
-  <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. ${ui('Default order')}, shown once you have moved something, puts the menu back in the usual order.</li>
-  <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, <b>Support &amp; About</b> and <b>Lock app</b> (shown only when a PIN is set) say <b>(always shown)</b> and have no tick box. You can still move them.</li>
+  <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. In the top box an item at the top or bottom of a group moves on into the next group, and the arrows beside a group's name move the whole group. ${ui('Reset menu')}, shown once you have moved something, puts back the usual groups and order.</li>
+  <li>${ui('Customise menu…')} opens the same window as the pencil at the top of the sidebar: open or close the groups, and take items out of the menu without switching the feature off. An item taken out says <b>Not in the menu</b> here. See <a href="shortcuts.html#menu-groups">Customise menu</a>. Both always show the same order.</li>
+  <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, and <b>Support &amp; About</b> say <b>(always shown)</b> and have no tick box. You can still move them.</li>
 </ul>
-<p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything hidden. Save with ${ui('Save all changes')}.</p>
+<p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything unticked here, but still finds a screen only taken out of the menu. Save the ticks and arrows with ${ui('Save all changes')}; Customise menu saves straight away.</p>
 </section>
 
 <section id="features-inside-screens">
@@ -537,6 +546,25 @@ export default [
 <section id="data">
 <h2>Import/Export (Data Management)</h2>
 <p>The ${ui('Import/Export')} tab. ${ui('Export Backup…')} saves your data to one file you keep anywhere; ${ui('Import Backup…')} brings a file back. Your data stays on your computer: nothing is sent to us. Step by step: <a href="backup.html#export-import">Export Backup and Import Backup</a>.</p>
+</section>
+
+<section id="appearance">
+<h2>Appearance: App colour, Text size, Compact lists</h2>
+<p>The ${ui('Appearance')} tab. How the app's screens look on this computer. Each choice changes the screen at once and is remembered; there is nothing to save. Your invoices, PDFs and prints never change: their colour, font size and row height are in <a href="print-settings.html">Print and PDF</a>.</p>
+<div class="table-wrap"><table>
+  <tr><th>Setting</th><th>What it does</th></tr>
+  <tr><td>${ui('App colour')}</td><td>The colour of the buttons, the open item in the menu, links, focus outlines and progress bars. Pick one of the eight colours (blue is the default), or the rainbow circle for a colour of your own. A very light or very dark colour is made a little darker or lighter by itself, so the white writing on buttons stays easy to read, in light and in dark mode.</td></tr>
+  <tr><td>${ui('Text size')}</td><td>${ui('Smaller')}, ${ui('Normal')}, ${ui('Larger')} or ${ui('Largest')}. Everything on the screens grows or shrinks together: the menu, lists, forms, buttons and windows. The invoice preview keeps the size the invoice will print at.</td></tr>
+  <tr><td>${ui('Compact lists')}</td><td>Shorter rows in the Invoices, Purchases, Expenses and Products lists (and the reports), and smaller client cards, so more fit on the screen without scrolling.</td></tr>
+  <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="help.html#dark-mode">Dark mode</a>.</td></tr>
+</table></div>
+<p>${ui('Back to the default look')} (shown once something was changed) puts back blue, Normal and the usual row height.</p>
+<p>These are kept for this browser, and a copy goes in the app's data folder, so they come back if the browser clears its data or you move to the Windows Setup's window. A phone or tablet starts with the computer's choices and can change its own.</p>
+<h3>Something wrong?</h3>
+<ul>
+  <li><b>Text is too big and things wrap</b>: choose ${ui('Larger')} instead of ${ui('Largest')}, or use the browser's own zoom (<kbd>Ctrl</kbd> + <kbd>-</kbd>).</li>
+  <li><b>The PDF has the old blue</b>: that is on purpose. Change the invoice colour in <a href="print-settings.html">Print and PDF</a>.</li>
+</ul>
 </section>
 
 <section id="updates">

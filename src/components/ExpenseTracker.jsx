@@ -8,9 +8,23 @@ import { EXPENSE_PAYMENT, expenseStatus, expensePaid, expenseDue } from '../util
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import TableExport from './TableExport';
+import ActionsMenu from './ActionsMenu';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect, CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
+// v1.10.86 - sort by a column header, remembered in this browser.
+import { useListSort, sortRows } from '../utils/listPrefs';
+import SortTh from './SortTh';
+
+const SORT_GETTERS = {
+  date: (e) => e.date,
+  description: (e) => e.description,
+  category: (e) => e.category,
+  vendor: (e) => e.vendorName,
+  amount: (e) => Number(e.amount) || 0,
+  gst: (e) => Number(e.gstAmount) || 0,
+  payment: (e) => expenseDue(e),
+};
 
 // Each category is tagged with its ITR (Income Tax Return) head so the
 // v1.7.0+ ITR Filing Summary can auto-aggregate expenses under the correct
@@ -152,7 +166,8 @@ export default function ExpenseTracker() {
   const totalGST = filtered.reduce((s, e) => s + (e.gstAmount || 0), 0);
   // v1.10.85 (#165) - still to pay on the expenses shown.
   const totalDue = filtered.reduce((s, e) => s + expenseDue(e), 0);
-  const shown = payFilter === 'due' ? filtered.filter((e) => expenseDue(e) > 0) : filtered;
+  const { sort, toggle: toggleSort } = useListSort('expenses', Object.keys(SORT_GETTERS));
+  const shown = sortRows(payFilter === 'due' ? filtered.filter((e) => expenseDue(e) > 0) : filtered, sort, SORT_GETTERS);
 
   // Mark an Unpaid / Partly paid expense as fully paid.
   const markPaid = async (exp) => {
@@ -485,14 +500,14 @@ export default function ExpenseTracker() {
             <table className="data-table" style={{ minWidth: '800px' }}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Category</th>
-                  <th>Vendor</th>
-                  <th style={{ textAlign: 'right' }}>Amount</th>
-                  <th style={{ textAlign: 'right' }}>GST</th>
+                  <SortTh col="date" label="Date" sort={sort} onSort={toggleSort} />
+                  <SortTh col="description" label="Description" sort={sort} onSort={toggleSort} />
+                  <SortTh col="category" label="Category" sort={sort} onSort={toggleSort} />
+                  <SortTh col="vendor" label="Vendor" sort={sort} onSort={toggleSort} />
+                  <SortTh col="amount" label="Amount" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="gst" label="GST" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
                   <th>Mode</th>
-                  <th>Payment</th>
+                  <SortTh col="payment" label="Payment" sort={sort} onSort={toggleSort} />
                   <th className="col-center">Actions</th>
                 </tr>
               </thead>
@@ -515,11 +530,14 @@ export default function ExpenseTracker() {
                     </td>
                     <td>
                       <div className="table-actions">
+                        {/* v1.10.86 - the same order as every list: (View) · Edit · Payment · More. */}
+                        <button className="icon-btn icon-btn-blue" onClick={() => openEdit(exp)} title="Edit" aria-label={`Edit expense: ${exp.description || exp.category || ''}`}><Edit3 size={15} /></button>
                         {expenseDue(exp) > 0 && (
-                          <button className="icon-btn" onClick={() => markPaid(exp)} title="Mark as paid" aria-label="Mark as paid"><CheckCircle size={15} /></button>
+                          <button className="icon-btn icon-btn-green" onClick={() => markPaid(exp)} title="Mark as paid" aria-label="Mark as paid"><CheckCircle size={15} /></button>
                         )}
-                        <button className="icon-btn icon-btn-blue" onClick={() => openEdit(exp)} title="Edit"><Edit3 size={15} /></button>
-                        <button className="icon-btn icon-btn-red" onClick={() => handleDelete(exp.id)} title="Delete"><Trash2 size={15} /></button>
+                        <ActionsMenu label="More actions for this expense" items={[
+                          { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDelete(exp.id) },
+                        ]} />
                       </div>
                     </td>
                   </tr>

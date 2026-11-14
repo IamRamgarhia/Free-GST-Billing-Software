@@ -7,6 +7,7 @@ import { purchaseTdsAmount } from '../utils/tdsTcs';
 import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial } from '../utils/purchaseOrders';
 import PurchaseOrders from './PurchaseOrders';
 import TableExport from './TableExport';
+import ActionsMenu from './ActionsMenu';
 import BulkCsvImport from './BulkCsvImport';
 import UnassignedBanner from './UnassignedBanner';
 import { getPrintSettings } from '../utils/printSettings';
@@ -31,6 +32,20 @@ import { findByBarcode } from '../utils/barcode';
 import { baseQty, lineFactor, altLineFields } from '../utils';
 import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { takeReorderDraft } from '../utils/reorderDraft';
+// v1.10.86 - sort by a column header, remembered in this browser.
+import { useListSort, sortRows } from '../utils/listPrefs';
+import SortTh from './SortTh';
+
+const SORT_GETTERS = {
+  date: (p) => p.date,
+  supplier: (p) => p.supplierName,
+  invoice: (p) => p.invoiceNumber,
+  taxable: (p) => calcPurchaseTotal(p.items, !!p.applyRoundOff).taxable,
+  tax: (p) => calcPurchaseTotal(p.items, !!p.applyRoundOff).tax,
+  total: (p) => calcPurchaseTotal(p.items, !!p.applyRoundOff).finalTotal,
+  balance: (p) => purchaseBalance(p),
+  status: (p) => purchaseStatus(p),
+};
 // v1.10.86 - (#148, #194) a supplier's statement, from the Purchase Records header.
 import SupplierStatement from './SupplierStatement';
 // v1.10.86 - (#175) a bill handed over from GST Returns -> GSTR-2B ("2B only").
@@ -323,6 +338,9 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
     if (statusFilter === 'Paid' && purchaseStatus(p) !== 'Paid') return false;
     return matchesCentre(p, centreFilter);
   });
+
+  const { sort, toggle: toggleSort } = useListSort('purchases', Object.keys(SORT_GETTERS));
+  const sortedPurchases = sortRows(filtered, sort, SORT_GETTERS);
 
   const totalStats = filtered.reduce((acc, p) => {
     const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
@@ -1243,7 +1261,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div>
-            <h1 className="page-title">{poEnabled ? 'Purchases' : 'Purchase Bills'} <HelpButton title="Purchase Bills — how to use" doc="purchases" size={16} /></h1>
+            {/* v1.10.86 - one name: the menu and the page say Purchases; a bill is a Purchase Bill. */}
+            <h1 className="page-title">Purchases <HelpButton title="Purchases — how to use" doc="purchases" size={16} /></h1>
             <p className="page-subtitle">Track supplier invoices for ITC claims in GSTR-3B</p>
           </div>
         </div>
@@ -1257,7 +1276,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
             <Wand2 size={16} /> Import from image (OCR)
           </button>
           <BulkCsvImport kind="purchase" onDone={() => { loadPurchases(); loadProducts(); }} />
-          <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase</button>
+          <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase Bill</button>
         </div>
         )}
       </div>
@@ -1919,27 +1938,27 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
           <div className="empty-state">
             <ShoppingCart size={48} />
             <p>{purchases.length === 0 ? 'No purchase bills recorded yet.' : 'No purchases match your filters.'}</p>
-            {purchases.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase</button>}
+            {purchases.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase Bill</button>}
           </div>
         ) : (
           <div className="table-scroll">
             <table className="data-table" style={{ minWidth: '800px' }}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Supplier</th>
+                  <SortTh col="date" label="Date" sort={sort} onSort={toggleSort} />
+                  <SortTh col="supplier" label="Supplier" sort={sort} onSort={toggleSort} />
                   <th>GSTIN</th>
-                  <th>Invoice No</th>
-                  <th style={{ textAlign: 'right' }}>Taxable</th>
-                  <th style={{ textAlign: 'right' }}>Tax</th>
-                  <th style={{ textAlign: 'right' }}>Total</th>
-                  <th style={{ textAlign: 'right' }}>Balance due</th>
-                  <th>Status</th>
+                  <SortTh col="invoice" label="Invoice No" sort={sort} onSort={toggleSort} />
+                  <SortTh col="taxable" label="Taxable" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="tax" label="Tax" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="total" label="Total" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="balance" label="Balance due" style={{ textAlign: 'right' }} sort={sort} onSort={toggleSort} />
+                  <SortTh col="status" label="Status" sort={sort} onSort={toggleSort} />
                   <th className="col-center col-sticky-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(p => {
+                {sortedPurchases.map(p => {
                   const t = calcPurchaseTotal(p.items, !!p.applyRoundOff);
                   const st = purchaseStatus(p);
                   const bal = purchaseBalance(p);
@@ -1971,15 +1990,17 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                           {/* v1.10.30 — quick View modal (no download).
                               Modal has a Download PDF button inside for
                               users who do want the file. */}
-                          <button className="icon-btn" onClick={() => setViewPurchase(p)} title="View details (no download)"><Eye size={15} /></button>
+                          {/* v1.10.86 - the same row buttons as every list: View · Edit · Payment · More. */}
+                          <button className="icon-btn icon-btn-blue" onClick={() => setViewPurchase(p)} title="View details (no download)" aria-label={`View ${p.invoiceNumber}`}><Eye size={15} /></button>
+                          <button className="icon-btn icon-btn-blue" onClick={() => openEdit(p)} title="Edit" aria-label={`Edit ${p.invoiceNumber}`}><Edit3 size={15} /></button>
                           {/* v1.10.83 (#123) - record / see payments to the supplier. */}
-                          <button className="icon-btn icon-btn-green" onClick={() => setPayPurchase(p)} title={st === 'Paid' ? 'Payment history' : 'Record payment to supplier'} aria-label="Payments to supplier"><IndianRupee size={15} /></button>
-                          <button className="icon-btn icon-btn-blue" onClick={() => openEdit(p)} title="Edit"><Edit3 size={15} /></button>
-                          {/* v1.10.85 (#168) - send goods back: a debit note against this bill. */}
-                          {canReturn(p) && (
-                            <button className="icon-btn" onClick={() => setReturnBill(p)} title="Return to supplier (debit note)" aria-label={`Return goods on ${p.invoiceNumber} to supplier`}><RotateCcw size={15} /></button>
-                          )}
-                          <button className="icon-btn icon-btn-red" onClick={() => handleDelete(p.id)} title="Delete"><Trash2 size={15} /></button>
+                          <button className="icon-btn icon-btn-green" onClick={() => setPayPurchase(p)} title={st === 'Paid' ? 'Payment history' : 'Payment to supplier'} aria-label={`Payment for ${p.invoiceNumber}`}><IndianRupee size={15} /></button>
+                          <ActionsMenu label={`More actions for ${p.invoiceNumber}`} items={[
+                            // v1.10.85 (#168) - send goods back: a debit note against this bill.
+                            // v1.10.86 - in More, with its words (the arrow icon read as Undo).
+                            { label: 'Return to supplier (debit note)', icon: RotateCcw, onClick: () => setReturnBill(p), hidden: !canReturn(p) },
+                            { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDelete(p.id) },
+                          ]} />
                         </div>
                       </td>
                     </tr>

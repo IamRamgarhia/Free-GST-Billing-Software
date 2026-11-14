@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Building2, FileText, BarChart3, Shield, ChevronRight, ChevronLeft, Check, ArrowRight, Image, PenTool } from 'lucide-react';
-import { saveProfile, setRegionMode } from '../store';
-import { getStatesForCountry, getCountryConfig, detectCountryFromBrowser, createEmptyAccount } from '../utils';
+import { saveProfile, setRegionMode, getEnabledModules, setEnabledModules, setBusinessType, patchInvoiceDefaults, applyTypeTerms } from '../store';
+import { getStatesForCountry, getCountryConfig, detectCountryFromBrowser, createEmptyAccount, gstinFill } from '../utils';
+import { BUSINESS_TYPES, applyBusinessType, wizardResult } from '../utils/businessTypes';
+import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import SafePrivateNote from './SafePrivateNote';
@@ -29,12 +31,30 @@ export default function WelcomeGuide({ onComplete }) {
   // a Windows set to en-US started people on "Outside India" with a United
   // States company profile. The other two options are one click away.
   const [region, setRegion] = useState('india');
+  // v1.10.86 - the business type is asked here (it was a second wizard after
+  // this one): it sets the features, the print style and the starting terms.
+  const [biz, setBiz] = useState('');
   const [saving, setSaving] = useState(false);
   const cc = getCountryConfig(profile.country);
   const stateOptions = getStatesForCountry(profile.country);
 
   const handleChange = (e) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    // v1.10.86 - a full GSTIN fills in the state and PAN (empty ones only).
+    setProfile(p => ({ ...p, [name]: value, ...(name === 'gstin' && p.country === 'India' ? gstinFill(p, value) : {}) }));
+  };
+
+  // v1.10.86 - the business type, as the old second wizard applied it, plus
+  // the starting terms. Also marks the first-run setup done.
+  const applySetup = () => {
+    if (biz) {
+      setEnabledModules(applyBusinessType(biz, getEnabledModules()));
+      setBusinessType(biz);
+      applyTypeTerms(biz).catch(() => {});
+    }
+    const { printSettings, invoiceDefaults } = wizardResult(getPrintSettings(), { biz });
+    savePrintSettings(printSettings);
+    if (biz) patchInvoiceDefaults(invoiceDefaults);
   };
 
   const handleFileUpload = (field) => {
@@ -78,6 +98,7 @@ export default function WelcomeGuide({ onComplete }) {
         }],
       } : profile;
       await saveProfile(profileToSave);
+      applySetup();
       localStorage.setItem('freegstbill_onboarded', 'true');
       toast('Setup complete! Start creating invoices.', 'success');
       onComplete(profileToSave);
@@ -88,6 +109,7 @@ export default function WelcomeGuide({ onComplete }) {
   };
 
   const handleSkip = () => {
+    applySetup();
     localStorage.setItem('freegstbill_onboarded', 'true');
     onComplete(null);
   };
@@ -98,10 +120,10 @@ export default function WelcomeGuide({ onComplete }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--bg-primary)' }}>
-      <div style={{ maxWidth: '640px', width: '100%' }}>
+    <div style={{ minHeight: 'calc(100vh / var(--ui-zoom, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(0.75rem, 3vw, 2rem)', background: 'var(--bg-primary)' }}>
+      <div style={{ maxWidth: '680px', width: '100%' }}>
         {/* Progress */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', justifyContent: 'center' }}>
           {STEPS.map((s, i) => (
             <div key={s.id} style={{
               width: i === step ? '3rem' : '2rem', height: '4px', borderRadius: '2px',
@@ -111,42 +133,42 @@ export default function WelcomeGuide({ onComplete }) {
           ))}
         </div>
 
-        <div className="glass-panel" style={{ padding: '2.5rem' }}>
+        {/* v1.10.86 - the padding shrinks on a phone; the buttons at the bottom
+            stay on screen (sticky), so Get Started is never below the fold. */}
+        <div className="glass-panel" style={{ padding: 'clamp(1.1rem, 4vw, 2.25rem)', paddingBottom: 0 }}>
 
-          {/* Step 0: Welcome */}
+          {/* Step 0: Welcome - v1.10.86: the business type is asked here (it was a
+              second window after this one); the feature cards made way for it. */}
           {step === 0 && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                <FileText size={32} color="white" />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.6rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FileText size={26} color="white" />
+                </div>
+                <h1 style={{ fontSize: 'clamp(1.25rem, 4vw, 1.6rem)', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Welcome to Free GST Billing Software <HelpButton title="Welcome" doc="first-run#welcome" size={16} /></h1>
               </div>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Welcome to Free GST Billing Software <HelpButton title="Welcome" doc="first-run#welcome" size={16} /></h1>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: 1.6 }}>
-                Free, open-source GST billing software that runs 100% on your computer. Your data never leaves your machine.
+              <p style={{ color: 'var(--text-secondary)', margin: '0 0 1rem', lineHeight: 1.5, fontSize: '0.9rem' }}>
+                Free GST billing that runs on your computer. Two minutes of setup and you can make your first bill.
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem', textAlign: 'left' }}>
-                {[
-                  { title: 'Create Invoices', desc: 'Tax Invoice, Proforma, Credit Note, Bill of Supply, Delivery Challan' },
-                  { title: 'Auto GST Calculation', desc: 'CGST/SGST for same state, IGST for different state — automatic' },
-                  { title: 'GST Filing Ready', desc: 'GSTR-1, GSTR-3B, HSN reports auto-generated. Download CSVs for portal.' },
-                  { title: '100% Private', desc: 'All data stored locally as files. No cloud, no signup, no tracking.' },
-                ].map((item, i) => (
-                  <div key={i} style={{ padding: '1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>{item.title}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{item.desc}</div>
-                  </div>
+              <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>What kind of business do you run? <HelpButton title="Business type" doc="first-run#business-type" size={16} /></p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.45rem' }}>
+                {BUSINESS_TYPES.map(t => (
+                  <button key={t.id} type="button" onClick={() => setBiz(biz === t.id ? '' : t.id)} aria-pressed={biz === t.id}
+                    className={`type-chip ${biz === t.id ? 'type-chip-active' : ''}`}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0.5rem 0.7rem', gap: '0.1rem', textAlign: 'left' }}>
+                    <span style={{ fontWeight: 600 }}>{t.label}</span>
+                    <span style={{ fontSize: '0.68rem', color: biz === t.id ? 'inherit' : 'var(--text-muted)', fontWeight: 400, lineHeight: 1.3 }}>{t.hint}</span>
+                  </button>
                 ))}
               </div>
-
-              <SafePrivateNote style={{ marginBottom: '1.5rem' }} />
-
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                Let's set up your business profile so your invoices look professional. Takes about 2 minutes.
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.45rem 0 0' }}>
+                It picks the screens you see, the print style and the terms printed on your bills. Nothing is ever deleted; change it any time in Settings → Company → Business type.
               </p>
 
-              <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', textAlign: 'left' }}>
+              <div style={{ marginTop: '0.9rem', padding: '0.75rem 0.9rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', textAlign: 'left' }}>
                 <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.6rem', color: 'var(--text-primary)' }}>Where will you be invoicing from?</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.5rem' }}>
                   {[
                     { id: 'india', label: '🇮🇳 India', desc: 'GST, GSTR-1/3B, UPI' },
                     { id: 'international', label: '🌍 Outside India', desc: 'VAT/SST/MwSt' },
@@ -167,6 +189,8 @@ export default function WelcomeGuide({ onComplete }) {
                 </div>
                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.6rem 0 0' }}>You can change this any time in Settings → Print &amp; PDF → Region.</p>
               </div>
+
+              <SafePrivateNote style={{ marginTop: '0.9rem' }} />
             </div>
           )}
 
@@ -193,6 +217,12 @@ export default function WelcomeGuide({ onComplete }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
+                    <label className="form-label">{cc.taxIdLabel}</label>
+                    <input type="text" name="gstin" className="form-input" value={profile.gstin} onChange={handleChange}
+                      placeholder={cc.taxIdPlaceholder} maxLength={20} style={{ textTransform: 'uppercase' }} />
+                    <span className="field-hint">Leave blank if not registered for tax.{profile.country === 'India' && ' Typing your GSTIN fills in the state and PAN.'}</span>
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">{cc.stateLabel}</label>
                     {stateOptions.length > 0 ? (
                       <select name="state" className="form-input" value={profile.state} onChange={handleChange}>
@@ -203,12 +233,6 @@ export default function WelcomeGuide({ onComplete }) {
                       <input type="text" name="state" className="form-input" value={profile.state} onChange={handleChange} placeholder={cc.stateLabel} />
                     )}
                     {profile.country === 'India' && <span className="field-hint">Needed for auto CGST/SGST vs IGST</span>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{cc.taxIdLabel}</label>
-                    <input type="text" name="gstin" className="form-input" value={profile.gstin} onChange={handleChange}
-                      placeholder={cc.taxIdPlaceholder} maxLength={20} style={{ textTransform: 'uppercase' }} />
-                    <span className="field-hint">Leave blank if not registered for tax</span>
                   </div>
                 </div>
 
@@ -338,8 +362,8 @@ export default function WelcomeGuide({ onComplete }) {
             </div>
           )}
 
-          {/* Navigation */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+          {/* Navigation - v1.10.86: sticky, so the next button is always on screen. */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1.25rem', padding: '0.85rem 0', borderTop: '1px solid var(--border-color)', position: 'sticky', bottom: 0, background: 'linear-gradient(var(--card-bg), var(--card-bg)), var(--bg-primary)', zIndex: 1 }}>
             <div>
               {step === 0 && (
                 <button className="btn btn-secondary" onClick={handleSkip} style={{ fontSize: '0.85rem' }}>
@@ -374,7 +398,7 @@ export default function WelcomeGuide({ onComplete }) {
         </div>
 
         {/* Step labels */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem 1.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
           {STEPS.map((s, i) => (
             <div key={s.id} style={{ fontSize: '0.7rem', color: i === step ? 'var(--primary)' : 'var(--text-muted)', fontWeight: i === step ? 600 : 400, transition: 'all 0.3s' }}>
               {s.title}

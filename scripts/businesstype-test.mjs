@@ -5,8 +5,10 @@
 import {
   BUSINESS_TYPES, SWITCHABLE_MODULES, modulesForType, applyBusinessType,
   businessTypeChanges, featureChanges, orderedMenu, moveMenuItem, wizardResult,
+  printStyleForType,
 } from '../src/utils/businessTypes.js';
-import { isModuleEnabled, MENU_ITEMS, FEATURE_GROUPS } from '../src/utils.js';
+import { STANDARD_TERMS, QUICK_TERMS, termsForType, defaultTermsFor } from '../src/utils/termsDefaults.js';
+import { isModuleEnabled, MENU_ITEMS, FEATURE_GROUPS, gstinFill } from '../src/utils.js';
 import { BUSINESS_PRESETS } from '../src/utils/printSettings.js';
 
 let passed = 0, failed = 0;
@@ -82,23 +84,25 @@ eq(featureChanges({}, applyBusinessType('freelancer', {})), businessTypeChanges(
 
 console.log('Sidebar order');
 const def = MENU_ITEMS.map(m => m.id);
+// v1.10.86 - saved orders now carry group markers; compare the items only.
+const flat = (order) => orderedMenu(order).map(m => m.id);
 eq(orderedMenu([]).map(m => m.id), def, 'no saved order = default');
-eq(orderedMenu(['ghost', 'reports']).map(m => m.id)[0], 'reports', 'saved first item comes first, unknown ids ignored');
+eq(flat(['ghost', 'reports', 'cashbook']).filter(id => id === 'reports' || id === 'cashbook'), ['reports', 'cashbook'], 'saved item order is kept (inside its group), unknown ids ignored');
 eq(orderedMenu(undefined).length, MENU_ITEMS.length, 'bad saved order is safe');
 let o = moveMenuItem([], 'reports', -1);
 const aboveReports = def[def.indexOf('reports') - 1];
 eq(o.indexOf('reports') < o.indexOf(aboveReports), true, `Reports moved above ${aboveReports}`);
-eq(moveMenuItem(o, 'reports', +1), def, 'moving back down restores');
-eq(moveMenuItem([], 'dashboard', -1), def, 'first item cannot go up');
+eq(flat(moveMenuItem(o, 'reports', +1)), def, 'moving back down restores');
+eq(flat(moveMenuItem([], 'dashboard', -1)), def, 'first item cannot go up');
 const idsIn = (section) => MENU_ITEMS.filter(m => m.section === section).map(m => m.id);
-eq(moveMenuItem([], idsIn('main').at(-1), +1), def, 'last of the top part cannot jump into the bottom part');
-eq(moveMenuItem([], idsIn('bottom')[0], -1), def, 'first of the bottom part cannot jump into the top part');
-eq(moveMenuItem([], idsIn('top')[0], -1), def, 'first top-bar button cannot jump into another part');
+eq(flat(moveMenuItem([], idsIn('main').at(-1), +1)), def, 'last of the top part cannot jump into the bottom part');
+eq(flat(moveMenuItem([], idsIn('bottom')[0], -1)), def, 'first of the bottom part cannot jump into the top part');
+eq(flat(moveMenuItem([], idsIn('top')[0], -1)), def, 'first top-bar button cannot jump into another part');
 eq(['guide', 'notifications', 'darkMode'].every(id => idsIn('top').includes(id)), true, 'dark mode, notifications and guide are top-bar buttons');
 eq(idsIn('top').includes('lock'), false, 'no second lock button in the top bar (v1.10.86: the Lock button on the Dashboard is the one)');
 o = moveMenuItem([], 'settings', -1);
 eq(o.indexOf('settings') < o.indexOf('controlpanel'), true, 'bottom items reorder among themselves');
-eq(moveMenuItem([], 'nope', 1), def, 'unknown item: no change');
+eq(flat(moveMenuItem([], 'nope', 1)), def, 'unknown item: no change');
 
 console.log('[ERR-033] The wizard keeps the language and paper picked in it');
 for (const biz of ['retail_shop', 'freelancer', 'wholesale', 'service']) {
@@ -108,6 +112,40 @@ for (const biz of ['retail_shop', 'freelancer', 'wholesale', 'service']) {
 }
 eq(wizardResult({}, { biz: '', language: 'ta', paperSize: '' }).printSettings.labelLanguage, 'ta', 'no business type: the language still saves');
 eq('paperSize' in wizardResult({}, { biz: '', language: 'en', paperSize: '' }).invoiceDefaults, false, 'no paper picked: the invoice paper is left as it was');
+
+console.log('v1.10.86 Start with Cash Sale for counter sales');
+eq(['retail_shop', 'restaurant'].map((t) => shown(t, 'cashSaleDefault')), [true, true], 'retail and restaurant start with Cash Sale');
+eq(['freelancer', 'wholesale', 'manufacturer', 'service'].map((t) => shown(t, 'cashSaleDefault')), [false, false, false, false], 'other types do not');
+
+console.log('v1.10.86 The business type sets the print style');
+const ps = printStyleForType({ labelLanguage: 'hi', footerMessage: 'mine' }, 'retail_shop');
+eq([ps.activeBusinessPresetId, ps.labelLanguage, ps.pdfTemplate], ['retail_shop', 'hi', 'modern'], 'retail: its style, the Hindi labels kept');
+eq(printStyleForType({ a: 1 }, 'everything'), { a: 1 }, 'everything: print settings untouched');
+eq(wizardResult({ labelLanguage: 'ta' }, { biz: 'freelancer' }).printSettings.labelLanguage, 'ta', 'welcome without a language keeps the saved one');
+eq(wizardResult({}, { biz: 'service' }).printSettings.activeBusinessPresetId, 'service', 'welcome sets the print style of the type');
+
+console.log('v1.10.86 The starting terms follow the business type');
+const seeded = { id: 'default', name: 'Standard Terms', content: STANDARD_TERMS };
+const goods = QUICK_TERMS.find((q) => q.name.startsWith('Goods'));
+eq(defaultTermsFor([seeded], 'retail_shop'), { id: 'default', name: goods.name, content: goods.content }, 'kirana: the agency wording becomes the goods terms');
+eq(termsForType('freelancer').name, 'Freelancer (Simple)', 'freelancer: the freelancer terms');
+eq(termsForType('everything'), null, 'everything: no terms of its own');
+for (const t of BUSINESS_TYPES) if (t.id !== 'everything') eq(!!termsForType(t.id), true, `${t.id}: has matching terms`);
+eq(defaultTermsFor([{ ...seeded, content: STANDARD_TERMS + ' Edited.' }], 'retail_shop'), null, 'edited terms are never replaced');
+eq(defaultTermsFor([{ ...seeded, name: 'My terms' }], 'retail_shop'), null, 'renamed terms are never replaced');
+eq(defaultTermsFor([{ id: 'tpl_1', name: 'Standard Terms', content: STANDARD_TERMS }], 'retail_shop'), null, 'only the seeded one (id default) is reworded');
+const once = defaultTermsFor([seeded], 'retail_shop');
+eq(defaultTermsFor([once], 'manufacturer').name, 'Manufacturing & Trading', 'still stock text: a new type rewords it again');
+eq(defaultTermsFor([once], 'wholesale'), null, 'same terms already: nothing to save');
+eq(defaultTermsFor([seeded, { id: 'tpl_2', name: goods.name, content: goods.content }], 'retail_shop'), null, 'already added from Quick Start: no second copy');
+eq(defaultTermsFor([], 'retail_shop'), null, 'no templates yet: nothing');
+
+console.log('v1.10.86 A GSTIN fills in the state and PAN, never over typed ones');
+eq(gstinFill({}, '29ABCDE1234F1ZW'), { state: 'Karnataka', pan: 'ABCDE1234F' }, 'empty fields filled');
+eq(gstinFill({ state: 'Kerala', pan: 'XYZAB1234C' }, '29ABCDE1234F1ZW'), {}, 'typed state and PAN kept');
+eq(gstinFill({}, '29abcde1234f1zw'), { state: 'Karnataka', pan: 'ABCDE1234F' }, 'lower case works');
+eq(gstinFill({}, '29ABCDE1234F1Z'), {}, 'not 15 characters yet: nothing');
+eq(gstinFill({}, '29ABCDE1234F1ZX'), {}, 'fails the checksum: nothing');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

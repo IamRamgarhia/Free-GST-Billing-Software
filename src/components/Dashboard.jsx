@@ -25,7 +25,15 @@ import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../
 import { periodRange, inPeriod } from '../utils/period';
 import { askPaidMode } from './askPaidMode';
 import { reorderLines } from '../utils/stock';
+import { findScannedInvoice, creditNoteDraft } from '../utils/scanReturn';
+import ScanReturnCard from './ScanReturnCard';
 import { putReorderDraft } from '../utils/reorderDraft';
+// v1.10.86 - sort by column, Customise Dashboard, remembered and saved filters.
+import { useListSort, sortRows, readJson, writeJson, BLOCKS_KEY, normaliseLayout, takeStartScroll } from '../utils/listPrefs';
+import { SlidersHorizontal, Bookmark } from 'lucide-react';
+import SortTh from './SortTh';
+import DashboardCustomise from './DashboardCustomise';
+import { promptAction } from './ConfirmModal';
 
 // v1.10.85 (#135) - the dispatch status badge of a sales order.
 const SO_STATUS_COLORS = {
@@ -110,6 +118,20 @@ const CARD_PERIOD_KEY = 'gst_dashboardPeriod';
 const CARD_MONTH_KEY = 'gst_dashboardMonth';
 const readPref = (key, fallback) => { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } };
 const writePref = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private mode */ } };
+// v1.10.86 - the list's filters (remembered) and named filter sets; the
+// columns a header click sorts by.
+const FILTERS_KEY = 'gst_dashboardFilters';
+const SAVED_FILTERS_KEY = 'gst_savedFilters';
+const SORT_GETTERS = {
+  date: (b) => b.invoiceDate,
+  invoice: (b) => b.invoiceNumber,
+  type: (b) => INVOICE_TYPES[b.invoiceType || 'tax-invoice']?.label,
+  client: (b) => b.clientName,
+  amount: (b) => Number(b.totalAmount) || 0,
+  dueDate: (b) => b.data?.details?.dueDate,
+  paid: (b) => Number(b.paidAmount) || 0,
+  status: (b) => STATUS_CONFIG[b.status || 'unpaid']?.label || b.status,
+};
 
 // v1.10.6 — audit L4: was a local copy of getFYOptions. Now imported
 // from ../utils so a bugfix touches one file, not five.
@@ -321,13 +343,54 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     return { byCurrency, count, inBase, noRate };
   }, [bills, baseCur, cardRange]);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [fyFilter, setFyFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  // v1.10.86 - the filters last used come back (not the search text).
+  const [lastFilters] = useState(() => {
+    const f = readJson(FILTERS_KEY, {});
+    return f && typeof f === 'object' ? f : {};
+  });
+  const [typeFilter, setTypeFilter] = useState(() => lastFilters.type || 'all');
+  const [statusFilter, setStatusFilter] = useState(() => lastFilters.status || 'all');
+  const [fyFilter, setFyFilter] = useState(() => (getFYOptions().some((f) => f.value === lastFilters.fy) ? lastFilters.fy : 'all'));
+  const [dateFrom, setDateFrom] = useState(() => lastFilters.from || '');
+  const [dateTo, setDateTo] = useState(() => lastFilters.to || '');
   // v1.10.83 (#112) - '' = all; see utils/costCentres.js.
-  const [centreFilter, setCentreFilter] = useState('');
+  const [centreFilter, setCentreFilter] = useState(() => lastFilters.centre || '');
+  const currentFilters = useMemo(() => ({ type: typeFilter, status: statusFilter, fy: fyFilter, from: dateFrom, to: dateTo, centre: centreFilter }),
+    [typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter]);
+  useEffect(() => { writeJson(FILTERS_KEY, currentFilters); }, [currentFilters]);
+  // v1.10.86 - named filter sets, shown as buttons above the list.
+  const [savedFilters, setSavedFiltersState] = useState(() => {
+    const v = readJson(SAVED_FILTERS_KEY, []);
+    return Array.isArray(v) ? v.filter((x) => x && x.name && x.filters) : [];
+  });
+  const setSavedFilters = (next) => { setSavedFiltersState(next); writeJson(SAVED_FILTERS_KEY, next); };
+  const applyFilters = (f) => {
+    setTypeFilter(f.type || 'all'); setStatusFilter(f.status || 'all');
+    setFyFilter(getFYOptions().some((x) => x.value === f.fy) ? f.fy : 'all');
+    setDateFrom(f.from || ''); setDateTo(f.to || ''); setCentreFilter(f.centre || '');
+  };
+  const sameFilters = (f) => ['type', 'status', 'fy', 'from', 'to', 'centre'].every((k) => (f[k] || '') === (currentFilters[k] || ''));
+  const saveCurrentFilters = async () => {
+    const name = String(await promptAction({ title: 'Name these filters', message: 'A button with this name will put these filters back in one click.', placeholder: 'e.g. Overdue this year', confirmLabel: 'Save' }) || '').trim().slice(0, 40);
+    if (!name) return;
+    setSavedFilters([...savedFilters.filter((x) => x.name !== name), { name, filters: currentFilters }]);
+  };
+  const deleteSavedFilter = async (name) => {
+    if (await confirmAction({ title: `Remove the "${name}" button?`, message: 'Only the button goes; no invoice is changed.', confirmLabel: 'Remove', tone: 'danger' })) {
+      setSavedFilters(savedFilters.filter((x) => x.name !== name));
+    }
+  };
+  // v1.10.86 - Customise Dashboard (which blocks show, in what order).
+  const [layout, setLayoutState] = useState(() => normaliseLayout(readJson(BLOCKS_KEY, null)));
+  const setLayout = (next) => { setLayoutState(next); writeJson(BLOCKS_KEY, next); };
+  const [showCustomise, setShowCustomise] = useState(false);
+  const blockOn = (id) => !layout.hidden.includes(id);
+  const blockOrder = (id) => ({ order: layout.order.indexOf(id) + 1 });
+  // "Open the app on: Invoices list" scrolls here once the page has loaded.
+  const listRef = useRef(null);
+  const [scrollToList, setScrollToList] = useState(takeStartScroll);
+  // Sort by column; the usual order until a header is clicked.
+  const { sort, toggle: toggleSort } = useListSort('dashboard', Object.keys(SORT_GETTERS));
   const { on: ccOn, centres } = useCostCentres(profile);
   // v1.10.84 (maintainer, 7 Nov) - folder tabs on top of the list: Invoices
   // (active), Cancelled, Trash (deleted, 30 days; InvoiceTrash).
@@ -550,6 +613,19 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (centreFilter) result = result.filter(b => matchesCentre(b, centreFilter));
     setFiltered(result);
   }, [bills, search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter, folder, soOn]);
+  // v1.10.86 (#197) - the search text is exactly one invoice's number, order ID
+  // or AWB (a scanned return label): looked up in all of this business's
+  // bills, whatever the filters, since a return can come in a later year.
+  const scanned = useMemo(() => findScannedInvoice(bills, search), [bills, search]);
+  // The "scan a return" hint, for a business with marketplace orders (an AWB on file).
+  const sellsOnline = useMemo(() => bills.some((b) => String(b.data?.details?.dispatchDocNo || '').trim()), [bills]);
+  // v1.10.86 - the rows as shown: sorted by the clicked header, if any.
+  const shownBills = useMemo(() => sortRows(filtered, sort, SORT_GETTERS), [filtered, sort]);
+  useEffect(() => {
+    if (!scrollToList || productCount === null) return; // wait until the blocks above have loaded
+    const t = setTimeout(() => { listRef.current?.scrollIntoView({ block: 'start' }); setScrollToList(false); }, 150);
+    return () => clearTimeout(t);
+  }, [scrollToList, productCount]);
 
   // v1.10.67 (#66 item 12, @sangwanmail-eng) — an issued invoice is not
   // deleted: its number has to stay in the books, gapless, for GST. Cancelling
@@ -1438,6 +1514,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   };
 
   // v1.10.4 — trivial boolean, still cheap but consistent with the rest.
+  // v1.10.86 - any filter but the search (what Save these filters keeps).
+  const hasListFilters = typeFilter !== 'all' || statusFilter !== 'all' || fyFilter !== 'all' || !!dateFrom || !!dateTo || !!centreFilter;
   const hasFilters = useMemo(
     () => Boolean(search || typeFilter !== 'all' || statusFilter !== 'all' || fyFilter !== 'all' || dateFrom || dateTo || centreFilter),
     [search, typeFilter, statusFilter, fyFilter, dateFrom, dateTo, centreFilter]);
@@ -1522,14 +1600,20 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   }, [guideDismissed, productCount, profile, allBills.length, onNew, onOpenProducts, onOpenSettings]);
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container dashboard-blocks">
       <PageHeader
         compact
         icon="📊"
-        title={<>Dashboard <HelpButton title="Dashboard — how to use" doc="dashboard" size={16} /></>}
+        title={<>Dashboard <HelpButton title="Dashboard — how to use" doc="dashboard" size={16} />
+          {/* v1.10.86 - on a phone Customise sits here, so the header buttons keep to one row. */}
+          <button type="button" className="icon-btn dash-customise-phone" onClick={() => setShowCustomise(true)} aria-label="Customise Dashboard" title="Customise Dashboard"><SlidersHorizontal size={16} /></button></>}
         subtitle="Overview of your invoices"
         meta={`${bills.length} invoice${bills.length === 1 ? '' : 's'}`}>
         <LockButton />
+        {/* v1.10.86 - which blocks show, in what order; the screen the app opens on. */}
+        <button type="button" className="btn btn-secondary dash-customise-btn" onClick={() => setShowCustomise(true)} title="Customise Dashboard: show, hide and move the blocks of this page" aria-label="Customise Dashboard">
+          <SlidersHorizontal size={16} /> Customise
+        </button>
         <BulkCsvImport kind="sales" onDone={loadBills} />
         {einvoiceOn && (
           <>
@@ -1549,6 +1633,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           two. This stays until the work is actually done, ticks itself off
           from real data rather than from "have you seen this screen", and
           removes itself for good once everything is set up. */}
+      {showCustomise && <DashboardCustomise layout={layout} onChange={setLayout} onClose={() => setShowCustomise(false)} />}
+
+      {/* v1.10.86 - each block in a wrapper whose CSS order follows Customise Dashboard. */}
+      {blockOn('welcome') && <div style={blockOrder('welcome')}>
       {onOpenSupport && <WelcomeCard invoiceCount={bills.length} onOpenSupport={onOpenSupport} />}
 
       {startedSteps && (
@@ -1591,11 +1679,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         </div>
       )}
 
-      {!startedSteps && onOpenSupport && <SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} />}
+      </div>}
 
-      {overdueBills.length > 0 && (
+      {blockOn('support') && !startedSteps && onOpenSupport && <div style={blockOrder('support')}><SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} /></div>}
+
+      {blockOn('overdue') && overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}
-          style={{ background: 'var(--danger-light)', border: '1px solid var(--danger-light)', borderRadius: 10, padding: '0.85rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          style={{ ...blockOrder('overdue'), background: 'var(--danger-light)', border: '1px solid var(--danger-light)', borderRadius: 10, padding: '0.85rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <AlertTriangle size={20} style={{ color: '#dc2626', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 700, color: '#dc2626' }}>
@@ -1669,6 +1759,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         </div>
       )}
 
+      {blockOn('totals') && <div style={blockOrder('totals')}>
       <div className="card-period" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
         <label htmlFor="card-period" className="text-muted" style={{ fontSize: '0.8rem' }}>Totals for</label>
         <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
@@ -1730,15 +1821,17 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         </div>
       </div>
 
+      </div>}
+
       {/* Low stock: one line, moving only when it does not fit (LowStockTicker, below). */}
-      {lowStockProducts.length > 0 && (
+      {blockOn('lowStock') && lowStockProducts.length > 0 && <div style={blockOrder('lowStock')}>
         <LowStockTicker products={lowStockProducts} onOpenProducts={onOpenProducts}
           // v1.10.85 - with purchase orders on: the low items as a draft PO on Purchases.
           onReorder={onOpenPurchases && isModuleEnabled('purchaseOrders', getEnabledModules())
             ? () => { putReorderDraft(reorderLines(lowStockProducts, lowStockLevel)); onOpenPurchases(); } : null} />
-      )}
+      </div>}
 
-      <div className="glass-panel">
+      {blockOn('list') && <div className="glass-panel" ref={listRef} style={{ ...blockOrder('list'), scrollMarginTop: '0.5rem' }}>
         <div className="table-header"><h3>Invoices <HelpButton title="Finding an invoice" doc="dashboard#invoice-list" size={16} /></h3></div>
         {/* v1.10.84 (maintainer) - folders on top: active invoices, cancelled ones, and the Trash. */}
         <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0.75rem 0 0.25rem', padding: '0 1.25rem' }}>
@@ -1765,8 +1858,11 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         <div className="filters-bar">
           <div className="search-box">
             <Search size={16} className="search-icon" />
+            {/* v1.10.86 (#197) - a barcode scanner types the label and presses
+                Enter: the text is then selected, so the next scan replaces it. */}
             <input type="text" placeholder="Search client, invoice, order no, AWB, phone..." value={search}
-              onChange={e => setSearch(e.target.value)} className="search-input" />
+              onChange={e => setSearch(e.target.value)} className="search-input" aria-label="Search invoices"
+              enterKeyHint="search" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.select(); }} />
           </div>
           {/* v1.10.84 - in the Trash tab only the search applies. */}
           {folder !== 'trash' && (<>
@@ -1801,6 +1897,34 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           </button>
           </>)}
         </div>
+        {/* v1.10.86 (#197) - a scanned return label names one invoice: show it with Return / credit note. */}
+        {folder !== 'trash' && scanned && (
+          <ScanReturnCard found={scanned} onOpen={handleView} onReturn={(bill) => onDuplicate(creditNoteDraft(bill))} />
+        )}
+        {folder !== 'trash' && !search && sellsOnline && (
+          <p className="scan-return-hint">Returned parcel? Scan its label in the search box. <HelpButton title="Scan a return" doc="dashboard#scan-a-return" size={14} /></p>
+        )}
+
+        {/* v1.10.86 - saved filter sets as buttons; Save these filters names the current set. */}
+        {folder !== 'trash' && (savedFilters.length > 0 || hasListFilters) && (
+          <div className="saved-filters" aria-label="Saved filters">
+            <span className="saved-filters-label"><Bookmark size={12} /> Saved filters: <HelpButton title="Saved filters" doc="dashboard#saved-filters" size={14} /></span>
+            {savedFilters.map((x) => {
+              const on = sameFilters(x.filters);
+              return (
+                <span key={x.name} className={`saved-filter-chip${on ? ' is-on' : ''}`}>
+                  <button type="button" aria-pressed={on} onClick={() => applyFilters(x.filters)} title="Show the invoices these filters pick">{x.name}</button>
+                  <button type="button" onClick={() => deleteSavedFilter(x.name)} aria-label={`Remove the ${x.name} button`} title="Remove this button"><X size={12} /></button>
+                </span>
+              );
+            })}
+            {hasListFilters && !savedFilters.some((x) => sameFilters(x.filters)) && (
+              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }} onClick={saveCurrentFilters}>
+                <Plus size={12} /> Save these filters
+              </button>
+            )}
+          </div>
+        )}
 
         {/* v1.9.4 — column picker popover */}
         {showColumnPicker && folder !== 'trash' && (
@@ -1949,21 +2073,22 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                       title="Select all visible"
                       style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }} />
                   </th>
-                  {visibleColumns.date && <th>Date</th>}
-                  {visibleColumns.invoice && <th>Invoice No.</th>}
-                  {visibleColumns.type && <th className="col-center">Type</th>}
-                  {visibleColumns.client && <th>Client</th>}
-                  {visibleColumns.amount && <th>Amount</th>}
+                  {/* v1.10.86 - a click on a header sorts by it (SortTh). */}
+                  {visibleColumns.date && <SortTh col="date" label="Date" sort={sort} onSort={toggleSort} />}
+                  {visibleColumns.invoice && <SortTh col="invoice" label="Invoice No." sort={sort} onSort={toggleSort} />}
+                  {visibleColumns.type && <SortTh col="type" label="Type" className="col-center" sort={sort} onSort={toggleSort} />}
+                  {visibleColumns.client && <SortTh col="client" label="Client" sort={sort} onSort={toggleSort} />}
+                  {visibleColumns.amount && <SortTh col="amount" label="Amount" sort={sort} onSort={toggleSort} />}
                   {visibleColumns.currency && <th>Currency</th>}
-                  {visibleColumns.dueDate && <th>Due Date</th>}
+                  {visibleColumns.dueDate && <SortTh col="dueDate" label="Due Date" sort={sort} onSort={toggleSort} />}
                   {visibleColumns.printed && <th>Printed</th>}
-                  <th className="col-center">Paid</th>
-                  {visibleColumns.status && <th className="col-center">Status</th>}
+                  <SortTh col="paid" label="Paid" className="col-center" sort={sort} onSort={toggleSort} />
+                  {visibleColumns.status && <SortTh col="status" label="Status" className="col-center" sort={sort} onSort={toggleSort} />}
                   {visibleColumns.actions && <th className="col-center col-sticky-actions">Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(bill => {
+                {shownBills.map(bill => {
                   const status = bill.status || 'unpaid';
                   const sc = STATUS_CONFIG[status] || STATUS_CONFIG.unpaid;
                   // v1.10.76 (#83) - only real sales get paid, so only they get the
@@ -2046,18 +2171,20 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                               aria-label={`View ${bill.invoiceNumber}`}><Eye size={15} /></button>
                           )}
                           {!readOnly && (
-                            <button className="icon-btn icon-btn-blue" onClick={() => handleView(bill)} title="Edit"><Edit3 size={15} /></button>
+                            <button className="icon-btn icon-btn-blue" onClick={() => handleView(bill)} title="Edit" aria-label={`Edit ${bill.invoiceNumber}`}><Edit3 size={15} /></button>
+                          )}
+                          {/* Payments on sales; on anything else (cancelled, converted, an
+                              advance on a proforma) only to see the history it has.
+                              v1.10.86 - View · Edit · Payment · More on every list; the
+                              buttons that only some rows have go after Payment. */}
+                          {((tracksPayment && !readOnly) || (bill.payments || []).length > 0) && (
+                            <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)}
+                              title={tracksPayment && !readOnly ? 'Payment' : 'Payment history'} aria-label={`Payment for ${bill.invoiceNumber}`}><IndianRupee size={15} /></button>
                           )}
                           {status === 'cancelled' && (
                             <button className="icon-btn icon-btn-blue" onClick={() => undoCancel(bill)} title="Undo cancel" aria-label={`Undo cancel of ${bill.invoiceNumber}`}>
                               <Undo2 size={15} />
                             </button>
-                          )}
-                          {/* Payments on sales; on anything else (cancelled, converted, an
-                              advance on a proforma) only to see the history it has. */}
-                          {((tracksPayment && !readOnly) || (bill.payments || []).length > 0) && (
-                            <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)}
-                              title={tracksPayment && !readOnly ? 'Payment' : 'Payment history'}><IndianRupee size={15} /></button>
                           )}
                           {/* v1.10.76 (#83) - gone once it has been converted (bill.convertedTo) */}
                           {!readOnly && ['quotation', 'proforma', 'delivery-challan'].includes(bill.invoiceType) && !bill.convertedTo && (
@@ -2103,7 +2230,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             </table>
           </div>
         )}
-      </div>
+      </div>}
 
       {einvReport && <EInvoiceReport {...einvReport} onClose={() => setEinvReport(null)} />}
 

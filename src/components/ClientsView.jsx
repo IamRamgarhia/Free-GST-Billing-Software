@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download, IndianRupee, Send } from 'lucide-react';
+import { Users, Search, FileText, ChevronDown, ChevronUp, Trash2, X, MessageCircle, Mail, Plus, Edit3, Copy, Upload, Download, Eye, IndianRupee, Send } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllClients, getAllBills, deleteClient, saveClient, saveBill, getProfile, deleteReceipt, trashBill, getAllReceipts } from '../store';
 import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSign, countsAsSales, isCancelledBill, amountDue, localToday, parseLocalDate, belongsToProfile } from '../utils';
@@ -14,6 +14,8 @@ import { clientVisits } from '../utils/phoneClients';
 import { clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientAccount, statementShareMessage, agingShareMessage, balanceReminderMessage } from '../utils/clientLedger';
 import PdfPreviewModal from './PdfPreviewModal';
 import ClientPaymentHistory from './ClientPaymentHistory';
+import ActionsMenu from './ActionsMenu';
+import PrintPreviewModal from './PrintPreviewModal';
 
 // v1.10.31 — UI-C3: Shared helper to resolve the user's accent color as an
 // RGB tuple usable with jsPDF setFillColor / setDrawColor. Falls back to the
@@ -33,6 +35,16 @@ function getAccentRGB() {
 import ClientModal from './ClientModal';
 import CsvListImport from './CsvListImport';
 import { clientsCsvToList, CLIENTS_SAMPLE } from '../utils/listCsv';
+// v1.10.86 - the client cards' "Sort by", remembered in this browser.
+import { useListSort, sortRows } from '../utils/listPrefs';
+
+// [value, label, sort]; the first (no sort) is the usual order: most owed first.
+const CLIENT_SORTS = [
+  ['', 'Most owed first', null],
+  ['name', 'Name (A-Z)', { key: 'name', dir: 'asc' }],
+  ['billed', 'Most billed first', { key: 'billed', dir: 'desc' }],
+  ['recent', 'Latest invoice first', { key: 'recent', dir: 'desc' }],
+];
 
 const STATUS_COLORS = {
   unpaid: { label: 'Unpaid', color: '#f59e0b', bg: '#fffbeb' },
@@ -44,7 +56,7 @@ const STATUS_COLORS = {
   cancelled: { label: 'Cancelled', color: '#64748b', bg: '#f1f5f9' },
 };
 
-export default function ClientsView({ onEdit, onDuplicate, onNew, onNewFor, onRecordPayment }) {
+export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint, onNewFor, onRecordPayment }) {
   const [clients, setClients] = useState([]);
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState('');
@@ -58,6 +70,8 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onNewFor, onRe
   const [receipts, setReceipts] = useState([]);
   const [pdfPreview, setPdfPreview] = useState(null);
   const [showItems, setShowItems] = useState(false);
+  // v1.10.86 - View on an invoice row: the invoice as it prints (as on the Dashboard).
+  const [viewBill, setViewBill] = useState(null);
 
   useEffect(() => {
     getProfile().then(p => { if (p?.country) setProfileCountry(p.country); }).catch(() => {});
@@ -645,7 +659,12 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onNewFor, onRe
     : allClientNames;
 
   // Sort by outstanding amount
-  const sortedClients = [...filteredClients].sort((a, b) => {
+  const { sort: clientSort, setSort: setClientSort } = useListSort('clients', ['name', 'billed', 'recent']);
+  const sortedClients = clientSort ? sortRows(filteredClients, clientSort, {
+    name: (n) => n,
+    billed: (n) => getClientStats(n).total,
+    recent: (n) => getClientBills(n)[0]?.invoiceDate,
+  }) : [...filteredClients].sort((a, b) => {
     const sa = getClientStats(a);
     const sb = getClientStats(b);
     return sb.unpaid - sa.unpaid;
@@ -792,15 +811,40 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onNewFor, onRe
       {/* Add/Edit Client Modal */}
       <ClientModal show={showForm} onClose={closeForm} onSave={handleModalSave} client={modalClient} isEditing={!!editingClientId} defaultCountry={profileCountry} />
       {pdfPreview && <PdfPreviewModal {...pdfPreview} onClose={() => setPdfPreview(null)} />}
+      {viewBill?.data && (
+        <PrintPreviewModal
+          isOpen
+          onClose={() => setViewBill(null)}
+          onPrint={onPrint ? () => onPrint(viewBill) : undefined}
+          cancelled={isCancelledBill(viewBill)}
+          einvoice={viewBill.einvoice}
+          profile={viewBill.data.profile}
+          client={viewBill.data.client || {}}
+          details={viewBill.data.details || {}}
+          items={viewBill.data.items || []}
+          totals={viewBill.data.totals || {}}
+          invoiceType={viewBill.invoiceType || viewBill.data.invoiceType || 'tax-invoice'}
+          customTerms={viewBill.data.customTerms}
+          customNotes={viewBill.data.customNotes}
+          extraSections={viewBill.data.extraSections || []}
+          invoiceOptions={viewBill.data.invoiceOptions || {}}
+        />
+      )}
 
       {/* Search */}
-      <div className="glass-panel p-4 mb-6">
+      <div className="glass-panel p-4 mb-6 client-search-bar">
         <div className="search-box" style={{ maxWidth: '400px' }}>
           <Search size={16} className="search-icon" />
           <input type="text" placeholder="Search clients..." value={search}
             onChange={e => setSearch(e.target.value)} className="search-input" />
           {search && <button className="icon-btn" onClick={() => setSearch('')}><X size={14} /></button>}
         </div>
+        <label className="client-sort">Sort by
+          <select className="filter-select" value={clientSort?.key || ''}
+            onChange={(e) => setClientSort(CLIENT_SORTS.find(([v]) => v === e.target.value)?.[2] || null)}>
+            {CLIENT_SORTS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+        </label>
       </div>
 
       {/* Client cards */}
@@ -1027,24 +1071,25 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onNewFor, onRe
                                     )}
                                   </td>
                                   <td>
+                                    {/* v1.10.86 - the same row buttons as the Dashboard: View · Edit · More
+                                        (payments: the Status drop-down in the row). */}
                                     <div className="table-actions">
                                       {bill.data && (
-                                        <button className="icon-btn icon-btn-blue" onClick={() => onEdit(bill)} title="Edit Invoice">
+                                        <button className="icon-btn icon-btn-blue" onClick={() => setViewBill(bill)} title="View" aria-label={`View ${bill.invoiceNumber}`}>
+                                          <Eye size={14} />
+                                        </button>
+                                      )}
+                                      {bill.data && (
+                                        <button className="icon-btn icon-btn-blue" onClick={() => onEdit(bill)} title="Edit" aria-label={`Edit ${bill.invoiceNumber}`}>
                                           <Edit3 size={14} />
                                         </button>
                                       )}
-                                      <button className="icon-btn icon-btn-blue" onClick={() => onDuplicate(bill)} title="Duplicate Invoice">
-                                        <Copy size={14} />
-                                      </button>
-                                      <button className="icon-btn icon-btn-green" onClick={() => shareWhatsApp(bill)} title="WhatsApp">
-                                        <MessageCircle size={14} />
-                                      </button>
-                                      <button className="icon-btn icon-btn-blue" onClick={() => shareEmail(bill)} title="Email">
-                                        <Mail size={14} />
-                                      </button>
-                                      <button className="icon-btn icon-btn-red" onClick={() => handleDeleteBill(bill.id)} title="Delete Invoice">
-                                        <Trash2 size={14} />
-                                      </button>
+                                      <ActionsMenu label={`More actions for ${bill.invoiceNumber}`} items={[
+                                        { label: 'Duplicate', icon: Copy, onClick: () => onDuplicate(bill) },
+                                        { label: 'WhatsApp', icon: MessageCircle, tone: 'green', onClick: () => shareWhatsApp(bill) },
+                                        { label: 'Email', icon: Mail, onClick: () => shareEmail(bill) },
+                                        { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDeleteBill(bill.id) },
+                                      ]} />
                                     </div>
                                   </td>
                                 </tr>

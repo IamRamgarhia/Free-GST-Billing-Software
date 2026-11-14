@@ -256,7 +256,7 @@ export default function RecurringInvoices() {
       {/* Add/Edit Modal */}
       {showForm && (
         <div className="modal-overlay" onClick={closeForm}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px', maxHeight: '90vh' }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px', maxHeight: 'calc(90vh / var(--ui-zoom, 1))' }}>
             <h3 className="section-title">
               {editingId ? 'Edit Template' : 'New Recurring Invoice'}
               <HelpButton title={editingId ? 'Edit Template' : 'New Recurring Invoice'} doc={editingId ? 'recurring#edit-template' : 'recurring#template-form'} size={16} />

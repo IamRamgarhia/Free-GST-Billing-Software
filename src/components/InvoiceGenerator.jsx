@@ -825,6 +825,10 @@ const rememberSizeStep = (step) => {
   try { localStorage.setItem(SIZE_STEP_KEY, String(Number(step) || 0)); } catch { /* sandboxed */ }
 };
 
+// v1.10.86 - Settings -> Appearance -> Text size zooms the app and zooms the
+// invoice sheet back (index.css); this is the sheet's own zoom (1 normally).
+const sheetZoom = (el) => { try { return Number(getComputedStyle(el).zoom) || 1; } catch { return 1; } };
+
 // #161 - a hidden preview sits off-screen and transparent; in html2canvas's
 // copy of the page it is put back on-screen so the capture is not blank.
 function showHiddenPaneInClone(clonedDoc) {
@@ -948,7 +952,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const scaler = pane.querySelector('.preview-scaler');
     const preview = scaler?.querySelector('.invoice-preview-container');
     const paneWidth = pane.offsetWidth - 32; // a scrollbar's room + 8px breathing room each side
-    const naturalWidth = preview?.offsetWidth || 794;
+    // v1.10.86 - Text size zooms the app and zooms the sheet back: its own
+    // px are 1/zoom of the pane's (sheetZoom).
+    const naturalWidth = (preview?.offsetWidth || 794) * sheetZoom(preview);
     if (!(paneWidth > 0 && naturalWidth > 0)) return; // hidden (phone, or Hide Preview): keep the zoom
     const ratio = paneWidth / naturalWidth;
     const nextZoom = Math.max(30, Math.min(200, Math.floor(ratio * 100)));
@@ -1029,6 +1035,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // extra render pass per character was the biggest perf hit in this
   // component per the audit's finding H15.
   const [saving, setSaving] = useState(false);
+  // v1.10.86 - Save PDF shows a moving bar while the PDF is being made.
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [termsTemplates, setTermsTemplates] = useState([]);
   const [selectedTermsId, setSelectedTermsId] = useState(draft?.selectedTermsId || '');
   const [customTerms, setCustomTerms] = useState(draft?.customTerms || '');
@@ -1092,11 +1100,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   useEffect(() => {
     const el = printRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const measure = () => setPreviewNatural((prev) => (
-      prev.w === el.offsetWidth && prev.h === el.offsetHeight
-        ? prev
-        : { w: el.offsetWidth, h: el.offsetHeight }
-    ));
+    const measure = () => setPreviewNatural((prev) => {
+      const z = sheetZoom(el); // v1.10.86 - in the frame's px (Text size)
+      const w = el.offsetWidth * z; const h = el.offsetHeight * z;
+      return prev.w === w && prev.h === h ? prev : { w, h };
+    });
     // No explicit first call: observe() delivers an initial callback with
     // the current size, so the mount measurement comes for free without a
     // synchronous setState in the effect body.
@@ -3994,6 +4002,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (problem) { toast(problem, 'warning'); return; }
     try {
       setSaving(true);
+      setPdfBusy(true);
       // Save first so the PDF shows the number the invoice was saved under.
       const savedNumber = await saveForOutput();
       if (!savedNumber) return;
@@ -4025,6 +4034,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       toast('Failed to generate PDF.', 'error');
     } finally {
       setSaving(false);
+      setPdfBusy(false);
     }
   };
 
@@ -4263,9 +4273,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           title="Save the invoice without downloading (Ctrl+S)">
             <Check size={18} /> {saving ? 'Saving…' : 'Save'}
           </button>
-          <button className="btn btn-secondary" onClick={generatePDF} disabled={saving}
-            title="Saves the invoice and downloads its PDF (Ctrl+P)">
-            <Download size={18} /> {saving ? 'Generating...' : 'Save PDF'}
+          <button className={`btn btn-secondary${pdfBusy ? ' btn-progress' : ''}`} onClick={generatePDF} disabled={saving}
+            aria-busy={pdfBusy || undefined} title="Saves the invoice and downloads its PDF (Ctrl+P)">
+            <Download size={18} /> {pdfBusy ? 'Generating...' : 'Save PDF'}
           </button>
           <button className="btn btn-secondary" onClick={directPrint} disabled={saving}
             title={

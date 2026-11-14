@@ -584,7 +584,8 @@ export function marketplaceOrdersTable(input) {
       get(r, 'Order Id'), get(r, 'Tracking ID'), 'Flipkart',
     ]);
   }
-  const notes = ['Flipkart orders report: each order is imported as a tax invoice, with its order ID and tracking ID (AWB) in the order details.'];
-  if (returned) notes.push(`${returned} order${returned === 1 ? ' was' : 's were'} returned or have a return requested: they are imported as the sales they were. Record each return as a Credit Note.`);
+  // v1.10.86 (#197) - each note says how to record a return: scan its label on the Dashboard.
+  const notes = ['Flipkart orders report: each order is imported as a tax invoice, with its order ID and tracking ID (AWB) in the order details. Returned parcel? Scan its label in the Dashboard search box.'];
+  if (returned) notes.push(`${returned} order${returned === 1 ? ' was' : 's were'} returned or have a return requested: they are imported as the sales they were. Record each return as a Credit Note: scan its label (or type its order ID) in the Dashboard search box and click Return / credit note.`);
   return { table: out, source: 'Flipkart', notes };
 }

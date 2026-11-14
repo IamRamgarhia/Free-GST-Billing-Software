@@ -8,6 +8,7 @@ import { toast } from './components/Toast.jsx'
 import { logProblem } from './utils/problemLog'
 import { isChunkLoadError } from './utils/errorReport'
 import { restorePrefs, startMirroring } from './utils/prefsMirror'
+import { applyAppLook } from './utils/appLook'
 // v1.10.83 - Inter from the app's own files, not Google Fonts. Each file holds
 // every alphabet with a unicode-range, so the browser fetches only the parts it
 // needs (Latin; Latin-extended has the ₹ sign).
@@ -180,6 +181,9 @@ window.addEventListener('unhandledrejection', (e) => {
 // folder before the first render (the wizard and Region read them on start).
 restorePrefs().then((restored) => {
   startMirroring(restored)
+  // v1.10.86 - App colour, Text size and Compact lists (Settings ->
+  // Appearance), before the first paint so the app never flashes the default.
+  applyAppLook()
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       {/* v1.10.83 - two last lines against a white screen: around the

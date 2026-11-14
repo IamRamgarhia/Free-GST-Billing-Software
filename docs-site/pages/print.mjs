@@ -11,10 +11,9 @@ export default [
 <h2>Print &amp; PDF Settings: how they save</h2>
 <p>Open ${ui('Settings')} and click the ${ui('Print &amp; PDF')} tab. Use it once when you start, to make your invoices look the way you want, and again whenever you change printer or paper.</p>
 <p>There is no Save button: every change is kept the moment you make it. The <a href="#preview">Live preview</a> on the right updates as you change things, using a sample invoice with your business name, so you can see the effect without touching a real invoice. On a narrow screen the preview moves below the settings.</p>
-<p>Three buttons sit at the top of the card:</p>
+<p>Two buttons sit at the top of the card:</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
-  <tr><td>${ui('🚀 Run setup wizard')}</td><td>Shows the first-run setup wizard again the next time the app is reloaded.</td></tr>
   <tr><td>${ui('Reset defaults')}</td><td>Puts <b>every</b> print setting back to how it was on a fresh install, straight away and without asking. That includes your <a href="#templates">saved templates</a>, number prefixes, signature image and letterhead, so there is no way back: use it only to start over.</td></tr>
   <tr><td>${ui('Test Print')}</td><td>Sends a test print of the preview to your default printer. Pick the <b>Thermal (80mm)</b> preview tab first; in Split view it says the preview is not ready.</td></tr>
 </table></div>
@@ -22,19 +21,20 @@ export default [
 <h3>Something wrong?</h3>
 <ul>
   <li><b>The preview does not change</b>: thermal settings show only on the <b>Thermal (80mm)</b> preview tab, and <a href="#pdf-font-scale">font scale</a> only in a downloaded PDF.</li>
-  <li><b>I pressed Reset defaults by mistake</b>: there is no undo. Set things again, starting with <a href="#business-type">Business type</a> and <a href="#visual-style">Visual style</a>, which set most of them in two clicks.</li>
+  <li><b>I pressed Reset defaults by mistake</b>: there is no undo. Set things again, starting with the <a href="#business-type">print style</a> and <a href="#visual-style">Visual style</a>, which set most of them in two clicks.</li>
 </ul>
 </section>
 
 <section id="business-type">
-<h2>Business type</h2>
-<p>The first box, <b>⚡ Business type</b>. Picking the kind of business you run sets a dozen or so print settings in one go, and hides options that do not apply to you. Use it first; every setting below stays editable afterwards.</p>
+<h2>Print style (from your business type)</h2>
+<p>The first box says <b>Print style:</b> and the style in use, for example <b>Retail Shop / Kirana (from your business type)</b>. Your <a href="settings.html#business-type">business type</a> (Settings → Company) sets it: choosing a type and saving sets a dozen or so print settings in one go, and hides options that do not apply to you. Every setting below stays editable afterwards. ${ui('Change business type')} opens the Business type card.</p>
+<p>To print in another style without changing your business type, open <b>Use another print style (keeps your business type)</b> under it:</p>
 <ol class="steps">
-  <li><strong>Pick a type</strong>Click a card. The app asks <b>Apply "…" preset?</b> and says how many settings it will change.</li>
+  <li><strong>Pick a style</strong>Click a card. The app asks <b>Apply "…" preset?</b> and says how many settings it will change.</li>
   <li><strong>Confirm</strong>Click ${ui('Apply preset')}. The card is marked <b>ACTIVE</b> and the preview changes.</li>
 </ol>
 <div class="table-wrap"><table>
-  <tr><th>Business type</th><th>Set up for</th><th>Main settings it applies</th></tr>
+  <tr><th>Print style</th><th>Set up for</th><th>Main settings it applies</th></tr>
   <tr><td>Retail Shop / Kirana</td><td>A counter with a thermal printer</td><td>Bold capitals, prints straight after saving, "Qty × Rate" lines, no HSN, "Thank you! Visit again!", cut mark and 2 feed lines</td></tr>
   <tr><td>Freelancer / Consultant</td><td>Professional A4 PDFs</td><td>Minimalist design, HSN, amount in words, page numbers and header on long invoices</td></tr>
   <tr><td>Restaurant / Cafe / Bar</td><td>80 mm receipts with a big UPI QR</td><td>Bold, prints on save, no HSN or amount in words, large UPI QR, 3 feed lines, "Thanks for dining with us!"</td></tr>
@@ -42,8 +42,8 @@ export default [
   <tr><td>Manufacturing</td><td>Detailed A4 invoices</td><td>Corporate design, HSN, amount in words, page numbers and header, invoice QR, three copies</td></tr>
   <tr><td>Service / Repair Shop</td><td>Simple single-copy bills</td><td>Classic design, no HSN, amount in words, signature shown</td></tr>
 </table></div>
-<p>While a business type is chosen, options it does not need are hidden, and a note says <i>Some options are hidden because they don't apply to your … workflow</i>. ${ui('Show all options')} in that note clears the business type so you can see everything; your settings stay as they are. Some options are marked <b>★ Recommended for your business</b>.</p>
-<p>This is separate from the <a href="settings.html#business-type">Business type tab</a> of Settings, which decides which screens and features you see.</p>
+<p>While a print style is chosen, options it does not need are hidden, and a note says <i>Some options are hidden because they don't apply to your … print style</i>. ${ui('Show all options')} in that note clears the print style so you can see everything; your settings stay as they are. Some options are marked <b>★ Recommended for your business</b>.</p>
+<p><b>Everything</b> as the business type has no print style of its own: your print settings stay as they are.</p>
 <figure><img src="assets/img/app-print-settings.png" alt="Business types, designs and the live preview." loading="lazy"><figcaption>Business types, designs and the live preview.</figcaption></figure>
 </section>
 

@@ -16,12 +16,25 @@ export default [
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('?')}</td><td>Opens this page in your browser. The small ${ui('?')} next to each card's title on the Dashboard opens the part of this page about that card.</td></tr>
   <tr><td>${ui('Lock')}</td><td>Locks the app straight away. It shows only when a <a href="settings.html#lock">PIN</a> is set.</td></tr>
-  <tr><td>${ui('CSV import / export')}</td><td>Brings in many invoices from a spreadsheet, or saves all of them to one. See <a href="#csv">Importing and exporting invoices as CSV</a>.</td></tr>
+  <tr><td>${ui('Customise')}</td><td>Choose which parts of the Dashboard show, in what order, and the screen the app opens on. See <a href="#customise">Customise Dashboard</a>. On a phone it is the small sliders button beside the title.</td></tr>
+  <tr><td>${ui('Import / export CSV')}</td><td>Brings in many invoices from a spreadsheet, or saves all of them to one. See <a href="#csv">Importing and exporting invoices as CSV</a>.</td></tr>
   <tr><td>${ui('Import IRN')}</td><td>Only when <b>E-invoicing (IRN)</b> is on in <a href="settings.html#features">Settings, Features</a>. Reads the file the e-invoice portal gives back and saves each IRN on its invoice. See <a href="#einvoice">E-invoicing from the Dashboard</a>.</td></tr>
   <tr><td>${ui('New Invoice')}</td><td>Starts a blank invoice. See <a href="invoices.html">Making an invoice</a>.</td></tr>
 </table>
-<p>From top to bottom the screen then shows: the welcome note and the Getting started list (new users only), the support card, the red overdue banner (only when something is overdue), the four totals, the low-stock strip (only when a product is running low), and the invoice list with its filters.</p>
-<figure><img src="assets/img/app-dashboard.png" alt="The Dashboard: CSV import / export, Import IRN and New Invoice at the top right, a red banner for two overdue invoices, the Totals for period box, the four total cards in rupees and dollars, the low-stock strip with Make purchase order, and the invoice list with its Invoices, Sales orders, Cancelled and Trash tabs." loading="lazy"><figcaption>The Dashboard with two overdue invoices, the four totals, low stock and the buttons at the top right.</figcaption></figure>
+<p>From top to bottom the screen then shows: the welcome note and the Getting started list (new users only), the support card, the red overdue banner (only when something is overdue), the four totals, the low-stock strip (only when a product is running low), and the invoice list with its filters. You can hide any of these and change their order with ${ui('Customise')}.</p>
+<figure><img src="assets/img/app-dashboard.png" alt="The Dashboard: Import / export CSV, Import IRN and New Invoice at the top right, a red banner for two overdue invoices, the Totals for period box, the four total cards in rupees and dollars, the low-stock strip with Make purchase order, and the invoice list with its Invoices, Sales orders, Cancelled and Trash tabs." loading="lazy"><figcaption>The Dashboard with two overdue invoices, the four totals, low stock and the buttons at the top right.</figcaption></figure>
+</section>
+
+<section id="customise">
+<h2>Customise Dashboard</h2>
+<p>${ui('Customise')} at the top right opens <b>Customise Dashboard</b>, a list of the parts of this screen: <b>Welcome note and Getting started</b>, <b>Support card</b>, <b>Overdue invoices strip</b>, <b>Totals cards</b>, <b>Low stock strip</b> and <b>Invoice list</b>.</p>
+<ul>
+  <li>Untick a part to hide it; tick it to show it again. A part that has nothing to show (no overdue invoice, nothing low in stock) stays out of the way either way.</li>
+  <li>The up and down arrows move a part up or down the screen, for example the invoice list to the top.</li>
+  <li><b>Open the app on</b>: <b>Dashboard</b> (as before), <b>New Invoice</b> (start billing straight away) or <b>Invoices list</b> (the Dashboard, scrolled down to the list). It is used when you open the app; moving between screens while you work, or reloading the page, is not changed.</li>
+  <li>${ui('Reset')} puts every part back, in the usual order, and opens the app on the Dashboard again.</li>
+</ul>
+<p>Your choices are kept on this computer and browser, with a copy in the app's data folder so they come back if the browser forgets them.</p>
 </section>
 
 <section id="welcome-card">
@@ -168,8 +181,11 @@ export default [
   <tr><td>From / To</td><td>A range of invoice dates. Fill in one or both.</td></tr>
   <tr><td>All cost centres</td><td>Only when <a href="reports.html#cost-centres">cost centres</a> are on: one branch, site or project, or <b>No cost centre</b> to find invoices not yet tagged.</td></tr>
   <tr><td>${ui('✕')}</td><td>Shows once any filter is set. Clears all of them at once.</td></tr>
+  <tr><td>Saved filters</td><td>Buttons for filter sets you saved, and ${ui('Save these filters')}. See <a href="#saved-filters">Saved filters</a>.</td></tr>
   <tr><td>${ui('Columns')}</td><td>Choose which columns the list shows. See <a href="#columns">Choosing the columns</a>.</td></tr>
 </table>
+<p>The filters you set (all but the search) are remembered: the Dashboard opens with them next time. Click ${ui('✕')} to see everything again.</p>
+<p><b>Sorting:</b> click a column header (Date, Invoice No., Type, Client, Amount, Due Date, Paid or Status) to sort the list by it: the first click sorts A to Z (oldest or lowest first), the second Z to A (newest or highest first), the third puts the usual order back. A small arrow on the header shows the sort. Each list remembers its sort on this computer and browser.</p>
 <p>What you see on a row:</p>
 <ul>
   <li>A green <b>IRN</b> beside the invoice number: the invoice is registered on the e-invoice portal. Point at it to see the IRN.</li>
@@ -181,6 +197,18 @@ export default [
 <p>"No invoices yet." with a ${ui('Create Invoice')} button means the business has none. "No invoices match your filters." means the filters hide them all: click ${ui('✕')}.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p>An invoice you made is missing? Check the business selected in the sidebar, then clear the filters with ${ui('✕')}. Changing a filter also clears any ticks, so you never act on rows you cannot see.</p></div>
+</section>
+
+<section id="scan-a-return">
+<h2>Scan a return</h2>
+<p>A parcel came back? Scan the barcode on its label into the Invoices search (click the search box first). A USB barcode scanner types the code and presses Enter, like a keyboard; you can also type the code, on a phone too. When the code is exactly the <b>invoice number</b>, the <b>order ID</b> (Buyer's Order No) or the <b>AWB / tracking ID</b> (Dispatch Doc No) of one invoice, a card shows that invoice above the list: its number, date, client, amount, order ID and AWB. Capital letters and spaces do not matter. The invoice is found in all your invoices of this business, whatever the filters.</p>
+<table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td>${ui('Open')}</td><td>Opens the invoice.</td></tr>
+  <tr><td>${ui('Return / credit note')}</td><td>Opens a new <a href="invoices.html#credit-note">credit note</a> against the invoice: the same client, items, quantities and rates, the invoice number in <b>Original Invoice Reference</b>, and the order ID and AWB in its order details. For a part return, lower the quantities (or remove the items that did not come back). ${ui('Save')} it: the returned quantities go back into stock, and its total is taken off your sales and GST, as for any credit note. The invoice itself does not change.</td></tr>
+</table>
+<p>When a credit note against the invoice is already made, the card says so, such as <b>Credit note CN/2026-27/0001 already made</b>, with a button to open it, so the same return is not entered twice.</p>
+<p>After you press Enter the search text stays selected, so the next scan replaces it. Invoices from a <a href="#csv">Flipkart orders report</a>, or any import with order ID and AWB columns, carry these codes; for your own invoices, type the order ID and AWB in the invoice's <a href="invoices.html#order-details">order details</a>. The card shows only for an exact code of one invoice; part of a code, or a code on several invoices, just filters the list as usual. Stock comes back only for items picked from your products (or imported with <b>Take sold quantities out of product stock</b> ticked).</p>
 </section>
 
 <section id="columns">
@@ -200,6 +228,12 @@ export default [
   <tr><td>Actions</td><td>The buttons for each invoice (see <a href="#row-actions">What you can do with an invoice</a>)</td><td>Shown</td></tr>
 </table>
 <p>The <b>Paid</b> column and the tick boxes are always shown. Your choice is remembered on this computer and browser. Click ${ui('Columns')} again to close the list. On a narrow screen, hiding a few columns saves sideways scrolling.</p>
+</section>
+
+<section id="saved-filters">
+<h2>Saved filters</h2>
+<p>If you often look for the same invoices, save the filters as a button. Set the filters (for example <b>Overdue</b> and <b>FY 2026-27</b>), then click ${ui('Save these filters')} in the <b>Saved filters</b> row above the list and give it a name, such as <i>Overdue this year</i>. The button appears in that row: one click puts those filters back. The button of the filters now in use is filled in.</p>
+<p>The ${ui('✕')} on a saved button removes the button (no invoice is changed). The search text is never saved. Saved buttons are kept on this computer and browser.</p>
 </section>
 
 <section id="status">
@@ -299,13 +333,13 @@ export default [
 
 <section id="row-actions">
 <h2>What you can do with an invoice</h2>
-<p>The row shows the actions you use most as buttons. The rest are in the ${ui('⋯')} menu at the end of the row; it closes with <kbd>Esc</kbd> or a click elsewhere, and the arrow keys move through it.</p>
+<p>The row shows the actions you use most as buttons, in the same order on every list (invoices, a client's invoices, purchases, expenses): View, Edit, Payment, then the ${ui('⋯')} menu. The rest are in the ${ui('⋯')} menu at the end of the row; it closes with <kbd>Esc</kbd> or a click elsewhere, and the arrow keys move through it.</p>
 <table>
   <tr><th>Action</th><th>What it does</th></tr>
   <tr><td>👁 View</td><td>Shows the invoice exactly as it prints, without opening the editor. See <a href="#print-preview">The print preview</a>.</td></tr>
   <tr><td>Edit (pencil)</td><td>Opens it on the invoice screen to change it. See <a href="invoices.html">Making an invoice</a>.</td></tr>
-  <tr><td>Undo cancel (curved arrow)</td><td>Only on a cancelled invoice. See <a href="#cancel">Cancelling an invoice</a>.</td></tr>
   <tr><td>${ui('₹')} Payment</td><td>Record a payment. See <a href="#payments">Recording a payment</a>.</td></tr>
+  <tr><td>Undo cancel (curved arrow)</td><td>Only on a cancelled invoice. See <a href="#cancel">Cancelling an invoice</a>.</td></tr>
   <tr><td>Convert to Tax Invoice</td><td>Quotations, proformas and delivery challans only, until they have been converted. See <a href="invoices.html#proforma-to-invoice">Turning a quote into an invoice</a>.</td></tr>
   <tr><td>${ui('⋯')} Duplicate</td><td>A new invoice with the same client and items, a new number and today's date. It starts Unpaid, with no payments. Handy for a client you bill the same things every month.</td></tr>
   <tr><td>${ui('⋯')} Print</td><td>Prints the invoice straight away: it opens for a moment, the print window appears, the print count goes up by one, and you are back on the Dashboard.</td></tr>
@@ -370,7 +404,7 @@ export default [
 <h2>Importing and exporting invoices as CSV</h2>
 <p>For moving many invoices in from Excel, Tally or another program, including <b>old invoices</b> from before you started using the app, or out to your CA, in one go. A CSV file is a plain spreadsheet file that Excel and Google Sheets can open and save.</p>
 <ol class="steps">
-  <li><strong>Open it</strong>Click ${ui('CSV import / export')} at the top of the Dashboard. The window <b>Sales invoices: CSV import / export</b> opens.</li>
+  <li><strong>Open it</strong>Click ${ui('Import / export CSV')} at the top of the Dashboard. The window <b>Sales invoices: Import / export CSV</b> opens.</li>
   <li><strong>Start from the template</strong>${ui('Template')} downloads <code>Sales-import-template.csv</code> with the right columns and one example invoice of two items. Open it in Excel or Google Sheets, replace the example with your invoices, and save it as <b>CSV (Comma delimited)</b>.</li>
   <li><strong>Fill in your invoices</strong>One row per item; an invoice of three items is three rows with the same invoice number. Write the client name and invoice date on each invoice's first row. The table below says what goes in each column. Save as CSV again when done.</li>
   <li><strong>Choose the two options</strong><b>Take sold quantities out of product stock</b> (off to start): tick it for new sales; leave it off for old invoices whose stock you have already counted. <b>Add new clients to Clients</b> (on to start): clients not yet saved are added to your client list. A client is found by its <b>GSTIN</b> first: a row with a saved client's GSTIN goes to that client under its saved name, even if the name in the file is spelt differently, so no duplicate is made.</li>
@@ -378,7 +412,7 @@ export default [
   <li><strong>Import</strong>Click ${ui('Import')} (it shows the number ready, such as <b>Import 25</b>). It says "Importing…" while it works, then a message such as "25 invoices imported · 2 already there, skipped". The list refreshes by itself.</li>
 </ol>
 <p><b>From Vyapar or Excel:</b> you can choose an Excel file (<code>.xlsx</code>) instead of a CSV, such as Vyapar's sale report. The window opens on the sheet with the invoice items (pick another under <b>Sheet</b>), and what Vyapar's <b>Sale Report</b> sheet says was received is recorded as a payment. Cancelled sales are left out.</p>
-<p><b>From Flipkart:</b> download your orders report from Flipkart Seller Hub (Orders, then download the report as CSV) and choose it here as it is. Each order becomes a tax invoice with Flipkart's invoice number and date, the buyer and state, the HSN, quantity and GST, and the amount the buyer was billed (GST included). The <b>order ID</b> goes into <b>Buyer's Order No</b> and the <b>tracking ID (AWB)</b> into <b>Dispatch Doc No</b>, so typing either in the Invoices search finds the bill. Returned orders are imported as the sales they were; the window says how many, so you can record each return as a Credit Note.</p>
+<p><b>From Flipkart:</b> download your orders report from Flipkart Seller Hub (Orders, then download the report as CSV) and choose it here as it is. Each order becomes a tax invoice with Flipkart's invoice number and date, the buyer and state, the HSN, quantity and GST, and the amount the buyer was billed (GST included). The <b>order ID</b> goes into <b>Buyer's Order No</b> and the <b>tracking ID (AWB)</b> into <b>Dispatch Doc No</b>, so typing either in the Invoices search finds the bill. Returned orders are imported as the sales they were; the window says how many, so you can record each return as a Credit Note: scan the returned parcel's label (or type its order ID or AWB) in the Invoices search and click ${ui('Return / credit note')}. See <a href="#scan-a-return">Scan a return</a>.</p>
 <p><b>Order and courier details from any file:</b> columns named <i>Order ID</i> (or <i>Buyer Order No</i>), <i>AWB</i> (or <i>Tracking ID</i>, <i>Dispatch Doc No</i>) and <i>Courier</i> (or <i>Dispatched Through</i>) are read into the invoice's order details too.</p>
 <p>${ui('Export all as CSV')} downloads every invoice of this business, oldest first, in the same columns as the template (cancelled invoices are left out), as <code>Sales-invoices-YYYY-MM-DD.csv</code>. You can edit that file and import it into another copy of the app.</p>
 <p><b>How to fill the file.</b> One row per item. Rows with the same invoice number make one invoice; give the client, date and other invoice details on the first row (later rows may leave them blank). Column names are matched loosely, so <b>Qty</b> or <b>Quantity</b>, <b>GSTIN</b> or <b>Client GSTIN</b>, <b>Customer</b> or <b>Client Name</b> all work. Dates can be <code>2026-10-01</code>, <code>01-10-2026</code> or <code>01/10/2026</code> (day first, as in India).</p>
