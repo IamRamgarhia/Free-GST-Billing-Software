@@ -635,7 +635,8 @@ export default [
 
 <section id="other-devices">
 <h3>Can I use it on my phone or another computer?</h3>
-<p>The app runs on the computer it is installed on, and only that computer can open it. It has no user accounts, so it is deliberately not shared over your network, where anyone connected could read your books. (The optional <a href="settings.html#lock">PIN lock</a> locks the screen on this computer only.) To work on another computer, <a href="backup.html#move-pc">move your data</a> there.</p>
+<p>Yes, a phone or tablet on the same Wi-Fi as the computer: turn on <b>Use on phone or tablet</b> in <a href="settings.html#lock">Settings → Privacy &amp; Security</a> (a PIN must be set first), scan the QR code with the phone and type the PIN. The connection is encrypted, and only devices you paired can open it; never anyone on the internet. Step by step: <a href="phone.html">Use on a phone or tablet</a>.</p>
+<p>The books stay on the computer the app is installed on. To work on another computer instead, <a href="backup.html#move-pc">move your data</a> there.</p>
 </section>
 
 <section id="internet">
@@ -684,17 +685,17 @@ export default [
 
 <section id="accounting">
 <h2>Full accounting</h2>
-<p>There is no double-entry ledger, balance sheet, trial balance, cash or bank book, bank reconciliation or journal entries yet. It covers invoicing, receivables, purchases, expenses, stock and GST. For the rest, give your CA the Excel or CSV exports.</p>
+<p>There is no double-entry ledger, balance sheet, trial balance or journal entries yet. It covers invoicing, receivables, purchases, expenses, stock and GST, with a <a href="cash-book.html">Cash book</a> and <a href="cash-book.html#bank-matching">bank statement matching</a>. For the rest, give your CA the Excel or CSV exports.</p>
 </section>
 
 <section id="multi-user">
 <h2>Several people, or several computers</h2>
-<p>There are no user accounts or roles (an optional <a href="settings.html#lock">PIN</a> can lock the screen), and the app only opens on the computer it runs on. One computer holds the books; see <a href="backup.html#move-pc">moving to a new computer</a>. Hosting it online (Railway, Render, a server) is not supported yet; see <a href="security.html#host-online">why</a>.</p>
+<p>There are no user accounts or roles (an optional <a href="settings.html#lock">PIN</a> can lock the screen). Phones and tablets on the same Wi-Fi can be paired to use the app (<a href="phone.html">Use on a phone or tablet</a>), but not other computers. One computer holds the books; see <a href="backup.html#move-pc">moving to a new computer</a>. Hosting it online (Railway, Render, a server) is not supported yet; see <a href="security.html#host-online">why</a>.</p>
 </section>
 
 <section id="income-tax-limits">
 <h2>Income tax</h2>
-<p>The income tax helper estimates tax for FY 2025-26, including for seniors (60 to 79) and super seniors (80 and above). It does not file your return or produce the ITR file the portal takes. See <a href="income-tax.html">Income tax helper</a>.</p>
+<p>The income tax helper estimates tax for the tax year 2026-27 (or FY 2025-26), including for seniors (60 to 79) and super seniors (80 and above). It does not file your return or produce the ITR file the portal takes. See <a href="income-tax.html">Income tax helper</a>.</p>
 </section>
 
 <section id="stock-limits">

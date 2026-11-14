@@ -166,7 +166,7 @@ The launcher:
 
 From then on, click the **Free GST Billing** icon on your Desktop: it starts the app and opens it in its own window. To update / backup / restore / move to another PC / stop the server, use the in-app **⚙ Control Panel** in the sidebar (or the launcher in the app folder). No batch files, no CMD windows.
 
-> **☁ Can I host it online (Railway, Render, Supabase)?** Not yet. The app has no login on its server, so anyone who found the address could read or delete your books, and it keeps its data as files, not in a database. [Why, and what to do instead](https://dicecodes.com/free-gst-software-documentation/security.html#host-online). Using it from a phone or tablet on the same Wi-Fi is planned for the update on Saturday 14 November 2026.
+> **☁ Can I host it online (Railway, Render, Supabase)?** Not yet. The app has no login on its server, so anyone who found the address could read or delete your books, and it keeps its data as files, not in a database. [Why, and what to do instead](https://dicecodes.com/free-gst-software-documentation/security.html#host-online). You can already use it from a phone or tablet on the same Wi-Fi (Settings → Privacy & Security → Use on phone or tablet).
 
 ---
 
@@ -637,35 +637,30 @@ The app includes a **step-by-step interactive filing guide** with screenshots an
 
 One update every Saturday. Dates are plans: if a week fills up, the least-used item moves to the next week, and we say so on its issue. Full history: [CHANGELOG.md](./CHANGELOG.md).
 
-### :white_check_mark: Just released: v1.10.84 (7 November 2026)
+### :white_check_mark: Just released: v1.10.85 (14 November 2026)
 
-- [x] **A Windows Setup program**: installs like any other program, opens in its own window, stays near the clock when closed, updates itself; your earlier copy is never changed
-- [x] **Linux packages**: `.deb` for Ubuntu, Linux Mint and Debian, and an AppImage for any 64-bit Linux
-- [x] **Invoices, Cancelled and Trash tabs**; Delete moves invoices to the Trash for 30 days (restore or delete forever)
-- [x] **Import from Vyapar, Tally and Excel** ([#130](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/130), [#131](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/131)); imported invoices add new items to Products ([#170](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/170))
-- [x] **Profit & Loss counts the cost of goods sold** ([#146](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/146))
-- [x] **Size billing (Sq.ft)** for glass, mirror and flex shops ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140)), **your own fields on invoices** ([#126](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/126)), **unit NA** for services ([#143](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/143)), a **customer phone box** ([#129](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/129))
-- [x] **GSTR-1 file**: exports, nil-rated / exempt and deemed exports; **income tax for 2026-27**
-- [x] **Search invoices by order ID, AWB, phone or GSTIN** ([#172](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/172)); **delete many products at once** ([#177](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/177)); **Settings in 6 tabs**
+- [x] **Use the app on a phone or tablet** on the same Wi-Fi: pair with a QR code and the PIN, encrypted ([#142](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/142), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115)), and a Docker image for a NAS
+- [x] **Sales orders** with a dispatch status, delivery challans and "invoice the rest" ([#135](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/135), [#112](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/112)); **purchase returns / debit notes** ([#168](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/168))
+- [x] **Barcodes**: scan with a USB scanner on New Invoice, print labels, labels for a whole purchase ([#137](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/137), [#158](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/158))
+- [x] **Record the payment while making the invoice** ([#185](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/185), [#187](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/187)), **profit on each bill**, **bank statement matching** ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175))
+- [x] **Box = 12 Pcs units, categories and brands, stock adjustment, low stock → purchase order** ([#148](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/148), [#142](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/142))
+- [x] **Price levels, credit-limit warning, statement PDF preview and payment history** ([#157](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/157))
+- [x] **Discount before GST** ([#190](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/190)), **purchase line discount and serial numbers** ([#171](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/171), [#160](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/160)), **Rft lines** ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140))
+- [x] **TDS / TCS under the Income-tax Act, 2025, part 1** ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180)), **close the books with an edit history**, **hide a business behind a PIN** ([#125](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/125)), **Flipkart order import** ([#172](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/172)), **paid / unpaid expenses** ([#165](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/165))
 
-### :rocket: Next update: Saturday 14 November 2026
+### :rocket: Next: 21 and 28 November 2026
 
-- [ ] **Phone and tablet on the same Wi-Fi**: pair with a QR code and a PIN, encrypted ([#142](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/142), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115), [#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), and a Docker image for a NAS
-- [ ] **Sales orders → invoice**, with a dispatch status on each order: open, partly dispatched, dispatched, invoiced ([#135](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/135), [#112](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/112))
-- [ ] **Barcode**: a barcode on each product, scan with a USB scanner on New Invoice, print labels, and print labels for a whole purchase (one per unit bought) ([#137](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/137), [#158](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/158))
-- [ ] **Running-feet (RFT) lines** taken from the glass lines on the same invoice ([#140](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/140))
-- [ ] **Discount on purchase bills** ([#171](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/171)) and an optional **serial number on each purchase line** ([#160](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/160))
-- [ ] **TDS / TCS under the Income-tax Act, 2025, part 1**: new section and table numbers, rates and thresholds ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180))
-- [ ] **Dashboard totals for a chosen month or year**
+Each of these is designed first, so it stays simple for everyone else; the date is confirmed on its issue.
 
-### :calendar: Later in November
-
-- **21 November:** purchase return / debit note ([#168](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/168)), matching your bank statement against sales and purchases ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), price levels (MRP / wholesale / retail), credit-limit warning, stock adjustment and reorder → purchase order, locking a filed period with edit history
-- **28 November:** balance sheet and trial balance, fixed assets and depreciation, item variants, serial / IMEI and warranty tracking ([#122](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/122)), batch and expiry
+- [ ] **A Mac app** (.dmg, drag to Applications), like the Windows Setup
+- [ ] **TDS / TCS part 2**: worked out from the payee and the thresholds, and the TDS return files ([#180](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/180))
+- [ ] **Serial number and warranty tracking** ([#122](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/122)), **batch and expiry**
+- [ ] **Balance sheet and trial balance**, opening balances, customer advances
+- [ ] **Staff logins with roles** ([#155](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/155), [#115](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/115))
 
 ### :mag: Being studied
 
-Each needs care to stay simple for everyone else: a marketplace order import ([#172](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/172)), purchase bills from GSTR-2B ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), a fast POS counter screen ([#169](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/169)), admin and employee logins ([#155](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/155)), an Android app ([#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), rental billing ([#163](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/163)), paid / unpaid expenses ([#165](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/165)).
+Each needs care to stay simple for everyone else: purchase bills from GSTR-2B ([#175](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/175)), a fast POS counter screen ([#169](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/169)), an Android app ([#118](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/118)), rental billing ([#163](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/163)), pharmacy features ([#192](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/192)), MRP on the invoice ([#189](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/189)).
 
 ### :no_entry: Not planned
 
@@ -887,7 +882,7 @@ Updates only refresh the app code and dependencies. Your `data/` folder (invoice
 No, and no Android app is planned. Since v1.10.85 you can use the app from a phone or tablet on the same Wi-Fi as your computer: [Use on a phone or tablet](https://dicecodes.com/free-gst-software-documentation/phone.html).
 
 ### Can I import data from Tally / Vyapar / Excel?
-CSV import is supported today for clients and products. Direct Tally XML import is on the Coming Soon roadmap. Free-form Excel import requires manual mapping today.
+Clients, products, invoices and purchases import from CSV or Excel (.xlsx), and from Vyapar and Tally exports (Dashboard → CSV import / export). Columns are matched by name; a template is there to download.
 
 ---
 
