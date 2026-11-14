@@ -1741,7 +1741,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       <div className="glass-panel">
         <div className="table-header"><h3>Invoices <HelpButton title="Finding an invoice" doc="dashboard#invoice-list" size={16} /></h3></div>
         {/* v1.10.84 (maintainer) - folders on top: active invoices, cancelled ones, and the Trash. */}
-        <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0 0 0.25rem', padding: '0 1.25rem' }}>
+        <div className="invoice-folders" role="tablist" aria-label="Invoice folders" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0.75rem 0 0.25rem', padding: '0 1.25rem' }}>
           {[
             ['invoices', 'Invoices', bills.length - cancelledCount - (soOn ? orderCount : 0), <FileText size={14} />],
             ...(soOn ? [['orders', 'Sales orders', orderCount, <ClipboardList size={14} />]] : []),
