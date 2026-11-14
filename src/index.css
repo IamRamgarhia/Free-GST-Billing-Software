@@ -445,6 +445,12 @@ body {
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-badge {
     top: 6px !important; right: 10px !important; min-width: 0 !important; width: 8px; height: 8px !important; padding: 0 !important; font-size: 0 !important;
   }
+  /* v1.10.86 - in the closed rail a group header is a thin line between the
+     groups; the names, grips and "Arrange menu" come back when it opens. */
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn {
+    font-size: 0; padding: 0; height: 1px; margin: 0.4rem 0.6rem; border-radius: 0; background: rgba(148, 163, 184, 0.3); pointer-events: none;
+  }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) :is(.nav-group-chevron, .nav-grip, .nav-arrows, .nav-edit-row, .nav-edit-hint, .nav-group-shut) { display: none !important; }
 }
 @media (max-width: 768px) { .sidebar-autohide-toggle { display: none; } }
 
@@ -776,6 +782,80 @@ html:not([data-theme="dark"]) .sidebar-free { color: #16a34a; }
 
 .nav-btn-bottom {
   margin-top: auto;
+}
+
+/* v1.10.86 - sidebar groups that open and close, and drag to any place
+   (components/SidebarMenu.jsx). Light-theme colours further down. */
+.nav-groups { position: relative; display: flex; flex-direction: column; gap: 0.6rem; margin: 0.75rem 0 0.35rem; }
+/* Slightly shorter rows (were 0.7rem) so the three group names cost little height. */
+.sidebar-nav .nav-btn { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.nav-group, .nav-group-items { display: flex; flex-direction: column; gap: 0.25rem; }
+.nav-group-head { position: relative; display: flex; align-items: center; gap: 0.25rem; }
+.nav-group-btn {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 1rem; border: 0; border-radius: 6px; background: transparent; color: #64748b;
+  font-family: inherit; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  text-align: left; cursor: pointer;
+}
+@media (hover: hover) { .nav-group-btn:hover { color: #cbd5e1; background: rgba(255,255,255,0.04); } }
+.nav-group-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-group-chevron { flex-shrink: 0; transition: transform 0.15s ease; }
+.nav-group-chevron.closed { transform: rotate(-90deg); }
+.nav-group-btn:focus-visible, .nav-groups .nav-btn:focus-visible, .nav-arrow:focus-visible, .nav-edit-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nav-row { position: relative; display: flex; align-items: center; gap: 0.25rem; }
+.nav-row > .nav-btn { flex: 1; min-width: 0; }
+.nav-row > .nav-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The grip: shown on hover (mouse), always while arranging (phone too). */
+.nav-grip {
+  display: none; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 28px; border-radius: 6px; color: #64748b; cursor: grab; touch-action: none;
+}
+.nav-grip:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+.nav-drag-on, .nav-drag-on * { cursor: grabbing !important; user-select: none; }
+@media (hover: hover) {
+  .nav-row:hover > .nav-grip, .nav-group-head:hover > .nav-grip, .nav-held > .nav-grip, .nav-held > .nav-group-head > .nav-grip {
+    display: flex; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  }
+  .nav-row > .nav-btn-active ~ .nav-grip { color: rgba(255,255,255,0.85); }
+}
+.nav-drag-on .nav-held { opacity: 0.45; }
+.nav-drop-line {
+  position: absolute; left: 0.25rem; right: 0.25rem; height: 3px; margin-top: -1.5px; border-radius: 2px;
+  background: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); pointer-events: none; z-index: 2;
+}
+.nav-group-empty {
+  margin: 0 0.5rem; padding: 0.55rem; border: 1px dashed rgba(255,255,255,0.2); border-radius: 8px;
+  font-size: 0.72rem; color: #64748b; text-align: center;
+}
+/* "Arrange menu": arrows, grips always shown, Done / Reset menu. */
+.nav-editing .nav-row > .nav-grip, .nav-editing .nav-group-head > .nav-grip { display: flex; position: static; transform: none; }
+.nav-btn.nav-btn-editing { cursor: default; padding: 0.55rem 0.6rem; }
+.nav-editing .nav-group-btn { padding: 0.3rem 0 0.3rem 0.6rem; cursor: default; }
+.nav-editing .nav-group-btn:hover { background: transparent; color: #64748b; }
+.nav-btn.nav-btn-editing:hover { background: transparent; color: inherit; }
+.nav-arrows { display: flex; gap: 3px; flex-shrink: 0; }
+.nav-arrow {
+  width: 26px; height: 28px; display: flex; align-items: center; justify-content: center; padding: 0;
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #cbd5e1; cursor: pointer;
+}
+.nav-arrow:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-arrow:disabled { opacity: 0.3; cursor: default; }
+.nav-edit-hint { margin: 0 0.5rem; font-size: 0.72rem; line-height: 1.45; color: #94a3b8; }
+.nav-edit-hint svg { vertical-align: -2px; }
+.nav-edit-row { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.5rem; }
+.nav-edit-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: #64748b;
+  font-family: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+}
+.nav-edit-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.06); }
+.nav-editing .nav-edit-btn { border-color: rgba(255,255,255,0.14); color: #cbd5e1; }
+.nav-editing .nav-edit-btn.nav-edit-done { background: var(--primary); border-color: var(--primary); color: #fff; }
+@media (max-width: 768px) {
+  .nav-arrow { width: 34px; height: 34px; }
+  /* A finger uses the arrows: the grips would only squeeze the names. */
+  .nav-editing .nav-row > .nav-grip, .nav-editing .nav-group-head > .nav-grip { display: none; }
+  .nav-edit-btn { padding: 0.45rem 0.75rem; font-size: 0.78rem; }
 }
 
 .main-content {
@@ -3628,6 +3708,17 @@ html:not([data-theme="dark"]) .nav-btn.nav-btn-support-active:hover { background
 html:not([data-theme="dark"]) .nav-btn.nav-btn-support-active > svg { color: #fff; }
 html:not([data-theme="dark"]) .nav-btn { color: #475569; }
 html:not([data-theme="dark"]) .nav-btn:hover { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
+/* v1.10.86 - menu groups and "Arrange menu" in the light theme. */
+@media (hover: hover) { html:not([data-theme="dark"]) .nav-group-btn:hover { color: #0f172a; background: rgba(15, 23, 42, 0.04); } }
+html:not([data-theme="dark"]) .nav-btn.nav-btn-editing:hover { background: transparent; color: #475569; }
+html:not([data-theme="dark"]) .nav-grip:hover { color: #0f172a; background: rgba(15, 23, 42, 0.06); }
+html:not([data-theme="dark"]) .nav-group-empty { border-color: rgba(15, 23, 42, 0.22); }
+html:not([data-theme="dark"]) .nav-arrow { border-color: var(--border); background: rgba(15, 23, 42, 0.03); color: #334155; }
+html:not([data-theme="dark"]) .nav-arrow:hover:not(:disabled) { background: rgba(15, 23, 42, 0.08); color: #0f172a; }
+html:not([data-theme="dark"]) .nav-edit-hint { color: #64748b; }
+html:not([data-theme="dark"]) .nav-edit-btn:hover { color: #0f172a; background: rgba(15, 23, 42, 0.06); }
+html:not([data-theme="dark"]) .nav-editing .nav-edit-btn { border-color: var(--border); color: #334155; }
+html:not([data-theme="dark"]) .nav-editing .nav-edit-btn.nav-edit-done { color: #fff; border-color: var(--primary); }
 html:not([data-theme="dark"]) .profile-switcher-btn,
 html:not([data-theme="dark"]) .profile-switcher-edit {
   background: rgba(15, 23, 42, 0.04);
@@ -3663,6 +3754,8 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-btn { background: rgba(15, 
   align-items: center;
   gap: 0.5rem;
 }
+/* v1.10.86 - wider while the forgotten-PIN steps are open (the folder path and its buttons). */
+.app-lock-card:has(.app-lock-help) { max-width: 460px; }
 .app-lock-card h1 { font-size: 1.35rem; margin: 0.25rem 0 0; }
 .app-lock-card p { margin: 0; }
 .app-lock-input {
@@ -3684,6 +3777,12 @@ html:not([data-theme="dark"]) .mobile-topbar .topbar-btn { background: rgba(15, 
   font-size: 0.85rem;
 }
 .app-lock-help { font-size: 0.8rem; color: var(--text-muted); text-align: left; line-height: 1.5; }
+/* v1.10.86 - the forgotten-PIN steps: numbered, with the folder path and buttons. */
+.app-lock-help p { margin: 0.5rem 0; }
+.app-lock-help ol { margin: 0.5rem 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.app-lock-help li { color: var(--text-primary, inherit); }
+.app-lock-path { display: block; margin: 0.4rem 0; padding: 0.4rem 0.6rem; border-radius: 6px; background: var(--input-bg, rgba(100, 116, 139, 0.12)); font-size: 0.78rem; word-break: break-all; }
+.app-lock-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; }
 
 /* v1.10.81 - welcome note for new users (WelcomeCard.jsx). Dark first, as the
    rest of this file; light below. */

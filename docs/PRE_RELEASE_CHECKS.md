@@ -80,6 +80,7 @@ npm run test:design
 - [ ] Secrets scan of the diff, then commit and push to `main`.
 - [ ] `gh release create v<ver>` with **one** file named **`Free-GST-Billing.zip`**, and the notes.
 - [ ] Swap the v1.10.44 asset to the new ZIP.
+- [ ] `npm run release:winget` and `winget validate --manifest ...`, then (with the maintainer's go-ahead) the winget-pkgs pull request: see packaging/winget/README.md.
 - [ ] `gh api repos/IamRamgarhia/Free-GST-Billing-Software/releases/latest` shows the new tag and one asset; the README download link returns 200.
 - [ ] Upload the docs ZIP to dicecodes.com, extract it, and **open the live docs** and click three links (it must say the new version).
 

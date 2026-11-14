@@ -28,6 +28,12 @@ const platformName = (platform, arch) => {
   return ARCH_BITS[arch] ? `${os} (${ARCH_BITS[arch]})` : os;
 };
 
+// v1.10.86 (maintainer: "why we are showing these") - how this copy was
+// installed, in plain words. It used to say "HTA launcher" (how the app was
+// started), also on copies installed with the Windows Setup.
+const INSTALL_NAMES = { deb: 'Installed from the .deb package', appimage: 'The AppImage', docker: 'Running in Docker', macapp: 'The Mac app' };
+const installedWith = (s) => (s.installed ? 'Installed with the Windows Setup' : INSTALL_NAMES[s.installKind] || 'Installed from the ZIP');
+
 export default function ControlPanel() {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(null); // action name currently in flight
@@ -192,7 +198,7 @@ export default function ControlPanel() {
         icon={<HardDrive size={22} />}
         title={<>Control Panel <HelpButton title="Control Panel — how to use" doc="control-panel" size={16} /></>}
         subtitle="Manage the app — update, backup, restore, move to another PC — without touching batch files."
-        meta={status?.launcherType ? `${status.launcherType.toUpperCase()} launcher` : null}
+        meta={status && !status.error ? installedWith(status) : null}
       >
       </PageHeader>
 
@@ -212,9 +218,19 @@ export default function ControlPanel() {
       {status && !status.error && (
         <div className="glass-panel p-6 mb-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
           <StatCell label="Computer"       value={platformName(status.platform, status.arch)} />
-          <StatCell label="Node version"   value={status.node} />
-          <StatCell label="Server port"    value={status.port} />
+          {status.version && <StatCell label="Version" value={`v${status.version}`} />}
           <StatCell label="Data folder size" value={formatSize(status.dataSizeBytes)} />
+          {/* v1.10.86 (maintainer) - Node version, port and folders only matter when
+              someone helps you: closed until opened. */}
+          <details style={{ gridColumn: '1 / -1' }}>
+            <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Technical details (for support)</summary>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginTop: '0.75rem' }}>
+              <StatCell small label="Node.js" value={status.node} />
+              <StatCell small label="Server port" value={status.port} />
+              {status.booksFolder && <StatCell small label="Books folder" value={status.booksFolder} />}
+              {status.appFolder && <StatCell small label="App folder" value={status.appFolder} />}
+            </div>
+          </details>
         </div>
       )}
 
@@ -405,11 +421,11 @@ export default function ControlPanel() {
   );
 }
 
-function StatCell({ label, value }) {
+function StatCell({ label, value, small = false }) {
   return (
     <div>
       <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div style={{ fontSize: '0.95rem', fontWeight: 600, marginTop: '0.2rem', wordBreak: 'break-all' }}>{value}</div>
+      <div style={small ? { fontSize: '0.8rem', marginTop: '0.2rem', wordBreak: 'break-all', fontFamily: 'ui-monospace, Consolas, monospace' } : { fontSize: '0.95rem', fontWeight: 600, marginTop: '0.2rem', wordBreak: 'break-all' }}>{value}</div>
     </div>
   );
 }

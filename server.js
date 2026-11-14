@@ -1293,7 +1293,28 @@ const checkPin = (res, lock, pin) => {
 
 app.get('/api/lock', (req, res) => {
   const lock = currentLock();
-  res.json({ enabled: !!lock, length: lock?.length || 0 });
+  // v1.10.86 - "Forgot PIN?" names the exact folder for the RESET-PIN file, on
+  // this PC only (a paired phone is told to do it on the PC; its requests come
+  // over the encrypted phone connection).
+  const onPc = lock && !req.socket.encrypted;
+  res.json({ enabled: !!lock, length: lock?.length || 0, ...(onPc ? { resetFolder: RESET_PIN_FOLDER, os: process.platform } : {}) });
+});
+// The folder named on the lock screen: the books folder, except on a ZIP copy,
+// where that is the hidden _system folder - there the visible folder above it
+// (also one of RESET_PIN_FILES' folders).
+const RESET_PIN_FOLDER = APP_HOME === __dirname && path.basename(__dirname) === '_system' ? path.dirname(__dirname) : APP_HOME;
+
+// v1.10.86 - "Forgot PIN?" -> Open the folder: the folder where RESET-PIN goes
+// (APP_HOME is one of RESET_PIN_FILES' folders and always writable). It only
+// opens the folder; making the file is still done by the person at this PC.
+// PC-only like every /api/control-panel/ route (phoneAccess.js isPcOnly).
+app.post('/api/control-panel/open-reset-folder', (req, res) => {
+  try {
+    if (isWindows) spawn('explorer.exe', [RESET_PIN_FOLDER], { detached: true }).unref();
+    else if (process.platform === 'darwin') spawn('open', [RESET_PIN_FOLDER], { detached: true }).unref();
+    else spawn('xdg-open', [RESET_PIN_FOLDER], { detached: true }).unref();
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
 app.post('/api/lock/verify', (req, res) => {
@@ -2293,6 +2314,7 @@ app.get('/api/control-panel/status', (req, res) => {
     // v1.10.86 - shown as "Windows (64-bit)": win32 is Node's name for every Windows.
     arch: process.arch,
     node: process.version,
+    version: pkg.version,
     controlScriptsAvailable: !!controlScriptDir,
     actions: controlActions(),
     dataFolder: DATA_DIR,

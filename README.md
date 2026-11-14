@@ -312,7 +312,7 @@ None of these touch your invoices.
 | **"The app cannot write to its own folder"** | Don't keep the ZIP copy in `C:\Program Files`. Move the folder to Documents or `D:\` and open it from there. |
 | **"Free GST Billing is already installed on this computer, in: …"** | You extracted a new ZIP into a new folder. Your invoices are in the folder it names: click **Update the installed copy**, then delete the new folder. |
 | Forgot the app PIN | In the app folder, create an empty text file named `RESET-PIN` and reload the app. The PIN is removed; invoices aren't touched. |
-| Mac / Linux: **"Node.js … is too old"** or **"not installed"** | The message lists the command for your system (`apt`, `dnf`, `pacman`, `apk`, `brew`). Install Node.js 20, then run the install again. |
+| Mac / Linux: **"Node.js … is too old"** or **"not installed"** | The message lists the command for your system (`apt`, `dnf`, `pacman`, `apk`, `brew`). Install Node.js 26 (22 or newer works), then run the install again. |
 
 **Still stuck?** [Report a problem](https://github.com/IamRamgarhia/Free-GST-Billing-Software/issues/new?template=bug_report.yml) with the message and a screenshot (hide your GSTIN and bank details). More answers: [troubleshooting guide](https://dicecodes.com/free-gst-software-documentation/troubleshooting.html).
 

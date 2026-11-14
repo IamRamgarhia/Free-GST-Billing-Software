@@ -2069,11 +2069,13 @@ export const MENU_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', module: 'dashboard', core: true, section: 'main', help: 'Your sales, dues and shortcuts at a glance.' },
   { id: 'new', label: 'New invoice', module: 'invoicing', core: true, section: 'main', help: 'Tax invoices, quotations, credit notes and challans.' },
   { id: 'clients', label: 'Clients', module: 'clients', core: true, section: 'main', help: 'The people and businesses you bill.' },
-  { id: 'inventory', label: 'Products', module: 'inventory', section: 'main', help: 'Your product and service list, with stock.' },
-  { id: 'expenses', label: 'Expenses', module: 'expenses', section: 'main', help: 'Rent, salaries and other running costs.' },
-  { id: 'purchases', label: 'Purchases', module: 'purchases', section: 'main', help: 'Bills from your suppliers, for stock and input tax credit.' },
-  { id: 'recurring', label: 'Recurring', module: 'recurring', section: 'main', help: 'Invoices that repeat every week, month or year.' },
+  // v1.10.86 - listed in the order of the default menu groups
+  // (utils/menuGroups.js): Sales, Stock & buying, Money & reports.
   { id: 'receipts', label: 'Receipts', module: 'receipts', section: 'main', help: 'Payment receipts for money you receive.' },
+  { id: 'recurring', label: 'Recurring', module: 'recurring', section: 'main', help: 'Invoices that repeat every week, month or year.' },
+  { id: 'inventory', label: 'Products', module: 'inventory', section: 'main', help: 'Your product and service list, with stock.' },
+  { id: 'purchases', label: 'Purchases', module: 'purchases', section: 'main', help: 'Bills from your suppliers, for stock and input tax credit.' },
+  { id: 'expenses', label: 'Expenses', module: 'expenses', section: 'main', help: 'Rent, salaries and other running costs.' },
   { id: 'cashbook', label: 'Cash book', module: 'cashBook', section: 'main', help: 'Cash in and out with names and notes, and the cash in hand.' },
   { id: 'reports', label: 'Reports', module: 'reports', section: 'main', help: 'Sales, profit and loss, dues and stock reports.' },
   { id: 'filing', label: 'GST returns', module: 'gstReturns', section: 'main', indiaOnly: true, help: 'GSTR-1 and GSTR-3B files, with a filing guide.' },

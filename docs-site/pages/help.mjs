@@ -15,13 +15,21 @@ export default [
 <p>From top to bottom:</p>
 <ul>
   <li><strong>Your business</strong>, with a pencil to edit it. If you have more than one, click the name to <a href="#switch-business">switch</a>.</li>
-  <li><strong>The screens</strong>: Dashboard, New Invoice, Clients, Products, Expenses, Purchases, Recurring, Receipts, Cash book, Reports, GST Returns and Income Tax. Features you <a href="settings.html#features">turn off</a> disappear from here.</li>
+  <li><strong>The screens</strong>, in three groups: <b>Sales</b> (Dashboard, New Invoice, Clients, Receipts, Recurring), <b>Stock &amp; buying</b> (Products, Purchases, Expenses) and <b>Money &amp; reports</b> (Cash book, Reports, GST Returns, Income Tax). Features you <a href="settings.html#features">turn off</a> disappear from here; a group with nothing left in it is not shown.</li>
   <li><strong>Update to v…</strong>, when a new version is out.</li>
   <li><a href="#support"><strong>Support &amp; About</strong></a>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
   <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
 </ul>
 <p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
-<p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it. Click ☰ again to keep the menu open.</p>
+<h3 id="menu-groups">Open, close and arrange the groups</h3>
+<ul>
+  <li><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</li>
+  <li><b>Move an item or a group with the mouse</b>: point at it and a grip (⋮⋮) appears on the right. Drag the grip up or down; a blue line shows where it will go. Drop an item into another group to move it there. Clicking the item itself still opens it.</li>
+  <li><b>On a phone, or with the keyboard</b>: click ${ui('Arrange menu')} under the groups. Every item and group gets ${ui('↑')} and ${ui('↓')} arrows; at the top or bottom of a group an item moves on into the next group. Click ${ui('Done')} when finished.</li>
+  <li><b>Back to the start</b>: ${ui('Reset menu')} (in Arrange menu, or in <a href="settings.html#features-menu">Settings → Features</a>) puts back the three groups in the usual order and opens them all.</li>
+</ul>
+<p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
+<p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
 <p><b>At the top right of every screen</b> are small buttons: <b>?</b> opens this User Guide in your browser (it needs internet), the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
 <p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
 <figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
@@ -187,7 +195,7 @@ export default [
   <li><strong>Windows, v1.10.81 or newer:</strong> click ${ui('Install')} or ${ui('Open App')} again, with the internet on. The app fetches a current Node.js into its own folder by itself (about 30 MB, once) and leaves your other Node.js alone.</li>
   <li><strong>Windows, older version:</strong> install Node.js LTS from <a href="https://nodejs.org">nodejs.org</a>, delete the <code>_system\\node_modules</code> folder (the <code>_system</code> folder is hidden: in File Explorer, <b>View → Show → Hidden items</b>), and click ${ui('Install')} again.</li>
   <li><strong>Mac:</strong> install the LTS <b>macOS Installer (.pkg)</b> from <a href="https://nodejs.org/en/download">nodejs.org</a>, or run <code>brew install node@20</code>, then open the launcher again. See <a href="install-mac.html#node">Part 1: Install Node.js</a>.</li>
-  <li><strong>Linux or NAS:</strong> install Node.js 20 with the commands in <a href="install-linux.html#node">Step 1: Install Node.js 20</a> (the window also prints the command for your system), then start the app again.</li>
+  <li><strong>Linux or NAS:</strong> install Node.js 26 with the commands in <a href="install-linux.html#node">Step 1: Install Node.js 26</a> (the window also prints the command for your system), then start the app again.</li>
 </ol>
 <p>Only the <code>node_modules</code> folder may be deleted. Never delete the <code>data</code> folder.</p>
 </section>
@@ -237,13 +245,21 @@ export default [
 <h3>PIN problems: "Wrong PIN" or a forgotten PIN</h3>
 <p>You may see: <strong>"Wrong PIN. Try again."</strong>, <strong>"Too many wrong tries. Wait 30 seconds and try again."</strong> (after 5 wrong PINs in a row), <strong>"Could not check the PIN. Is the app still running?"</strong>, or in Settings <strong>"Current PIN is wrong"</strong>, <strong>"The two PINs do not match"</strong>, <strong>"The PIN must be 6 digits"</strong> (or 8).</p>
 <p>The <a href="settings.html#lock">PIN lock</a> asks for the PIN once per browser tab. "Could not check the PIN" means the app is not running: see <a href="#cannot-connect">Failed to fetch</a>.</p>
-<p><b>Forgot the PIN?</b> It can be removed on this computer without losing anything:</p>
+<p><b>Forgot the PIN?</b> It can be removed on the computer where the app is installed, without losing anything. The lock screen shows these steps with the exact folder: click ${ui('Forgot PIN?')}.</p>
 <ol>
-  <li>Open the <b>Free-GST-Billing</b> folder, the one with the launcher in it.</li>
-  <li>Make a new empty file there named <code>RESET-PIN</code>. On Windows: right-click an empty space, ${ui('New')} → ${ui('Text Document')}, and name it <code>RESET-PIN</code> (<code>RESET-PIN.txt</code> also works). On a Mac or Linux, in the Terminal: <code>touch ~/Free-GST-Billing/RESET-PIN</code> (change the path if your folder is elsewhere).</li>
-  <li>Reload the app's page. The PIN is removed and the file deleted by itself. Your invoices are not touched.</li>
-  <li>Set a new PIN in <a href="settings.html#lock">Settings</a> if you want one.</li>
+  <li><b>Open the folder.</b> Click ${ui('Open the folder')} on the lock screen, or copy the path it shows (${ui('Copy the path')}) into the address bar of File Explorer or Finder. Where it usually is:
+    <ul>
+      <li><b>Windows Setup:</b> your books folder, by default <code>C:\Users\&lt;your name&gt;\Free GST Billing</code> (or the folder you chose when installing).</li>
+      <li><b>ZIP or the one-line install on Windows:</b> the <b>Free GST Billing</b> folder with the launcher in it (one-line install: <code>%LOCALAPPDATA%\Programs\Free GST Billing</code>).</li>
+      <li><b>Apple Mac (Terminal line):</b> <code>~/Applications/Free GST Billing</code>.</li>
+      <li><b>Linux .deb or AppImage:</b> <code>~/.local/share/free-gst-billing-data</code>.</li>
+      <li><b>Docker / NAS:</b> one line does it: <code>docker exec free-gst-billing touch /data/RESET-PIN</code>.</li>
+    </ul></li>
+  <li><b>Make an empty file named RESET-PIN there.</b> On Windows: right-click an empty space, ${ui('New')} → ${ui('Text Document')}, name it <code>RESET-PIN</code> and press Enter; if Windows asks about changing the file name extension, click ${ui('Yes')} (<code>RESET-PIN.txt</code> also works). On a Mac or Linux the lock screen shows a Terminal line with ${ui('Copy the line')}: paste it in Terminal and press Return.</li>
+  <li><b>Back to the app.</b> Click ${ui('I made the file: open the app')} (or reload the page). The PIN is removed and the file deleted by itself. Your invoices are not touched.</li>
+  <li><b>A new PIN.</b> Set one in <a href="settings.html#lock">Settings</a> if you want. Phone and tablet access stays off until a PIN is set again.</li>
 </ol>
+<p>On a paired phone or tablet these steps are not shown: do them on the computer.</p>
 </section>
 
 <section id="updating">

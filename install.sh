@@ -28,7 +28,11 @@
 set -eu
 
 ZIP_URL='https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest/download/Free-GST-Billing.zip'
-NODE_VERSION=v20.19.0
+# v1.10.86 - Node.js 26 LTS (supported to about April 2029). It needs macOS
+# 13.5 or newer and has no 32-bit ARM build: those computers get Node.js 22
+# (supported to April 2027) instead - see pick_node_version.
+NODE_VERSION=v26.13.1
+NODE_OLDER=v22.23.5
 NEED_FREE_MB=600
 TEST=${FREEGSTBILL_TEST:-}
 OS=$(uname -s)
@@ -73,6 +77,21 @@ find_node() {
     if [ -n "$n" ] && node_ok "$n"; then printf '%s\n' "$n"; return 0; fi
   done
   return 1
+}
+
+# macOS is 13.5 or newer (Node.js 26's minimum). Unknown -> no.
+mac_13_5_or_newer() {
+  v=$(sw_vers -productVersion 2>/dev/null || true)
+  major=${v%%.*}
+  case $v in *.*) rest=${v#*.}; minor=${rest%%.*} ;; *) minor=0 ;; esac
+  case $major$minor in '' | *[!0-9]*) return 1 ;; esac
+  [ "$major" -gt 13 ] || { [ "$major" -eq 13 ] && [ "$minor" -ge 5 ]; }
+}
+
+# Node.js 26 where it runs, else 22 (older Macs, 32-bit ARM boards).
+pick_node_version() {
+  if [ "$1" = linux-armv7l ]; then NODE_VERSION=$NODE_OLDER; fi
+  if [ "$OS" = Darwin ] && ! mac_13_5_or_newer; then NODE_VERSION=$NODE_OLDER; fi
 }
 
 # The official build for this computer, or a clear "do this instead".
@@ -260,6 +279,7 @@ install_app() {
   NODE=$(find_node || true)
   PLATFORM=''
   [ -n "$NODE" ] || PLATFORM=$(node_platform)
+  [ -z "$PLATFORM" ] || pick_node_version "$PLATFORM"
   if { [ -z "${FREEGSTBILL_ZIP:-}" ] || [ -n "$PLATFORM" ]; } && ! online; then
     fail 'This computer cannot reach github.com.' 'Check the internet connection (open any website), then run the install line again.'
   fi

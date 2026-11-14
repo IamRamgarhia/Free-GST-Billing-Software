@@ -14,7 +14,7 @@
 // production packages. Then the ZIP-only files are taken out and the official
 // portable node.exe is added - downloaded once from nodejs.org into
 // .installer-cache/ and checked against nodejs.org's SHASUMS256.txt.
-// The Setup's Node.js version is SETUP_NODE_VERSION below (22 LTS); the ZIP's
+// The Setup's Node.js version is SETUP_NODE_VERSION below (26 LTS); the ZIP's
 // is still ensure-node.ps1's $PortableNodeVersion (20), so ZIP users move later.
 //
 // docs/WINDOWS_SETUP.md explains the Setup for maintainers.
@@ -58,7 +58,7 @@ async function download(url) {
 // now: the ZIP keeps ensure-node.ps1's $PortableNodeVersion until its users
 // are moved in a later release. A newer 22.x: change it here (the SHA-256 is
 // checked against nodejs.org's SHASUMS256.txt on download).
-const SETUP_NODE_VERSION = 'v22.23.4';
+const SETUP_NODE_VERSION = 'v26.13.1'; // v1.10.86 - 26 LTS (to about April 2029; Windows 10+)
 
 // The official portable node.exe, checked against nodejs.org's checksums.
 async function portableNode() {

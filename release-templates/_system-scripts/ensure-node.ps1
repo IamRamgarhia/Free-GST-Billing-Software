@@ -22,7 +22,10 @@
 
 $MinNodeMajor = 18           # package.json "engines"
 $MinNpmMajor = 7             # first npm that understands --omit=dev
-$PortableNodeVersion = 'v20.19.0'
+# v1.10.86 - Node.js 26 LTS; it has no 32-bit Windows build, so a 32-bit
+# Windows gets Node.js 22 (supported to April 2027). See Install-PortableNode.
+$PortableNodeVersion = 'v26.13.1'
+$PortableNodeVersionX86 = 'v22.23.5'
 $AppNodeDir = Join-Path $PSScriptRoot 'node'
 $NeedFreeMB = 400            # packages (~150 MB) + Node.js (~90 MB) + room
 
@@ -138,6 +141,7 @@ function Test-Internet([string]$url = 'https://registry.npmjs.org/') {
 
 function Install-PortableNode {
   $arch = if ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' }
+  if ($arch -eq 'x86') { $PortableNodeVersion = $PortableNodeVersionX86 }
   $name = "node-$PortableNodeVersion-win-$arch"
   $tmpZip = Join-Path $env:TEMP "$name.zip"
   $tmpDir = Join-Path $env:TEMP "fgstbill-node-$([Guid]::NewGuid().ToString('N'))"
