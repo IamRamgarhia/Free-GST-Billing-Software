@@ -18,7 +18,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = 'IamRamgarhia/Free-GST-Billing-Software';
 const ID = 'DiceCodes.FreeGSTBilling';
 const SETUP = 'Free-GST-Billing-Windows-Setup.exe';
-const SCHEMA = '1.9.0';
+const SCHEMA = '1.28.0';
 
 const arg = process.argv[2];
 const version = (arg || JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version).replace(/^v/, '');
