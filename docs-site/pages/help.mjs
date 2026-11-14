@@ -14,19 +14,23 @@ export default [
 <h2>The sidebar</h2>
 <p>From top to bottom:</p>
 <ul>
-  <li><strong>Your business</strong>, with a pencil to edit it. If you have more than one, click the name to <a href="#switch-business">switch</a>.</li>
+  <li><strong>Your business</strong>. Click the name for <b>Edit business details</b> and, if you have more than one business, to <a href="#switch-business">switch</a>. The pencil beside it opens <a href="#menu-groups">Customise menu</a>.</li>
   <li><strong>The screens</strong>, in three groups: <b>Sales</b> (Dashboard, New Invoice, Clients, Receipts, Recurring), <b>Stock &amp; buying</b> (Products, Purchases, Expenses) and <b>Money &amp; reports</b> (Cash book, Reports, GST Returns, Income Tax). Features you <a href="settings.html#features">turn off</a> disappear from here; a group with nothing left in it is not shown.</li>
   <li><strong>Update to v…</strong>, when a new version is out.</li>
   <li><a href="#support"><strong>Support &amp; About</strong></a>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
   <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
 </ul>
 <p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
-<h3 id="menu-groups">Open, close and arrange the groups</h3>
+<h3 id="menu-groups">Open, close and customise the menu</h3>
+<p><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</p>
+<p><b>Customise menu</b>: click the pencil beside your business name at the top of the sidebar (or ${ui('Customise menu…')} in <a href="settings.html#features-menu">Settings → Features</a>). The window lists the groups and their items as the menu shows them, and a <b>Bottom of the menu</b> part for Support &amp; About, Control Panel and Settings. It works with a mouse, a finger or the keyboard; on a phone it opens from the bottom of the screen.</p>
 <ul>
-  <li><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</li>
-  <li><b>Move an item or a group with the mouse</b>: point at it and a grip (⋮⋮) appears on the right. Drag the grip up or down; a blue line shows where it will go. Drop an item into another group to move it there. Clicking the item itself still opens it.</li>
-  <li><b>On a phone, or with the keyboard</b>: click ${ui('Arrange menu')} under the groups. Every item and group gets ${ui('↑')} and ${ui('↓')} arrows; at the top or bottom of a group an item moves on into the next group. Click ${ui('Done')} when finished.</li>
-  <li><b>Back to the start</b>: ${ui('Reset menu')} (in Arrange menu, or in <a href="settings.html#features-menu">Settings → Features</a>) puts back the three groups in the usual order and opens them all.</li>
+  <li>${ui('↑')} and ${ui('↓')} move an item or a whole group. At the top or bottom of a group an item moves on into the next group.</li>
+  <li>Or drag the grip (⋮⋮) at the left of an item or a group, with the mouse or a finger. A blue line shows where it will go; drop an item into another group to move it there.</li>
+  <li>The <b>Open</b> switch beside a group's name sets whether it is open or closed in the menu.</li>
+  <li>The switch on an item takes it out of the menu, or puts it back. This only changes the menu: the screen stays on, and quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) still opens it. Dashboard, New Invoice, Clients, Support &amp; About and Settings say <b>Always shown</b>.</li>
+  <li>An item greyed out with <b>Off in Settings → Features</b> is a feature that is switched off. Click the link to turn it on in <a href="settings.html#features">Settings → Features</a>.</li>
+  <li>${ui('Reset menu')} puts back the three groups in the usual order, opens them all and shows every item. ${ui('Done')}, ${ui('✕')} or <kbd>Esc</kbd> closes the window.</li>
 </ul>
 <p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
 <p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
@@ -45,7 +49,7 @@ export default [
 
 <section id="switch-business">
 <h2>Switching business</h2>
-<p>With more than one business saved, click its name at the top of the sidebar and choose another. Every screen changes to that business's invoices, purchases, expenses, receipts, recurring invoices, reports and returns. <b>Manage profiles…</b> opens <a href="settings.html#multiple-businesses">Settings</a>.</p>
+<p>Click the business name at the top of the sidebar to open its list. <b>Edit business details</b> opens your business's details in <a href="settings.html#company-details">Settings</a>. With more than one business saved, choose another to switch. Every screen changes to that business's invoices, purchases, expenses, receipts, recurring invoices, reports and returns. <b>Manage profiles…</b> opens <a href="settings.html#multiple-businesses">Settings</a>.</p>
 </section>
 
 <section id="notifications">
