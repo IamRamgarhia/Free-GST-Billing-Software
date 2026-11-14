@@ -4443,3 +4443,10 @@ html[data-compact] .client-card-header .client-avatar { width: 32px; height: 32p
 .inv-row3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); grid-auto-flow: row dense; gap: 0 1rem; }
 .inv-row3 > .form-group { margin-bottom: 0; }
 .inv-row3 > .form-group.full-width { grid-column: 1 / -1; margin-top: 0.75rem; }
+/* Same label height in all three (the Print ticks made two of them taller),
+   and the Currency box fills its column. */
+.inv-row3 .label-with-toggle,
+.inv-row3 [data-invoice-currency] .form-label { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; height: 1.5rem; margin: 0 0 0.4rem; flex-wrap: nowrap; }
+.inv-row3 [data-invoice-currency] .form-label { justify-content: flex-start; gap: 0.35rem; }
+.inv-row3 .label-with-toggle .form-label { margin: 0; white-space: nowrap; }
+.inv-row3 > [data-invoice-currency]:not(.full-width) > div > div:first-child { flex: 1 1 100%; min-width: 0; }
