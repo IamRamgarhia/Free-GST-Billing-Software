@@ -82,11 +82,11 @@ function bill([n, client, date, due, status, items, paidPart]) {
 const owner = { ownerGstin: PROFILE.gstin, ownerName: PROFILE.businessName };
 
 const PURCHASES = [
-  { id: `${ID}b1`, date: '2026-09-04', supplierName: 'Kaveri Components', supplierGstin: '29AAKCK1111C1Z3', supplierAddress: 'Peenya, Bengaluru', invoiceNumber: 'KC/882', interstate: false, paymentStatus: 'Paid',
+  { id: `${ID}b1`, date: '2026-09-04', supplierName: 'Nandi Components', supplierGstin: '29AAKCK1111C1Z3', supplierAddress: 'Peenya, Bengaluru', invoiceNumber: 'NC/882', interstate: false, paymentStatus: 'Paid',
     items: [{ name: 'Laptop stand', hsn: '8473', quantity: 40, rate: 1100, taxPercent: 18, cessPercent: 0, discount: 0 }] },
   { id: `${ID}b2`, date: '2026-09-22', supplierName: 'Delhi Cable Co', supplierGstin: '07AADCD2222D1Z4', supplierAddress: 'Okhla, New Delhi', invoiceNumber: 'DCC-1043', interstate: true, paymentStatus: 'Unpaid',
     items: [{ name: 'USB-C cable', hsn: '8544', quantity: 50, rate: 220, taxPercent: 18, cessPercent: 0, discount: 0 }, { name: 'Wireless mouse', hsn: '8471', quantity: 10, rate: 600, taxPercent: 18, cessPercent: 0, discount: 0 }] },
-  { id: `${ID}b3`, date: '2026-10-09', supplierName: 'Kaveri Components', supplierGstin: '29AAKCK1111C1Z3', supplierAddress: 'Peenya, Bengaluru', invoiceNumber: 'KC/915', interstate: false, paymentStatus: 'Unpaid',
+  { id: `${ID}b3`, date: '2026-10-09', supplierName: 'Nandi Components', supplierGstin: '29AAKCK1111C1Z3', supplierAddress: 'Peenya, Bengaluru', invoiceNumber: 'NC/915', interstate: false, paymentStatus: 'Unpaid',
     items: [{ name: 'Laptop stand', hsn: '8473', quantity: 10, rate: 1100, taxPercent: 18, cessPercent: 0, discount: 0 }] },
 ].map((p) => ({ ...p, ...owner, reverseCharge: false, applyRoundOff: false, note: '', kind: 'bill' }));
 
