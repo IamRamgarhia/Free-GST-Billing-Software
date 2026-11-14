@@ -6,6 +6,7 @@ import { formatCurrency, INVOICE_TYPES, markPaidPatch, markUnpaidPatch, salesSig
 import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
+import { askPaidMode } from './askPaidMode';
 import { toast } from './Toast';
 import { clientVisits } from '../utils/phoneClients';
 // v1.10.85 (#157, #148) - PDF preview, payment history, items, credit limit.
@@ -676,8 +677,16 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
   };
 
   const changeStatus = async (bill, newStatus) => {
+    // v1.10.85 (#184) - Paid with a balance left asks how it was paid (Cash
+    // reaches the Cash book); cancelled = nothing changes.
+    let paidMode = 'other';
+    const left = amountDue(bill) - (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    if (newStatus === 'paid' && left > 0.005) {
+      paidMode = await askPaidMode();
+      if (!paidMode) { loadData(); return; }
+    }
     const updated = { ...bill, status: newStatus };
-    if (newStatus === 'paid') Object.assign(updated, markPaidPatch(bill));
+    if (newStatus === 'paid') Object.assign(updated, markPaidPatch(bill, 'Marked paid', paidMode));
     // v1.10.77 (#86) - Unpaid takes back the "Marked paid" payment, as on the Dashboard.
     if (newStatus === 'unpaid') Object.assign(updated, markUnpaidPatch(bill));
     await saveBill(updated, { overwrite: true });

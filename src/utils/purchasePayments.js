@@ -116,12 +116,13 @@ export function withPurchasePayments(p, payments) {
 export const newPurchasePaymentId = (now = Date.now()) => `ppay_${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 // "Mark as paid": one payment for what is still owed.
-export function markPurchasePaid(p, today, now = new Date()) {
+// v1.10.85 (#184) - mode: how it was paid (askPaidMode); a cash one reaches the Cash book.
+export function markPurchasePaid(p, today, now = new Date(), mode = 'other') {
   const payments = paymentsOf(p);
   const due = purchasePaymentDue(p);
   if (due <= 0.005) return payments.length ? withPurchasePayments(p, payments) : { ...p, paymentStatus: 'Paid' };
   return withPurchasePayments(p, [...payments, {
-    id: newPurchasePaymentId(now.getTime()), amount: due, date: today, mode: 'other',
+    id: newPurchasePaymentId(now.getTime()), amount: due, date: today, mode: mode || 'other',
     reference: '', note: 'Marked paid', recordedAt: now.toISOString(), auto: true,
   }]);
 }

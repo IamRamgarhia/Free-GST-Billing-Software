@@ -23,6 +23,7 @@ import { CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
 import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../utils/salesOrders';
 import { periodRange, inPeriod } from '../utils/period';
+import { askPaidMode } from './askPaidMode';
 import { reorderLines } from '../utils/stock';
 import { putReorderDraft } from '../utils/reorderDraft';
 
@@ -101,6 +102,8 @@ const PAYMENT_MODES = [
   ['cheque', 'Cheque'], ['card', 'Card'], ['other', 'Other'],
 ];
 const paymentModeName = (mode) => (PAYMENT_MODES.find(([v]) => v === mode) || [])[1] || mode;
+// What marking an invoice Paid would record (as markPaidPatch works it out).
+const balanceLeft = (bill) => amountDue(bill) - (bill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 
 // v1.10.85 - the period the cards show, kept in this browser.
 const CARD_PERIOD_KEY = 'gst_dashboardPeriod';
@@ -669,6 +672,13 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   };
 
   const changeStatus = async (bill, newStatus) => {
+    // v1.10.85 (#184) - Paid with a balance left records a payment: ask how it
+    // was paid (Cash reaches the Cash book). Cancelled = nothing changes.
+    let paidMode = 'other';
+    if (newStatus === 'paid' && balanceLeft(bill) > 0.005) {
+      paidMode = await askPaidMode();
+      if (!paidMode) { loadBills(); return; }
+    }
     // v1.10.67 (#66 item 12) / v1.10.76 - moving into or out of Cancelled moves
     // the stock (into it from the dropdown too, which used to skip that).
     const plan = isCancelledBill(bill) !== (newStatus === 'cancelled') ? planStock(bill, newStatus) : { bill, changes: {} };
@@ -678,7 +688,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     if (newStatus === 'paid') {
       // Also records a payment for the balance, so payment history and
       // reports agree with the status (see markPaidPatch).
-      Object.assign(updated, markPaidPatch(bill));
+      Object.assign(updated, markPaidPatch(bill, 'Marked paid', paidMode));
     }
     if (newStatus === 'unpaid') Object.assign(updated, markUnpaidPatch(bill));
     await saveBill(updated, { overwrite: true });
@@ -980,6 +990,12 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         : 'The status change is reversible — you can flip it back any time.',
       confirmLabel: `Mark as ${STATUS_CONFIG[newStatus]?.label || newStatus}`,
     })) return;
+    // v1.10.85 (#184) - one answer for all of them: how they were paid.
+    let paidMode = 'other';
+    if (newStatus === 'paid' && sel.some((b) => balanceLeft(b) > 0.005)) {
+      paidMode = await askPaidMode(`How were these ${sel.length} paid?`);
+      if (!paidMode) return;
+    }
     setBulkBusy(true);
     try {
       // Bulk mark-paid must push synthetic payments per bill so payment
@@ -991,7 +1007,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       const results = await saveWithStock(plans, (b) => {
         const patch = { ...b, status: newStatus };
         delete patch.cancelledAt;
-        if (newStatus === 'paid') Object.assign(patch, markPaidPatch(b, 'Marked paid (bulk)'));
+        if (newStatus === 'paid') Object.assign(patch, markPaidPatch(b, 'Marked paid (bulk)', paidMode));
         if (newStatus === 'unpaid') Object.assign(patch, markUnpaidPatch(b));
         return patch;
       });

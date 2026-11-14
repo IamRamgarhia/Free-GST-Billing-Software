@@ -61,6 +61,9 @@ console.log('\n[supplier payments] Mark as paid and Unpaid');
   const back = markPurchaseUnpaid(paid);
   eq([back.paymentStatus, back.payments.length, purchaseBalance(back)], ['Partial', 1, 6800], 'Unpaid takes back only that payment; yours stay');
   eq(markPurchaseUnpaid(markPurchasePaid(bill(), today)).paymentStatus, 'Unpaid', 'Paid then Unpaid on a bill with no payments is Unpaid again');
+  // v1.10.85 (#184) - Paid records how it was paid; Cash reaches the Cash book.
+  eq(markPurchasePaid(bill(), today, new Date(), 'cash').payments.slice(-1)[0].mode, 'cash', 'marked paid in cash: the payment is a cash payment');
+  eq(markPurchasePaid(bill(), today).payments.slice(-1)[0].mode, 'other', 'no mode given: other, as before');
   eq(markPurchasePaid(bill({ tdsAmount: 11800 }), today).payments, undefined, 'Nothing owed: marked Paid without a ₹0 payment');
   eq(markPurchasePaid(bill({ tdsAmount: 11800 }), today).paymentStatus, 'Paid', '...and it is Paid');
 }

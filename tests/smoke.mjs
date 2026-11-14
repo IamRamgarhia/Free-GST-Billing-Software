@@ -1693,14 +1693,18 @@ try {
       setter.call(sel, 'Paid');
       sel.dispatchEvent(new Event('change', { bubbles: true }));
     }, st71.idx);
+    // v1.10.85 (#184) - Paid asks how it was paid; Cash goes into the Cash book.
+    await page.locator('.confirm-modal-content select').selectOption('cash', { timeout: 10000 }).catch(() => {});
+    await page.locator('.confirm-modal-primary').click({ timeout: 10000 }).catch(() => {});
     await sleep(2500);
     const saved71 = await page.evaluate(async (invoiceNumber) => {
       const rows = await (await fetch('/api/purchases')).json();
       const r = rows.find((x) => String(x.invoiceNumber).trim() === invoiceNumber);
-      return r ? r.paymentStatus : null;
+      return r ? { status: r.paymentStatus, mode: (r.payments || []).slice(-1)[0]?.mode } : null;
     }, st71.invoiceNumber);
-    check('#71.3 changing it saves against the purchase', saved71 === 'Paid',
-      `invoice ${st71.invoiceNumber} saved as "${saved71}"`);
+    check('#71.3 changing it saves against the purchase', saved71?.status === 'Paid',
+      `invoice ${st71.invoiceNumber} saved as ${JSON.stringify(saved71)}`);
+    check('#184 marking it Paid asks how: Cash is recorded as a cash payment (Cash book)', saved71?.mode === 'cash', JSON.stringify(saved71));
   }
 
   // ---- ERR-024: a page break must never cut through the signature --------

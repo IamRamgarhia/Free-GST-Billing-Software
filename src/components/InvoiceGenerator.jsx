@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff, QrCode } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels } from '../store';
+import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels } from '../store';
 import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
@@ -298,6 +298,11 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
   // Reset the highlighted suggestion when the query changes so ArrowDown
   // starts from the top rather than continuing a stale index.
   useEffect(() => { setActiveIdx(-1); }, [item.name, suggestions.length]);
+  // #182 - the highlighted suggestion stays in view while arrowing down a long list.
+  const listRef = useRef(null);
+  useEffect(() => {
+    if (activeIdx >= 0) listRef.current?.children[activeIdx]?.scrollIntoView({ block: 'nearest' });
+  }, [activeIdx]);
   const commit = (idx) => {
     const pick = suggestions[idx] ?? suggestions[0];
     if (!pick) return;
@@ -351,7 +356,7 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
         onKeyDown={handleKey}
         autoComplete="off" />
       {suggestions.length > 0 && (
-        <div className="product-suggestions" role="listbox">
+        <div className="product-suggestions" role="listbox" ref={listRef}>
           {suggestions.map((p, i) => (
             <div key={p.id} className="product-suggestion-item"
               role="option"
@@ -509,7 +514,7 @@ const LineItem = memo(function LineItem({
   currency, profileCountry, suggestions,
   onFieldChange, onSelectProduct, onSetProductSearch,
   onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
-  isLastRow, onAddRow, isOnlyRow, onSizeChange, sizeLines, onRftChange,
+  isLastRow, onAddRow, isOnlyRow, onSizeChange, sizeLines, onRftChange, notInProducts, onSaveAsProduct,
 }) {
   // v1.10.37 — Keyboard shortcut: Enter on any input inside the LAST
   // row adds a new row. Muscle-memory for POS users — reported: "if
@@ -554,6 +559,14 @@ const LineItem = memo(function LineItem({
           onSetProductSearch={onSetProductSearch}
           currency={currency}
         />
+        {/* v1.10.85 (#183) - a name that is not one of your products: say so, and offer to save it. */}
+        {notInProducts && suggestions.length === 0 && (
+          <div className="not-in-products" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+            Not in your Products.{' '}
+            <button type="button" className="link-btn" style={{ fontSize: '0.72rem', padding: 0, border: 0, background: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => onSaveAsProduct(item)}>Save it to Products</button>
+          </div>
+        )}
       </div>
       {invoiceOptions.showHSN && (
         <div className="line-item-field" style={{ flex: 1, position: 'relative' }}>
@@ -1448,7 +1461,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         if (convertType) {
           setInvoiceType(convertType);
           const config = INVOICE_TYPES[convertType];
-          if (config) setInvoiceOptions(prev => ({ ...prev, showGST: config.showGST, showPlaceOfSupply: config.showGST }));
+          // v1.10.85 (#186) - an invoice with GST switched off (a non-GST
+          // supply) stays off as a credit note; it used to come back on.
+          const fromNoGstType = INVOICE_TYPES[d.invoiceType || 'tax-invoice']?.showGST === false;
+          if (config) setInvoiceOptions(prev => {
+            const on = convertType === 'bill-of-supply' ? false : (fromNoGstType || prev.showGST !== false ? config.showGST : false);
+            return { ...prev, showGST: on, showPlaceOfSupply: on };
+          });
         }
         // v1.10.10 — read per-type prefix override from print settings.
         const _psForPrefix = getPrintSettings();
@@ -1615,7 +1634,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     if (type === 'bill-of-supply') {
       setInvoiceOptions(prev => ({ ...prev, showGST: false, showPlaceOfSupply: false }));
     } else {
-      setInvoiceOptions(prev => ({ ...prev, showGST: config.showGST, showPlaceOfSupply: config.showGST }));
+      // v1.10.85 (#186) - GST switched off by hand (a non-GST supply) stays
+      // off on another type, e.g. a credit note; from a bill of supply the
+      // new type's own setting applies.
+      const fromNoGstType = INVOICE_TYPES[invoiceType]?.showGST === false;
+      setInvoiceOptions(prev => {
+        const on = fromNoGstType || prev.showGST !== false ? config.showGST : false;
+        return { ...prev, showGST: on, showPlaceOfSupply: on };
+      });
     }
   };
 
@@ -1822,6 +1848,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     setProductSearch({ itemId: null, query: '' });
   }, [countryTaxRates, clientLevel]);
 
+  // v1.10.85 (#183) - a line whose name is none of the saved products (only
+  // once there are products, and never the delivery-charges line). A hint, not
+  // a block: one-off items are fine.
+  const productNames = useMemo(() => new Set(products.map((p) => String(p.name || '').trim().toLowerCase())), [products]);
+  const isUnknownItem = (item) => products.length > 0 && !item.isCharge && !item.productId
+    && String(item.name || '').trim().length > 1 && !productNames.has(String(item.name).trim().toLowerCase());
+  const saveLineAsProduct = useCallback(async (item) => {
+    try {
+      const saved = await saveProduct({ name: String(item.name).trim(), hsn: item.hsn || '', unit: item.unit || 'Nos',
+        sellingPrice: Number(item.rate) || 0, rate: Number(item.rate) || 0, taxPercent: Number(item.taxPercent) || 0, kind: 'goods' });
+      setProducts(await getAllProducts());
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, productId: saved.id } : i)));
+      toast(`${saved.name} saved to Products`, 'success');
+    } catch { toast('Could not save it to Products.', 'error'); }
+  }, []);
+
   const getProductSuggestions = useCallback((itemId) => {
     if (productSearch.itemId !== itemId || !productSearch.query.trim()) return [];
     const q = productSearch.query.toLowerCase();
@@ -1832,7 +1874,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     const list = products.filter(p => p !== hit && (
       p.name?.toLowerCase().includes(q) || p.hsn?.toLowerCase().includes(q)
     ));
-    return (hit ? [hit, ...list] : list).slice(0, 5);
+    // v1.10.85 (#182) - up to 50 in a scrolling list (it was the first 5, so
+    // similar names could not be reached); names starting with what was typed first.
+    const starts = (p) => ((p.name || '').toLowerCase().startsWith(q) ? 0 : 1);
+    list.sort((a, b) => starts(a) - starts(b));
+    return (hit ? [hit, ...list] : list).slice(0, 50);
   }, [productSearch.itemId, productSearch.query, products]);
 
   // v1.10.77 (#87) - one delivery-charges line per invoice (see deliveryChargeLine).
@@ -5101,6 +5147,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 onSizeChange={handleSizeChange}
                 sizeLines={item.rft ? sizeLines : undefined}
                 onRftChange={handleRftChange}
+                notInProducts={isUnknownItem(item)}
+                onSaveAsProduct={saveLineAsProduct}
               />
             ))}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

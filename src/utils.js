@@ -831,7 +831,8 @@ export const clientYearToDate = (bills, clientName, invoiceDate, excludeId = nul
 // owed, so payment history, receipts and reports agree with the status. Used
 // by the Dashboard and the Clients screen (Clients used to set the paid amount
 // only, with no payment). The id gives the payment a real receipt number.
-export const markPaidPatch = (bill, note = 'Marked paid') => {
+// v1.10.85 (#184) - mode: how it was paid (askPaidMode); a cash one reaches the Cash book.
+export const markPaidPatch = (bill, note = 'Marked paid', mode = 'other') => {
   const payments = Array.isArray(bill.payments) ? bill.payments : [];
   const already = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
   // TDS the client deducts is not paid to us (see amountDue).
@@ -844,7 +845,7 @@ export const markPaidPatch = (bill, note = 'Marked paid') => {
     // when more had been received or TDS was deducted).
     paidAmount: Math.round((already + (add ? amount : 0)) * 100) / 100,
     payments: add
-      ? [...payments, { id: `pay_${now.getTime()}`, amount, date: localToday(), mode: 'other', note, recordedAt: now.toISOString(), auto: true }]
+      ? [...payments, { id: `pay_${now.getTime()}`, amount, date: localToday(), mode: mode || 'other', note, recordedAt: now.toISOString(), auto: true }]
       : payments,
   };
 };

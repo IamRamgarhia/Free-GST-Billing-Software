@@ -147,22 +147,6 @@ a backup is made first.
   reach twice the low-stock level, at the purchase price) for you to pick the
   supplier, check and save.
 
-### Fixed
-- Purchase returns: editing a bill can no longer cut a returned line below
-  what went back, or rename or remove it; **Paid** on such a bill records the
-  balance less the returns; a bill returned in full owes nothing, round-off
-  included; the debit note date cannot be before the bill's date; a debit
-  note can no longer be saved twice when its stock change failed (it says so
-  instead); debit notes of bills with no business follow the bill to its
-  business; returns on reverse-charge bills also come off GSTR-3B 3.1(d); a
-  returned item that matches no product is named; and a debit note number
-  already in use (after restoring an older backup) is skipped.
-- Sales orders: cancelling or deleting an invoice that took in a sales
-  order's delivery challans lets those challans count again (undoing the
-  cancel takes them back in); a challan that could not be marked converted
-  now says so; a business that already numbered with the prefix SO or DN keeps
-  its settings, with a warning.
-
 - **Rft lines for glass shops** (#140): polish, aluminium channel and other
   work charged on the glass already on the bill. With **Size billing** on,
   pick the unit **Rft** on a line and choose what it counts: the **sq.ft** of
@@ -275,6 +259,34 @@ a backup is made first.
   new invoice, a product picked for that client takes its level price, or the
   selling price when it has none. The Products CSV import and export carry a
   column per level (such as *Wholesale price*).
+
+### Fixed
+- Purchase returns: editing a bill can no longer cut a returned line below
+  what went back, or rename or remove it; **Paid** on such a bill records the
+  balance less the returns; a bill returned in full owes nothing, round-off
+  included; the debit note date cannot be before the bill's date; a debit
+  note can no longer be saved twice when its stock change failed (it says so
+  instead); debit notes of bills with no business follow the bill to its
+  business; returns on reverse-charge bills also come off GSTR-3B 3.1(d); a
+  returned item that matches no product is named; and a debit note number
+  already in use (after restoring an older backup) is skipped.
+- Sales orders: cancelling or deleting an invoice that took in a sales
+  order's delivery challans lets those challans count again (undoing the
+  cancel takes them back in); a challan that could not be marked converted
+  now says so; a business that already numbered with the prefix SO or DN keeps
+  its settings, with a warning.
+- **Marking an invoice or purchase bill Paid now asks how it was paid**
+  (#184): Cash, UPI, Bank transfer, Cheque, Card or Other (your last answer
+  comes first). A cash payment now shows in the **Cash book**; it used to be
+  recorded as "Other", so nothing marked Paid ever reached the Cash book.
+- **A non-GST invoice stays without GST as a credit note** (#186): switching
+  the document type, or making a credit note from an invoice, turned GST (and
+  the CGST/SGST columns) back on.
+- **Item suggestions show up to 50 matches** (#182), in a scrolling list that
+  the arrow keys move through; names that start with what you typed come
+  first. It used to show only the first 5.
+- **An item that is not in your Products says so** (#183), with **Save it to
+  Products** under the item box. One-off items are still allowed.
 
 ### Changed
 - Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. The plain connection answers only

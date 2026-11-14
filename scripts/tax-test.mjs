@@ -658,6 +658,7 @@ console.log('\n[V71] GST rates and the B2C Large limit');
 
 console.log('\n[V71] Marking an invoice paid records the balance as a payment');
 {
+  eq(markPaidPatch({ totalAmount: 1000, payments: [] }, 'Marked paid', 'cash').payments[0].mode, 'cash', 'v1.10.85 (#184): marked paid in cash is a cash payment (Cash book)');
   const p = markPaidPatch({ totalAmount: 1000, payments: [{ amount: 400 }] });
   eq(p.paidAmount, 1000, 'Paid amount becomes the total');
   eq(p.payments.length, 2, 'One payment is added');

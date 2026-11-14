@@ -15,9 +15,10 @@ import { confirmAction, promptAction } from './ConfirmModal';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect, CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields } from '../utils/costCentres';
-import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, purchasePaid, purchaseOwed, hasPurchasePayments, withPurchasePayments, markPurchasePaid, markPurchaseUnpaid, purchasePaymentModeName } from '../utils/purchasePayments';
+import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, purchasePaid, purchaseOwed, hasPurchasePayments, withPurchasePayments, markPurchasePaid, markPurchaseUnpaid, purchasePaymentModeName, purchasePaymentDue } from '../utils/purchasePayments';
 import PurchasePaymentModal from './PurchasePaymentModal';
 import DebitNotesList, { ReturnToSupplierModal } from './DebitNotes';
+import { askPaidMode } from './askPaidMode';
 import { withReturns, returnableLines, debitNoteTotals, editProblem, notesToRestamp } from '../utils/debitNotes';
 // v1.10.85 (#137, #158) - barcodes: labels for a bill, and a scanned code in
 // the item name box. Kept to these imports, one state, one button, one modal
@@ -752,7 +753,10 @@ export default function PurchaseBills() {
           return;
         }
       } else if (form.paymentStatus === 'Paid' && (before?.paymentStatus || 'Unpaid') !== 'Paid') {
-        purchase = markPurchasePaid(purchaseFields, localToday());
+        // v1.10.85 (#184) - how it was paid: Cash reaches the Cash book.
+        const mode = purchasePaymentDue(purchaseFields) > 0.005 ? await askPaidMode('How was this bill paid?') : 'other';
+        if (!mode) return;
+        purchase = markPurchasePaid(purchaseFields, localToday(), new Date(), mode);
       }
       await savePurchase(purchase);
       if (editingId) await restampDebitNotes([purchase]);
@@ -896,7 +900,13 @@ export default function PurchaseBills() {
   const changePaymentStatus = async (purchase, paymentStatus) => {
     if (purchaseStatus(purchase) === paymentStatus) return;
     if (paymentStatus === 'Partial') { setPayPurchase(purchase); return; }
-    const next = paymentStatus === 'Paid' ? markPurchasePaid(purchase, localToday()) : markPurchaseUnpaid(purchase);
+    // v1.10.85 (#184) - Paid asks how it was paid (Cash reaches the Cash book).
+    let mode = 'other';
+    if (paymentStatus === 'Paid' && purchasePaymentDue(purchase) > 0.005) {
+      mode = await askPaidMode('How was this bill paid?');
+      if (!mode) { loadPurchases(); return; }
+    }
+    const next = paymentStatus === 'Paid' ? markPurchasePaid(purchase, localToday(), new Date(), mode) : markPurchaseUnpaid(purchase);
     try {
       await savePurchase(next);
       const now = purchaseStatus(next);

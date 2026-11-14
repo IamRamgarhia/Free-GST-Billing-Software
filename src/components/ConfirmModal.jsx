@@ -95,7 +95,7 @@ export default function ConfirmModalContainer() {
     const t = setTimeout(() => {
       if (modal.kind === 'prompt' && inputRef.current) {
         inputRef.current.focus();
-        inputRef.current.select();
+        inputRef.current.select?.(); // a <select> (a choice) has no select()
       } else {
         // Confirm modal — focus the primary button.
         const btn = document.querySelector('.confirm-modal-primary');
@@ -171,7 +171,16 @@ export default function ConfirmModalContainer() {
                 {modal.message}
               </p>
             )}
-            {modal.kind === 'prompt' && (
+            {modal.kind === 'prompt' && Array.isArray(modal.options) && (
+              // v1.10.85 - a prompt with options is a choice: [[value, label], ...].
+              <form onSubmit={(e) => { e.preventDefault(); confirm(); }}>
+                <select ref={inputRef} className="form-input" value={value} aria-label={modal.title}
+                  onChange={(e) => setValue(e.target.value)} style={{ marginTop: '0.9rem', width: '100%' }}>
+                  {modal.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                </select>
+              </form>
+            )}
+            {modal.kind === 'prompt' && !Array.isArray(modal.options) && (
               <form onSubmit={(e) => { e.preventDefault(); confirm(); }}>
                 <input
                   ref={inputRef}
