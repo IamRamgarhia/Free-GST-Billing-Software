@@ -7,6 +7,7 @@ import { purchaseTdsAmount } from '../utils/tdsTcs';
 import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial } from '../utils/purchaseOrders';
 import PurchaseOrders from './PurchaseOrders';
 import TableExport from './TableExport';
+import ActionsMenu from './ActionsMenu';
 import BulkCsvImport from './BulkCsvImport';
 import UnassignedBanner from './UnassignedBanner';
 import { getPrintSettings } from '../utils/printSettings';
@@ -1243,7 +1244,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div>
-            <h1 className="page-title">{poEnabled ? 'Purchases' : 'Purchase Bills'} <HelpButton title="Purchase Bills — how to use" doc="purchases" size={16} /></h1>
+            {/* v1.10.86 - one name: the menu and the page say Purchases; a bill is a Purchase Bill. */}
+            <h1 className="page-title">Purchases <HelpButton title="Purchases — how to use" doc="purchases" size={16} /></h1>
             <p className="page-subtitle">Track supplier invoices for ITC claims in GSTR-3B</p>
           </div>
         </div>
@@ -1257,7 +1259,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
             <Wand2 size={16} /> Import from image (OCR)
           </button>
           <BulkCsvImport kind="purchase" onDone={() => { loadPurchases(); loadProducts(); }} />
-          <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase</button>
+          <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase Bill</button>
         </div>
         )}
       </div>
@@ -1919,7 +1921,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
           <div className="empty-state">
             <ShoppingCart size={48} />
             <p>{purchases.length === 0 ? 'No purchase bills recorded yet.' : 'No purchases match your filters.'}</p>
-            {purchases.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase</button>}
+            {purchases.length === 0 && <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Purchase Bill</button>}
           </div>
         ) : (
           <div className="table-scroll">
@@ -1971,15 +1973,17 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                           {/* v1.10.30 — quick View modal (no download).
                               Modal has a Download PDF button inside for
                               users who do want the file. */}
-                          <button className="icon-btn" onClick={() => setViewPurchase(p)} title="View details (no download)"><Eye size={15} /></button>
+                          {/* v1.10.86 - the same row buttons as every list: View · Edit · Payment · More. */}
+                          <button className="icon-btn icon-btn-blue" onClick={() => setViewPurchase(p)} title="View details (no download)" aria-label={`View ${p.invoiceNumber}`}><Eye size={15} /></button>
+                          <button className="icon-btn icon-btn-blue" onClick={() => openEdit(p)} title="Edit" aria-label={`Edit ${p.invoiceNumber}`}><Edit3 size={15} /></button>
                           {/* v1.10.83 (#123) - record / see payments to the supplier. */}
-                          <button className="icon-btn icon-btn-green" onClick={() => setPayPurchase(p)} title={st === 'Paid' ? 'Payment history' : 'Record payment to supplier'} aria-label="Payments to supplier"><IndianRupee size={15} /></button>
-                          <button className="icon-btn icon-btn-blue" onClick={() => openEdit(p)} title="Edit"><Edit3 size={15} /></button>
-                          {/* v1.10.85 (#168) - send goods back: a debit note against this bill. */}
-                          {canReturn(p) && (
-                            <button className="icon-btn" onClick={() => setReturnBill(p)} title="Return to supplier (debit note)" aria-label={`Return goods on ${p.invoiceNumber} to supplier`}><RotateCcw size={15} /></button>
-                          )}
-                          <button className="icon-btn icon-btn-red" onClick={() => handleDelete(p.id)} title="Delete"><Trash2 size={15} /></button>
+                          <button className="icon-btn icon-btn-green" onClick={() => setPayPurchase(p)} title={st === 'Paid' ? 'Payment history' : 'Payment to supplier'} aria-label={`Payment for ${p.invoiceNumber}`}><IndianRupee size={15} /></button>
+                          <ActionsMenu label={`More actions for ${p.invoiceNumber}`} items={[
+                            // v1.10.85 (#168) - send goods back: a debit note against this bill.
+                            // v1.10.86 - in More, with its words (the arrow icon read as Undo).
+                            { label: 'Return to supplier (debit note)', icon: RotateCcw, onClick: () => setReturnBill(p), hidden: !canReturn(p) },
+                            { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => handleDelete(p.id) },
+                          ]} />
                         </div>
                       </td>
                     </tr>

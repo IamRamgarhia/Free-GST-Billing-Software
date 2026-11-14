@@ -14,13 +14,13 @@ export default [
 
 <section id="purchase-list">
 <h2>The purchase list</h2>
-<p>Open <b>Purchases</b> from the menu. The screen is called <b>Purchase Bills</b>, or <b>Purchases</b> when <a href="#purchase-orders">purchase orders</a> are turned on. Then two buttons sit under the title: ${ui('Purchase bills')} (the list on this page) and ${ui('Purchase orders')}.</p>
+<p>Open <b>Purchases</b> from the menu. The screen is called <b>Purchases</b>, like the menu item. Then two buttons sit under the title: ${ui('Purchase bills')} (the list on this page) and ${ui('Purchase orders')}.</p>
 <p>The buttons at the top right:</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Import from image (OCR)')}</td><td>Reads a photo of a supplier's bill and fills the form for you. See <a href="#ocr">Reading a bill from a photo</a>.</td></tr>
-  <tr><td>${ui('CSV import / export')}</td><td>Brings in many bills at once from a spreadsheet, or saves all of them as one CSV. See <a href="#csv-purchases">Importing purchase bills from CSV</a>.</td></tr>
-  <tr><td>${ui('Add Purchase')}</td><td>Opens a blank purchase bill. See <a href="#add-purchase">Adding a purchase bill</a>.</td></tr>
+  <tr><td>${ui('Import / export CSV')}</td><td>Brings in many bills at once from a spreadsheet, or saves all of them as one CSV. See <a href="#csv-purchases">Importing purchase bills from CSV</a>.</td></tr>
+  <tr><td>${ui('Add Purchase Bill')}</td><td>Opens a blank purchase bill. See <a href="#add-purchase">Adding a purchase bill</a>.</td></tr>
 </table></div>
 
 <h3>The four totals</h3>
@@ -40,12 +40,13 @@ export default [
 <div class="table-wrap"><table>
   <tr><th>On each row</th><th>What it does</th></tr>
   <tr><td><b>Status</b> dropdown</td><td>Unpaid, Partly paid or Paid. Picking Paid or Unpaid saves at once; Partly paid opens the payment window for the amount. See <a href="#mark-paid">Marking a bill paid from the list</a>.</td></tr>
-  <tr><td>Eye</td><td>Opens the bill to look at, without downloading anything. See <a href="#view-bill">Viewing a bill</a>.</td></tr>
-  <tr><td>${ui('₹')} (green)</td><td>Records a payment to the supplier, and shows the payments already made. See <a href="#record-payment">Recording a payment to a supplier</a>.</td></tr>
-  <tr><td>Pencil</td><td>Opens the bill in the form to change it.</td></tr>
-  <tr><td>Bin</td><td>Deletes the bill, after asking. Its quantities are taken back out of stock (see <a href="#stock">What saving does to your products</a>). GST credit already claimed in a return you filed stays as filed.</td></tr>
+  <tr><td>Eye (View)</td><td>Opens the bill to look at, without downloading anything. See <a href="#view-bill">Viewing a bill</a>.</td></tr>
+  <tr><td>Pencil (Edit)</td><td>Opens the bill in the form to change it.</td></tr>
+  <tr><td>${ui('₹')} (Payment, green)</td><td>Records a payment to the supplier, and shows the payments already made. See <a href="#record-payment">Recording a payment to a supplier</a>.</td></tr>
+  <tr><td>${ui('⋯')} Return to supplier (debit note)</td><td>Sends goods back to the supplier. See <a href="#purchase-returns">Returning goods to a supplier</a>. Shown while anything on the bill can still go back.</td></tr>
+  <tr><td>${ui('⋯')} Delete</td><td>Deletes the bill, after asking. Its quantities are taken back out of stock (see <a href="#stock">What saving does to your products</a>). GST credit already claimed in a return you filed stays as filed.</td></tr>
 </table></div>
-<p>With no bills yet, the table says <b>No purchase bills recorded yet.</b> with an ${ui('Add Purchase')} button. If you have bills but the filters hide them all, it says <b>No purchases match your filters.</b>: clear the search or pick <b>All years</b>.</p>
+<p>With no bills yet, the table says <b>No purchase bills recorded yet.</b> with an ${ui('Add Purchase Bill')} button. If you have bills but the filters hide them all, it says <b>No purchases match your filters.</b>: clear the search or pick <b>All years</b>.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p><b>A bill I entered is missing.</b> Check the year: a bill dated March 2026 is in FY 2025-26, not the current year. Pick <b>All years</b> and search for the invoice number. Also check the business selected in the sidebar: each business sees only its own bills.</p>
 <p><b>The same bills show under two businesses.</b> They were saved before you kept businesses separate. See <a href="#unassigned">Not assigned to a business</a>.</p></div>
@@ -75,7 +76,7 @@ export default [
 
 <section id="add-purchase">
 <h2>Adding a purchase bill</h2>
-<p>Click ${ui('Add Purchase')}. The <b>Add Purchase Bill</b> form opens (<b>Edit Purchase Bill</b> when you clicked a pencil). Copy the details from the supplier's bill.</p>
+<p>Click ${ui('Add Purchase Bill')}. The <b>Add Purchase Bill</b> form opens (<b>Edit Purchase Bill</b> when you clicked a pencil). Copy the details from the supplier's bill.</p>
 <div class="table-wrap"><table>
   <tr><th>Field</th><th>What to put in</th></tr>
   <tr><td><b>Date *</b></td><td>The date on the supplier's bill. Today to start. This decides which month's GSTR-3B the credit goes into.</td></tr>
@@ -324,7 +325,7 @@ export default [
 <p>Everything is read on your own computer, in English, with no internet needed and nothing uploaded anywhere.</p>
 <p><strong>For best results:</strong> a sharp, straight, well-lit photo of a printed bill, taken from above, with the whole bill in the frame and nothing else. Handwritten bills, crumpled paper, shadows and photos at an angle read badly.</p>
 <div class="note tip"><strong>Something wrong?</strong>
-<p><b>"Please upload an image (PNG, JPG, WebP)."</b>: you chose a PDF or another file. <b>"Image is over 8MB"</b>: take a smaller photo, or crop it. <b>"OCR failed: ..."</b>: the message ends with a hint; see <a href="troubleshooting.html#ocr-failed">Reading a bill photo failed</a>. If a bill will not read well, type it in with ${ui('Add Purchase')}: suggestions make it quick for suppliers and items you have used before.</p></div>
+<p><b>"Please upload an image (PNG, JPG, WebP)."</b>: you chose a PDF or another file. <b>"Image is over 8MB"</b>: take a smaller photo, or crop it. <b>"OCR failed: ..."</b>: the message ends with a hint; see <a href="troubleshooting.html#ocr-failed">Reading a bill photo failed</a>. If a bill will not read well, type it in with ${ui('Add Purchase Bill')}: suggestions make it quick for suppliers and items you have used before.</p></div>
 </section>
 
 <section id="ocr-review">
@@ -354,12 +355,12 @@ export default [
   <li>${ui('Excel')} downloads an <code>.xlsx</code> file, with numbers as numbers.</li>
   <li>${ui('CSV')} downloads the same as a CSV file.</li>
 </ul>
-<p>For one quarter, pick the year and give your CA the file; they can filter the dates. The register has one row per bill. To get one row per <i>item</i> (and a file you can import back), use ${ui('Export all as CSV')} in <a href="#csv-purchases">CSV import / export</a>.</p>
+<p>For one quarter, pick the year and give your CA the file; they can filter the dates. The register has one row per bill. To get one row per <i>item</i> (and a file you can import back), use ${ui('Export all as CSV')} in <a href="#csv-purchases">Import / export CSV</a>.</p>
 </section>
 
 <section id="csv-purchases">
 <h2>Importing purchase bills from CSV</h2>
-<p>Use this to bring in many bills at once: from another billing program, from Tally, or a sheet your accountant keeps. Click ${ui('CSV import / export')} at the top of Purchases. The window <b>Purchase bills: CSV import / export</b> opens.</p>
+<p>Use this to bring in many bills at once: from another billing program, from Tally, or a sheet your accountant keeps. Click ${ui('Import / export CSV')} at the top of Purchases. The window <b>Purchase bills: Import / export CSV</b> opens.</p>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Template')}</td><td>Downloads <code>Purchase-import-template.csv</code>: the right columns and one example bill.</td></tr>
@@ -492,7 +493,7 @@ export default [
 <h2>Returning goods to a supplier (debit notes)</h2>
 <p>When goods you bought go back to the supplier (damaged, wrong item, too many), record it as a <b>debit note</b> against their purchase bill. The supplier issues you a credit note for the return; your debit note is your record of it, and the document you send them.</p>
 <ol class="steps">
-  <li><strong>Open the return</strong>In the purchase list, click the return arrow on the bill, <b>Return to supplier (debit note)</b>. It is shown while anything on the bill can still go back.</li>
+  <li><strong>Open the return</strong>In the purchase list, click the bill's ${ui('⋯')} menu and pick <b>Return to supplier (debit note)</b>. It is shown while anything on the bill can still go back.</li>
   <li><strong>Choose what goes back</strong>For each item the window shows <b>Bought</b>, <b>Returned</b> (on earlier debit notes) and the rate. Type the quantity going back in <b>Return now</b>; you cannot send back more than is left. Set the <b>Debit note date</b>, a <b>Reason</b> (pick one or type your own) and an optional <b>Note</b>. The taxable value, GST and <b>Debit note total</b> are worked out at the bill's rates.</li>
   <li><strong>Save debit note</strong>It gets the next number, <code>DN/26-27/0001</code> (each business counts its own), and opens the ${ui('Returns')} tab on Purchases.</li>
   <li><strong>Send it</strong>The download button on the row makes the PDF: <b>DEBIT NOTE</b>, your business, the supplier, <b>Against bill No</b> and <b>Bill date</b>, the goods returned with their GST, and a signature box. ${ui('⋯')}, ${ui('Print')} prints it.</li>
@@ -552,7 +553,7 @@ export default [
   <li>The red ${ui('✕')} clears the search, category, payment and cost centre filters, and puts the year back to the current one.</li>
 </ul>
 <h3>Expense Records</h3>
-<p>The table lists <b>Date</b>, <b>Description</b>, <b>Category</b>, <b>Vendor</b>, <b>Amount</b>, <b>GST</b> and <b>Mode</b> (how you paid), with a <b>Total</b> row. The pencil opens an expense to change it; the bin deletes it, after asking. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons save the <a href="#export">expense statement</a>.</p>
+<p>The table lists <b>Date</b>, <b>Description</b>, <b>Category</b>, <b>Vendor</b>, <b>Amount</b>, <b>GST</b> and <b>Mode</b> (how you paid), with a <b>Total</b> row. The pencil opens an expense to change it; the tick marks an unpaid one paid; ${ui('⋯')} → <b>Delete</b> deletes it, after asking. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons save the <a href="#export">expense statement</a>.</p>
 <p>With nothing yet, it says <b>No expenses recorded yet.</b>; with filters hiding everything, <b>No expenses match your filters.</b></p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p><b>An expense is missing.</b> Check the year (an expense dated in March belongs to the year that ends that March), the category filter, and the business selected in the sidebar. If old expenses show under every business, see <a href="purchases.html#unassigned">Not assigned to a business</a>.</p></div>

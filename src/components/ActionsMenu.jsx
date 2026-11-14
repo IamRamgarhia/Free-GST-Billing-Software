@@ -18,7 +18,9 @@ function placeFor(r, count) {
   return { right: Math.max(8, window.innerWidth - r.right), ...(below ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) };
 }
 
-export default function ActionsMenu({ items, label = 'More actions' }) {
+// v1.10.86 - icon / className / iconSize: the top bar's Help (?) button is one of these too.
+export default function ActionsMenu({ items, label = 'More actions', icon, className = 'icon-btn', iconSize = 15 }) {
+  const ButtonIcon = icon || MoreHorizontal;
   const [pos, setPos] = useState(null); // { top, right } while open
   const btn = useRef(null);
   const menu = useRef(null);
@@ -68,9 +70,9 @@ export default function ActionsMenu({ items, label = 'More actions' }) {
 
   return (
     <>
-      <button ref={btn} type="button" className="icon-btn" onClick={toggle} title={label}
+      <button ref={btn} type="button" className={className} onClick={toggle} title={label}
         aria-label={label} aria-haspopup="menu" aria-expanded={!!pos}>
-        <MoreHorizontal size={15} />
+        <ButtonIcon size={iconSize} />
       </button>
       {pos && createPortal(
         <div ref={menu} role="menu" className="actions-menu" aria-label={label} onKeyDown={onMenuKey} style={{

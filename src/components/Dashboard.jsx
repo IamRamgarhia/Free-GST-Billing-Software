@@ -2046,18 +2046,20 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
                               aria-label={`View ${bill.invoiceNumber}`}><Eye size={15} /></button>
                           )}
                           {!readOnly && (
-                            <button className="icon-btn icon-btn-blue" onClick={() => handleView(bill)} title="Edit"><Edit3 size={15} /></button>
+                            <button className="icon-btn icon-btn-blue" onClick={() => handleView(bill)} title="Edit" aria-label={`Edit ${bill.invoiceNumber}`}><Edit3 size={15} /></button>
+                          )}
+                          {/* Payments on sales; on anything else (cancelled, converted, an
+                              advance on a proforma) only to see the history it has.
+                              v1.10.86 - View · Edit · Payment · More on every list; the
+                              buttons that only some rows have go after Payment. */}
+                          {((tracksPayment && !readOnly) || (bill.payments || []).length > 0) && (
+                            <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)}
+                              title={tracksPayment && !readOnly ? 'Payment' : 'Payment history'} aria-label={`Payment for ${bill.invoiceNumber}`}><IndianRupee size={15} /></button>
                           )}
                           {status === 'cancelled' && (
                             <button className="icon-btn icon-btn-blue" onClick={() => undoCancel(bill)} title="Undo cancel" aria-label={`Undo cancel of ${bill.invoiceNumber}`}>
                               <Undo2 size={15} />
                             </button>
-                          )}
-                          {/* Payments on sales; on anything else (cancelled, converted, an
-                              advance on a proforma) only to see the history it has. */}
-                          {((tracksPayment && !readOnly) || (bill.payments || []).length > 0) && (
-                            <button className="icon-btn icon-btn-green" onClick={() => openPaymentModal(bill)}
-                              title={tracksPayment && !readOnly ? 'Payment' : 'Payment history'}><IndianRupee size={15} /></button>
                           )}
                           {/* v1.10.76 (#83) - gone once it has been converted (bill.convertedTo) */}
                           {!readOnly && ['quotation', 'proforma', 'delivery-challan'].includes(bill.invoiceType) && !bill.convertedTo && (

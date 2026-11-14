@@ -9,21 +9,30 @@
 // Applying a type only changes what is SHOWN. Nothing is ever deleted.
 
 import { FEATURE_GROUPS, MENU_ITEMS, isModuleEnabled } from '../utils.js';
-import { applyBusinessPreset } from './printSettings.js';
+import { applyBusinessPreset, BUSINESS_PRESETS } from './printSettings.js';
 
 // ERR-033 - what the first-run wizard saves. The business preset goes first,
 // THEN the language and paper picked in the wizard (four presets set English,
 // which overwrote a Hindi / Tamil choice), and the paper also goes into the
 // invoice defaults, which is what the invoice screen reads. Tested in
 // scripts/businesstype-test.mjs.
+// v1.10.86 - the first-run welcome asks only the business type, so language
+// and paper are optional (Settings → Print & PDF has them).
 export function wizardResult(current, { biz, language, paperSize }) {
   let next = { ...current, onboardingComplete: true, onboardingSkipped: false };
-  if (biz) next = applyBusinessPreset(next, biz);
-  next.labelLanguage = language;
+  if (biz) next = printStyleForType(next, biz);
+  if (language) next.labelLanguage = language;
   if (paperSize) next.paperSize = paperSize;
   const invoiceDefaults = { ...(biz ? invoiceDefaultsForType(biz) : {}), ...(paperSize ? { paperSize } : {}) };
   return { printSettings: next, invoiceDefaults };
 }
+
+// v1.10.86 - the print style that goes with a type (Settings → Company →
+// Business type sets it; Print & PDF only shows it). The language a person
+// picked stays (ERR-033: four presets set English). 'everything' has no style.
+export const printStyleForType = (current, typeId) => (BUSINESS_PRESETS[typeId]
+  ? { ...applyBusinessPreset(current, typeId), labelLanguage: current.labelLanguage, activeBusinessPresetId: typeId }
+  : current);
 
 // Every module a person can switch (core ones are always on).
 export const SWITCHABLE_MODULES = FEATURE_GROUPS.flatMap(g => g.modules).filter(m => !m.core).map(m => m.id);
@@ -35,6 +44,7 @@ const SELLING = ['receipts', 'cashBook', 'reports', 'gstReturns', 'incomeTax', '
 const GOODS = ['inventory', 'purchases', 'expenses'];
 // v1.10.85 (#135) - sales orders go with purchase orders: wholesale and manufacturing.
 const TRADING = [...GOODS, 'purchaseOrders', 'salesOrders', 'gstr2b', 'ewayBill', 'tdsTcs'];
+// v1.10.86 - 'cashSaleDefault' (Start with Cash Sale) for counter sales: retail and restaurant.
 // v1.10.85 (#137) - 'barcodes' is on for retail, wholesale and manufacturing (and Everything).
 
 // `on` lists what the type turns on; every other switchable module goes off.
@@ -42,11 +52,11 @@ const TRADING = [...GOODS, 'purchaseOrders', 'salesOrders', 'gstr2b', 'ewayBill'
 // the invoice style and the features from one choice.
 export const BUSINESS_TYPES = [
   { id: 'retail_shop', label: 'Retail shop / kirana', hint: 'Sell from a counter, keep stock, buy from suppliers.',
-    on: [...GOODS, 'gstr2b', 'phoneFirst', 'barcodes', ...SELLING] },
+    on: [...GOODS, 'gstr2b', 'phoneFirst', 'barcodes', 'cashSaleDefault', ...SELLING] },
   { id: 'freelancer', label: 'Freelancer / consultant', hint: 'Bill for your time or services; no stock.',
     on: ['expenses', 'recurring', 'tdsTcs', ...SELLING] },
   { id: 'restaurant', label: 'Restaurant / cafe', hint: 'Quick bills, UPI payments, buy supplies.',
-    on: [...GOODS, 'phoneFirst', ...SELLING] },
+    on: [...GOODS, 'phoneFirst', 'cashSaleDefault', ...SELLING] },
   { id: 'wholesale', label: 'Wholesale / trading', hint: 'Buy and sell goods in bulk, send them with e-way bills.',
     on: [...TRADING, 'barcodes', ...SELLING] },
   { id: 'manufacturer', label: 'Manufacturing', hint: 'Make products from raw material, maybe in more than one unit.',

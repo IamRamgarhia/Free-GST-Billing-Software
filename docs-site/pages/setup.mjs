@@ -64,7 +64,13 @@ export default [
   <tr><td>Everything</td><td>Nothing: every feature is shown</td></tr>
 </table></div>
 <p>Every type keeps Dashboard, New invoice, Clients, Settings, Support &amp; About, User guide, Notifications, Dark mode and Control Panel. E-invoicing is only for businesses with a yearly turnover above ₹5 crore, so only <b>Everything</b> turns it on; tick it in Features if you need it.</p>
-<p>The choice is kept on this computer and is the same for every business you run in the app. It is not the same as the <b>Business type</b> on the <a href="print-settings.html#business-type">Print &amp; PDF</a> tab, which only changes how invoices look.</p>
+<p>The choice is kept on this computer and is the same for every business you run in the app.</p>
+<p id="business-type-print">Saving a business type also:</p>
+<ul>
+  <li>sets the matching <a href="print-settings.html#business-type">print style</a> (Print &amp; PDF shows <b>Print style: … (from your business type)</b>); Everything leaves your print settings alone;</li>
+  <li>rewords the <b>Standard Terms</b> a new install starts with to the matching ready-made <a href="#terms">terms</a>: <i>Goods &amp; Products</i> for a shop, wholesale or restaurant, <i>Manufacturing &amp; Trading</i>, <i>Freelancer (Simple)</i>, or <i>Services</i> for a service or repair shop. Only while those terms are still word for word as they came: terms you wrote, edited or renamed are never changed;</li>
+  <li>for <b>Retail shop / kirana</b> and <b>Restaurant / cafe</b>, switches on <b>Start with "Cash Sale"</b> (<a href="#features">Features</a>), so a new invoice starts with the walk-in customer.</li>
+</ul>
 <h3>Something wrong?</h3>
 <ul>
   <li><b>A screen I use has gone from the menu</b>: open the <a href="#features">Features</a> tab, tick it, and click ${ui('Save all changes')}.</li>
@@ -84,7 +90,7 @@ export default [
   <tr><td>Address</td><td>Street, building and area. Two lines are enough.</td></tr>
   <tr><td>City, PIN Code</td><td>Your town and 6-digit PIN code.</td></tr>
   <tr><td>State</td><td><b>The one to get right.</b> GST depends on it: a sale inside your state is charged CGST + SGST, a sale to another state IGST. Pick it from the list.</td></tr>
-  <tr><td>GSTIN</td><td>Your 15-character GST number, such as <code>22AAAAA0000A1Z5</code>. Leave it blank if you are not registered. When you click out of the box, the app checks the pattern and shows <i>GSTIN format looks unusual</i> in orange if a character looks wrong. It is only a warning; you can still save.</td></tr>
+  <tr><td>GSTIN</td><td>Your 15-character GST number, such as <code>22AAAAA0000A1Z5</code>. Leave it blank if you are not registered. Typing all 15 characters fills in an empty <b>State</b> and <b>PAN</b> from it (a state or PAN you typed is never changed). When you click out of the box, the app checks the pattern and shows <i>GSTIN format looks unusual</i> in orange if a character looks wrong. It is only a warning; you can still save.</td></tr>
   <tr><td>Email, Phone</td><td>Printed on the invoice so clients can reach you.</td></tr>
 </table></div>
 <p>Below these come the <a href="#gstr-details">GSTR filing details</a> (Indian businesses only), <a href="#payment-accounts">Payment Accounts</a>, <a href="#invoice-numbers">Invoice Number Format</a> and <a href="#branding">Branding</a>.</p>
@@ -327,6 +333,7 @@ export default [
 <section id="terms">
 <h2>Terms &amp; Conditions Templates</h2>
 <p>The ${ui('Terms')} tab. The terms you print at the bottom of invoices, such as payment due dates, interest on late payment and returns, kept as templates so you pick one instead of typing it each time. On a new invoice your first template is loaded for you; see <a href="invoices.html#terms-notes">Terms and notes on an invoice</a>.</p>
+<p>A new install starts with one template, <b>Standard Terms</b>. Choosing your <a href="#business-type">business type</a> rewords it to the matching Quick Start terms while it is still unchanged.</p>
 <h3>Quick Start</h3>
 <p>Under <b>Quick Start — Pick a template for your business</b>, one click adds a ready-made set of Indian terms: <b>Services (IT, Consulting, Freelance)</b>, <b>Goods &amp; Products (Retail, Wholesale)</b>, <b>Manufacturing &amp; Trading</b>, <b>Export / International</b> or <b>Freelancer (Simple)</b>. It is saved straight away; clicking the same one again says <i>You already have this template</i>. Edit it afterwards to put in your own city, days and rates.</p>
 <h3>Your own template</h3>

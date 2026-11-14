@@ -1,8 +1,9 @@
 import { useState, useEffect, Fragment } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { FEATURE_GROUPS, isModuleEnabled } from '../utils';
-import { BUSINESS_TYPES, businessTypeById, applyBusinessType, featureChanges, moduleLabel, orderedMenu, moveMenuItem, invoiceDefaultsForType } from '../utils/businessTypes';
-import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, getAllRecurring, patchInvoiceDefaults, getPriceLevelNames, setPriceLevelNames } from '../store';
+import { BUSINESS_TYPES, businessTypeById, applyBusinessType, featureChanges, moduleLabel, orderedMenu, moveMenuItem, invoiceDefaultsForType, printStyleForType } from '../utils/businessTypes';
+import { getPrintSettings, savePrintSettings, PRINT_SETTINGS_EVENT } from '../utils/printSettings';
+import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, getAllRecurring, patchInvoiceDefaults, getPriceLevelNames, setPriceLevelNames, applyTypeTerms } from '../store';
 import { PriceLevelNames } from './PriceLevelFields';
 import { levelNameProblem } from '../utils/listCsv';
 import { toast } from './Toast';
@@ -36,7 +37,15 @@ export function useFeatureDraft() {
     const levelProblem = isModuleEnabled('priceLevels', draft.modules) ? levelNameProblem(draft.levels) : '';
     if (featuresChanged && levelProblem) { toast(`Features not saved. ${levelProblem}`, 'error'); return; }
     if (featuresChanged) { setEnabledModules(draft.modules); setMenuOrder(draft.order); setPriceLevelNames(draft.levels); }
-    if (typeChanged && draft.type) { setBusinessType(draft.type); patchInvoiceDefaults(invoiceDefaultsForType(draft.type)); }
+    if (typeChanged && draft.type) {
+      setBusinessType(draft.type);
+      patchInvoiceDefaults(invoiceDefaultsForType(draft.type));
+      // v1.10.86 - one Business type picker: it also sets the print style
+      // (Print & PDF shows which) and rewords the starting Standard Terms.
+      savePrintSettings(printStyleForType(getPrintSettings(), draft.type));
+      window.dispatchEvent(new Event(PRINT_SETTINGS_EVENT));
+      applyTypeTerms(draft.type).catch(() => {});
+    }
     setSaved(draft);
     toast('Features saved. The menu now shows your choices.', 'success');
   };
@@ -79,7 +88,7 @@ export function BusinessTypePanel({ features }) {
     <div id="section-biztype" className="glass-panel p-6 mb-6" style={{ order: 0 }}>
       <h3 className="section-title" style={{ marginTop: 0, marginBottom: '0.25rem' }}>Business type <HelpButton title="Business type" doc="settings#business-type" size={16} style={{ marginLeft: 6 }} /></h3>
       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-        Pick what kind of business you run. The tick boxes in Features are filled in for that business; nothing changes until you save.
+        Pick what kind of business you run. The tick boxes in Features are filled in for that business, and the print style and the starting terms follow it; nothing changes until you save.
       </p>
       <p style={{ fontSize: '0.85rem', margin: '0.85rem 0' }}>
         Your business type: <strong>{chosen ? chosen.label : 'Not chosen yet'}</strong>
