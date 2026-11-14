@@ -16,6 +16,8 @@ const PRODUCT_FIELDS = {
   unit: ['unit'],
   purchasePrice: ['purchase price', 'cost', 'cost price'],
   sellingPrice: ['selling price', 'rate', 'price', 'sale price'],
+  // v1.10.86 - (#189, #192) optional; MRP already includes tax, so it is kept as typed.
+  mrp: ['mrp', 'm.r.p.', 'maximum retail price', 'max retail price'],
   taxPercent: ['gst%', 'gst rate', 'tax%', 'tax rate', 'tax', 'taxpercent'],
   stock: ['stock', 'quantity', 'opening stock', 'opening stock quantity', 'opening qty', 'stock quantity'],
   description: ['description'],
@@ -57,6 +59,7 @@ const FILL = {
   hsn: blank, unit: blank, description: blank, stock: blank, barcode: blank, category: blank, brand: blank,
   purchasePrice: (v) => blank(v) || Number(v) === 0,
   sellingPrice: (v) => blank(v) || Number(v) === 0,
+  mrp: (v) => blank(v) || Number(v) === 0,
   taxPercent: (v, p) => blank(v) || (Number(v) === 0 && blank(p.hsn)),
 };
 export function fillBlanks(saved, fresh) {
@@ -98,7 +101,7 @@ export function productsCsvToList(text, existing = [], levels = [], { barcodes =
     const type = String(r.type || '').toLowerCase();
     if (type && !/^(goods?|g|products?|services?|s)$/.test(type)) { out.errors.push(`Row ${r._line} (${name}): Type must be Goods or Service`); continue; }
     const service = type.startsWith('s');
-    const nums = { purchasePrice: toNum(r.purchasePrice), sellingPrice: toNum(r.sellingPrice), taxPercent: toNum(percentPart(r.taxPercent)), stock: toNum(r.stock, null) };
+    const nums = { purchasePrice: toNum(r.purchasePrice), sellingPrice: toNum(r.sellingPrice), mrp: toNum(r.mrp), taxPercent: toNum(percentPart(r.taxPercent)), stock: toNum(r.stock, null) };
     const bad = Object.entries(nums).find(([k, v]) => (k === 'stock' ? v !== null && !Number.isFinite(v) : !Number.isFinite(v)));
     if (bad) { out.errors.push(`Row ${r._line} (${name}): ${bad[0] === 'stock' ? 'stock' : bad[0] === 'taxPercent' ? 'GST %' : 'price'} must be a number`); continue; }
     if (nums.taxPercent < 0 || nums.taxPercent > 100) { out.errors.push(`Row ${r._line} (${name}): GST % must be 0 to 100`); continue; }
@@ -136,6 +139,7 @@ export function productsCsvToList(text, existing = [], levels = [], { barcodes =
       purchasePrice: nums.purchasePrice,
       sellingPrice: nums.sellingPrice,
       rate: nums.sellingPrice, // mirror for older readers
+      ...(nums.mrp > 0 ? { mrp: nums.mrp } : {}),
       taxPercent: nums.taxPercent,
       unit: r.unit || 'Nos',
       // A service has no stock; goods with a blank stock are "not tracked yet".
@@ -188,9 +192,9 @@ export function clientsCsvToList(text, existing = []) {
 
 // Sample files (demo data, not real businesses) for "Download sample file".
 export const PRODUCTS_SAMPLE = [
-  toCsvLine(['Name', 'Type', 'HSN/SAC', 'Unit', 'Purchase Price', 'Selling Price', 'GST %', 'Stock', 'Description', 'Barcode']),
-  toCsvLine(['Demo A4 Paper Ream 75 GSM', 'Goods', '4802', 'Nos', 220, 280, 18, 50, 'Sample goods row - replace with your own', '']),
-  toCsvLine(['Demo Printing service', 'Service', '998912', 'Page', '', 5, 18, '', 'Sample service row - a service has no stock', '']),
+  toCsvLine(['Name', 'Type', 'HSN/SAC', 'Unit', 'Purchase Price', 'Selling Price', 'MRP', 'GST %', 'Stock', 'Description', 'Barcode']),
+  toCsvLine(['Demo A4 Paper Ream 75 GSM', 'Goods', '4802', 'Nos', 220, 280, 340, 18, 50, 'Sample goods row - replace with your own', '']),
+  toCsvLine(['Demo Printing service', 'Service', '998912', 'Page', '', 5, '', 18, '', 'Sample service row - a service has no stock', '']),
 ].join('\n');
 
 export const CLIENTS_SAMPLE = [

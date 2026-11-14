@@ -31,6 +31,7 @@ const barcodeCols = (on) => (on ? ['Barcode'] : []);
 const emptyForm = {
   // kind: v1.10.83 (#121) - 'goods' or 'service' (a service has no stock).
   kind: 'goods', name: '', hsn: '', purchasePrice: '', sellingPrice: '', taxPercent: '', gstTreatment: '', unit: 'Pcs', stock: '', description: '',
+  mrp: '', // v1.10.86 - (#189, #192) optional printed price (information only)
   madeHere: false, bom: [],
   barcode: '', // v1.10.85 (#137) - optional, one per product
   levelPrices: {}, // v1.10.85 - price per level, { '1': 90 } (Price levels on)
@@ -125,6 +126,7 @@ export default function InventoryView({ onOpenPurchases }) {
       hsn: product.hsn || '',
       purchasePrice: product.purchasePrice ?? '',
       sellingPrice: product.sellingPrice ?? product.rate ?? '',
+      mrp: product.mrp ?? '',
       taxPercent: product.taxPercent || '',
       gstTreatment: product.gstTreatment || '',
       unit: product.unit || 'Nos',
@@ -199,6 +201,8 @@ export default function InventoryView({ onOpenPurchases }) {
         purchasePrice,
         sellingPrice,
         rate: sellingPrice, // mirror for legacy readers
+        // v1.10.86 - (#189) blank MRP: the field goes (undefined is not saved).
+        mrp: Number(form.mrp) > 0 ? Number(form.mrp) : undefined,
         taxPercent: form.taxPercent ? parseFloat(form.taxPercent) : 0,
         gstTreatment: form.gstTreatment || '',
         unit: form.unit,
@@ -313,7 +317,7 @@ export default function InventoryView({ onOpenPurchases }) {
       </div>
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
-          intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST %, Stock (leave Stock blank for a service) and Barcode (optional).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}
+          intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, MRP (optional), GST %, Stock (leave Stock blank for a service) and Barcode (optional).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}
           parse={(rows) => { const r = productsCsvToList(rows, products, levels, { barcodes: barcodesOn }); return { list: r.products, updates: r.updates, skipped: r.skipped, errors: r.errors }; }}
           save={saveProduct} onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); loadProducts(); }} />
       )}
@@ -381,6 +385,14 @@ export default function InventoryView({ onOpenPurchases }) {
                   onChange={e => updateField('sellingPrice', e.target.value)}
                   placeholder="0.00" min="0" step="any"
                   title="What you charge the customer. Auto-fills on new Invoices." />
+              </div>
+              {/* v1.10.86 - (#189, #192) MRP: printed on the invoice only if the MRP column is on. */}
+              <div className="form-group">
+                <label className="form-label">MRP (optional)</label>
+                <input type="number" className="form-input" value={form.mrp}
+                  onChange={e => updateField('mrp', e.target.value)}
+                  placeholder="0.00" min="0" step="any"
+                  title="Maximum retail price printed on the pack. Comes onto the invoice line; it never changes the rate or GST." />
               </div>
               <div className="form-group">
                 <label className="form-label">GST %</label>
@@ -463,8 +475,8 @@ export default function InventoryView({ onOpenPurchases }) {
           <h3>Products & Services <HelpButton title="The product list" doc="products#product-list" size={16} /></h3>
           {!bulkEdit && (
             <TableExport title="Products" filename="Products"
-              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'GST %', 'Unit', 'Stock', ...barcodeCols(barcodesOn), 'Category', 'Brand', ...levelCsvHeaders(levels)]}
-              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', ...(barcodesOn ? [p.barcode || ''] : []), p.category || '', p.brand || '', ...levelCsvCells(p, levels)])} />
+              headers={['Name', 'Type', 'HSN/SAC', 'Purchase price', 'Selling price', 'MRP', 'GST %', 'Unit', 'Stock', ...barcodeCols(barcodesOn), 'Category', 'Brand', ...levelCsvHeaders(levels)]}
+              rows={filtered.map((p) => [p.name, isServiceProduct(p) ? 'Service' : 'Goods', p.hsn || '', Number(p.purchasePrice) || 0, Number(p.sellingPrice ?? p.rate) || 0, Number(p.mrp) > 0 ? Number(p.mrp) : '', Number(p.taxPercent) || 0, p.unit || 'Nos', trackedStock(p) ?? '', ...(barcodesOn ? [p.barcode || ''] : []), p.category || '', p.brand || '', ...levelCsvCells(p, levels)])} />
           )}
         </div>
         {bulkEdit && filtered.length > 0 ? (
@@ -533,7 +545,10 @@ export default function InventoryView({ onOpenPurchases }) {
                       )}
                     </td>
                     <td className="text-muted">{product.hsn || '-'}</td>
-                    <td className="font-bold">{product.rate ? formatCurrency(product.rate, profileCurrency) : '-'}</td>
+                    <td className="font-bold">
+                      {product.rate ? formatCurrency(product.rate, profileCurrency) : '-'}
+                      {Number(product.mrp) > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>MRP {formatCurrency(product.mrp, profileCurrency)}</div>}
+                    </td>
                     <td>{product.taxPercent ? `${product.taxPercent}%` : '-'}</td>
                     <td className="text-muted">
                       {product.unit || 'Nos'}

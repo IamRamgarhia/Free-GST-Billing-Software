@@ -249,7 +249,8 @@ function TallyLayout({ ctx }) {
   // Sl No + Description + Amount, plus the optional columns.
   // v1.10.83 - the "per" (unit) column goes with the unit option.
   const perCol = t.rate && t.itemUnit;
-  const colCount = 3 + (t.hsn ? 1 : 0) + (t.itemQty ? 1 : 0) + (t.rate ? 1 : 0) + (perCol ? 1 : 0) + (ctx.hasAnyDiscount ? 1 : 0);
+  // v1.10.86 - (#189, #192) MRP column (Customize), off unless chosen.
+  const colCount = 3 + (t.hsn ? 1 : 0) + (t.itemQty ? 1 : 0) + (t.mrp ? 1 : 0) + (t.rate ? 1 : 0) + (perCol ? 1 : 0) + (ctx.hasAnyDiscount ? 1 : 0);
   const spacer = Math.max(0, 260 - items.length * 26 - rows.length * 20);
 
   return (
@@ -298,6 +299,7 @@ function TallyLayout({ ctx }) {
             <th style={th}>Description of {ctx.isServices ? 'Services' : 'Goods'}</th>
             {t.hsn && <th style={th}>{ctx.isServices ? 'SAC' : 'HSN/SAC'}</th>}
             {t.itemQty && <th style={th}>Quantity</th>}
+            {t.mrp && <th style={th}>MRP</th>}
             {t.rate && <th style={th}>Rate</th>}
             {perCol && <th style={th}>per</th>}
             {ctx.hasAnyDiscount && <th style={th}>Disc.</th>}
@@ -317,6 +319,7 @@ function TallyLayout({ ctx }) {
                 </td>
                 {t.hsn && <td style={{ ...vc, ...center }}>{item.hsn || ''}</td>}
                 {t.itemQty && <td style={{ ...vc, ...right }}><strong>{item.unit === 'NA' ? '-' : `${item.quantity}${t.itemUnit && item.unit ? ` ${item.unit}` : ''}`}</strong></td>}
+                {t.mrp && <td style={{ ...vc, ...right }}>{Number(item.mrp) > 0 ? num(Number(item.mrp)) : ''}</td>}
                 {t.rate && <td style={{ ...vc, ...right }}>{num(l.shownRate)}</td>}
                 {perCol && <td style={{ ...vc, ...center }}>{item.unit || ''}</td>}
                 {ctx.hasAnyDiscount && <td style={{ ...vc, ...right }}>{l.discount > 0 ? num(l.shownDiscount) : ''}</td>}
@@ -347,6 +350,7 @@ function TallyLayout({ ctx }) {
             <td style={{ ...cell, ...right }}>Total</td>
             {t.hsn && <td style={cell} />}
             {t.itemQty && <td style={{ ...cell, ...right }}>{showQtyTotal ? `${totalQty}${t.itemUnit && units[0] ? ` ${units[0]}` : ''}` : ''}</td>}
+            {t.mrp && <td style={cell} />}
             {t.rate && <td style={cell} />}
             {perCol && <td style={cell} />}
             {ctx.hasAnyDiscount && <td style={cell} />}
@@ -422,7 +426,7 @@ function BoxedLayout({ ctx }) {
   const filler = Math.max(0, BOXED_MIN_ROWS - items.length);
   // v1.10.83 - the UNIT column goes with the unit option.
   const unitCol = t.itemQty && t.itemUnit;
-  const colCount = 3 + (t.hsn ? 1 : 0) + (t.itemQty ? 1 : 0) + (unitCol ? 1 : 0) + (t.rate ? 1 : 0) + (ctx.hasAnyDiscount ? 1 : 0);
+  const colCount = 3 + (t.hsn ? 1 : 0) + (t.itemQty ? 1 : 0) + (unitCol ? 1 : 0) + (t.mrp ? 1 : 0) + (t.rate ? 1 : 0) + (ctx.hasAnyDiscount ? 1 : 0);
   const shipTo = ctx.shipTo;
 
   return (
@@ -472,6 +476,7 @@ function BoxedLayout({ ctx }) {
               {t.hsn && <th style={th}>{ctx.isServices ? 'SAC' : 'HSN/SAC'}</th>}
               {unitCol && <th style={th}>UNIT</th>}
               {t.itemQty && <th style={th}>QTY</th>}
+              {t.mrp && <th style={th}>MRP</th>}
               {t.rate && <th style={th}>Rate</th>}
               {ctx.hasAnyDiscount && <th style={th}>Disc.</th>}
               <th style={{ ...th, borderRight: 'none' }}>Amount</th>
@@ -491,6 +496,7 @@ function BoxedLayout({ ctx }) {
                   {t.hsn && <td style={{ ...cell, ...center }}>{item.hsn || ''}</td>}
                   {unitCol && <td style={{ ...cell, ...center }}>{item.unit || ''}</td>}
                   {t.itemQty && <td style={{ ...cell, ...center }}>{item.unit === 'NA' ? '-' : item.quantity}</td>}
+                  {t.mrp && <td style={{ ...cell, ...right }}>{Number(item.mrp) > 0 ? num(Number(item.mrp)) : ''}</td>}
                   {t.rate && <td style={{ ...cell, ...right }}>{num(l.shownRate)}</td>}
                   {ctx.hasAnyDiscount && <td style={{ ...cell, ...right }}>{l.discount > 0 ? num(l.shownDiscount) : ''}</td>}
                   <td style={{ ...cell, ...right, borderRight: 'none' }}>{num(l.taxable)}</td>

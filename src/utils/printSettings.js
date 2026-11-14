@@ -310,6 +310,15 @@ export function getPrintSettings() {
   }
 }
 
+// v1.10.86 - (#194) the brand colour for jsPDF reports (statement PDFs), as
+// [r, g, b]; the default blue when custom colours are off.
+export function pdfAccentRGB() {
+  const ps = getPrintSettings();
+  const hex = String(ps.pdfAccent || '').replace('#', '');
+  if (ps.userColorsEnabled && /^[0-9a-f]{6}$/i.test(hex)) return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return [30, 64, 175];
+}
+
 export function savePrintSettings(settings) {
   try {
     localStorage.setItem('gst_printSettings', JSON.stringify(settings));

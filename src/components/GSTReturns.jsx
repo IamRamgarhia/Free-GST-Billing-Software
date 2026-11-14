@@ -9,6 +9,8 @@ import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import { billInInr } from '../utils/fx';
 import { zeroRatedTotals, withoutZeroRated } from '../utils/lut';
+// v1.10.86 - (#175) a "2B only" row opens a purchase bill filled in from 2B.
+import { purchaseFromTwoB, putTwoBDraft, keepTwoBFile, keptTwoBFile, wantsBackToTwoB, clearBackToTwoB, twoBNoteCount } from '../utils/gstr2bBill';
 
 const GST_TYPES = ['tax-invoice', 'credit-note'];
 // GSTR-1 Table 13 "nature of document" codes.
@@ -145,6 +147,7 @@ function buildReconciliation(twoBData, purchases, periodPurchases = purchases) {
           twoBVal, twoBTaxable, twoBIgst, twoBCgst, twoBSgst,
           bookVal: 0, bookTaxable: 0, bookIgst: 0, bookCgst: 0, bookSgst: 0,
           itcAvailable: inv.itcavl !== 'N',
+          twoB: { sup: { ctin, trdnm: supName }, inv }, // v1.10.86 - (#175) for Add as purchase bill
         });
         return;
       }
@@ -512,7 +515,7 @@ function StepList({ steps, title, doc }) {
 }
 
 // ========== Main Component ==========
-export default function GSTReturns() {
+export default function GSTReturns({ onOpenPurchases } = {}) {
   const [bills, setBills] = useState([]);
   // v1.10.74 - cancelled invoices, kept apart so they reach only the Table 13
   // document count (the portal wants them in "Cancelled"), never the tax tables.
@@ -526,8 +529,11 @@ export default function GSTReturns() {
   const [monthFilter, setMonthFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [quarterFilter, setQuarterFilter] = useState('Q1');
-  const [activeTab, setActiveTab] = useState('gstr1');
-  const [gstr2bData, setGstr2bData] = useState(null); // imported 2B JSON
+  // v1.10.86 - (#175) back from saving a bill made from 2B: the GSTR-2B tab,
+  // with the 2B file imported before (kept in this tab's sessionStorage).
+  const [activeTab, setActiveTab] = useState(() => (wantsBackToTwoB() ? 'gstr2b' : 'gstr1'));
+  useEffect(() => { clearBackToTwoB(); }, []);
+  const [gstr2bData, setGstr2bData] = useState(() => keptTwoBFile()); // imported 2B JSON
   const [gstr2bFilter, setGstr2bFilter] = useState('all'); // all | matched | mismatch | bookOnly | twoBOnly
   const gstr2bInputRef = useRef(null);
 
@@ -544,6 +550,7 @@ export default function GSTReturns() {
         return;
       }
       setGstr2bData(root);
+      keepTwoBFile(root);
       const supplierCount = (root.docdata?.b2b || root.b2b || []).length;
       toast(`Imported GSTR-2B for ${root.gstin || '?'} — ${supplierCount} suppliers`, 'success');
     } catch (err) {
@@ -2055,6 +2062,12 @@ export default function GSTReturns() {
           return acc;
         }, { total: 0, matched: 0, amount_mismatch: 0, book_only: 0, twob_only: 0 });
         const visibleRows = gstr2bFilter === 'all' ? reconRows : reconRows.filter(r => r.status === gstr2bFilter);
+        // v1.10.86 - (#175) never saved here: the Purchases screen opens the form to check and Save.
+        const addTwoBAsBill = (r) => {
+          putTwoBDraft(purchaseFromTwoB(r.twoB.sup, r.twoB.inv, { ownGstin: gstr2bData?.gstin || profile.gstin, period: gstr2bData?.rtnprd || gstr2bData?.fp || '' }));
+          onOpenPurchases();
+        };
+        const noteCount = twoBNoteCount(gstr2bData);
 
         const exportReconCSV = () => {
           if (reconRows.length === 0) { toast('Nothing to export', 'warning'); return; }
@@ -2103,7 +2116,7 @@ export default function GSTReturns() {
                   <button className="btn btn-secondary" onClick={exportReconCSV} style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}>
                     <Download size={13} /> Export reconciliation CSV
                   </button>
-                  <button className="btn btn-secondary" onClick={() => { setGstr2bData(null); setGstr2bFilter('all'); }} style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}>
+                  <button className="btn btn-secondary" onClick={() => { setGstr2bData(null); keepTwoBFile(null); setGstr2bFilter('all'); }} style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}>
                     Clear
                   </button>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
@@ -2149,6 +2162,11 @@ export default function GSTReturns() {
                   </div>
                 </div>
 
+                {noteCount > 0 && (
+                  <p className="twob-notes-skipped" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>
+                    This 2B file also has {noteCount} credit / debit {noteCount === 1 ? 'note' : 'notes'} from suppliers. They are not matched here: enter goods you sent back as a return on the purchase bill (Purchases, Return to supplier).
+                  </p>
+                )}
                 {/* Table */}
                 <div className="glass-panel" style={{ padding: 0, overflowX: 'auto' }}>
                   <table className="data-table" style={{ width: '100%', minWidth: '900px' }}>
@@ -2173,7 +2191,16 @@ export default function GSTReturns() {
                         return (
                           // v1.10.6 — audit L13: use invoice + GSTIN combo (stable across filters).
                           <tr key={`${r.gstin || 'x'}-${r.invoice || i}`}>
-                            <td><span className="status-pill" style={{ '--pill-color': badge.color }}>{badge.label}</span></td>
+                            <td>
+                              <span className="status-pill" style={{ '--pill-color': badge.color }}>{badge.label}</span>
+                              {r.twoB && onOpenPurchases && (
+                                <button type="button" className="btn btn-secondary" style={{ display: 'block', marginTop: 4, fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                                  title="Opens a new purchase bill filled in from this 2B entry. Check it and Save."
+                                  onClick={() => addTwoBAsBill(r)}>
+                                  Add as purchase bill
+                                </button>
+                              )}
+                            </td>
                             <td>
                               <div style={{ fontWeight: 500 }}>{r.supplier || '—'}</div>
                               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.ctin}</div>

@@ -1146,7 +1146,7 @@ function App() {
           <ExpenseTracker key={businessKey} />
         )}
         {currentView === 'purchases' && (
-          <PurchaseBills key={businessKey} />
+          <PurchaseBills key={businessKey} onOpenGstReturns={() => setCurrentView('filing')} />
         )}
         {currentView === 'recurring' && (
           <RecurringInvoices key={businessKey} onEdit={handleEditInvoice} />
@@ -1161,7 +1161,7 @@ function App() {
           <ReportsView key={businessKey} />
         )}
         {currentView === 'filing' && (
-          <GSTReturns key={businessKey} />
+          <GSTReturns key={businessKey} onOpenPurchases={() => setCurrentView('purchases')} />
         )}
         {currentView === 'incometax' && (
           <IncomeTax key={businessKey} />

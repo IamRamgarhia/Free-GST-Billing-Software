@@ -83,6 +83,10 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   const showGSTIN = opt('showGSTIN');
   const showPlaceOfSupply = opt('showPlaceOfSupply', showGST);
   const showHSN = opt('showHSN');
+  // v1.10.86 - (#189, #192) MRP column, off unless chosen. Information only:
+  // the rate, tax and totals never use it.
+  const showMRP = opt('showMRP', false);
+  const mrpText = (item) => (Number(item.mrp) > 0 ? fmt(Number(item.mrp)) : '-');
   const showDiscount = opt('showDiscount');
   const showBankDetails = opt('showBankDetails');
   // v1.10.83 - Settings → Features → UPI QR code off hides it on every invoice.
@@ -742,6 +746,8 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 // v1.10.83 - no "+18%" on an export under LUT: no tax is charged.
                 const tax = showTaxCols && item.taxPercent > 0 && !totals?.lutZeroRated ? ` +${item.taxPercent}%` : '';
                 const hsnBit = showHSN && item.hsn && !isVeryNarrow ? '  |  HSN ' + item.hsn : '';
+                // v1.10.86 - (#189) on a receipt the MRP goes on the item's own line.
+                const mrpBit = showMRP && Number(item.mrp) > 0 ? `  |  MRP ${currencySymbol}${Number(item.mrp).toFixed(2)}` : '';
                 // v1.10.83 - the receipt follows Customize → Unit too.
                 const unitBit = opt('showItemUnit') && item.unit ? ' ' + item.unit : '';
                 // #143 - unit NA has no quantity; the receipt shows the rate only.
@@ -762,8 +768,8 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                     }}>
                       <span style={{ wordBreak: 'break-word' }}>
                         {cap(showLineRate
-                          ? `${qtyBit ? `${qtyBit} × ` : ''}${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}`
-                          : `${qtyBit}${hsnBit}`.trim())}
+                          ? `${qtyBit ? `${qtyBit} × ` : ''}${currencySymbol}${rate.toFixed(2)}${tax}${hsnBit}${mrpBit}`
+                          : `${qtyBit}${hsnBit}${mrpBit}`.trim())}
                       </span>
                       <span style={{ textAlign: 'right', fontWeight: strongWeight }}>{currencySymbol}{amount.toFixed(2)}</span>
                     </div>
@@ -1134,7 +1140,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
       businessPhone: showBusinessPhone, businessEmail: showBusinessEmail, gstin: showGSTIN, state: showState,
       clientAddress: showClientAddress, clientPhone: showClientPhone, clientEmail: showClientEmail,
       placeOfSupply: showPlaceOfSupply, invoiceNumber: showInvoiceNumber, invoiceDate: showInvoiceDate, dueDate: showDueDate,
-      hsn: showHSN, itemQty: showItemQty, itemUnit: showItemUnit, rate: showRateColumn,
+      hsn: showHSN, itemQty: showItemQty, itemUnit: showItemUnit, rate: showRateColumn, mrp: showMRP,
     },
   } : null;
 
@@ -1224,6 +1230,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   {hasSize && <th className="inv-th inv-th-center" rowSpan="2">Size</th>}
                   {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
                   {hasSize && <th className="inv-th inv-th-center" rowSpan="2">SQFT</th>}
+                  {showMRP && <th className="inv-th inv-th-right" rowSpan="2">MRP</th>}
                   {showRateColumn && <th className="inv-th inv-th-right" rowSpan="2">Rate</th>}
                   {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
                   <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>IGST</th>
@@ -1243,6 +1250,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   {hasSize && <th className="inv-th inv-th-center" rowSpan="2">Size</th>}
                   {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
                   {hasSize && <th className="inv-th inv-th-center" rowSpan="2">SQFT</th>}
+                  {showMRP && <th className="inv-th inv-th-right" rowSpan="2">MRP</th>}
                   {showRateColumn && <th className="inv-th inv-th-right" rowSpan="2">Rate</th>}
                   {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
                   <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>CGST</th>
@@ -1266,6 +1274,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                   {hasSize && <th className="inv-th inv-th-center" rowSpan="2">Size</th>}
                   {showItemQty && <th className="inv-th inv-th-center" rowSpan="2">Qty</th>}
                   {hasSize && <th className="inv-th inv-th-center" rowSpan="2">SQFT</th>}
+                  {showMRP && <th className="inv-th inv-th-right" rowSpan="2">MRP</th>}
                   {showRateColumn && <th className="inv-th inv-th-right" rowSpan="2">Rate</th>}
                   {hasAnyDiscount && <th className="inv-th inv-th-right" rowSpan="2">Disc.</th>}
                   <th className="inv-th inv-th-center" colSpan="2" style={{ borderBottom: '1px solid #cbd5e1' }}>{taxLabel}</th>
@@ -1285,6 +1294,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
               {hasSize && <th className="inv-th inv-th-center">Size</th>}
               {showItemQty && <th className="inv-th inv-th-center">Qty</th>}
               {hasSize && <th className="inv-th inv-th-center">SQFT</th>}
+              {showMRP && <th className="inv-th inv-th-right">MRP</th>}
               {showRateColumn && <th className="inv-th inv-th-right">Rate</th>}
               {hasAnyDiscount && <th className="inv-th inv-th-right">Disc.</th>}
               <th className="inv-th inv-th-right">Amount</th>
@@ -1316,6 +1326,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
                 {hasSize && <td className="inv-td inv-td-center">{sizeLabel(item.size)}</td>}
                 {showItemQty && <td className="inv-td inv-td-center">{printedQty(item)}</td>}
                 {hasSize && <td className="inv-td inv-td-center">{item.size ? lineSqft(item).toFixed(2) : ''}</td>}
+                {showMRP && <td className="inv-td inv-td-right">{mrpText(item)}</td>}
                 {showRateColumn && <td className="inv-td inv-td-right">{item.size?.manual ? '-' : fmt(shownRate)}</td>}
                 {hasAnyDiscount && <td className="inv-td inv-td-right">{discount > 0 ? fmt(shownDiscount) : '-'}</td>}
                 {showTaxCols && (
