@@ -8,6 +8,7 @@
 
 import { invoiceOptionOn, computeInvoiceTotals } from '../src/utils.js';
 import { productsCsvToList, PRODUCTS_SAMPLE } from '../src/utils/listCsv.js';
+import { lineInUnit } from '../src/utils/stock.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -43,6 +44,21 @@ console.log('\n[#189] Sample file imports back with its MRP');
   const r = productsCsvToList(PRODUCTS_SAMPLE, []);
   eq(r.products[0].mrp, 340, 'goods row MRP');
   eq('mrp' in r.products[1], false, 'service row has none');
+}
+
+console.log('\n[#189] MRP on a line in the second unit (Box = 12 Pcs)');
+{
+  const pen = { id: 'pen', name: 'DiceCodes Pen', unit: 'Pcs', sellingPrice: 10, rate: 10, mrp: 15, altUnit: 'Box', altFactor: 12 };
+  const line = { id: 'l1', name: pen.name, productId: 'pen', unit: 'Pcs', quantity: 2, rate: 10, mrp: 15 };
+  const box = lineInUnit(line, pen, 'Box');
+  eq(box.mrp, 180, 'Box: MRP 12 x 15');
+  eq(lineInUnit(box, pen, 'Pcs').mrp, 15, 'back to Pcs: the piece MRP');
+  eq(lineInUnit({ ...box, mrp: 170 }, pen, 'Pcs').mrp, 170, 'an MRP typed on the box line stays when going back');
+  eq(lineInUnit({ ...line, mrp: 14 }, pen, 'Box').mrp, 14, 'a piece MRP typed by hand stays too');
+  eq(lineInUnit({ ...line, mrp: '' }, pen, 'Box').mrp, '', 'a cleared MRP stays blank');
+  eq('mrp' in lineInUnit({ id: 'old', unit: 'Pcs', quantity: 1, rate: 10 }, pen, 'Box'), false, 'an old line without MRP gets none');
+  eq(lineInUnit(line, { ...pen, mrp: undefined }, 'Box').mrp, 15, 'a product without MRP leaves the line as it is');
+  eq(lineInUnit(box, pen, 'Kg').mrp, 15, 'a box line moved to another unit gets the piece MRP back, like its rate');
 }
 
 console.log('\n[#189] MRP column is off unless chosen');

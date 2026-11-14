@@ -15,8 +15,8 @@
 // as the Purchases screen already loads them. Pure: no React, no storage
 // (tested in scripts/supplier-statement-test.mjs).
 import { formatCurrency } from '../utils.js';
-import { purchaseTotal, purchaseOwed, hasPurchasePayments, purchasePaymentModeName } from './purchasePayments.js';
-import { debitNoteTotals, isActiveDebitNote, returnedOnBill } from './debitNotes.js';
+import { purchaseTotal, purchaseOwed, purchaseRcmTax, hasPurchasePayments, purchasePaymentModeName } from './purchasePayments.js';
+import { dnValueOnBill, isActiveDebitNote, returnedOnBill } from './debitNotes.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const key = (name) => String(name || '').trim().toLowerCase();
@@ -40,8 +40,10 @@ function entriesOf(purchases, debitNotes, supplierName) {
   bills.forEach((p, bi) => {
     const no = p.invoiceNumber || '-';
     const date = p.date || '';
-    out.push({ date, order: [bi, 0], kind: 'bill', particulars: `Purchase bill ${no}`, credit: purchaseTotal(p), debit: 0 });
-    const tds = r2(purchaseTotal(p) - purchaseOwed(p));
+    // A reverse-charge bill: the supplier is owed it without GST (you pay that).
+    const billed = r2(purchaseTotal(p) - purchaseRcmTax(p));
+    out.push({ date, order: [bi, 0], kind: 'bill', particulars: `Purchase bill ${no}${p.reverseCharge ? ' (reverse charge: GST paid by you)' : ''}`, credit: billed, debit: 0 });
+    const tds = r2(billed - purchaseOwed(p));
     if (tds > 0.005) out.push({ date, order: [bi, 1], kind: 'tds', particulars: `TDS kept back on ${no}`, debit: tds, credit: 0 });
     if (hasPurchasePayments(p)) {
       (p.payments || []).forEach((x, i) => {
@@ -55,9 +57,9 @@ function entriesOf(purchases, debitNotes, supplierName) {
     // round-off (returnedOnBill), so that bit goes on its last note.
     const notes = (debitNotes || []).filter((dn) => isActiveDebitNote(dn) && dn.purchaseId === p.id)
       .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-    const extra = r2(returnedOnBill(p, notes) - notes.reduce((s, dn) => s + debitNoteTotals(dn).total, 0));
+    const extra = r2(returnedOnBill(p, notes) - notes.reduce((s, dn) => s + dnValueOnBill(p, dn), 0));
     notes.forEach((dn, i) => {
-      const amount = r2(debitNoteTotals(dn).total + (i === notes.length - 1 ? extra : 0));
+      const amount = r2(dnValueOnBill(p, dn) + (i === notes.length - 1 ? extra : 0));
       out.push({ date: dn.date || date, order: [bi, 1000 + i], kind: 'return', particulars: `Goods returned: debit note${dn.dnNumber ? ` ${dn.dnNumber}` : ''} on ${no}`, debit: amount, credit: 0 });
     });
   });

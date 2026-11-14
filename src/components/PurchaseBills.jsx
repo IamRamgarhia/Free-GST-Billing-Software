@@ -15,7 +15,7 @@ import { confirmAction, promptAction } from './ConfirmModal';
 import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect, CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields } from '../utils/costCentres';
-import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, purchasePaid, purchaseOwed, hasPurchasePayments, withPurchasePayments, markPurchasePaid, markPurchaseUnpaid, purchasePaymentModeName, purchasePaymentDue } from '../utils/purchasePayments';
+import { PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchaseStatus, purchaseBalance, purchasePaid, purchaseOwed, purchaseRcmTax, hasPurchasePayments, withPurchasePayments, markPurchasePaid, markPurchaseUnpaid, purchasePaymentModeName, purchasePaymentDue } from '../utils/purchasePayments';
 import PurchasePaymentModal from './PurchasePaymentModal';
 import DebitNotesList, { ReturnToSupplierModal } from './DebitNotes';
 import { askPaidMode } from './askPaidMode';
@@ -88,6 +88,7 @@ const emptyForm = {
   items: [{ ...emptyItem }],
   paymentStatus: 'Unpaid',
   interstate: false, // true ⇒ supplier charged IGST; false ⇒ CGST + SGST. Routes ITC correctly in GSTR-3B.
+  reverseCharge: false, // v1.10.86 - you pay the GST yourself (GSTR-3B 3.1(d)); off for every older bill
   applyRoundOff: false, // off by default — purchase bill totals are usually pre-rounded by the supplier. Users with suppliers that don't pre-round can opt in here.
   note: '',
   // v1.10.83 (#112) - the same form edits purchase orders (kind 'po'): it
@@ -349,6 +350,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       items: purchase.items && purchase.items.length > 0 ? purchase.items.map(i => ({ ...i })) : [{ ...emptyItem }],
       paymentStatus: purchase.paymentStatus || 'Unpaid',
       interstate: !!purchase.interstate,
+      reverseCharge: !!purchase.reverseCharge, // v1.10.86
       // Detect round-off from older entries: if roundOff field exists and is
       // non-zero, treat applyRoundOff as on. Older entries without the field
       // just default to off — they won't suddenly change totals on re-save.
@@ -564,7 +566,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
       doc.text(`Invoice #: ${purchase.invoiceNumber || '-'}`, marginL, y); y += 5;
       doc.text(`Date: ${purchase.date ? new Date(purchase.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}`, marginL, y); y += 5;
-      doc.text(`Payment: ${PURCHASE_STATUS_LABEL[purchaseStatus(purchase)]}   ·   ${purchase.interstate ? 'Interstate (IGST)' : 'Intrastate (CGST+SGST)'}`, marginL, y); y += 8;
+      doc.text(`Payment: ${PURCHASE_STATUS_LABEL[purchaseStatus(purchase)]}   ·   ${purchase.interstate ? 'Interstate (IGST)' : 'Intrastate (CGST+SGST)'}${purchase.reverseCharge ? '   ·   Reverse charge: Yes' : ''}`, marginL, y); y += 8;
       doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.5);
       doc.line(marginL, y, marginR, y); y += 8;
 
@@ -643,11 +645,13 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       y += 2; doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(marginL + 100, y, marginR, y); y += 6;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(0);
       doc.text('TOTAL', marginL + 100, y); doc.text(fmt(t.finalTotal), marginR, y, { align: 'right' });
-      if ((Number(purchase.tdsAmount) || 0) > 0) {
+      if ((Number(purchase.tdsAmount) || 0) > 0 || purchase.reverseCharge) {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9); y += 6;
-        doc.text(`Less: TDS (${sectionShort(purchase.tdsSection) || 'TDS'})`, marginL + 100, y); doc.text('-' + fmt(purchase.tdsAmount), marginR, y, { align: 'right' }); y += 5;
+        // v1.10.86 - reverse charge: the GST is paid to the government by you.
+        if (purchase.reverseCharge) { doc.text('Less: GST you pay (reverse charge)', marginL + 100, y); doc.text('-' + fmt(purchaseRcmTax(purchase)), marginR, y, { align: 'right' }); y += 5; }
+        if ((Number(purchase.tdsAmount) || 0) > 0) { doc.text(`Less: TDS (${sectionShort(purchase.tdsSection) || 'TDS'})`, marginL + 100, y); doc.text('-' + fmt(purchase.tdsAmount), marginR, y, { align: 'right' }); y += 5; }
         doc.setFont('helvetica', 'bold');
-        doc.text('Paid to supplier', marginL + 100, y); doc.text(fmt(t.finalTotal - purchase.tdsAmount), marginR, y, { align: 'right' });
+        doc.text('Paid to supplier', marginL + 100, y); doc.text(fmt(purchaseOwed(purchase)), marginR, y, { align: 'right' });
       }
 
       // v1.10.83 (#123) - payments made to the supplier, and what is left.
@@ -758,6 +762,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
         roundOff: totals.roundOff,
         paymentStatus: form.paymentStatus,
         interstate: !!form.interstate,
+        // v1.10.86 - written only when ticked, so an unticked bill is saved as before.
+        ...(form.reverseCharge ? { reverseCharge: true } : {}),
         note: form.note.trim(),
         ...centreFields(form.costCentre, form.costCentreName),
         ...purchaseTdsFields(form, totals.taxable),
@@ -1221,9 +1227,9 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       Object.assign(t, splitPurchaseTax(t.tax, !!p.interstate));
       for (const k of Object.keys(sum)) sum[k] += Number(t[k]) || 0;
       return [p.date || '', p.supplierName || '', p.supplierGstin || '', p.invoiceNumber || '', r2(t.taxable), r2(t.cgst), r2(t.sgst), r2(t.igst), r2(t.cess),
-        p.interstate ? 'Y' : 'N', r2(t.roundOff), r2(t.finalTotal), r2(t.paid), r2(t.balance), PURCHASE_STATUS_LABEL[purchaseStatus(p)], p.note || ''];
+        p.interstate ? 'Y' : 'N', p.reverseCharge ? 'Y' : 'N', r2(t.roundOff), r2(t.finalTotal), r2(t.paid), r2(t.balance), PURCHASE_STATUS_LABEL[purchaseStatus(p)], p.note || ''];
     });
-    return [...rows, ['Total', '', '', '', r2(sum.taxable), r2(sum.cgst), r2(sum.sgst), r2(sum.igst), r2(sum.cess), '', r2(sum.roundOff), r2(sum.finalTotal), r2(sum.paid), r2(sum.balance), '', '']];
+    return [...rows, ['Total', '', '', '', r2(sum.taxable), r2(sum.cgst), r2(sum.sgst), r2(sum.igst), r2(sum.cess), '', '', r2(sum.roundOff), r2(sum.finalTotal), r2(sum.paid), r2(sum.balance), '', '']];
   })();
 
   const isPo = form.kind === 'po';
@@ -1315,7 +1321,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                 <button className="icon-btn" onClick={() => setViewPurchase(null)} title="Close"><X size={18} /></button>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                {p.date ? new Date(p.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''} · {PURCHASE_STATUS_LABEL[purchaseStatus(p)]} · {p.interstate ? 'Interstate (IGST)' : 'Intrastate (CGST+SGST)'}
+                {p.date ? new Date(p.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''} · {PURCHASE_STATUS_LABEL[purchaseStatus(p)]} · {p.interstate ? 'Interstate (IGST)' : 'Intrastate (CGST+SGST)'}{p.reverseCharge ? ' · Reverse charge: Yes' : ''}
               </div>
               {/* Supplier block */}
               <div style={{ background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: 6, marginBottom: '1rem' }}>
@@ -1379,12 +1385,14 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                     with screenshot showing invisible total on Purchase Bill
                     view modal. Now uses --text so it flips with theme. */}
                 <span style={{ borderTop: '2px solid var(--text)', paddingTop: 6, textAlign: 'right', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)' }}>{formatCurrency(t.finalTotal)}</span>
-                {(Number(p.tdsAmount) || 0) > 0 && (
+                {((Number(p.tdsAmount) || 0) > 0 || p.reverseCharge) && (
                   <>
-                    <span style={{ color: 'var(--text-muted)' }}>Less: TDS ({sectionShort(p.tdsSection)}{p.tdsRate ? ` @ ${p.tdsRate}%` : ''})</span>
-                    <span style={{ textAlign: 'right' }}>-{formatCurrency(p.tdsAmount)}</span>
+                    {/* v1.10.86 - reverse charge: the GST is yours to pay, not the supplier's. */}
+                    {p.reverseCharge && <><span style={{ color: 'var(--text-muted)' }}>Less: GST you pay (reverse charge)</span><span style={{ textAlign: 'right' }}>-{formatCurrency(purchaseRcmTax(p))}</span></>}
+                    {(Number(p.tdsAmount) || 0) > 0 && <><span style={{ color: 'var(--text-muted)' }}>Less: TDS ({sectionShort(p.tdsSection)}{p.tdsRate ? ` @ ${p.tdsRate}%` : ''})</span>
+                    <span style={{ textAlign: 'right' }}>-{formatCurrency(p.tdsAmount)}</span></>}
                     <span style={{ fontWeight: 600 }}>Paid to supplier</span>
-                    <span style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(t.finalTotal - p.tdsAmount)}</span>
+                    <span style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(purchaseOwed(p))}</span>
                   </>
                 )}
                 {/* v1.10.83 (#123) - paid so far and what is left. */}
@@ -1503,7 +1511,6 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
             {!isPo && form.from2b && !editingId && (
               <div className="notice notice-info twob-draft-note" style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.8rem', lineHeight: 1.5 }}>
                 Filled in from GSTR-2B: one line per GST rate. Check it and Save. To add the goods to stock, change each line to your item name, quantity and rate; lines left as &quot;(from GSTR-2B)&quot; are not added to Products.
-                {/Reverse charge: Yes/.test(form.note || '') && <> <strong>2B says reverse charge:</strong> you pay this GST yourself; check it with your accountant.</>}
               </div>
             )}
             {/* v1.10.83 (#112) - a bill made from a purchase order. */}
@@ -1618,6 +1625,22 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                   </span>
                 </label>
               </div>
+              {/* v1.10.86 - reverse charge: you pay this bill's GST to the government. */}
+              {!isPo && (
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                    <input type="checkbox" className="purchase-rcm" checked={!!form.reverseCharge}
+                      onChange={e => updateField('reverseCharge', e.target.checked)}
+                      style={{ width: 16, height: 16, accentColor: 'var(--primary)' }} />
+                    <span>
+                      <strong>Reverse charge</strong> — you pay this GST to the government, not the supplier
+                      <span style={{ color: '#94a3b8', fontSize: '0.72rem', display: 'block' }}>
+                        For example a transporter (GTA), an advocate, or goods the law puts under reverse charge. GSTR-3B shows the tax in 3.1(d), paid in cash, and as credit in 4(A)(3). The supplier is owed the bill without GST.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Items */}
@@ -1810,10 +1833,11 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                   </span>
                 )}
                 <span>Total: <strong>{formatCurrency(formTotals.finalTotal)}</strong></span>
-                {formTds > 0 && (
+                {(formTds > 0 || (!isPo && form.reverseCharge)) && (
                   <>
-                    <span>Less TDS: <strong>{formatCurrency(formTds)}</strong></span>
-                    <span>Paid to supplier: <strong>{formatCurrency(formTotals.finalTotal - formTds)}</strong></span>
+                    {!isPo && form.reverseCharge && <span>Less GST you pay (reverse charge): <strong>{formatCurrency(formTotals.tax + formTotals.cess)}</strong></span>}
+                    {formTds > 0 && <span>Less TDS: <strong>{formatCurrency(formTds)}</strong></span>}
+                    <span>Paid to supplier: <strong>{formatCurrency(formTotals.finalTotal - formTds - (!isPo && form.reverseCharge ? formTotals.tax + formTotals.cess : 0))}</strong></span>
                   </>
                 )}
               </div>
@@ -1888,7 +1912,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
           )}
           <TableExport title="Purchase register" filename="Purchases" landscape
             subtitle={ownerProfile?.businessName || ''}
-            headers={['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'CGST', 'SGST', 'IGST', 'Cess', 'Inter-state', 'Round-off', 'Total', 'Paid', 'Balance due', 'Status', 'Note']}
+            headers={['Date', 'Supplier', 'GSTIN', 'Invoice No', 'Taxable Amount', 'CGST', 'SGST', 'IGST', 'Cess', 'Inter-state', 'Reverse charge', 'Round-off', 'Total', 'Paid', 'Balance due', 'Status', 'Note']}
             rows={registerRows} />
         </div>
         {filtered.length === 0 ? (

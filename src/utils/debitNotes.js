@@ -122,11 +122,16 @@ export const unmatchedLines = (dn, products) => {
 
 // What the debit notes against a bill take off it (with GST). A bill sent
 // back in full also loses its round-off, so nothing at all is owed on it.
+// v1.10.86 - on a reverse-charge bill the supplier was never owed the GST, so
+// a return takes off its value without GST (dnValueOnBill).
+export const dnValueOnBill = (bill, dn) => (bill?.reverseCharge ? debitNoteTotals(dn).taxable : debitNoteTotals(dn).total);
 export const returnedOnBill = (bill, debitNotes) => {
   const notes = notesFor(bill, debitNotes);
-  const sum = notes.reduce((s, dn) => s + debitNoteTotals(dn).total, 0);
+  const sum = notes.reduce((s, dn) => s + dnValueOnBill(bill, dn), 0);
   const all = notes.length && (bill?.items || []).length && returnableLines(bill, debitNotes).every((l) => l.left <= 0);
-  return r2(all ? purchaseTotals(bill.items, !!bill.applyRoundOff).finalTotal : sum);
+  if (!all) return r2(sum);
+  const t = purchaseTotals(bill.items, !!bill.applyRoundOff);
+  return r2(bill.reverseCharge ? t.finalTotal - t.tax - t.cess : t.finalTotal);
 };
 
 // Editing a bill that has returns: a returned line cannot go below what went
@@ -197,6 +202,35 @@ export const rcmNetOfReturns = (t, ret) => {
 // a head whose returns are more than its ITC shows 0 there and the rest as
 // ITC reversed (4(B)(2)). net = what is left to set off (never below 0) and
 // reversed = what is to be paid back over and above.
+// v1.10.86 - reverse charge on purchase bills: the period's reverse-charge
+// bills ({ txval, iamt, camt, samt, csamt }, from each bill's own lines),
+// less their returns (rcmNetOfReturns): GSTR-3B 3.1(d), the tax you pay in
+// cash. `purchases` are the period's bills; only those ticked count.
+export function rcmInward(purchases, rcmReturns) {
+  const t = (purchases || []).filter((p) => !!p?.reverseCharge).reduce((acc, p) => {
+    const items = Array.isArray(p.items) && p.items.length ? purchaseTotals(p.items) : null;
+    const tax = items ? items.tax : Number(p.totalTax) || 0;
+    const split = splitPurchaseTax(tax, !!p.interstate);
+    return { txval: acc.txval + (items ? items.taxable : Number(p.taxableAmount) || 0), iamt: acc.iamt + split.igst, camt: acc.camt + split.cgst,
+      samt: acc.samt + split.sgst, csamt: acc.csamt + (items ? items.cess : Number(p.totalCess) || 0) };
+  }, { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 });
+  return rcmNetOfReturns(t, rcmReturns || {});
+}
+
+// v1.10.86 - the ITC available (netItc's avl) split for GSTR-3B Table 4: the
+// reverse-charge tax you paid (rcmInward) is 4(A)(3), the rest 4(A)(5). The
+// total is unchanged; 4(A)(3) is never more than what is available.
+export function splitRcmItc(avl, rcm) {
+  const heads = { igst: 'iamt', cgst: 'camt', sgst: 'samt', cess: 'csamt' };
+  const isrc = {}, oth = {};
+  for (const [k, j] of Object.entries(heads)) {
+    const a = Number(avl?.[k]) || 0;
+    isrc[k] = r2(Math.min(a, Math.max(0, Number(rcm?.[j]) || 0)));
+    oth[k] = r2(a - isrc[k]);
+  }
+  return { isrc, oth };
+}
+
 export function netItc(itc, returns) {
   const avl = {}, rev = {};
   for (const k of ['igst', 'cgst', 'sgst', 'cess']) {

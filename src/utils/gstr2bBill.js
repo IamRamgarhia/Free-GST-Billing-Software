@@ -67,7 +67,6 @@ export function purchaseFromTwoB(sup, inv, { ownGstin = '', period = '' } = {}) 
   const applyRoundOff = val > 0 && Math.abs(exact - val) >= 0.005 && Math.abs(purchaseTotals(items, true).finalTotal - val) < 0.005;
   const note = [
     `From GSTR-2B${period ? ` (${period})` : ''}`,
-    inv?.rev === 'Y' && 'Reverse charge: Yes',
     inv?.itcavl === 'N' && `ITC not available as per 2B${inv?.rsn ? ` (${inv.rsn})` : ''}`,
   ].filter(Boolean).join('. ');
   return {
@@ -79,6 +78,8 @@ export function purchaseFromTwoB(sup, inv, { ownGstin = '', period = '' } = {}) 
     applyRoundOff,
     items,
     note,
+    // v1.10.86 - the bill's Reverse charge tick, from 2B (GSTR-3B 3.1(d)).
+    reverseCharge: inv?.rev === 'Y',
   };
 }
 

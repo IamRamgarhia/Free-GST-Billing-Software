@@ -6,7 +6,7 @@ import { Edit3, Trash2 } from 'lucide-react';
 import { savePurchase } from '../store';
 import { formatCurrency, localToday } from '../utils';
 import {
-  PURCHASE_PAYMENT_MODES, PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchasePaymentModeName, purchaseTotal, purchaseOwed, purchasePaid,
+  PURCHASE_PAYMENT_MODES, PURCHASE_STATUS_LABEL, OVERPAY_SLACK, purchasePaymentModeName, purchaseTotal, purchaseOwed, purchasePaid, purchaseRcmTax,
   purchasePaymentDue, purchaseStatus, hasPurchasePayments, validatePurchasePayment, withPurchasePayments, newPurchasePaymentId,
 } from '../utils/purchasePayments';
 import HelpButton from './HelpButton';
@@ -93,7 +93,8 @@ export default function PurchasePaymentModal({ purchase, onClose, onChanged }) {
   };
 
   const balance = r2(owed - paid);
-  const tds = r2(total - owed);
+  const rcm = purchaseRcmTax(bill); // v1.10.86 - reverse charge: GST you pay, not the supplier
+  const tds = r2(total - rcm - owed);
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 620 }}>
@@ -101,6 +102,7 @@ export default function PurchasePaymentModal({ purchase, onClose, onChanged }) {
         <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.85rem', lineHeight: 1.6 }}>
           Bill: <strong>{bill.invoiceNumber || '-'}</strong> · {bill.supplierName || '-'}<br />
           Total: <strong>{formatCurrency(total)}</strong>
+          {rcm > 0.005 && <> | Less GST you pay (reverse charge): <strong>{formatCurrency(rcm)}</strong></>}
           {tds > 0.005 && <> | Less TDS: <strong>{formatCurrency(tds)}</strong></>}
           {paid > 0.005 && <> | Paid: <strong>{formatCurrency(paid)}</strong></>}
           {' '}| Balance: <strong style={{ color: legacyPaid || balance <= 0.005 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(legacyPaid ? 0 : Math.max(0, balance))}</strong>
