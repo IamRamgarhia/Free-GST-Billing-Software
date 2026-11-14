@@ -90,3 +90,40 @@ export function releaseTitles(entry, per = 8) {
     })
     .filter((s) => s.items.length);
 }
+
+// v1.10.86 - the "What's new" slides shown once after an update
+// (components/WhatsNewSlides.jsx). One slide per section, Added first, then
+// Fixed, then the rest; at most `per` titles a slide and `max` slides. `more`
+// counts the titles left for the full notes.
+const SLIDE_ORDER = ['added', 'fixed', 'changed', 'security'];
+const rank = (title) => { const i = SLIDE_ORDER.indexOf(title.toLowerCase()); return i < 0 ? SLIDE_ORDER.length : i; };
+
+export function whatsNewSlides(entry, per = 4, max = 3) {
+  const sections = releaseTitles(entry, 1000)
+    .map((s, i) => ({ ...s, i }))
+    .sort((a, b) => rank(a.title) - rank(b.title) || a.i - b.i);
+  const total = sections.reduce((n, s) => n + s.items.length, 0);
+  const slides = sections.slice(0, max).map((s) => ({ kind: s.title.toLowerCase(), title: s.title, items: s.items.slice(0, per) }));
+  const shown = slides.reduce((n, s) => n + s.items.length, 0);
+  return { slides, more: total - shown };
+}
+
+// "1.10.85" < "1.10.86" < "1.11.0" (numbers, not text).
+export function isNewerVersion(a, b) {
+  const pa = String(a || '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b || '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  }
+  return false;
+}
+
+// Show the slides? `seen` is the last version this browser saw (null when it
+// never stored one), `running` this app's version, `existingUser` true when
+// setup was finished before. A new install shows the welcome screens instead;
+// someone who used the app before this version stored anything did update.
+export function shouldShowWhatsNew(seen, running, existingUser) {
+  if (!running || running === 'unknown') return false;
+  if (!seen) return !!existingUser;
+  return isNewerVersion(running, seen);
+}

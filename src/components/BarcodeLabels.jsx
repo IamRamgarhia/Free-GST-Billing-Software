@@ -120,7 +120,7 @@ export default function BarcodeLabels({ productIds, bill, debitNotes = [], title
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: 940, width: '96vw' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
+      <div className="modal-content" style={{ maxWidth: 940, width: 'calc(96vw / var(--ui-zoom, 1))' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <h3 className="section-title" style={{ margin: 0 }}>{title} <HelpButton title="Barcode labels" doc="products#barcode-labels" size={16} /></h3>
           <button type="button" className="icon-btn" onClick={onClose} title="Close" aria-label="Close"><X size={18} /></button>

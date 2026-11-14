@@ -1276,7 +1276,7 @@ export default function PrintSettings() {
              PDF (A4) and Thermal (80mm) render. Split view shows both. */}
         <div className="print-settings-preview-pane" style={{
           position: 'sticky', top: '1rem',
-          maxHeight: 'calc(100vh - 2rem)',
+          maxHeight: 'calc(100vh / var(--ui-zoom, 1) - 2rem)',
           padding: '1rem',
           background: 'var(--bg-secondary)',
           borderRadius: 8,

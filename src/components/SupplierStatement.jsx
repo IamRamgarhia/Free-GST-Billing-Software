@@ -146,7 +146,7 @@ export default function SupplierStatement({ purchases, debitNotes, profile, init
           {st.totals.tds > 0.005 && <> · TDS kept back {formatCurrency(st.totals.tds)}</>}
           {' '}· <strong style={{ color: st.closing > 0.005 ? 'var(--danger)' : 'var(--success)' }}>Balance: {balanceWords(st.closing)}</strong>
         </p>
-        <div className="table-scroll" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+        <div className="table-scroll" style={{ maxHeight: 'calc(55vh / var(--ui-zoom, 1))', overflowY: 'auto' }}>
           <table className="data-table supplier-statement">
             <thead>
               <tr>

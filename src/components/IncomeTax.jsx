@@ -900,7 +900,7 @@ function BankImportTab({ bankImport, setBankImport, onCommit }) {
       </div>
 
       {/* Transactions grid */}
-      <div className="glass-panel" style={{ overflow: 'auto', maxHeight: '60vh' }}>
+      <div className="glass-panel" style={{ overflow: 'auto', maxHeight: 'calc(60vh / var(--ui-zoom, 1))' }}>
         <table className="data-table" style={{ minWidth: '900px' }}>
           <thead>
             <tr>

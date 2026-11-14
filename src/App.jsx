@@ -27,6 +27,7 @@ import UpdateOverlay from './components/UpdateOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
+import { WhatsNewAfterUpdate } from './components/WhatsNewSlides';
 const SettingsView = lazy(() => import('./components/SettingsView'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
 const InventoryView = lazy(() => import('./components/InventoryView'));
@@ -733,6 +734,8 @@ function App() {
       ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
       ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
       ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
+      // v1.10.86
+      ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'],
     ];
     settingsJumps.forEach(([s, sectionId]) => {
       acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => openSettingsAt(sectionId) });
@@ -929,6 +932,8 @@ function App() {
   return (
     <div className={`app-layout${sidebarAutoHide ? ' sidebar-autohide' : ''}`}>
       {showWizard && <SetupWizard onClose={() => setShowWizard(false)} />}
+      {/* v1.10.86 - "What's new" slides, once after an update (not during setup). */}
+      <WhatsNewAfterUpdate blocked={showWizard} />
       {showResumeSetupPill && (
         <button type="button"
           onClick={() => setShowWizard(true)}

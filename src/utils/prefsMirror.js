@@ -21,7 +21,9 @@
 // v1.10.86 - and gst_menuClosed: the sidebar groups that are closed.
 // v1.10.86 - Customise Dashboard, the remembered and saved Dashboard filters,
 // the screen the app opens on and each list's sort (utils/listPrefs.js).
-const MIRRORED = /^(gst_printSettings|gst_regionMode|gst_enabledModules|gst_priceLevels|gst_businessType|gst_offlineMode|gst_menuOrder|gst_menuClosed|gst_customUnits|gst_dashboardColumns|gst_dashboardBlocks|gst_dashboardFilters|gst_savedFilters|gst_startView|gst_listSort_.*|gst_filing_status(_.*)?|gst_itr[A-Za-z]*|freegstbill_onboarded|freegstbill_theme|freegstbill_startedDismissed|freegstbill_supportNudge|freegstbill_welcomeCard|freegstbill_starBanner|freegstbill_sidebarAutoHide|fgsb_customFieldLabels|fgsb_sizeStep|fgsb_previewCollapsed|fgsb_dismissedNotifs|gst_lastUsedAccountId_.*|gst_settingsTab|freegstbill_dismissedUpdate|freegstbill_notifiedUpdate|freegstbill_notifyAsked)$/;
+// v1.10.86 - and Settings -> Appearance (App colour, Text size, Compact
+// lists) and the last version whose "What's new" slides were seen.
+const MIRRORED = /^(freegstbill_appColour|freegstbill_textSize|freegstbill_compactLists|freegstbill_lastSeenVersion|gst_printSettings|gst_regionMode|gst_enabledModules|gst_priceLevels|gst_businessType|gst_offlineMode|gst_menuOrder|gst_menuClosed|gst_customUnits|gst_dashboardColumns|gst_dashboardBlocks|gst_dashboardFilters|gst_savedFilters|gst_startView|gst_listSort_.*|gst_filing_status(_.*)?|gst_itr[A-Za-z]*|freegstbill_onboarded|freegstbill_theme|freegstbill_startedDismissed|freegstbill_supportNudge|freegstbill_welcomeCard|freegstbill_starBanner|freegstbill_sidebarAutoHide|fgsb_customFieldLabels|fgsb_sizeStep|fgsb_previewCollapsed|fgsb_dismissedNotifs|gst_lastUsedAccountId_.*|gst_settingsTab|freegstbill_dismissedUpdate|freegstbill_notifiedUpdate|freegstbill_notifyAsked)$/;
 const ENDPOINT = '/api/local-prefs';
 
 export const isMirrored = (key) => MIRRORED.test(String(key));

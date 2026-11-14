@@ -5,11 +5,11 @@ export default [
 {
   slug: 'settings',
   title: 'Settings',
-  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
+  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups, Appearance and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
   body: `
 <section id="save-bar">
 <h2>Settings tabs and the Save all changes bar</h2>
-<p>Open ${ui('Settings')} from the sidebar. Settings is split into six <b>tabs</b>, a row of buttons at the top of the page. Each tab shows its cards one under the other:</p>
+<p>Open ${ui('Settings')} from the sidebar. Settings is split into seven <b>tabs</b>, a row of buttons at the top of the page. Each tab shows its cards one under the other:</p>
 <div class="table-wrap"><table>
   <tr><th>Tab</th><th>Cards in it</th></tr>
   <tr><td>${ui('Company')}</td><td>Business type, Company details (with payment accounts), Business profiles, Terms</td></tr>
@@ -17,6 +17,7 @@ export default [
   <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
   <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), <a href="phone.html">Use on phone or tablet</a>, Privacy &amp; internet</td></tr>
   <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, <a href="backup.html#close-books">Close the books</a> and the edit history, Google Drive, Import/Export</td></tr>
+  <tr><td>${ui('Appearance')}</td><td><a href="#appearance">App colour, Text size and Compact lists</a></td></tr>
   <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
 </table></div>
 <p>Click a tab to show it; the tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two lines; nothing is hidden. Searching with ${ui('Ctrl + K')} for a setting (for example "Google Drive") opens its tab at that card.</p>
@@ -524,6 +525,25 @@ export default [
 <section id="data">
 <h2>Import/Export (Data Management)</h2>
 <p>The ${ui('Import/Export')} tab. ${ui('Export Backup…')} saves your data to one file you keep anywhere; ${ui('Import Backup…')} brings a file back. Your data stays on your computer: nothing is sent to us. Step by step: <a href="backup.html#export-import">Export Backup and Import Backup</a>.</p>
+</section>
+
+<section id="appearance">
+<h2>Appearance: App colour, Text size, Compact lists</h2>
+<p>The ${ui('Appearance')} tab. How the app's screens look on this computer. Each choice changes the screen at once and is remembered; there is nothing to save. Your invoices, PDFs and prints never change: their colour, font size and row height are in <a href="print-settings.html">Print and PDF</a>.</p>
+<div class="table-wrap"><table>
+  <tr><th>Setting</th><th>What it does</th></tr>
+  <tr><td>${ui('App colour')}</td><td>The colour of the buttons, the open item in the menu, links, focus outlines and progress bars. Pick one of the eight colours (blue is the default), or the rainbow circle for a colour of your own. A very light or very dark colour is made a little darker or lighter by itself, so the white writing on buttons stays easy to read, in light and in dark mode.</td></tr>
+  <tr><td>${ui('Text size')}</td><td>${ui('Smaller')}, ${ui('Normal')}, ${ui('Larger')} or ${ui('Largest')}. Everything on the screens grows or shrinks together: the menu, lists, forms, buttons and windows. The invoice preview keeps the size the invoice will print at.</td></tr>
+  <tr><td>${ui('Compact lists')}</td><td>Shorter rows in the Invoices, Purchases, Expenses and Products lists (and the reports), and smaller client cards, so more fit on the screen without scrolling.</td></tr>
+  <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="help.html#dark-mode">Dark mode</a>.</td></tr>
+</table></div>
+<p>${ui('Back to the default look')} (shown once something was changed) puts back blue, Normal and the usual row height.</p>
+<p>These are kept for this browser, and a copy goes in the app's data folder, so they come back if the browser clears its data or you move to the Windows Setup's window. A phone or tablet starts with the computer's choices and can change its own.</p>
+<h3>Something wrong?</h3>
+<ul>
+  <li><b>Text is too big and things wrap</b>: choose ${ui('Larger')} instead of ${ui('Largest')}, or use the browser's own zoom (<kbd>Ctrl</kbd> + <kbd>-</kbd>).</li>
+  <li><b>The PDF has the old blue</b>: that is on purpose. Change the invoice colour in <a href="print-settings.html">Print and PDF</a>.</li>
+</ul>
 </section>
 
 <section id="updates">

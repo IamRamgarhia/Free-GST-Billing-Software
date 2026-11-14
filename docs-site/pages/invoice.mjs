@@ -43,7 +43,7 @@ export default [
   <tr><td>${ui('Customize')}</td><td>Opens the panel that controls what prints, the paper size, currency and more. While it is open the button reads ${ui('Hide Options')}. See <a href="invoice-options.html">Customize: what prints and how</a>.</td></tr>
   <tr><td>${ui('Hide Preview')}</td><td>Hides the preview so the form uses the whole width, handy for long invoices. ${ui('Show Preview')} brings it back. The app remembers your choice in this browser. Save PDF and Print still work while it is hidden.</td></tr>
 </table></div>
-<p>While a save, download or print is running, the buttons are greyed out and Save PDF reads <b>Generating...</b>. Wait for it to finish.</p>
+<p>While a save, download or print is running, the buttons are greyed out and while the PDF is being made Save PDF reads <b>Generating...</b> with a thin moving bar along its foot. Wait for it to finish. A saved invoice shows a green <i>Invoice saved</i> message at the top right, with a tick that draws itself (no movement if Windows has animations turned off).</p>
 </section>
 
 <section id="invoice-types">
