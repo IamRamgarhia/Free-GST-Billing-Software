@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Discount on the whole purchase bill**: under the items of **Add Purchase
+  Bill**, type a discount in **Discount on whole bill**, as **₹** or **%**. It
+  is taken before GST (a trade discount): shared over the items by their
+  value, with GST and cess worked out on what is left, so a bill with items at
+  different GST rates gets the right input tax credit. The totals, the view and
+  the PDF show it on its own line; GSTR-3B, GSTR-2B matching, Owed to
+  suppliers, TDS and the products' purchase price use the value after it, and
+  a return takes its part back. It cannot change once goods on the bill have
+  gone back on a debit note. The discount on each line (**Discount column**)
+  is unchanged.
+
 ## [1.10.85] - 2026-11-14
 
 ### How to update

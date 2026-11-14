@@ -1,6 +1,6 @@
 // v1.10.83 (#112) - purchase orders: the pure parts (totals, status, numbering,
 // the bill a PO turns into), kept out of the components so they can be tested.
-import { calculateRoundOff, formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, resolveLineDiscount, baseQty, lineFactor, altLineFields } from '../utils.js';
+import { calculateRoundOff, formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, resolveLineDiscount, spreadBillDiscount, baseQty, lineFactor, altLineFields } from '../utils.js';
 
 // Line and document totals for purchase bills and purchase orders alike.
 // Moved here from PurchaseBills.jsx unchanged, so both use the same sums.
@@ -18,20 +18,38 @@ export function purchaseLineTax(item) {
 }
 // The discount on a purchase line (0 when none). Only percent or an amount
 // off the whole line: the purchase form offers no other kind.
+// v1.10.86 - plus the line's part of a discount on the whole bill
+// (billDiscShare, see withBillDiscount), so every total, the ITC and the
+// product's cost price follow it.
 export const purchaseLineDiscount = (item) => resolveLineDiscount({
   quantity: item?.quantity, rate: item?.rate, discount: item?.discount,
   discountType: item?.discountType === 'percent' ? 'percent' : 'fixed',
+  billDiscShare: item?.billDiscShare,
+});
+// v1.10.86 - a discount on the whole purchase bill (value, 'percent' or an
+// amount), taken before GST like a trade discount on a sales invoice: shared
+// over the lines by their value after line discounts, as billDiscShare, with
+// GST on what is left. Any old part is dropped first; 0 just drops it.
+export const withBillDiscount = (items, value, type) => spreadBillDiscount(items, {
+  invoiceDiscountBeforeGst: true, invoiceDiscountValue: value, invoiceDiscountType: type === 'percent' ? 'percent' : 'fixed',
 });
 // The discount fields a saved line keeps: none at all without a discount, so
-// lines look exactly as they did before #171.
-export const lineDiscountFields = (it) => ((Number(it?.discount) || 0) > 0
-  ? { discount: Number(it.discount), discountType: it.discountType === 'percent' ? 'percent' : 'fixed' } : {});
+// lines look exactly as they did before #171. v1.10.86 - and its part of the
+// bill discount, so a return or a bill made from it keeps it.
+export const lineDiscountFields = (it) => ({
+  ...((Number(it?.discount) || 0) > 0 ? { discount: Number(it.discount), discountType: it.discountType === 'percent' ? 'percent' : 'fixed' } : {}),
+  ...((Number(it?.billDiscShare) || 0) > 0 ? { billDiscShare: Number(it.billDiscShare) } : {}),
+});
 // The line for part of its quantity: a percent discount stays as it is, an
-// amount off the line is shared out (2 of 10 returned carry 2/10 of it).
+// amount off the line (and its part of the bill discount) is shared out (2 of
+// 10 returned carry 2/10 of it).
 export const lineWithQuantity = (it, q) => {
   const of = Number(it?.quantity) || 0;
+  const part = (v) => Math.round((Number(v) * q / of) * 100) / 100;
   const amountOff = (Number(it?.discount) || 0) > 0 && it.discountType !== 'percent';
-  return { ...it, quantity: q, ...(amountOff && of > 0 ? { discount: Math.round((Number(it.discount) * q / of) * 100) / 100 } : {}) };
+  return { ...it, quantity: q,
+    ...(amountOff && of > 0 ? { discount: part(it.discount) } : {}),
+    ...((Number(it?.billDiscShare) || 0) > 0 && of > 0 ? { billDiscShare: part(it.billDiscShare) } : {}) };
 };
 // v1.10.85 (#160) - does any line of a purchase carry this serial number /
 // IMEI (or part of one)? Serials are typed comma or space separated.
@@ -61,7 +79,9 @@ export function purchaseTotals(items, applyRoundOff = false) {
   // as a separate line so GSTR-3B input tax credit reflects the supplier's
   // actual tax amount, not a rounded version.
   const roundOff = applyRoundOff ? calculateRoundOff(raw.total) : 0;
-  return { ...raw, roundOff, finalTotal: raw.total + roundOff };
+  // v1.10.86 - the discount on the whole bill, already out of `taxable`; shown on its own line.
+  const billDiscount = Math.round((items || []).reduce((s, it) => s + (Number(it?.billDiscShare) || 0), 0) * 100) / 100;
+  return { ...raw, roundOff, finalTotal: raw.total + roundOff, billDiscount };
 }
 
 export const PO_STATUS_LABELS = {
