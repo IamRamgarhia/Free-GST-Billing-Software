@@ -728,7 +728,7 @@ export default function PrintSettings() {
           {/* AUTO-PRINT */}
           <SettingGroup title="Auto-print" doc="print-settings#auto-print">
             <ToggleRow label="Auto-print on save" value={settings.autoPrintOnSave} onChange={v => set({ autoPrintOnSave: v })}
-              hint="Send to your default printer immediately after Save & Download PDF. Perfect for POS counters — no manual click needed." />
+              hint="Send to your default printer immediately after Save PDF. Perfect for POS counters — no manual click needed." />
           </SettingGroup>
 
           {/* WATERMARK */}

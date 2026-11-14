@@ -407,14 +407,14 @@ try {
   try {
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 60_000 }),
-      page.getByRole('button', { name: /save & download/i }).first().click(),
+      page.getByRole('button', { name: /^save pdf$/i }).first().click(),
     ]);
     const { statSync } = await import('fs');
     pdfBytes = statSync(await dl.path()).size;
   } catch { /* leaves pdfBytes 0 → fails below */ }
   check('PDF downloads and is styled', pdfBytes > 300_000, `${pdfBytes} bytes`);
 
-  // #161: with the preview hidden, Save & Download leaves it hidden (it used
+  // #161: with the preview hidden, Save PDF leaves it hidden (it used
   // to open and close again), and the PDF is still a full, styled page.
   await page.getByRole('button', { name: /Hide Preview/i }).first().click();
   await sleep(500);
@@ -428,13 +428,13 @@ try {
   try {
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 60_000 }),
-      page.getByRole('button', { name: /save & download/i }).first().click(),
+      page.getByRole('button', { name: /^save pdf$/i }).first().click(),
     ]);
     const { statSync } = await import('fs');
     hiddenPdfBytes = statSync(await dl.path()).size;
   } catch { /* leaves 0 → fails below */ }
   const paneShown = await page.evaluate(() => window.__paneShown);
-  check('#161 hidden preview stays hidden on Save & Download, PDF still styled',
+  check('#161 hidden preview stays hidden on Save PDF, PDF still styled',
     !paneShown && hiddenPdfBytes > 300_000, `${hiddenPdfBytes} bytes, preview shown: ${paneShown}`);
   await page.getByRole('button', { name: /Show Preview/i }).first().click();
   await sleep(400);
@@ -1780,7 +1780,7 @@ try {
     try {
       await Promise.all([
         page.waitForEvent('download', { timeout: 90_000 }),
-        page.getByRole('button', { name: /save & download/i }).first().click(),
+        page.getByRole('button', { name: /^save pdf$/i }).first().click(),
       ]);
     } catch { /* judged below */ }
     await sleep(800);

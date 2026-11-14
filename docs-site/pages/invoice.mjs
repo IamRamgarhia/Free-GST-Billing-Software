@@ -28,22 +28,22 @@ export default [
 <section id="toolbar">
 <h2>The toolbar</h2>
 <p>The toolbar stays at the top of the screen as you scroll, so Save, Print and the rest are always in reach on a long invoice.</p>
-<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save and Download, Print, WhatsApp, E-Way Bill, E-invoice, Customize, Hide Preview"></figure>
+<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save PDF, Print, WhatsApp, E-Way Bill, E-invoice, Customize, Hide Preview"></figure>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('←')} ${ui('Back')}</td><td>Leaves the invoice. If you have changed something that is not saved, you are asked first (see <a href="#leaving">Leaving with unsaved changes</a>).</td></tr>
   <tr><td>${ui('?')}</td><td>Opens this guide.</td></tr>
   <tr><td>Save status</td><td>A small coloured badge that tells you whether the invoice is saved. See <a href="#autosave">Saving as you go</a>.</td></tr>
   <tr><td>${ui('Save')}</td><td>Saves the invoice without making a PDF. <kbd>Ctrl</kbd> + <kbd>S</kbd> does the same.</td></tr>
-  <tr><td>${ui('Save &amp; Download')}</td><td>Saves the invoice and downloads the PDF. See <a href="#save-download">Save &amp; Download</a>.</td></tr>
+  <tr><td>${ui('Save PDF')}</td><td>Saves the invoice and downloads the PDF. See <a href="#save-download">Save PDF</a>.</td></tr>
   <tr><td>${ui('Print')}</td><td>Saves the invoice, then prints it. See <a href="#print">Printing</a>.</td></tr>
   <tr><td>${ui('WhatsApp')}</td><td>Opens WhatsApp with the invoice details typed in. See <a href="#whatsapp">Sending on WhatsApp</a>.</td></tr>
   <tr><td>${ui('E-Way Bill')}</td><td>Only on tax invoices and delivery challans, and only while <b>E-way bill</b> is on in <a href="settings.html#features">Settings, Features</a>. Downloads the e-way bill file. See <a href="#eway-bill">E-way bill</a>.</td></tr>
   <tr><td>${ui('E-invoice')}</td><td>Only when <b>E-invoicing (IRN)</b> is on in Settings, Features, and only on tax invoices and credit notes. Downloads the e-invoice file and takes back the IRN. A ✓ after the name means this invoice already has an IRN. See <a href="gst-returns.html#e-invoice">E-invoicing</a>.</td></tr>
   <tr><td>${ui('Customize')}</td><td>Opens the panel that controls what prints, the paper size, currency and more. While it is open the button reads ${ui('Hide Options')}. See <a href="invoice-options.html">Customize: what prints and how</a>.</td></tr>
-  <tr><td>${ui('Hide Preview')}</td><td>Hides the preview so the form uses the whole width, handy for long invoices. ${ui('Show Preview')} brings it back. The app remembers your choice in this browser. Save &amp; Download and Print still work while it is hidden.</td></tr>
+  <tr><td>${ui('Hide Preview')}</td><td>Hides the preview so the form uses the whole width, handy for long invoices. ${ui('Show Preview')} brings it back. The app remembers your choice in this browser. Save PDF and Print still work while it is hidden.</td></tr>
 </table></div>
-<p>While a save, download or print is running, the buttons are greyed out and Save &amp; Download reads <b>Generating...</b>. Wait for it to finish.</p>
+<p>While a save, download or print is running, the buttons are greyed out and Save PDF reads <b>Generating...</b>. Wait for it to finish.</p>
 </section>
 
 <section id="invoice-types">
@@ -517,13 +517,13 @@ export default [
 
 <section id="before-saving">
 <h2>What must be filled in</h2>
-<p>A new invoice needs a <b>client name</b> and <b>at least one item</b> with a name, a quantity and a rate. Otherwise ${ui('Save')}, ${ui('Save &amp; Download')} and ${ui('Print')} stop with <i>Add a client name before saving.</i> or <i>Add at least one item with a quantity and rate before saving.</i> Click the amber <b>Draft — click to complete</b> badge in the toolbar to jump to what is missing.</p>
+<p>A new invoice needs a <b>client name</b> and <b>at least one item</b> with a name, a quantity and a rate. Otherwise ${ui('Save')}, ${ui('Save PDF')} and ${ui('Print')} stop with <i>Add a client name before saving.</i> or <i>Add at least one item with a quantity and rate before saving.</i> Click the amber <b>Draft — click to complete</b> badge in the toolbar to jump to what is missing.</p>
 <p>This is so a blank invoice never takes an invoice number: GST expects numbers without gaps.</p>
 </section>
 
 <section id="save-download">
-<h2>Save &amp; Download</h2>
-<p>${ui('Save &amp; Download')} (or <kbd>Ctrl</kbd> + <kbd>P</kbd>) does all of this in one go:</p>
+<h2>Save PDF</h2>
+<p>${ui('Save PDF')} (or <kbd>Ctrl</kbd> + <kbd>P</kbd>) does all of this in one go:</p>
 <ol>
   <li>Saves the invoice, giving a new invoice its number, and counts it as printed once more.</li>
   <li>Downloads the PDF, showing that saved number, named after the type and number, such as <code>INV_INV-2026-27-0001.pdf</code>.</li>
@@ -544,7 +544,7 @@ export default [
   <li><strong>On A4, A5 and other sheet sizes</strong>, ${ui('Print')} saves the invoice, makes a sharp print copy and opens your browser's print window, which has its own page preview.</li>
   <li><strong>On a thermal paper size</strong>, it first shows a <b>Print preview</b> of the receipt, with ${ui('Print')}, ${ui('Download PDF')} and ${ui('Cancel')}. See <a href="thermal-printing.html#print-preview">Thermal receipt printing</a>.</li>
 </ul>
-<p>Printing saves the invoice first, like ${ui('Save &amp; Download')}, so what you hand the client is always in your records with the same number.</p>
+<p>Printing saves the invoice first, like ${ui('Save PDF')}, so what you hand the client is always in your records with the same number.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p><b>Nothing happens, or "Print failed — try Download PDF instead".</b> Allow pop-ups for the app, or download the PDF and print that. See <a href="troubleshooting.html#print-blocked">Print does nothing</a>.</p></div>
 </section>
@@ -576,7 +576,7 @@ export default [
 <section id="whatsapp">
 <h2>Sending on WhatsApp</h2>
 <p>${ui('WhatsApp')} opens WhatsApp with this message typed in: your business name, the client, the invoice number and date (and due date), the total, what is paid and still due, the status, and your UPI ID while money is due on a rupee invoice. The Invoices list and the Clients page send the same message. If the client is saved with a phone number, the chat opens with them; otherwise you choose the contact. It does not save the invoice.</p>
-<p>From the invoice screen the PDF is not attached. Download it with ${ui('Save &amp; Download')} and drag it into the chat. The WhatsApp button on the <a href="dashboard.html#row-actions">Dashboard</a> can attach the PDF on phones.</p>
+<p>From the invoice screen the PDF is not attached. Download it with ${ui('Save PDF')} and drag it into the chat. The WhatsApp button on the <a href="dashboard.html#row-actions">Dashboard</a> can attach the PDF on phones.</p>
 </section>
 
 <section id="eway-bill">
@@ -597,7 +597,7 @@ export default [
 <h2>Saving as you go</h2>
 <ul>
   <li>What you type is kept while the browser tab stays open. If you leave the screen by mistake and come back, the invoice is still there.</li>
-  <li>A <strong>new</strong> invoice (or a duplicate or conversion) is not stored in your records until you first click ${ui('Save')}, ${ui('Save &amp; Download')} or ${ui('Print')}. It takes its number only then.</li>
+  <li>A <strong>new</strong> invoice (or a duplicate or conversion) is not stored in your records until you first click ${ui('Save')}, ${ui('Save PDF')} or ${ui('Print')}. It takes its number only then.</li>
   <li>After that, changes are saved automatically about two seconds after you stop typing.</li>
 </ul>
 <p>The badge beside ${ui('Back')} tells you where you are:</p>
@@ -997,14 +997,14 @@ export default [
 <p>On a receipt size, ${ui('Print')} shows the receipt at 160% so you can read it. Its buttons:</p>
 <table>
   <tr><td>${ui('Print')}</td><td>Sends it to the printer. Shows "Sending…" while it works.</td></tr>
-  <tr><td>${ui('Download PDF')}</td><td>Saves and downloads a PDF instead, the same as Save &amp; Download.</td></tr>
+  <tr><td>${ui('Download PDF')}</td><td>Saves and downloads a PDF instead, the same as Save PDF.</td></tr>
   <tr><td>${ui('Cancel')}</td><td>Closes it. So does <kbd>Esc</kbd>.</td></tr>
 </table>
 </section>
 
 <section id="auto-print">
 <h2>Printing straight after saving</h2>
-<p>At a busy counter, turn on <a href="print-settings.html#auto-print">Auto-print on save</a>: ${ui('Save &amp; Download')} then prints the receipt as well, with no extra click. It can also be turned on for just one client, in their details.</p>
+<p>At a busy counter, turn on <a href="print-settings.html#auto-print">Auto-print on save</a>: ${ui('Save PDF')} then prints the receipt as well, with no extra click. It can also be turned on for just one client, in their details.</p>
 </section>
 
 <section id="receipt-contents">

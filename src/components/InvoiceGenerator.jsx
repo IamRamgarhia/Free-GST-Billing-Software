@@ -3809,7 +3809,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       toast('The PDF in Saved Invoices is updated too', 'info');
     } catch (err) {
       console.error('Saved Invoices PDF refresh failed:', err);
-      toast('Invoice saved, but its PDF in Saved Invoices could not be updated. Use Save & Download.', 'warning');
+      toast('Invoice saved, but its PDF in Saved Invoices could not be updated. Use Save PDF.', 'warning');
     }
   };
 
@@ -4063,8 +4063,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             <Check size={18} /> {saving ? 'Saving…' : 'Save'}
           </button>
           <button className="btn btn-secondary" onClick={generatePDF} disabled={saving}
-            title="Save + download the PDF">
-            <Download size={18} /> {saving ? 'Generating...' : 'Save & Download'}
+            title="Saves the invoice and downloads its PDF (Ctrl+P)">
+            <Download size={18} /> {saving ? 'Generating...' : 'Save PDF'}
           </button>
           <button className="btn btn-secondary" onClick={directPrint} disabled={saving}
             title={

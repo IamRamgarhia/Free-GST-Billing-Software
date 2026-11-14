@@ -332,7 +332,7 @@ export default [
   <tr><th>Control</th><th>What it does</th></tr>
   <tr><td>Zoom slider, ${ui('−')} and ${ui('+')}</td><td>Make the preview smaller or bigger, from 30% to 250%. ${ui('−')} and ${ui('+')} step 10% at a time. It opens at 70% for A4 so the whole page fits, and 160% for a narrow receipt so you can read it; on a smaller window or a phone it opens smaller, so the whole width of the page fits. Zoom only changes this preview: the print is always full size on the chosen paper.</td></tr>
   <tr><td>The percentage (such as ${ui('70%')})</td><td>Click it to go back to the normal size.</td></tr>
-  <tr><td>${ui('Download PDF')}</td><td>Only when opened from the invoice screen. Saves and downloads the PDF instead of printing, the same as <a href="invoices.html#save-download">Save &amp; Download</a>.</td></tr>
+  <tr><td>${ui('Download PDF')}</td><td>Only when opened from the invoice screen. Saves and downloads the PDF instead of printing, the same as <a href="invoices.html#save-download">Save PDF</a>.</td></tr>
   <tr><td>${ui('Cancel')}, ${ui('✕')} or <kbd>Esc</kbd></td><td>Close it without printing. A click outside the window also closes it.</td></tr>
   <tr><td>${ui('Print')}</td><td>Closes the preview and sends the invoice to print, then your browser's print window opens: choose the printer and click Print there. The button shows "Sending…" while it works. From the Dashboard this works like ${ui('⋯')} <b>Print</b>: the print count goes up by one.</td></tr>
 </table>
@@ -347,7 +347,7 @@ export default [
   <li><b>On a phone or tablet</b> (Chrome or Safari): the app makes the PDF and opens your phone's share menu with it attached. Pick WhatsApp and the client.</li>
   <li><b>On a computer</b>: WhatsApp does not let any website attach a file. So the client's chat opens in a new tab with the message, using the phone number saved for them, and the PDF is downloaded to your Downloads folder. Drag that PDF into the chat and send. If no number is saved, choose the contact in WhatsApp yourself.</li>
 </ul>
-<p><b>Email</b> opens your email program (Outlook, Windows Mail, Gmail if set as your mail app) with the subject <b>Invoice INV/0012 - ₹11,800</b>, a short "Dear …" message with the same details, and the client's email address filled in when the invoice or the saved client has one. Email links cannot attach files, so attach the PDF yourself: download it first with ${ui('Save &amp; Download')} on the invoice screen, or tick the invoice and use ${ui('One merged PDF')}.</p>
+<p><b>Email</b> opens your email program (Outlook, Windows Mail, Gmail if set as your mail app) with the subject <b>Invoice INV/0012 - ₹11,800</b>, a short "Dear …" message with the same details, and the client's email address filled in when the invoice or the saved client has one. Email links cannot attach files, so attach the PDF yourself: download it first with ${ui('Save PDF')} on the invoice screen, or tick the invoice and use ${ui('One merged PDF')}.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p>Email does nothing: no email program is set as the default on this computer. Set one in Windows Settings, Apps, Default apps, Email, or copy the details into Gmail yourself. WhatsApp opens the wrong chat or says the number is invalid: save the client's phone with the country code, such as <code>+91 98765 43210</code>, in <a href="clients.html#client-form">Clients</a>. For sending from the invoice screen, see <a href="invoices.html#whatsapp">Sharing on WhatsApp</a>.</p></div>
 </section>

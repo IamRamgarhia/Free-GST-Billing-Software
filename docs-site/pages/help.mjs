@@ -397,11 +397,11 @@ export default [
 
 <section id="pdf-file-in-use">
 <h3>"Its PDF in Saved Invoices could not be updated"</h3>
-<p>You may see: <strong>"Invoice saved, but its PDF in Saved Invoices could not be updated. Use Save &amp; Download."</strong> or <strong>"A saved PDF could not be marked CANCELLED. Close the PDF if it is open, then cancel again."</strong></p>
+<p>You may see: <strong>"Invoice saved, but its PDF in Saved Invoices could not be updated. Use Save PDF."</strong> or <strong>"A saved PDF could not be marked CANCELLED. Close the PDF if it is open, then cancel again."</strong></p>
 <p>The invoice itself is saved. Only its PDF copy could not be replaced, usually because that PDF is open in a PDF reader.</p>
 <ol>
   <li>Close the PDF in Adobe Reader, Edge or your browser.</li>
-  <li>Click ${ui('Save &amp; Download')} again, or repeat the cancel or undo.</li>
+  <li>Click ${ui('Save PDF')} again, or repeat the cancel or undo.</li>
 </ol>
 </section>
 
