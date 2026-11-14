@@ -259,6 +259,16 @@ a backup is made first.
   new invoice, a product picked for that client takes its level price, or the
   selling price when it has none. The Products CSV import and export carry a
   column per level (such as *Wholesale price*).
+- **Payment received while making the invoice** (#185, #187): a cash sale
+  no longer needs a second step on the Dashboard. Under the items on New
+  Invoice (tax invoice, bill of supply, composition bill), type the amount in
+  **Received now** or click **Full** for the balance, and choose how it was
+  paid (Cash, UPI, Bank transfer, Cheque, Card, Other). Saving records it on
+  the invoice as the Dashboard's ₹ button does, with its receipt, and the
+  invoice turns Paid or Partly paid; a Cash payment reaches the Cash book.
+  Saving again (auto-save too) changes that one payment, never adds another,
+  and clearing the amount removes it and its receipt. An invoice that already
+  has payments shows **Paid so far** instead.
 - **Whole-bill discount before GST** (#190): beside **Discount on total**
   on New Invoice, choose **After GST (cash discount)**, as before and still
   the default, or **Before GST (trade discount)**. Before GST shares the

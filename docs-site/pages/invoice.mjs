@@ -16,7 +16,7 @@ export default [
   <li><a href="#invoice-types"><b>Invoice Type</b></a>: the kind of document, and whether it is for goods or services. The ${ui('Customize')} panel opens inside this card.</li>
   <li><a href="#billed-to"><b>Billed To</b></a>: the client's name, address, state and GSTIN.</li>
   <li><a href="#details"><b>Invoice Details</b></a>: number, dates, place of supply, the <a href="#ship-to">Ship to</a> address and the optional <a href="#order-details">order, dispatch and reference details</a>.</li>
-  <li><a href="#items"><b>Line Items</b></a>: what you are selling, with the <a href="#discounts">whole-bill discount</a> under them.</li>
+  <li><a href="#items"><b>Line Items</b></a>: what you are selling, with the <a href="#discounts">whole-bill discount</a> and <a href="#received-now">Received now</a> under them.</li>
   <li><a href="#terms-notes"><b>Terms &amp; Conditions</b></a>: terms, notes for the client and a private note for you.</li>
   <li><a href="#extra-pages"><b>Additional Pages / Sections</b></a>: extra pages printed after the invoice.</li>
 </ol>
@@ -316,6 +316,19 @@ export default [
 <p>The parts are worked out to the paisa and always add up to the discount exactly. On a bill whose prices include tax, a Before GST discount comes off the prices as typed (GST included), and the GST is then worked out again on what is left. The choice is remembered for your next invoice. Invoices saved before keep their own choice (After GST), so their totals never change. Leave the amount at 0 for no discount.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p><b>The GST did not go down after a discount.</b> The whole-bill discount is set to After GST. Choose <b>Before GST (trade discount)</b> in the list beside it, or use a line discount.</p></div>
+</section>
+
+<section id="received-now">
+<h2>Payment received with the invoice (Received now)</h2>
+<p>For a cash sale, or any sale paid on the spot, record the payment while you make the invoice. Under the items, on a Tax Invoice, Bill of Supply or Composition Bill:</p>
+<ol>
+  <li>Type the amount in <b>Received now</b>, or click ${ui('Full')} to fill in the balance of the invoice (the total, less any TDS the client deducts).</li>
+  <li>Choose how it was paid: Cash, UPI, Bank transfer, Cheque, Card or Other. The last choice is offered first next time.</li>
+  <li>Save the invoice.</li>
+</ol>
+<p>Saving records the payment on the invoice exactly as ${ui('₹')} on the Dashboard does: dated with the invoice date, with its receipt in <a href="receipts.html">Receipts</a>. The invoice becomes <b>Paid</b>, or <b>Partly paid</b> for part of it. A <b>Cash</b> payment also goes into the <a href="cash-book.html#from-elsewhere">Cash book</a>, once.</p>
+<p>Saving again, by hand or by auto-save, never adds a second payment: the same one is changed to the new amount or way paid. Clearing the amount removes the payment and its receipt. More than the balance is kept as the client's credit.</p>
+<p>An invoice that already has payments when you open it shows <b>Paid so far</b> instead; record or change its payments with ${ui('₹')} on the Dashboard. If the books are closed for the invoice's date, nothing is saved: neither the invoice nor the payment.</p>
 </section>
 
 <section id="gst">
