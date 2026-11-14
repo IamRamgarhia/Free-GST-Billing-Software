@@ -122,6 +122,10 @@ function comparePng(basePath, png) {
 }
 
 async function shoot(page, file) {
+  // Park the mouse on an empty corner first: a button left hovered by the last
+  // click made one screen differ now and then (settings-company-390, 15 Nov).
+  await page.mouse.move(1, 1).catch(() => {});
+  await page.waitForTimeout(120);
   return page.screenshot({ path: file, animations: 'disabled', caret: 'hide', mask: [page.locator('[data-dc-mask]')], maskColor: '#9ca3af' });
 }
 

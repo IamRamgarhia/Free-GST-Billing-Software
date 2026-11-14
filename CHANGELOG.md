@@ -64,6 +64,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   received and balance stay on screen next to Save. The document type is one
   drop-down that starts as the type you used last, and the preview opens
   fitted to its space.
+- **New Invoice cards you can close and move**: Document type, Billed To,
+  Line Items, Invoice Details and Terms & notes open and close from their
+  title, and a closed card shows one line of what is in it ("2 items ·
+  ₹6,372.00"). Drag a card by its ⋮⋮ grip, or use ⋯ -> Move up / Move down,
+  to put them in your order; **Reset layout** puts them back. Saving with
+  something missing opens the right card and puts the cursor in the box.
+  **Customize invoice** now sits in the Document type card. Each item row
+  shows its amount next to its delete button, and **Add Item** is clearer.
 - **New invoice starts with** (Settings -> Company): document type, due in,
   GST %, how "Received now" was paid, goods or services.
 - **Client quick actions**: New invoice, Record payment and Send reminder on a
