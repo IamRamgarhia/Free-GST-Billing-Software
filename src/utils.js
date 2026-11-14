@@ -2102,7 +2102,8 @@ export const MENU_ITEMS = [
   { id: 'offline', label: 'Offline mode', module: 'offlineButton', section: 'top', help: 'Wi-Fi button at the top right: turn Offline mode on or off, and see what changes.' },
   { id: 'darkMode', label: 'Dark mode', module: 'darkMode', section: 'top', help: 'Moon / sun button at the top right: light or dark screens.' },
   { id: 'support', label: 'Support & About', module: null, section: 'bottom', help: 'Who makes this app, version and how to get help.' },
-  { id: 'controlpanel', label: 'Control Panel', module: 'controlPanel', section: 'bottom', help: 'Update, backup, restore and move to another PC.' },
+  // v1.10.86 - Control Panel moved into Settings (App & updates, Data & Backups).
+  // A saved order or hidden list naming 'controlpanel' still loads: unknown ids are ignored.
   { id: 'settings', label: 'Settings', module: null, section: 'bottom', help: 'Always here, so you can turn things back on.' },
 ];
 

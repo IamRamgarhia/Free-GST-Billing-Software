@@ -71,7 +71,7 @@ export function noticeText(installs, newHome) {
   const i = installs[0];
   lines.push(
     'To use those books here (before you enter anything new in this app):',
-    '  1. In this app open Control Panel and click Stop Server.',
+    '  1. In this app open Settings > App & updates and click Stop Server.',
     '  2. Open the Terminal and paste:',
     `     cp -a ${q(`${i.dataDir}/.`)} ${q(path.join(newHome, 'data'))}/`,
   );

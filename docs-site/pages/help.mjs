@@ -17,8 +17,7 @@ export default [
   <li><strong>Your business</strong>. Click the name for <b>Edit business details</b> and, if you have more than one business, to <a href="#switch-business">switch</a>. The pencil beside it opens <a href="#menu-groups">Customise menu</a>.</li>
   <li><strong>The screens</strong>, in three groups: <b>Sales</b> (Dashboard, New Invoice, Clients, Receipts, Recurring), <b>Stock &amp; buying</b> (Products, Purchases, Expenses) and <b>Money &amp; reports</b> (Cash book, Reports, GST Returns, Income Tax). Features you <a href="settings.html#features">turn off</a> disappear from here; a group with nothing left in it is not shown.</li>
   <li><strong>Update to v…</strong>, when a new version is out.</li>
-  <li><a href="#support"><strong>Support &amp; About</strong></a>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
-  <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
+  <li><a href="#support"><strong>Support &amp; About</strong></a> and <strong>Settings</strong>. Updating, backup ZIPs, restarting and stopping the app are in Settings (<a href="settings.html#updates">App &amp; updates</a> and <a href="backup.html#backup-zip">Data &amp; Backups</a>); the Control Panel moved there in version 1.10.86.</li>
   <li><a href="#menu-dots">Red dots</a> on the screens that need you.</li>
 </ul>
 <p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
@@ -56,7 +55,7 @@ export default [
   <li>An item greyed out with <b>Off in Settings → Features</b> is a feature that is switched off. Click the link to turn it on in <a href="settings.html#features">Settings → Features</a>.</li>
   <li>${ui('Reset menu')} puts back the three groups in the usual order, opens them all and shows every item. ${ui('Done')}, ${ui('✕')} or <kbd>Esc</kbd> closes the window.</li>
 </ul>
-<p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
+<p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About and Settings always stay at the bottom.</p>
 </section>
 
 <section id="support">
@@ -275,7 +274,7 @@ export default [
 <ol>
   <li>Always open the app with its <b>Free GST Billing</b> icon (or the launcher's ${ui('Open App')}), not a bookmark of <code>localhost:47371</code>, which may now be the other program.</li>
   <li>If the launcher says it has not answered, close it and click ${ui('Open App')} once more: it reads the new port.</li>
-  <li>The <a href="control-panel.html#about">Control Panel</a> shows the port the app is using.</li>
+  <li><a href="settings.html#updates">Settings → App &amp; updates</a> shows the port the app is using, under <b>Technical details (for support)</b>.</li>
   <li>Two copies of the app on one computer? Keep using the one with your invoices; see <a href="#already-installed">Already installed</a>.</li>
 </ol>
 </section>
@@ -323,7 +322,7 @@ export default [
 <p>The new files are in place, but the running app or your browser still has the old version.</p>
 <ol>
   <li>Press <kbd>Ctrl</kbd> + <kbd>F5</kbd> (Mac: <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>).</li>
-  <li>Still the old number at the bottom of the Dashboard? Stop the app (launcher, ${ui('More options')} → ${ui('Stop the app')}, or ${ui('Stop Server')} in the Control Panel), then click ${ui('Open App')}.</li>
+  <li>Still the old number at the bottom of the Dashboard? Stop the app (launcher, ${ui('More options')} → ${ui('Stop the app')}, or ${ui('Stop Server')} in Settings → App &amp; updates), then click ${ui('Open App')}.</li>
   <li>If the app does not start after that, see <a href="#not-answered">The server has not answered</a>.</li>
 </ol>
 </section>
@@ -340,13 +339,13 @@ export default [
 
 <section id="scripts-not-found">
 <h3>"Update and backup scripts not found" or "Not available here"</h3>
-<p>You may see: <strong>"Update and backup scripts not found."</strong> in the Control Panel, buttons that say <b>Not available here</b>, or <strong>"Not available here: the script for this action is not in the app folder. Download the latest ZIP to get it."</strong></p>
-<p>The Control Panel runs scripts that come with the downloaded ZIP, and they are not in this copy. On Mac and Linux only Update and Backup have scripts, so Restore, Move and Stop always say Not available here.</p>
+<p>You may see: <strong>"Update and backup scripts not found."</strong> in Settings → App &amp; updates, buttons that say <b>Not available here</b>, or <strong>"Not available here: the script for this action is not in the app folder. Download the latest ZIP to get it."</strong></p>
+<p>Those buttons run scripts that come with the downloaded ZIP, and they are not in this copy. On Mac and Linux only Update and Backup have scripts, so Restore, Move and Stop always say Not available here.</p>
 <ol>
   <li>Update with the launcher's ${ui('More options')} → ${ui('Update to the latest version')}, or by hand with the <a href="update.html">downloaded ZIP</a>.</li>
   <li>For your data in the meantime, use <a href="backup.html#export-import">Export Backup</a> in Settings.</li>
 </ol>
-<p>More in <a href="control-panel.html#scripts-missing">"Update and backup scripts not found"</a>.</p>
+<p>More in <a href="settings.html#scripts-missing">"Update and backup scripts not found"</a>.</p>
 </section>
 
 <section id="saving">
@@ -384,7 +383,7 @@ export default [
   <li>Make the picture smaller, ideally under 500 KB: crop it to just the logo or signature, or save it as a JPG. A free site such as tinypng.com can shrink it.</li>
   <li>Upload the smaller picture in <a href="settings.html#branding">Settings</a> and save.</li>
   <li>Try what failed again.</li>
-  <li>For a backup file over 500 MB, restore a daily backup from <b>Settings, Backup Management</b>, or the ZIP with ${ui('Choose Backup ZIP')} in the <a href="control-panel.html#actions">Control Panel</a>.</li>
+  <li>For a backup file over 500 MB, restore a daily backup from <b>Settings, Backup Management</b>, or the ZIP with ${ui('Choose Backup ZIP')} under <a href="backup.html#backup-zip">Backup files (ZIP)</a>.</li>
 </ol>
 </section>
 
@@ -560,7 +559,7 @@ export default [
 <p>A restore saves what you have now first, so a failed one changes nothing.</p>
 <ol>
   <li>Read the end of the message: <a href="#cannot-connect">Failed to fetch</a>, <a href="#payload-too-large">Request body too large</a>, <a href="#disk-full">disk full</a> and <a href="#no-permission">permission</a> each have their own entry.</li>
-  <li>For <b>Import Backup</b>, choose the <code>freegstbill-backup-<i>date</i>.json</code> file saved by Export Backup. A ZIP from the launcher or Control Panel is restored with ${ui('Choose Backup ZIP')} in the <a href="control-panel.html#actions">Control Panel</a> instead.</li>
+  <li>For <b>Import Backup</b>, choose the <code>freegstbill-backup-<i>date</i>.json</code> file saved by Export Backup. A ZIP from the launcher or ${ui('Create Backup')} is restored with ${ui('Choose Backup ZIP')} under <a href="backup.html#backup-zip">Backup files (ZIP)</a> instead.</li>
   <li>Try another day from <b>Settings, Backup Management</b>.</li>
 </ol>
 <p>See <a href="backup.html">Backups and updates</a>.</p>
@@ -595,7 +594,7 @@ export default [
 <p>One saved file was damaged, by a power cut, a disk error or editing it by hand. The app skips it so everything else still opens.</p>
 <ol>
   <li>Note the file name in the line (for example <code>bills/INV_0007.json</code>).</li>
-  <li>Open the data folder: ${ui('Open Data Folder')} in the <a href="control-panel.html#actions">Control Panel</a>.</li>
+  <li>Open the data folder: ${ui('Open Data Folder')} under <a href="backup.html#backup-zip">Settings → Data &amp; Backups → Backup files (ZIP)</a>.</li>
   <li>Open <code>backups</code>, then the newest date folder, then the same subfolder (<code>bills</code>). Copy that file.</li>
   <li>Paste it into the same subfolder of the data folder, replacing the damaged one, and reload the page.</li>
   <li>No good copy there? Look in the ZIPs in <code>Documents\\FreeGSTBill Backups</code>, or move the damaged file to your Desktop (everything else keeps working) and <a href="#report-problem">send it to us</a>.</li>

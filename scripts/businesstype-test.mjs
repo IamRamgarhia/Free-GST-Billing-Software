@@ -59,7 +59,7 @@ eq(core.every(id => isModuleEnabled(id, { dashboard: false, invoicing: false, cl
 const always = MENU_ITEMS.filter(m => !m.module).map(m => m.id).sort();
 eq(always, ['settings', 'support'], 'Settings and Support & About have no switch');
 eq(SWITCHABLE_MODULES.some(id => ['settings', 'support'].includes(id)), false, 'no type can hide Settings or Support');
-for (const t of BUSINESS_TYPES) eq(['guide', 'notifications', 'controlPanel', 'offlineButton', 'phoneButton'].every(id => shown(t.id, id)), true, `${t.id}: app helpers stay on (incl. the Offline mode and phone buttons)`);
+for (const t of BUSINESS_TYPES) eq(['guide', 'notifications', 'offlineButton', 'phoneButton'].every(id => shown(t.id, id)), true, `${t.id}: app helpers stay on (incl. the Offline mode and phone buttons)`);
 
 console.log('Existing switches untouched until a type is applied');
 const mine = { reports: false, tdsTcs: true, futureThing: true };
@@ -101,7 +101,9 @@ eq(flat(moveMenuItem([], idsIn('top')[0], -1)), def, 'first top-bar button canno
 eq(['guide', 'notifications', 'darkMode'].every(id => idsIn('top').includes(id)), true, 'dark mode, notifications and guide are top-bar buttons');
 eq(idsIn('top').includes('lock'), false, 'no second lock button in the top bar (v1.10.86: the Lock button on the Dashboard is the one)');
 o = moveMenuItem([], 'settings', -1);
-eq(o.indexOf('settings') < o.indexOf('controlpanel'), true, 'bottom items reorder among themselves');
+eq(o.indexOf('settings') < o.indexOf('support'), true, 'bottom items reorder among themselves');
+// v1.10.86 - the Control Panel moved into Settings: no switch, no menu item.
+eq(FEATURE_GROUPS.flatMap(g => g.modules).some(m => m.id === 'controlPanel') || MENU_ITEMS.some(m => m.id === 'controlpanel'), false, 'no Control Panel menu item or switch');
 eq(flat(moveMenuItem([], 'nope', 1)), def, 'unknown item: no change');
 
 console.log('[ERR-033] The wizard keeps the language and paper picked in it');

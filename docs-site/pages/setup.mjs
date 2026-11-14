@@ -5,7 +5,7 @@ export default [
 {
   slug: 'settings',
   title: 'Settings',
-  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups, Appearance and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
+  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups, Appearance and App & updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
   body: `
 <section id="save-bar">
 <h2>Settings tabs and the Save all changes bar</h2>
@@ -16,9 +16,9 @@ export default [
   <tr><td>${ui('Print &amp; PDF')}</td><td>Print and PDF settings, Region</td></tr>
   <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
   <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), <a href="phone.html">Use on phone or tablet</a>, Privacy &amp; internet</td></tr>
-  <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, <a href="backup.html#close-books">Close the books</a> and the edit history, Google Drive, Import/Export</td></tr>
+  <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, <a href="backup.html#backup-zip">Backup files (ZIP)</a>, <a href="backup.html#close-books">Close the books</a> and the edit history, Google Drive, Import/Export</td></tr>
   <tr><td>${ui('Appearance')}</td><td><a href="#appearance">App colour, Text size, Compact lists and the menu's red dots</a></td></tr>
-  <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
+  <tr><td>${ui('App &amp; updates')}</td><td><a href="#updates">This copy of the app and its updates</a>, <a href="#app-buttons">Restart, stop or remove the app</a> (the Control Panel's buttons, moved here in version 1.10.86)</td></tr>
 </table></div>
 <p>Click a tab to show it; the tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two lines; nothing is hidden. Searching with ${ui('Ctrl + K')} for a setting (for example "Google Drive") opens its tab at that card.</p>
 <p>The app remembers the tab you had open until you close the browser tab, so coming back to Settings opens the same tab.</p>
@@ -64,7 +64,7 @@ export default [
   <tr><td>Service / repair shop</td><td>TDS / TCS, E-way bill, E-invoicing, Purchase orders, GSTR-2B matching, Manufacturing, Cost centres</td></tr>
   <tr><td>Everything</td><td>Nothing: every feature is shown</td></tr>
 </table></div>
-<p>Every type keeps Dashboard, New invoice, Clients, Settings, Support &amp; About, User guide, Notifications, Dark mode and Control Panel. E-invoicing is only for businesses with a yearly turnover above ₹5 crore, so only <b>Everything</b> turns it on; tick it in Features if you need it.</p>
+<p>Every type keeps Dashboard, New invoice, Clients, Settings, Support &amp; About, User guide, Notifications and Dark mode. E-invoicing is only for businesses with a yearly turnover above ₹5 crore, so only <b>Everything</b> turns it on; tick it in Features if you need it.</p>
 <p>The choice is kept on this computer and is the same for every business you run in the app.</p>
 <p id="business-type-print">Saving a business type also:</p>
 <ul>
@@ -569,21 +569,100 @@ export default [
 </section>
 
 <section id="updates">
-<h2>App Updates</h2>
-<p>The ${ui('Updates')} tab. Checks whether a newer version of the app is out, and installs it.</p>
+<h2>App &amp; updates</h2>
+<p>The ${ui('App &amp; updates')} tab: this copy of the app, its updates, and the buttons to restart, stop or remove it. (They were on the Control Panel screen until version 1.10.86.)</p>
+<p>At the top it says how this copy was installed (for example <i>Installed from the ZIP</i> or <i>Installed with the Windows Setup</i>), then <b>Computer</b>, <b>Version</b> and <b>Data folder size</b>. <b>Technical details (for support)</b>, closed at first, shows the Node.js version, the port the app runs on and its folders: copy them when someone helps you.</p>
 <ol class="steps">
-  <li><strong>Check</strong>Click ${ui('Check for Updates')}. It needs internet. Next to the button you see <i>Current: v… | Latest: v…</i>.</li>
-  <li><strong>Update</strong>If there is a newer version, a green box says <b>New version v… is available!</b>. Click ${ui('Update Now')}.</li>
-  <li><strong>Wait</strong>A window in the middle of the app, <b>Updating Free GST Billing…</b>, shows what it is doing with a progress bar. Your data is backed up first. It takes about a minute.</li>
-  <li><strong>Done</strong>The page reloads by itself on the new version. If something went wrong, the window says what: click ${ui('Close')}.</li>
+  <li><strong>Check</strong>Click ${ui('Check for Updates')}. It needs internet. Next to the button you see <i>Current: v… | Latest: v…</i>, and a green box says <b>New version v… is available!</b> when there is one.</li>
+  <li><strong>Update</strong>Click ${ui('Update Now')}. There is one Update Now button here; the ${ui('Update to v…')} button in the sidebar opens the same update.</li>
+  <li><strong>Wait</strong>A window in the middle of the app, <b>Updating Free GST Billing…</b>, shows each step (backing up, downloading, unpacking, putting the new version in place) with a progress bar. It takes about a minute; do not close the app. On Windows a black updater window may open behind the app: leave it, it closes by itself.</li>
+  <li><strong>Done</strong>The page reloads by itself on the new version. If something went wrong, the window says what: click ${ui('Close')}. What the updater printed is in <a href="#result">the result panel</a> under the card.</li>
 </ol>
-<p>Your invoices, data and saved PDFs are never touched by an update. For the other ways to update, see <a href="backup.html#update">Updating</a>.</p>
+<p>Every update first saves a backup of your data, <code>pre-update-<i>date</i>.zip</code> (Mac and Linux: <code>.tar.gz</code>), in <code>Documents\\FreeGSTBill Backups</code>. Your invoices, data and saved PDFs are never touched; on Mac and Linux, if an update fails half way, the old app files are put back. The .deb, AppImage, Docker and Mac app copies update by installing the new package: after a check the card says how, with a download link. For the other ways to update, see <a href="backup.html#update">Updating</a>.</p>
 <h3>Something wrong?</h3>
 <ul>
   <li><b>"Could not check for updates"</b>: check your internet connection and try again.</li>
-  <li><b>"Update failed"</b>: the message gives the reason. Try ${ui('Update Now')} in the <a href="control-panel.html">Control Panel</a>, or update from the launcher.</li>
-  <li><b>Still the old version after updating</b>: reload the page, or close the browser tab and open the app again.</li>
+  <li><b>"Update failed"</b>: the message gives the reason. See <a href="troubleshooting.html#update-failed">an update went wrong</a> (Linux or Mac: <a href="troubleshooting.html#linux-update-failed">the Linux update stopped</a>), or update from the launcher.</li>
+  <li><b>Still the old version after updating</b>: see <a href="troubleshooting.html#update-not-showing">the old version is still there</a>.</li>
+  <li><b>The button says Not available here</b>: <a href="#scripts-missing">scripts not found</a>.</li>
 </ul>
+</section>
+
+<section id="app-buttons">
+<h2>Restart, stop or remove the app</h2>
+<p>The second card on the ${ui('App &amp; updates')} tab.</p>
+<div class="table-wrap"><table>
+  <tr><th>Card</th><th>Button</th><th>What it does</th></tr>
+  <tr><td><a href="#restart">Restart the App</a></td><td>${ui('Restart')}</td><td>Restarts the app when something is not working, then reloads the page.</td></tr>
+  <tr><td><a href="#stop">Stop Server</a></td><td>${ui('Stop Server')}</td><td>Stops the app. Open it again from its icon or launcher. Not in the Windows Setup's app: use Quit on its icon near the clock.</td></tr>
+  <tr><td><a href="#remove">Remove the App</a></td><td>${ui('Remove…')}</td><td>Uninstalls the app. You tick whether your data, PDFs and backups are deleted too. Where it cannot remove itself, the button reads ${ui('How to remove it')} and opens the steps.</td></tr>
+</table></div>
+<p>These buttons, and the <a href="backup.html#backup-zip">backup ZIP</a> buttons, act on the computer the app runs on. On a paired phone or tablet the cards say to do it on the computer.</p>
+</section>
+
+<section id="restart">
+<h3>Restart the App</h3>
+<p><b>What it does.</b> Turns the app off and on again in a few seconds, then reloads the page by itself.</p>
+<p><b>When to use it.</b> When something is not working: a page will not load, a button does nothing, or after an update or restore.</p>
+<ol>
+  <li>Save any bill you are typing. Then click ${ui('Restart')}. The button shows <b>Restarting...</b>.</li>
+  <li>After a few seconds the page reloads with the app running again, on the same address.</li>
+</ol>
+<p><b>Is it safe?</b> Yes. Everything is saved as you work. A bill still being typed and not saved is not kept.</p>
+<p><b>Something wrong?</b> If it says the app did not come back within 30 seconds, open it again from its Desktop icon or launcher. See <a href="troubleshooting.html#cannot-connect">Failed to fetch, App Not Running</a>.</p>
+</section>
+
+<section id="stop">
+<h3>Stop Server</h3>
+<p><b>What it does.</b> Turns the app off. The page stops answering until you open the app again.</p>
+<p><b>In the app installed with the Windows Setup:</b> this card is not there. Right-click the app's icon near the clock and choose ${ui('Quit (stop the app)')}: it closes the window and stops the app.</p>
+<p><b>When to use it.</b> After an update or restore, so the new version or data is loaded when you start it again. Also when the app seems stuck, or you want to shut it down cleanly.</p>
+<ol>
+  <li>Finish and save any bill you are typing. Then click ${ui('Stop Server')}.</li>
+  <li><b>Windows:</b> it finds the app's process on your port and ends it. <b>Mac and Linux:</b> the app stops itself a moment after replying; the result panel says <b>Stopped. Open the app again from its icon or launcher.</b></li>
+  <li>The browser page will then show errors such as "Failed to fetch". That is normal.</li>
+  <li>Open the app again: double-click <b>Free GST Billing</b> on your Desktop (Mac: <b>Free GST Billing - MAC</b>; Linux: your start command).</li>
+</ol>
+<p><b>Is it safe?</b> Yes. Everything is saved as you work, so nothing already saved is lost. A bill still being typed and not saved is not kept. If the app runs as a service or in Docker, it may start again by itself.</p>
+<p><b>Something wrong?</b> If it will not start again, see <a href="troubleshooting.html#cannot-connect">Failed to fetch, App Not Running</a> and <a href="troubleshooting.html#not-answered">the server has not answered</a>. Mac and Linux: <a href="troubleshooting.html#mac">Mac</a>, <a href="troubleshooting.html#linux">Linux and NAS</a>.</p>
+</section>
+
+<section id="remove">
+<h3>Remove the App</h3>
+<p><b>What it does.</b> Uninstalls Free GST Billing from this computer in one go: the app, its Desktop and Start-menu icons (Mac: the app in Applications; Linux: the menu entry) and the start-with-computer entry. You choose what else goes.</p>
+<p><b>In the app installed with the Windows Setup:</b> the button is ${ui('Open Windows Apps')}. It opens Windows' <b>Settings → Apps → Installed apps</b>: find Free GST Billing, click the three dots, then <b>Uninstall</b>. It asks whether to delete your books too; the answer is No unless you choose Yes.</p>
+<ol>
+  <li>Click ${ui('Remove…')}. A list opens below the card. (On Windows the launcher window has the same: <b>More options</b> → ${ui('Remove the app...')}.)</li>
+  <li>Tick what to delete as well. Nothing is ticked at first, so by default <b>only the program goes and your books stay</b>:
+    <ul>
+      <li><b>My invoices, clients, products and settings</b>: the data folder, with the daily backups inside it.</li>
+      <li><b>Saved invoice PDFs</b>: the <code>Saved Invoices</code> and <code>Trash</code> folders.</li>
+      <li><b>All backup files</b> in <code>Documents\\FreeGSTBill Backups</code>.</li>
+    </ul>
+    ${ui('Select everything')} ticks all three, for a computer you are giving away.</li>
+  <li>Click ${ui('Remove the app')}. If your data is ticked, it asks once more. The app closes and the page says it is being removed. Close the window.</li>
+</ol>
+<p><b>Is it safe?</b> If you delete your data but keep the backups, a last copy, <code>before-removal-<i>date</i>.zip</code> (Mac and Linux: <code>.tar.gz</code>), is saved in <code>Documents\\FreeGSTBill Backups</code> first. If that copy cannot be made, your data is kept. Whatever you keep stays in the app folder; install the app into the same folder again and it is all there. Other files you put in the app folder yourself are not touched, and neither is a second backup folder you chose in Settings.</p>
+<p><b>Something wrong?</b> If the button reads ${ui('How to remove it')}, the app is running from source code or an old ZIP and cannot remove itself; the button opens <a href="install.html#uninstall">Removing the app</a> with the other ways. On Windows, if a file is in use, a message names the folder to delete by hand after a restart.</p>
+</section>
+
+<section id="result">
+<h3>The result panel</h3>
+<p>After you click a button, a panel appears under the card with a green tick and <b>OK</b>, or a red mark and <b>Failed</b>, next to the action's name. A short pop-up message appears too.</p>
+<ul>
+  <li><b>Output</b>: what the script printed, such as where a backup file was saved.</li>
+  <li><b>Errors</b>: shown only when something went wrong. Copy this text when you <a href="troubleshooting.html#report-problem">report a problem</a>.</li>
+  <li>A red line of text: the reason in plain words, for example that the script is not in the app folder.</li>
+</ul>
+<p>The panel is cleared each time you click another button, so it only describes the last action.</p>
+<p><b>Something wrong?</b> Check <a href="troubleshooting.html#scripts-not-found">"Not available here"</a>, <a href="troubleshooting.html#restore-failed">a backup or restore failed</a> and <a href="troubleshooting.html#update-failed">an update went wrong</a>.</p>
+</section>
+
+<section id="scripts-missing">
+<h3>"Update and backup scripts not found"</h3>
+<p>The buttons in App &amp; updates and Backup files (ZIP) run scripts that come with the downloaded ZIP, in the <code>_system</code> folder. This message appears when they are missing, for example when the app was started from source code or copied without them. Install from the <a href="install.html#download">downloaded ZIP</a> to get them, or use <a href="backup.html#export-import">Export Backup</a> in Settings for your data.</p>
+<p>Versions 1.10.44 to 1.10.71 showed this message, then called "Launcher scripts not detected", on every installed copy by mistake. Update to 1.10.72 or later using the launcher's <b>Update to the latest version</b>.</p>
+<p>On Linux and macOS only Update and Backup have scripts, so Restore, Move and Stop show <b>Not available here</b>.</p>
 </section>
 `,
 },
@@ -597,7 +676,7 @@ export default [
   body: `
 <section id="where-data-lives">
 <h2>Where your data is</h2>
-<p>Everything is in the <code>_system\\data</code> folder inside the app's folder. The installer hides <code>_system</code> to keep things tidy; in File Explorer, turn on <b>View, Show, Hidden items</b> to see it. ${ui('Open Data Folder')} in the <a href="control-panel.html">Control Panel</a> opens it for you.</p>
+<p>Everything is in the <code>_system\\data</code> folder inside the app's folder. The installer hides <code>_system</code> to keep things tidy; in File Explorer, turn on <b>View, Show, Hidden items</b> to see it. ${ui('Open Data Folder')} under <a href="#backup-zip">Backup files (ZIP)</a> on the Data &amp; Backups tab of Settings opens it for you.</p>
 <p>Downloaded PDFs are also kept in the app's <code>Saved Invoices</code> folder, one folder per client.</p>
 </section>
 
@@ -630,6 +709,63 @@ export default [
 <p>Restoring a day puts <b>everything</b> back to that day, including work done since. For one deleted invoice, use the <a href="#trash">Trash bin</a> instead.</p></div>
 </section>
 
+<section id="backup-zip">
+<h2>Backup files (ZIP)</h2>
+<p>On the ${ui('Data &amp; Backups')} tab of Settings, right under the daily backups, the <b>Backup files (ZIP)</b> card saves your whole data folder as one ZIP file, to keep on a pen drive or carry to a new computer. (These buttons were on the Control Panel screen until version 1.10.86.)</p>
+<div class="table-wrap"><table>
+  <tr><th>Card</th><th>Button</th><th>What it does</th></tr>
+  <tr><td><a href="#backup">Backup Data</a></td><td>${ui('Create Backup')}</td><td>Saves your data as a dated ZIP in <code>Documents\\FreeGSTBill Backups</code>.</td></tr>
+  <tr><td><a href="#restore">Restore Backup</a></td><td>${ui('Choose Backup ZIP')}</td><td>Pick a backup ZIP to restore. What you have now is saved first, as a safety net.</td></tr>
+  <tr><td><a href="#move">Move to Another PC</a></td><td>${ui('Export for Move')}</td><td>Saves your data and settings as one ZIP on your Desktop. See <a href="#move-pc">Moving to a new computer</a>.</td></tr>
+  <tr><td>Open Data Folder</td><td>${ui('Open')}</td><td>Opens the folder with your bills, clients, products and settings.</td></tr>
+  <tr><td>Open Backups Folder</td><td>${ui('Open')}</td><td>Opens <code>Documents\\FreeGSTBill Backups</code>.</td></tr>
+</table></div>
+<p>Three kinds of backup, three buttons: ${ui('Backup now')} in the daily backups card above makes today's daily backup inside the app's data folder; ${ui('Create Backup')} here makes a ZIP outside it; <a href="#export-backup">Export Backup</a> saves a <code>.json</code> file with the parts you choose. After each button here a panel shows whether it worked: see <a href="settings.html#result">The result panel</a>.</p>
+</section>
+
+<section id="backup">
+<h3>Backup Data</h3>
+<p><b>What it does.</b> Saves all your bills, clients, products and settings as one dated ZIP file, <code>backup-<i>date_time</i>.zip</code>, in the <code>Documents\\FreeGSTBill Backups</code> folder (Mac and Linux: <code>Documents/FreeGSTBill Backups</code>).</p>
+<p><b>When to use it.</b> Before a big change, at the end of the month, or any time you want a copy to keep on a pen drive. The app also makes its own daily backup; this is an extra one at a moment you choose.</p>
+<ol>
+  <li>Click ${ui('Create Backup')}. It shows <b>Backing up...</b> for a moment.</li>
+  <li>The result panel below says <b>Backup - OK</b>, with the file name and size in its output. A folder window usually opens with the new file shown.</li>
+  <li>Copy that ZIP to a pen drive or cloud storage so it survives if this computer breaks. ${ui('Open Backups Folder')}, on the same card, opens the folder.</li>
+</ol>
+<p><b>Is it safe?</b> Yes. It only reads your data and writes a new file. Old backups are never replaced.</p>
+<p><b>Something wrong?</b> If it says "No data folder found - nothing to back up", or fails with a disk or permission message, see <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>, <a href="troubleshooting.html#disk-full">the disk is full</a> and <a href="troubleshooting.html#no-permission">the app is not allowed to write</a>. More ways to back up: <a href="backup.html">Backups and updates</a>.</p>
+</section>
+
+<section id="restore">
+<h3>Restore Backup</h3>
+<p><b>What it does.</b> Replaces the data in the app with the data from a backup ZIP you choose.</p>
+<p><b>When to use it.</b> After moving to a new computer, or to go back to how things were on an earlier day. It works with ZIPs made by ${ui('Create Backup')} or ${ui('Export for Move')}.</p>
+<ol>
+  <li><b>Windows.</b> Click ${ui('Choose Backup ZIP')}. A file window opens in your <code>FreeGSTBill Backups</code> folder. Pick the ZIP and click <b>Open</b>. (Close the window to cancel; nothing changes.)</li>
+  <li>The app first saves what you have now as <code>pre-restore-<i>date</i>.zip</code> in the same folder. This is your way back if you chose the wrong file.</li>
+  <li>It then replaces the data with the backup's contents and shows <b>[OK] Restore complete!</b> Press <b>Enter</b> to close the black window.</li>
+  <li>Restart the app (<a href="settings.html#restart">Restart the App</a>) to see the restored data.</li>
+</ol>
+<p><b>Mac and Linux:</b> this button says <b>Not available here</b>. To bring data back there, use <b>Settings, Backup Management, Import Backup</b> with a file saved by Export Backup (see <a href="backup.html#export-import">Export and import</a>).</p>
+<p><b>Is it safe?</b> Your current data is replaced by the backup, so what you entered after that backup was made will not be there. That is why a <code>pre-restore</code> copy is saved first. Keep it until you are happy.</p>
+<p><b>Something wrong?</b> See <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>. If the old data still shows, restart the app; if it will not open, see <a href="troubleshooting.html#not-answered">the server has not answered</a>.</p>
+</section>
+
+<section id="move">
+<h3>Move to Another PC</h3>
+<p><b>What it does.</b> Saves your data as one ZIP on your Desktop named <code>MOVE-FreeGSTBill-<i>date_time</i>.zip</code>, ready to carry to a new computer.</p>
+<p><b>In the app installed with the Windows Setup:</b> this card is not there. Use ${ui('Backup Data')} on the old computer and ${ui('Restore Backup')} on the new one.</p>
+<p><b>When to use it.</b> When you buy a new computer, or want the same books on a second one.</p>
+<ol>
+  <li><b>Windows:</b> click ${ui('Export for Move')}. A black window shows the progress and the size, then a folder window opens with the ZIP highlighted on your Desktop.</li>
+  <li>Copy the ZIP to a pen drive, or send it to yourself by email or cloud storage.</li>
+  <li>On the new PC, install the app (<a href="install.html">Install guide</a>), open Settings → Data &amp; Backups and use ${ui('Choose Backup ZIP')} (<a href="#restore">Restore Backup</a>) to pick this file.</li>
+</ol>
+<p><b>Mac and Linux:</b> this button says <b>Not available here</b>. Follow <a href="backup.html#move-pc">Moving to a new computer</a> instead.</p>
+<p><b>Is it safe?</b> Yes. It only makes a copy; your data here stays as it is. Keep the ZIP private, since it holds your business records.</p>
+<p><b>Something wrong?</b> If it says "No data folder to export", or the disk is full, see <a href="troubleshooting.html#disk-full">the disk is full</a>; for the restore step see <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>.</p>
+</section>
+
 <section id="backup-copy">
 <h2>Keeping a copy somewhere else</h2>
 <p><strong>Every day, automatically, on another drive.</strong> On the Backups tab of Settings, under <b>Also keep a copy of every daily backup in this folder</b>:</p>
@@ -641,7 +777,7 @@ export default [
 <p><b>If the computer fails</b>: install the app again, set the same folder here, and its backups appear in the list with ${ui('Restore')}.</p>
 <p>Or by hand:</p>
 <ul>
-  <li><strong>One click</strong>: ${ui('Create Backup')} in the <a href="control-panel.html">Control Panel</a>, or ${ui('Back up my data')} in the launcher under ${ui('More options')}, saves a ZIP in <code>Documents\\FreeGSTBill Backups</code>. Copy it to a pen drive or cloud storage.</li>
+  <li><strong>One click</strong>: ${ui('Create Backup')} under <a href="#backup-zip">Backup files (ZIP)</a>, or ${ui('Back up my data')} in the launcher under ${ui('More options')}, saves a ZIP in <code>Documents\\FreeGSTBill Backups</code>. Copy it to a pen drive or cloud storage.</li>
   <li><strong>One file you choose</strong>: see <a href="#export-import">Export Backup</a>.</li>
   <li><strong>Google Drive</strong>: see <a href="settings.html#google-drive">Cloud Backup (Google Drive)</a>.</li>
 </ul>
@@ -698,7 +834,7 @@ export default [
 <p>Records in the file <b>replace the matching records</b> in the app; records the file does not have are left alone, and parts you did not tick are untouched. Export your current data first, just in case.</p>
 <h3>Something wrong?</h3>
 <ul>
-  <li><b>"This file doesn't look like a Free GST Billing backup"</b>: you picked a different file. Backups are named <code>freegstbill-backup-<i>date</i>.json</code>. A ZIP from the Control Panel is restored there, with ${ui('Choose Backup ZIP')}.</li>
+  <li><b>"This file doesn't look like a Free GST Billing backup"</b>: you picked a different file. Backups are named <code>freegstbill-backup-<i>date</i>.json</code>. A backup ZIP is restored with ${ui('Choose Backup ZIP')} under <a href="#backup-zip">Backup files (ZIP)</a>.</li>
   <li><b>Restored, but I do not see it</b>: reload the page, and check the business selected at the top of the sidebar.</li>
 </ul>
 </section>
@@ -734,9 +870,9 @@ export default [
 <section id="move-pc">
 <h2>Moving to a new computer</h2>
 <ol class="steps">
-  <li><strong>On the old computer</strong>Click ${ui('Export for Move')} in the <a href="control-panel.html">Control Panel</a>, or ${ui('Move to another PC')} in the launcher under ${ui('More options')}. It saves your data and settings as one ZIP on your Desktop. Copy it to a pen drive or cloud storage.</li>
+  <li><strong>On the old computer</strong>Click ${ui('Export for Move')} under <a href="#backup-zip">Settings → Data &amp; Backups → Backup files (ZIP)</a>, or ${ui('Move to another PC')} in the launcher under ${ui('More options')}. It saves your data and settings as one ZIP on your Desktop. Copy it to a pen drive or cloud storage.</li>
   <li><strong>On the new computer</strong><a href="install.html">Install the app</a> as usual.</li>
-  <li><strong>Bring your data in</strong>In the new Control Panel, click ${ui('Choose Backup ZIP')} under <b>Restore Backup</b> and pick the file.</li>
+  <li><strong>Bring your data in</strong>In the new copy, open Settings → Data &amp; Backups, click ${ui('Choose Backup ZIP')} under <b>Restore Backup</b> and pick the file.</li>
 </ol>
 <p>You can use an exported backup file instead: <a href="#export-backup">export</a> on the old computer, and <a href="#restore-from-backup">import</a> it in Settings on the new one.</p>
 <div class="note warn"><strong>One computer at a time</strong>
@@ -748,8 +884,7 @@ export default [
 <p>Any of these installs the newest version:</p>
 <ul>
   <li>The ${ui('Update to v…')} button that appears in the sidebar when a new version is out. It shows what changed, with ${ui('Update Now')}, ${ui('Remind me later')} and ${ui('Skip this version')}.</li>
-  <li>${ui('Update Now')} in <a href="settings.html#updates">Settings, App Updates</a>.</li>
-  <li>${ui('Update Now')} in the <a href="control-panel.html">Control Panel</a>.</li>
+  <li>${ui('Update Now')} in <a href="settings.html#updates">Settings → App &amp; updates</a>.</li>
   <li>In the launcher, ${ui('More options')}, then ${ui('Update to the latest version')}.</li>
 </ul>
 <p>Every update first saves a backup of your data in <code>Documents\\FreeGSTBill Backups</code>, then replaces the app. It never touches your data folder or your saved PDFs. It takes about a minute: a window shows each step, and the page reloads on the new version by itself.</p>
@@ -763,162 +898,27 @@ export default [
 // =============================================================================
 {
   slug: 'control-panel',
-  title: 'Control Panel',
-  lead: 'Update, back up, restore, move to another PC, open your folders, and stop the app, from inside the app.',
+  title: 'Control Panel (moved to Settings)',
+  nav: 'Control Panel (moved)',
+  lead: 'Since version 1.10.86 the Control Panel is part of Settings and no longer in the menu. Every button is still there.',
   body: `
-<section id="about">
-<h2>What it is</h2>
-<p>${ui('Control Panel')} in the sidebar does the launcher's jobs without leaving the app. At the top it shows your system, Node.js version, the port the app runs on, and how much space your data takes.</p>
-</section>
-
-<section id="actions">
-<h2>The buttons</h2>
+<section id="where-it-went">
+<h2>Where everything went</h2>
 <div class="table-wrap"><table>
-  <tr><th>Card</th><th>Button</th><th>What it does</th></tr>
-  <tr><td><a href="#update">Update Software</a></td><td>${ui('Update Now')}</td><td>Downloads the latest version. Your data is backed up first and never touched.</td></tr>
-  <tr><td><a href="#backup">Backup Data</a></td><td>${ui('Create Backup')}</td><td>Saves your data as a dated ZIP in <code>Documents\\FreeGSTBill Backups</code>.</td></tr>
-  <tr><td><a href="#restore">Restore Backup</a></td><td>${ui('Choose Backup ZIP')}</td><td>Pick a backup ZIP to restore. What you have now is saved first, as a safety net.</td></tr>
-  <tr><td><a href="#move">Move to Another PC</a></td><td>${ui('Export for Move')}</td><td>Saves your data and settings as one ZIP on your Desktop. See <a href="backup.html#move-pc">Moving to a new computer</a>.</td></tr>
-  <tr><td>Open Data Folder</td><td>${ui('Open')}</td><td>Opens the folder with your bills, clients, products and settings.</td></tr>
-  <tr><td>Open Backups Folder</td><td>${ui('Open')}</td><td>Opens <code>Documents\\FreeGSTBill Backups</code>.</td></tr>
-  <tr><td><a href="#restart">Restart the App</a></td><td>${ui('Restart')}</td><td>Restarts the app when something is not working, then reloads the page.</td></tr>
-  <tr><td><a href="#stop">Stop Server</a></td><td>${ui('Stop Server')}</td><td>Stops the app. Open it again from the launcher or shortcut.</td></tr>
-  <tr><td><a href="#remove">Remove the App</a></td><td>${ui('Remove…')}</td><td>Uninstalls the app. You tick whether your data, PDFs and backups are deleted too. Where it cannot remove itself, the button reads ${ui('How to remove it')} and opens the steps.</td></tr>
+  <tr><th>Was in the Control Panel</th><th>Now in</th></tr>
+  <tr id="about"><td>Computer, Version, Data folder size, Technical details</td><td><a href="settings.html#updates">Settings → App &amp; updates</a></td></tr>
+  <tr id="update"><td>Update Software (${ui('Update Now')})</td><td><a href="settings.html#updates">Settings → App &amp; updates</a></td></tr>
+  <tr id="restart"><td>Restart the App</td><td><a href="settings.html#restart">Settings → App &amp; updates</a></td></tr>
+  <tr id="stop"><td>Stop Server</td><td><a href="settings.html#stop">Settings → App &amp; updates</a></td></tr>
+  <tr id="remove"><td>Remove the App</td><td><a href="settings.html#remove">Settings → App &amp; updates</a></td></tr>
+  <tr id="backup"><td>Backup Data (${ui('Create Backup')})</td><td><a href="backup.html#backup">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
+  <tr id="restore"><td>Restore Backup (${ui('Choose Backup ZIP')})</td><td><a href="backup.html#restore">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
+  <tr id="move"><td>Move to Another PC (${ui('Export for Move')})</td><td><a href="backup.html#move">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
+  <tr id="actions"><td>Open Data Folder, Open Backups Folder</td><td><a href="backup.html#backup-zip">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
+  <tr id="result"><td>The result panel</td><td><a href="settings.html#result">Under each card</a></td></tr>
+  <tr id="scripts-missing"><td>"Update and backup scripts not found"</td><td><a href="settings.html#scripts-missing">Settings → App &amp; updates</a></td></tr>
 </table></div>
-<p>After each action a panel shows whether it worked, with the details underneath if something went wrong. See <a href="#result">The result panel</a>. Each button is explained step by step below.</p>
-<figure><img src="assets/img/app-control-panel.png" alt="The Control Panel." loading="lazy"><figcaption>The Control Panel.</figcaption></figure>
-</section>
-
-<section id="each">
-<h2>Each button in detail</h2>
-<p>One section per card: what it does, when to use it, what to click, and what to do if something looks wrong. Nothing here deletes your bills, clients or products. Anything that changes your data saves a copy first.</p>
-</section>
-
-<section id="update">
-<h3>Update Software</h3>
-<p><b>What it does.</b> Downloads the newest version from GitHub and puts it in place of the old one. Your data folder is not changed.</p>
-<p><b>When to use it.</b> When a new version is out (we ship one most Saturdays) or a problem you reported has been fixed. You need internet.</p>
-<ol>
-  <li>Click ${ui('Update Now')}. A window in the middle of the app, <b>Updating Free GST Billing…</b>, shows each step (backing up, downloading, unpacking, putting the new version in place) with a progress bar. It can take a few minutes; do not close the app.</li>
-  <li><b>Windows:</b> it first saves a backup of your data, <code>pre-update-<i>date</i>.zip</code>, in <code>Documents\\FreeGSTBill Backups</code>, then downloads and applies the update. A black updater window may open behind the app: leave it, it closes by itself.</li>
-  <li><b>Mac and Linux:</b> it does the same, saving the backup as <code>pre-update-<i>date</i>.tar.gz</code> in <code>Documents/FreeGSTBill Backups</code>. If you already have the newest version it changes nothing.</li>
-  <li>When it is done, the app restarts by itself and the page reloads on the new version. If the update could not finish, the window says why: click ${ui('Close')}. What the updater printed is in the result panel under the cards.</li>
-</ol>
-<p><b>Is it safe?</b> Yes. Your data is backed up first and the update never touches the data folder. On Mac and Linux, if the update fails half way, the old app files are put back.</p>
-<p><b>Something wrong?</b></p>
-<ul>
-  <li>"Update complete" but the old version still shows: <a href="troubleshooting.html#update-not-showing">the old version is still there</a>.</li>
-  <li>An error, or "could not reach GitHub": <a href="troubleshooting.html#update-failed">an update went wrong</a>. On Linux or Mac also see <a href="troubleshooting.html#linux-update-failed">the Linux update stopped</a>.</li>
-  <li>The button says <b>Not available here</b>: <a href="#scripts-missing">scripts not found</a>.</li>
-</ul>
-</section>
-
-<section id="backup">
-<h3>Backup Data</h3>
-<p><b>What it does.</b> Saves all your bills, clients, products and settings as one dated ZIP file, <code>backup-<i>date_time</i>.zip</code>, in the <code>Documents\\FreeGSTBill Backups</code> folder (Mac and Linux: <code>Documents/FreeGSTBill Backups</code>).</p>
-<p><b>When to use it.</b> Before a big change, at the end of the month, or any time you want a copy to keep on a pen drive. The app also makes its own daily backup; this is an extra one at a moment you choose.</p>
-<ol>
-  <li>Click ${ui('Create Backup')}. It shows <b>Backing up...</b> for a moment.</li>
-  <li>The result panel below says <b>Backup - OK</b>, with the file name and size in its output. A folder window usually opens with the new file shown.</li>
-  <li>Copy that ZIP to a pen drive or cloud storage so it survives if this computer breaks. ${ui('Open Backups Folder')} on the Control Panel opens the folder.</li>
-</ol>
-<p><b>Is it safe?</b> Yes. It only reads your data and writes a new file. Old backups are never replaced.</p>
-<p><b>Something wrong?</b> If it says "No data folder found - nothing to back up", or fails with a disk or permission message, see <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>, <a href="troubleshooting.html#disk-full">the disk is full</a> and <a href="troubleshooting.html#no-permission">the app is not allowed to write</a>. More ways to back up: <a href="backup.html">Backups and updates</a>.</p>
-</section>
-
-<section id="restore">
-<h3>Restore Backup</h3>
-<p><b>What it does.</b> Replaces the data in the app with the data from a backup ZIP you choose.</p>
-<p><b>When to use it.</b> After moving to a new computer, or to go back to how things were on an earlier day. It works with ZIPs made by ${ui('Create Backup')} or ${ui('Export for Move')}.</p>
-<ol>
-  <li><b>Windows.</b> Click ${ui('Choose Backup ZIP')}. A file window opens in your <code>FreeGSTBill Backups</code> folder. Pick the ZIP and click <b>Open</b>. (Close the window to cancel; nothing changes.)</li>
-  <li>The app first saves what you have now as <code>pre-restore-<i>date</i>.zip</code> in the same folder. This is your way back if you chose the wrong file.</li>
-  <li>It then replaces the data with the backup's contents and shows <b>[OK] Restore complete!</b> Press <b>Enter</b> to close the black window.</li>
-  <li>Restart the app (<a href="#stop">Stop Server</a>, then open it again) to see the restored data.</li>
-</ol>
-<p><b>Mac and Linux:</b> this button says <b>Not available here</b>. To bring data back there, use <b>Settings, Backup Management, Import Backup</b> with a file saved by Export Backup (see <a href="backup.html#export-import">Export and import</a>).</p>
-<p><b>Is it safe?</b> Your current data is replaced by the backup, so what you entered after that backup was made will not be there. That is why a <code>pre-restore</code> copy is saved first. Keep it until you are happy.</p>
-<p><b>Something wrong?</b> See <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>. If the old data still shows, restart the app; if it will not open, see <a href="troubleshooting.html#not-answered">the server has not answered</a>.</p>
-</section>
-
-<section id="move">
-<h3>Move to Another PC</h3>
-<p><b>What it does.</b> Saves your data as one ZIP on your Desktop named <code>MOVE-FreeGSTBill-<i>date_time</i>.zip</code>, ready to carry to a new computer.</p>
-<p><b>In the app installed with the Windows Setup:</b> this card is not there. Use ${ui('Backup Data')} on the old computer and ${ui('Restore Backup')} on the new one.</p>
-<p><b>When to use it.</b> When you buy a new computer, or want the same books on a second one.</p>
-<ol>
-  <li><b>Windows:</b> click ${ui('Export for Move')}. A black window shows the progress and the size, then a folder window opens with the ZIP highlighted on your Desktop.</li>
-  <li>Copy the ZIP to a pen drive, or send it to yourself by email or cloud storage.</li>
-  <li>On the new PC, install the app (<a href="install.html">Install guide</a>), open the Control Panel and use ${ui('Choose Backup ZIP')} (<a href="#restore">Restore Backup</a>) to pick this file.</li>
-</ol>
-<p><b>Mac and Linux:</b> this button says <b>Not available here</b>. Follow <a href="backup.html#move-pc">Moving to a new computer</a> instead.</p>
-<p><b>Is it safe?</b> Yes. It only makes a copy; your data here stays as it is. Keep the ZIP private, since it holds your business records.</p>
-<p><b>Something wrong?</b> If it says "No data folder to export", or the disk is full, see <a href="troubleshooting.html#disk-full">the disk is full</a>; for the restore step see <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>.</p>
-</section>
-
-<section id="restart">
-<h3>Restart the App</h3>
-<p><b>What it does.</b> Turns the app off and on again in a few seconds, then reloads the page by itself.</p>
-<p><b>When to use it.</b> When something is not working: a page will not load, a button does nothing, or after an update or restore.</p>
-<ol>
-  <li>Save any bill you are typing. Then click ${ui('Restart')}. The button shows <b>Restarting...</b>.</li>
-  <li>After a few seconds the page reloads with the app running again, on the same address.</li>
-</ol>
-<p><b>Is it safe?</b> Yes. Everything is saved as you work. A bill still being typed and not saved is not kept.</p>
-<p><b>Something wrong?</b> If it says the app did not come back within 30 seconds, open it again from its Desktop icon or launcher. See <a href="troubleshooting.html#cannot-connect">Failed to fetch, App Not Running</a>.</p>
-</section>
-
-<section id="stop">
-<h3>Stop Server</h3>
-<p><b>What it does.</b> Turns the app off. The page stops answering until you open the app again.</p>
-<p><b>In the app installed with the Windows Setup:</b> this card is not there. Right-click the app's icon near the clock and choose ${ui('Quit (stop the app)')}: it closes the window and stops the app.</p>
-<p><b>When to use it.</b> After an update or restore, so the new version or data is loaded when you start it again. Also when the app seems stuck, or you want to shut it down cleanly.</p>
-<ol>
-  <li>Finish and save any bill you are typing. Then click ${ui('Stop Server')}.</li>
-  <li><b>Windows:</b> it finds the app's process on your port and ends it. <b>Mac and Linux:</b> the app stops itself a moment after replying; the result panel says <b>Stopped. Open the app again from its icon or launcher.</b></li>
-  <li>The browser page will then show errors such as "Failed to fetch". That is normal.</li>
-  <li>Open the app again: double-click <b>Free GST Billing</b> on your Desktop (Mac: <b>Free GST Billing - MAC</b>; Linux: your start command).</li>
-</ol>
-<p><b>Is it safe?</b> Yes. Everything is saved as you work, so nothing already saved is lost. A bill still being typed and not saved is not kept. If the app runs as a service or in Docker, it may start again by itself.</p>
-<p><b>Something wrong?</b> If it will not start again, see <a href="troubleshooting.html#cannot-connect">Failed to fetch, App Not Running</a> and <a href="troubleshooting.html#not-answered">the server has not answered</a>. Mac and Linux: <a href="troubleshooting.html#mac">Mac</a>, <a href="troubleshooting.html#linux">Linux and NAS</a>.</p>
-</section>
-
-<section id="remove">
-<h3>Remove the App</h3>
-<p><b>What it does.</b> Uninstalls Free GST Billing from this computer in one go: the app, its Desktop and Start-menu icons (Mac: the app in Applications; Linux: the menu entry) and the start-with-computer entry. You choose what else goes.</p>
-<p><b>In the app installed with the Windows Setup:</b> the button is ${ui('Open Windows Apps')}. It opens Windows' <b>Settings → Apps → Installed apps</b>: find Free GST Billing, click the three dots, then <b>Uninstall</b>. It asks whether to delete your books too; the answer is No unless you choose Yes.</p>
-<ol>
-  <li>Click ${ui('Remove…')}. A list opens below the cards. (On Windows the launcher window has the same: <b>More options</b> → ${ui('Remove the app...')}.)</li>
-  <li>Tick what to delete as well. Nothing is ticked at first, so by default <b>only the program goes and your books stay</b>:
-    <ul>
-      <li><b>My invoices, clients, products and settings</b>: the data folder, with the daily backups inside it.</li>
-      <li><b>Saved invoice PDFs</b>: the <code>Saved Invoices</code> and <code>Trash</code> folders.</li>
-      <li><b>All backup files</b> in <code>Documents\\FreeGSTBill Backups</code>.</li>
-    </ul>
-    ${ui('Select everything')} ticks all three, for a computer you are giving away.</li>
-  <li>Click ${ui('Remove the app')}. If your data is ticked, it asks once more. The app closes and the page says it is being removed. Close the window.</li>
-</ol>
-<p><b>Is it safe?</b> If you delete your data but keep the backups, a last copy, <code>before-removal-<i>date</i>.zip</code> (Mac and Linux: <code>.tar.gz</code>), is saved in <code>Documents\\FreeGSTBill Backups</code> first. If that copy cannot be made, your data is kept. Whatever you keep stays in the app folder; install the app into the same folder again and it is all there. Other files you put in the app folder yourself are not touched, and neither is a second backup folder you chose in Settings.</p>
-<p><b>Something wrong?</b> If the button reads ${ui('How to remove it')}, the app is running from source code or an old ZIP and cannot remove itself; the button opens <a href="install.html#uninstall">Removing the app</a> with the other ways. On Windows, if a file is in use, a message names the folder to delete by hand after a restart.</p>
-</section>
-
-<section id="result">
-<h3>The result panel</h3>
-<p>After you click an action, a panel appears at the bottom with a green tick and <b>OK</b>, or a red mark and <b>Failed</b>, next to the action's name. A short pop-up message appears too.</p>
-<ul>
-  <li><b>Output</b>: what the script printed, such as where a backup file was saved.</li>
-  <li><b>Errors</b>: shown only when something went wrong. Copy this text when you <a href="troubleshooting.html#report-problem">report a problem</a>.</li>
-  <li>A red line of text: the reason in plain words, for example that the script is not in the app folder.</li>
-</ul>
-<p>The panel is cleared each time you click another button, so it only describes the last action.</p>
-<p><b>Something wrong?</b> Check <a href="troubleshooting.html#scripts-not-found">"Not available here"</a>, <a href="troubleshooting.html#restore-failed">a backup or restore failed</a> and <a href="troubleshooting.html#update-failed">an update went wrong</a>.</p>
-</section>
-
-<section id="scripts-missing">
-<h2>"Update and backup scripts not found"</h2>
-<p>The Control Panel runs scripts that come with the downloaded ZIP, in the <code>_system</code> folder. This message appears when they are missing, for example when the app was started from source code or copied without them. Install from the <a href="install.html#download">downloaded ZIP</a> to get them, or use <a href="backup.html#export-import">Export Backup</a> in Settings for your data.</p>
-<p>Versions 1.10.44 to 1.10.71 showed this message, then called "Launcher scripts not detected", on every installed copy by mistake. Update to 1.10.72 or later using the launcher's <b>Update to the latest version</b>.</p>
-<p>On Linux and macOS only Update and Backup have scripts, so Restore, Move and Stop show <b>Not available here</b>.</p>
+<p>The green or red dot on the Control Panel's menu button went too: when the app is not running, the app shows its own <b>not running</b> screen instead. See <a href="troubleshooting.html#cannot-connect">Failed to fetch, App Not Running</a>.</p>
 </section>
 `,
 },

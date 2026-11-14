@@ -10,7 +10,7 @@ import { normaliseLutArn, isLikelyLutArn, lutFyOptions, fyOf } from '../utils/lu
 // `new Image()` inside handleImageUpload was trying to construct a
 // React icon. Aliased to `ImageIcon` so `new Image()` resolves to
 // the browser primitive again.
-import { Save, Upload, Download, Plus, Trash2, Edit3, Image as ImageIcon, PenTool, Cloud, CloudOff, Building2, Hash, RefreshCw, Save as SaveIcon, Lock } from 'lucide-react';
+import { Save, Upload, Download, Plus, Trash2, Edit3, Image as ImageIcon, PenTool, Cloud, CloudOff, Building2, Hash, Save as SaveIcon, Lock } from 'lucide-react';
 import { initGoogleDrive, isConnected, disconnect } from '../services/googleDrive';
 import { toast } from './Toast';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -29,7 +29,8 @@ import InvoiceNumberSettings from './InvoiceNumberSettings';
 import InvoiceStartSettings from './InvoiceStartSettings';
 import SignatureImages, { SIGN_LAYOUTS } from './SignatureImages';
 import { PURPOSE_CODE_OPTIONS } from '../utils/purposeCodes';
-import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, runUpdateNow, getBackupFolder, setBackupFolder } from '../store';
+import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, getBackupFolder, setBackupFolder } from '../store';
+import { AppAndUpdates, BackupFiles, useAppStatus } from './AppSettings';
 import { QUICK_TERMS } from '../utils/termsDefaults';
 import ComboInput from './ComboInput';
 
@@ -48,10 +49,12 @@ const SETTINGS_TABS = [
   ['tab-print',    'Print & PDF',        ['section-print', 'section-region']],
   ['tab-features', 'Features',           ['section-modules', 'section-costcentres', 'section-stock']],
   ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-phone', 'section-privacy']],
-  ['tab-data',     'Data & Backups',     ['section-backups', 'section-books', 'section-cloud', 'section-data']],
+  // v1.10.86 - with the Control Panel's backup ZIP buttons (section-backupzip).
+  ['tab-data',     'Data & Backups',     ['section-backups', 'section-backupzip', 'section-books', 'section-cloud', 'section-data']],
   // v1.10.86 - App colour, Text size and Compact lists.
   ['tab-look',     'Appearance',         ['section-appearance']],
-  ['tab-updates',  'Updates',            ['section-updates']],
+  // v1.10.86 - "App & updates": the Control Panel moved in (AppSettings.jsx).
+  ['tab-updates',  'App & updates',      ['section-updates', 'section-app']],
 ];
 const ALL_SECTIONS = SETTINGS_TABS.flatMap(([, , sections]) => sections);
 // A tab id or a section id -> its tab (the first tab for anything unknown).
@@ -66,7 +69,7 @@ const SETTINGS_TAB_DOCS = {
   'section-terms': 'settings#terms', 'section-newinvoice': 'settings#new-invoice', 'section-print': 'print-settings', 'section-modules': 'settings#features',
   'section-stock': 'settings#stock', 'section-region': 'settings#region', 'section-lock': 'settings#lock', 'section-phone': 'phone', 'section-privacy': 'security#offline-mode',
   'section-backups': 'backup#automatic-backups', 'section-books': 'backup#close-books', 'section-cloud': 'settings#google-drive', 'section-data': 'backup#export-import',
-  'section-updates': 'settings#updates', 'section-appearance': 'settings#appearance',
+  'section-updates': 'settings#updates', 'section-app': 'settings#restart', 'section-backupzip': 'backup#backup-zip', 'section-appearance': 'settings#appearance',
 };
 
 export default function SettingsView({ onSaved }) {
@@ -187,19 +190,8 @@ export default function SettingsView({ onSaved }) {
   const [invNumSaving, setInvNumSaving] = useState(false);
   // The business this page belongs to (as saved), for its own numbering (#95).
   const [activeBusiness, setActiveBusiness] = useState(null);
-  const [updateInfo, setUpdateInfo] = useState(null);
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  // v1.10.69 - see runUpdateNow() in store.js: this used to be a link to a URL
-  // protocol that no current install registers, so it did nothing at all.
-  const [updatingNow, setUpdatingNow] = useState(false);
-  // v1.10.86 - the progress window (UpdateOverlay in App.jsx) shows the steps
-  // and any error; on success the page reloads on the new version by itself.
-  const handleSettingsUpdateNow = async () => {
-    setUpdatingNow(true);
-    const result = await runUpdateNow();
-    setUpdatingNow(false);
-    if (result.hint) toast(result.error, 'info', 10000);
-  };
+  // v1.10.86 - what this copy can do, for App & updates and the backup ZIPs.
+  const appStatus = useAppStatus();
   const [regionMode, setRegionModeState] = useState(getRegionMode());
   // v1.10.83 - Business type + Features: a draft, applied by "Save all changes".
   const features = useFeatureDraft();
@@ -1047,6 +1039,8 @@ export default function SettingsView({ onSaved }) {
 
       {/* v1.9.5 — Backup Management + Trash Bin */}
       <div id="section-backups" style={{ order: 8 }}><BackupAndTrashPanel /></div>
+      {/* v1.10.86 - the Control Panel's Backup / Restore / Move / folders, next to the daily backups. */}
+      <BackupFiles status={appStatus} />
       {/* v1.10.85 - close the books up to a date; the edit history. */}
       <div id="section-books" className="glass-panel p-6 mb-6" style={{ order: 8 }}><BooksLockSettings /></div>
 
@@ -1793,55 +1787,8 @@ export default function SettingsView({ onSaved }) {
            kept as a comment so a code search for "Multi-Business
            Profiles" still lands somewhere sensible. */}
 
-      {/* ---- App Updates ---- */}
-      <div id="section-updates" className="glass-panel p-6 mb-6" style={{ order: 11 }}>
-        <h3 className="section-title">App Updates <HelpButton title="App Updates" doc="settings#updates" size={16} style={{ marginLeft: 6 }} /></h3>
-        <p className="page-subtitle mb-4">Check if a newer version is available.</p>
-        <div className="flex gap-4 items-center">
-          <button type="button" className="btn btn-secondary" disabled={checkingUpdate} onClick={async () => {
-            setCheckingUpdate(true);
-            try {
-              const res = await fetch('/api/check-update?now=1');
-              const data = await res.json();
-              setUpdateInfo(data);
-              if (data.updateAvailable) {
-                toast(`Update available: v${data.latest}`, 'info');
-              } else if (data.error) {
-                toast('Could not check for updates. Check internet connection.', 'warning');
-              } else {
-                toast('You are on the latest version!', 'success');
-              }
-            } catch {
-              toast('Could not check for updates.', 'error');
-            }
-            setCheckingUpdate(false);
-          }}>
-            <RefreshCw size={18} className={checkingUpdate ? 'spin' : ''} /> {checkingUpdate ? 'Checking...' : 'Check for Updates'}
-          </button>
-          {updateInfo && (
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Current: v{updateInfo.current}{updateInfo.latest ? ` | Latest: v${updateInfo.latest}` : ''}
-            </span>
-          )}
-        </div>
-        {updateInfo?.updateAvailable && (
-          <div className="update-available-box">
-            <p><strong>New version v{updateInfo.latest} is available!</strong></p>
-            {updateInfo.updateHint ? (
-              <p>{updateInfo.updateHint}{updateInfo.downloadUrl
-                ? <> <a href={updateInfo.downloadUrl} target="_blank" rel="noopener noreferrer">Download the new Mac app</a></>
-                : updateInfo.releaseUrl && <> <a href={updateInfo.releaseUrl} target="_blank" rel="noopener noreferrer">Open the release page</a></>}</p>
-            ) : (
-              <>
-                <p>Your data is backed up first and is not affected. Click below to update:</p>
-                <button type="button" className="btn btn-primary" disabled={updatingNow} onClick={handleSettingsUpdateNow} style={{ marginTop: '0.5rem', display: 'inline-flex' }}>
-                  <Download size={18} /> {updatingNow ? 'Updating…' : 'Update Now'}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      {/* ---- App & updates (v1.10.86: with the Control Panel's cards) ---- */}
+      <AppAndUpdates status={appStatus} />
 
       <div id="section-data" className="glass-panel p-6 mb-6" style={{ order: 10 }}>
         <h3 className="section-title">Data Management <HelpButton title="Data Management: Export and Import Backup" doc="backup#export-import" size={16} style={{ marginLeft: 6 }} /></h3>

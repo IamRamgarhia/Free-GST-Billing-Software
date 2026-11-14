@@ -7,9 +7,9 @@
 // ONE saved order (gst_menuOrder, store.js), as before: a list of strings.
 // Group markers ("group:sales") now sit in it before their items:
 //   ['group:sales', 'dashboard', 'new', ..., 'group:stock', 'inventory', ...,
-//    'support', 'controlpanel', 'settings', 'guide', ...]
+//    'support', 'settings', 'guide', ...]
 // Only the top part of the menu ('main' items) is grouped; the bottom part
-// (Support & About, Control Panel, Settings) and the top-bar buttons keep
+// (Support & About, Settings) and the top-bar buttons keep
 // their own order, as before.
 //
 // Old saved orders (no markers) still load: each item goes into its default

@@ -222,30 +222,13 @@ body {
   position: relative;
 }
 
-/* App status dot on the Control Panel menu button (v1.10.83) */
-.server-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-.server-status-dot.server-status-online {
-  background: #22c55e;
-  box-shadow: 0 0 6px #22c55e;
-}
-.server-status-dot.server-status-offline {
-  background: #ef4444;
-  box-shadow: 0 0 6px #ef4444;
-  animation: pulse-red 1.5s ease-in-out infinite;
-}
-.server-status-dot.server-status-checking {
-  background: #f59e0b;
-  animation: pulse-red 1s ease-in-out infinite;
-}
-@keyframes pulse-red {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+/* v1.10.86 - the Control Panel's buttons, now cards in Settings (AppSettings.jsx).
+   The green / red "app running" dot on its menu button went with it: when the
+   server stops, the app shows its own "not running" screen (App.jsx serverDown). */
+.app-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 0.75rem;
 }
 
 /* Server Down Overlay */
@@ -443,7 +426,7 @@ body {
     justify-content: center; gap: 0; padding-left: 0; padding-right: 0; font-size: 0;
   }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > svg { flex-shrink: 0; }
-  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > span:not(.nav-badge):not(.server-status-dot):not(.nav-dot) { display: none; }
+  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn > span:not(.nav-badge):not(.nav-dot) { display: none; }
   /* v1.10.86 - the red dots sit on the icon's corner (no count), and on the
      thin line of a group that has one inside. */
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-dot {
@@ -451,13 +434,8 @@ body {
   }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn { position: relative; overflow: visible; }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-btn .nav-dot { top: -4px; right: auto; left: calc(50% - 4px); }
-  /* v1.10.84 (maintainer: "fix control panel design when compact sidebar") -
-     the Control Panel's status dot (margin-left: auto) pushed its icon to the
-     left edge; in the closed rail it sits in the corner, like the badges. */
+  /* v1.10.84 - in the closed rail the badges and dots sit in the icon's corner. */
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-btn { position: relative; }
-  .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .server-status-dot {
-    position: absolute; top: 6px; right: 8px; margin-left: 0;
-  }
   .app-layout.sidebar-autohide > .sidebar:not(:hover):not(:has(:focus-visible)) .nav-badge {
     top: 6px !important; right: 10px !important; min-width: 0 !important; width: 8px; height: 8px !important; padding: 0 !important; font-size: 0 !important;
   }

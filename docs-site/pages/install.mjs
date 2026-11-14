@@ -153,7 +153,7 @@ ${which}
 <ol class="steps">
   <li><strong>Double-click the "Free GST Billing" icon on your Desktop</strong>The install put this icon (the blue <b>B</b>) there and in the Start menu. It starts the app and opens it in its own window. There is nothing else to click.</li>
 </ol>
-<p>Update, back up, restore, restart and stop the app from the <a href="control-panel.html">Control Panel</a> in the app's menu. Restarting the computer also stops it. The launcher, <b>Free GST Billing - WINDOWS</b> in the Free-GST-Billing folder, stays there for updates and repairs.</p>
+<p>Update, restart and stop the app from <a href="settings.html#updates">Settings → App &amp; updates</a>, and back up or restore it from <a href="backup.html#backup-zip">Settings → Data &amp; Backups</a>. Restarting the computer also stops it. The launcher, <b>Free GST Billing - WINDOWS</b> in the Free-GST-Billing folder, stays there for updates and repairs.</p>
 <p>Your data is in the <code>_system\\data</code> folder inside Free-GST-Billing; see <a href="backup.html">Backups</a>.</p>
 <p>Use only this icon. If you also have a Free GST Billing app icon made by Chrome or Edge, remove it (right-click it, then ${ui('Uninstall')}): it opens a window but cannot start the app.</p>
 </section>
@@ -178,7 +178,7 @@ ${which}
 <h2>Removing the app</h2>
 <p><strong>Back up your data first</strong> if you may want it again. See <a href="backup.html#export-import">Export everything to one file</a>.</p>
 <p><b>Installed with the Setup program (.exe)?</b> Use Windows ${ui('Settings')} → ${ui('Apps')} → <b>Free GST Billing</b> → ${ui('Uninstall')}. See <a href="#setup-exe">the Setup program</a>.</p>
-<p><b>The easy way:</b> in the app, open ${ui('Control Panel')} and use ${ui('Remove…')}. Tick what else to delete (your data, PDFs, backups) and click ${ui('Remove the app')}. See <a href="control-panel.html#remove">Remove the App</a>. Or, with the app closed, double-click <b>Free GST Billing - WINDOWS</b> in the app folder, click <b>More options</b>, then ${ui('Remove the app...')}: the same tick boxes, then ${ui('Remove the app')}.</p>
+<p><b>The easy way:</b> in the app, open ${ui('Settings')} → ${ui('App &amp; updates')} and use ${ui('Remove…')}. Tick what else to delete (your data, PDFs, backups) and click ${ui('Remove the app')}. See <a href="settings.html#remove">Remove the App</a>. Or, with the app closed, double-click <b>Free GST Billing - WINDOWS</b> in the app folder, click <b>More options</b>, then ${ui('Remove the app...')}: the same tick boxes, then ${ui('Remove the app')}.</p>
 <p><b>Or with one line:</b> press ${key('Windows', 'R')}, paste this line and press ${key('Enter')}:</p>
 <pre><code>${WIN_REMOVE}</code></pre>
 <p>It stops the app and removes it and its icons. Your invoices, clients and settings are kept unless you type <code>DELETE</code> when it asks (and even then a last copy goes to <code>Documents\\FreeGSTBill Backups</code>).</p>
@@ -225,7 +225,7 @@ ${which}
 
 <section id="uninstall-mac">
 <h2>Removing the app</h2>
-<p><b>The easy way:</b> in the app, open ${ui('Control Panel')} and use ${ui('Remove…')}, then tick what else to delete. See <a href="control-panel.html#remove">Remove the App</a>.</p>
+<p><b>The easy way:</b> in the app, open ${ui('Settings')} → ${ui('App &amp; updates')} and use ${ui('Remove…')}, then tick what else to delete. See <a href="settings.html#remove">Remove the App</a>.</p>
 <p><b>Or</b> paste this into Terminal and press ${key('Return')}:</p>
 <pre><code>${UNIX_REMOVE}</code></pre>
 <p>It removes the app and its icon. Your invoices are kept unless you type <code>DELETE</code> when it asks. If the app is in the Dock, drag it out.</p>
@@ -286,7 +286,7 @@ ${which}
   <li><strong>Double-click "Free GST Billing - MAC"</strong>After the first time, a normal double-click works. If the app is already running it just opens your browser.</li>
 </ol>
 <p><b>Tip:</b> make a Desktop shortcut. Control-click the launcher → ${ui('Make Alias')}, and drag the alias to your Desktop. You can also bookmark <code>http://localhost:47371</code> in your browser; it works while the app is running.</p>
-<p>To stop the app: in the app open <b>Control Panel</b> in the sidebar and click ${ui('Stop Server')}. Restarting the Mac also stops it.</p>
+<p>To stop the app: in the app open <b>Settings → App &amp; updates</b> and click ${ui('Stop Server')}. Restarting the Mac also stops it.</p>
 <p>Your data is in <code>Free-GST-Billing/_system/data</code>. Updating: see <a href="update.html#mac">Updating on a Mac</a>; never drag a new download over the old folder.</p>
 </section>
 `,
@@ -330,7 +330,7 @@ ${which}
 <h2>Used the app before? Your earlier books</h2>
 <p>If you used the ZIP or the one-line install before, the .deb and the AppImage start with <b>empty books</b> and leave the earlier copy exactly as it was. The first time they open, they show where the earlier books are (and keep that note in <code>~/.local/share/free-gst-billing-data/OLD-BOOKS-FOUND.txt</code>). To bring them across, before you enter anything new:</p>
 <ol class="steps">
-  <li><strong>Stop the new app</strong><b>Control Panel</b> in the app → ${ui('Stop Server')}.</li>
+  <li><strong>Stop the new app</strong><b>Settings → App &amp; updates</b> in the app → ${ui('Stop Server')}.</li>
   <li><strong>Copy the books</strong>Paste the copy command from that note into the Terminal. For the one-line install it is:
 <pre><code>cp -a ~/.local/share/free-gst-billing/_system/data/. ~/.local/share/free-gst-billing-data/data/</code></pre>
   It <b>copies</b>: the earlier copy keeps its books too.</li>
@@ -409,7 +409,7 @@ ${which}
 <ol class="steps">
   <li><strong>Wait up to a minute</strong>When it says <i>Server running</i>, the app opens in your browser at <code>http://localhost:47371</code>. You can close the Terminal; the app keeps running. (A download from before version 1.10.83 first asks <i>Install now? [Y/n]</i>: press ${key('Enter')}.)</li>
 </ol>
-<p><b>Every day after that</b>, open the Terminal and run the same command. Or bookmark <code>http://localhost:47371</code>; it works while the app is running. To stop the app: <b>Control Panel</b> in the app → ${ui('Stop Server')}, or restart the computer.</p>
+<p><b>Every day after that</b>, open the Terminal and run the same command. Or bookmark <code>http://localhost:47371</code>; it works while the app is running. To stop the app: <b>Settings → App &amp; updates</b> in the app → ${ui('Stop Server')}, or restart the computer.</p>
 </section>
 
 <section id="nas">

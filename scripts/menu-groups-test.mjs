@@ -29,11 +29,12 @@ eq(orderedMenu([]).map(m => m.id), MENU_ITEMS.map(m => m.id), 'MENU_ITEMS is lis
 eq(normalOrder([]).filter(x => x.startsWith('group:')), ['group:sales', 'group:stock', 'group:money'], 'markers in the saved list');
 
 console.log('Old saved orders (v1.10.83 - v1.10.85, no groups)');
-const old = ['reports', 'dashboard', 'expenses', 'inventory', 'clients', 'settings', 'support', 'ghost'];
+// v1.10.86 - 'controlpanel' (moved into Settings) in an old saved order is ignored too.
+const old = ['reports', 'dashboard', 'expenses', 'inventory', 'clients', 'settings', 'controlpanel', 'support', 'ghost'];
 eq(items(old, 'sales').slice(0, 2), ['dashboard', 'clients'], 'items keep their saved order inside their default group');
 eq(items(old, 'stock'), ['expenses', 'inventory', 'purchases'], 'saved order first, the rest after');
 eq(items(old, 'money')[0], 'reports', 'Reports first in Money & reports, as saved');
-eq(orderedMenu(old).filter(m => m.section === 'bottom').map(m => m.id), ['settings', 'support', 'controlpanel'], 'bottom part keeps its saved order');
+eq(orderedMenu(old).filter(m => m.section === 'bottom').map(m => m.id), ['settings', 'support'], 'bottom part keeps its saved order');
 eq(orderedMenu(old).length, MENU_ITEMS.length, 'unknown ids ignored, nothing lost');
 
 console.log('Move inside a group');
@@ -79,7 +80,7 @@ eq(normalOrder(stepItem([], 'dashboard', -1)), normalOrder([]), 'very first item
 eq(normalOrder(stepItem([], 'incometax', 1)), normalOrder([]), 'very last item cannot go down');
 eq(items(moveMenuItem([], 'new', 1), 'sales').slice(0, 3), ['dashboard', 'clients', 'new'], 'Settings -> Features arrows use the same steps');
 o = moveMenuItem(moveItem([], 'cashbook', 'sales'), 'settings', -1);
-eq([groupOfItem(o, 'cashbook'), orderedMenu(o).filter(m => m.section === 'bottom').map(m => m.id)], ['sales', ['support', 'settings', 'controlpanel']], 'moving a bottom item keeps the groups');
+eq([groupOfItem(o, 'cashbook'), orderedMenu(o).filter(m => m.section === 'bottom').map(m => m.id)], ['sales', ['settings', 'support']], 'moving a bottom item keeps the groups');
 
 console.log('Switched-off items');
 const shown = (id) => id !== 'receipts'; // Receipts switched off
@@ -108,9 +109,9 @@ console.log('Taken out of the menu (Customise menu)');
 eq(hiddenItems(undefined), [], 'nothing saved (older versions) = everything shown');
 eq(hiddenItems('x'), [], 'bad saved value is safe');
 eq(['dashboard', 'new', 'clients', 'settings', 'support'].filter(canHide), [], 'core screens, Support & About and Settings can never be taken out');
-eq(['inventory', 'reports', 'controlpanel'].every(canHide), true, 'other screens and Control Panel can');
+eq(['inventory', 'reports'].every(canHide), true, 'other screens can');
 eq(['guide', 'darkMode', 'ghost'].filter(canHide), [], 'top-right buttons and unknown ids are not menu items here');
-eq(hiddenItems(['reports', 'settings', 'ghost', 'reports', 'dashboard']), ['reports'], 'saved list cleaned: unknown, locked and repeated ids dropped');
+eq(hiddenItems(['reports', 'settings', 'ghost', 'reports', 'dashboard', 'controlpanel']), ['reports'], 'saved list cleaned: unknown (also the old controlpanel), locked and repeated ids dropped');
 eq(toggleHidden([], 'reports'), ['reports'], 'take out');
 eq(toggleHidden(['reports', 'expenses'], 'reports'), ['expenses'], 'put back');
 eq(toggleHidden([], 'settings'), [], 'Settings cannot be taken out');

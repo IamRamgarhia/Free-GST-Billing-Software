@@ -249,7 +249,7 @@ export default [
 
 <section id="on-the-phone">
 <h2>What works on the phone</h2>
-<p>The whole app: invoices, quotes, clients, products and stock, payments, reports, GST returns. The PIN lock asks for the PIN when the app opens on the phone too. Not on a phone: the <a href="control-panel.html">Control Panel</a> (update, restart, remove the app, open folders), choosing a backup folder, and phone access itself. Those act on the PC, so they are done on the PC.</p>
+<p>The whole app: invoices, quotes, clients, products and stock, payments, reports, GST returns. The PIN lock asks for the PIN when the app opens on the phone too. Not on a phone: <a href="settings.html#updates">App &amp; updates</a> (update, restart, remove the app) and the <a href="backup.html#backup-zip">backup ZIPs</a> (backup, restore, open folders), choosing a backup folder, and phone access itself. Those act on the PC, so they are done on the PC.</p>
 <p>The phone shows the books that are on the PC: the PC must be on, with the app running, and the phone on the same Wi-Fi. Away from that Wi-Fi the app does not open on the phone; that is on purpose.</p>
 </section>
 
@@ -277,7 +277,7 @@ export default [
   <li><strong>Paired devices only.</strong> A device without a pairing gets only the pairing page; the app and your data answer nobody else. Pairing needs a one-time code from the PC's screen (10 minutes, once) <b>and</b> the PIN, which the PC checks: five wrong tries and it waits 30 seconds, and the code is thrown away.</li>
   <li><strong>A long random key per device</strong>, kept by the phone's browser where web pages cannot read it (an HttpOnly, Secure, SameSite=Strict cookie). The PC keeps only a fingerprint of it (a hash), so even its own files cannot be used to get in.</li>
   <li><strong>Other websites cannot use it.</strong> Changes are accepted only from the app's own page, and only under the PC's own address or name (this stops "DNS rebinding" tricks by websites).</li>
-  <li><strong>You stay in charge.</strong> Remove a device, or untick the switch, and it is cut off at once. Changing or removing the PIN, the Control Panel and phone access itself work only on the PC.</li>
+  <li><strong>You stay in charge.</strong> Remove a device, or untick the switch, and it is cut off at once. Changing or removing the PIN, App &amp; updates, the backup ZIPs and phone access itself work only on the PC.</li>
   <li><strong>On a NAS</strong>, Docker hides the real address of each device, so there the pairing alone keeps others out: never forward the port on your router. Other web pages served by the same NAS address (its own admin pages, for example) count as the same site for the browser; use only ones you trust.</li>
 </ul>
 <p>On a NAS with Docker, the same pairing is the only way in: see <a href="install-linux.html#nas-docker">Install on a NAS</a>.</p>

@@ -69,12 +69,14 @@ const SETTINGS_JUMPS = [
   ['Watermarks', 'section-print'], ['Multi-copy print', 'section-print'],
   ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
   ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
-  ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
+  ['Google Drive backup', 'section-cloud'], ['App & updates', 'section-updates'],
+  // v1.10.86 - the Control Panel's buttons, now in Settings.
+  ['Restart, stop or remove the app', 'section-app'], ['Backup files (ZIP), restore, move to another PC', 'section-backupzip'],
   ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'], ['Appearance: Red dots in the menu', 'section-appearance'],
 ];
 
 export default function QuickSearch({
-  onClose, navItems, bottomIds, topIds, updateInfo,
+  onClose, navItems, topIds, updateInfo,
   onNewInvoice, onEditInvoice, onView, onSettings, onDarkMode, onShortcuts, onUpdate, onOpenDocs,
 }) {
   const [query, setQuery] = useState('');
@@ -94,8 +96,7 @@ export default function QuickSearch({
 
   // A screen switched off in Settings -> Features is not opened (App would
   // send it back to the Dashboard): Features opens instead, with a word why.
-  const canOpen = (view) => view === 'settings' || view === 'support'
-    || (view === 'controlpanel' ? bottomIds.includes('controlpanel') : navItems.some((i) => i.id === view));
+  const canOpen = (view) => view === 'settings' || view === 'support' || navItems.some((i) => i.id === view);
   const takeMeThere = ({ view, section, find, click, action }) => {
     if (action === 'customise-menu') openCustomiseMenu();
     else if (action === 'dark-mode') onDarkMode();
@@ -119,15 +120,14 @@ export default function QuickSearch({
       if (item.id !== 'new') acts.push({ label: `Go to ${item.label}`, run: item.onClick || (() => onView(item.id)) });
     });
     acts.push({ label: 'Go to Settings', run: () => onView('settings') });
-    // v1.10.83 - like every menu item, not when it is switched off.
-    if (bottomIds.includes('controlpanel')) acts.push({ label: 'Go to Control Panel', run: () => onView('controlpanel') });
+    // v1.10.86 - 'Go to Control Panel' went: its jobs are Settings jumps (SETTINGS_JUMPS).
     acts.push({ label: 'Go to Support & About', run: () => onView('support') });
     if (topIds.includes('guide')) acts.push({ label: 'Open the User Guide', run: onOpenDocs });
     acts.push({ label: 'Toggle dark mode', run: onDarkMode });
     acts.push({ label: 'Show keyboard shortcuts', hint: 'Ctrl+/', run: onShortcuts });
     if (updateInfo?.updateAvailable) acts.push({ label: `View update — v${updateInfo.latest}`, run: onUpdate });
     return acts;
-  }, [navItems, bottomIds, topIds, updateInfo, onNewInvoice, onView, onOpenDocs, onDarkMode, onShortcuts, onUpdate]);
+  }, [navItems, topIds, updateInfo, onNewInvoice, onView, onOpenDocs, onDarkMode, onShortcuts, onUpdate]);
 
   const records = useMemo(() => ({
     // v1.10.5 - an invoice opens for editing, as a Dashboard row click does.

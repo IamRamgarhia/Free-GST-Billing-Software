@@ -1,6 +1,6 @@
 // npm run app:refresh - put the app running on this PC from this folder (the
 // copy on data/port.txt) onto the code here: rebuild the screens, then restart
-// its server with its own Control Panel restart, and wait until it answers.
+// its server with its own Restart (Settings -> App & updates), and wait until it answers.
 // For the maintainer, who uses the app from the repo while it is developed.
 // Never starts a second copy: if the app is not running, it only rebuilds,
 // and the next start from the Desktop icon opens the new code.
@@ -32,7 +32,7 @@ if (!(await up())) {
 }
 say('Restarting the app...');
 const r = await fetch(`${base}/api/control-panel/restart`, { method: 'POST' }).then((x) => x.json()).catch(() => ({}));
-if (!r.ok) { say(`The app did not restart (${r.error || 'no answer'}). Use Control Panel → Restart.`); process.exit(1); }
+if (!r.ok) { say(`The app did not restart (${r.error || 'no answer'}). Use Settings → App & updates → Restart.`); process.exit(1); }
 for (let i = 0; i < 60; i++) {
   await new Promise((res) => setTimeout(res, 500));
   if (await up()) {
