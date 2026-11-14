@@ -17,6 +17,7 @@ import os from 'os';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import net from 'net';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { lanAddresses } from '../src/utils/phoneAccess.js';
@@ -145,7 +146,28 @@ try {
   const guideApi = await guideReq(GUIDE, 'GET', '/api/bills');
   ok(guideApi.status === 404 && !guideApi.text.includes('['), 'guide port: no API (404)', JSON.stringify(guideApi));
   ok((await guideReq(GUIDE, 'GET', '/pair')).status === 404 && (await guideReq(GUIDE, 'GET', '/index.html')).status === 404, 'guide port: no pairing page, no app files');
-  ok((await guideReq(GUIDE, 'POST', '/')).status === 405, 'guide port: nothing but GET');
+  const post = await guideReq(GUIDE, 'POST', '/');
+  ok(post.status === 405 && post.headers.allow === 'GET, HEAD' && post.headers.connection === 'close', 'guide port: nothing but GET (405, Allow: GET, HEAD, connection closed)', JSON.stringify(post.headers));
+  // A body is never read: the answer comes and the connection is closed.
+  const raw = await new Promise((resolve) => {
+    const s = net.connect(GUIDE, LAN, () => s.write(`GET / HTTP/1.1\r\nHost: ${LAN}:${GUIDE}\r\nContent-Length: 5\r\n\r\nhello`));
+    let text = '';
+    const t0 = Date.now();
+    s.on('data', (d) => { text += d; });
+    s.on('close', () => resolve({ text, ms: Date.now() - t0 }));
+    s.on('error', () => {});
+    setTimeout(() => { s.destroy(); resolve({ text, ms: 99999 }); }, 5000);
+  });
+  ok(/^HTTP\/1\.1 200/.test(raw.text) && /connection: close/i.test(raw.text) && raw.ms < 3000, 'guide port: a request with a body is answered and its connection closed at once', JSON.stringify({ ms: raw.ms, head: raw.text.slice(0, 120) }));
+  // At most 8 open connections from one address.
+  const socks = await Promise.all(Array.from({ length: 10 }, () => new Promise((resolve) => {
+    const s = net.connect(GUIDE, LAN, () => resolve(s));
+    s.on('error', () => resolve(s));
+  })));
+  await sleep(500);
+  const cut = socks.filter((s) => s.destroyed || s.readableEnded).length;
+  socks.forEach((s) => s.destroy());
+  ok(cut === 2, 'guide port: at most 8 open connections from one address', String(cut));
 
   // ---- 3. pairing ----
   const noCode = await phoneReq(PHONE, 'POST', '/api/pair', { origin: home, body: { code: 'AAAAAAAA', pin: PIN } });

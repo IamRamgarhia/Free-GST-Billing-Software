@@ -29,6 +29,7 @@ import http from 'http';
 import {
   DEFAULT_PHONE_PORT, DEVICE_COOKIE, createPhoneGate, createPairing, createTryLimiter, hashToken, newToken, readCookie,
   deviceCookie, cleanDeviceName, deviceLabel, lanAddresses, isPrivateIp, isLoopbackIp, shortFingerprint, hostAllowed,
+  guidePortFor,
 } from './src/utils/phoneAccess.js';
 import { makeSelfSignedCert, certStillGood } from './src/utils/selfSignedCert.js';
 import { pairPageHtml, pairPageCsp, guidePageHtml, guidePageCsp } from './src/utils/pairPage.js';
@@ -1346,9 +1347,8 @@ const PHONE_PORT = (() => { const n = Number(process.env.FGSB_PHONE_PORT); retur
 const PHONE_LISTEN = process.env.FGSB_PHONE_LISTEN === '127.0.0.1' ? '127.0.0.1' : '0.0.0.0';
 const PHONE_EXTRA_HOSTS = String(process.env.FGSB_PHONE_HOSTS || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
 const phoneHostNames = () => [os.hostname(), `${os.hostname()}.local`, ...PHONE_EXTRA_HOSTS];
-const phone = { server: null, sockets: new Set(), error: '', fingerprint: '', guide: null, guideSockets: new Set() };
-// v1.10.86 - the guide page's port (see startGuideListener).
-const GUIDE_PORT = PHONE_PORT < 65535 ? PHONE_PORT + 1 : PHONE_PORT - 1;
+// v1.10.86 - guide / guidePort / guideSockets: the guide page (see startGuideListener).
+const phone = { server: null, sockets: new Set(), error: '', fingerprint: '', guide: null, guidePort: 0, guideSockets: new Set() };
 const pairing = createPairing();
 
 const readPhoneState = () => {
@@ -1420,9 +1420,13 @@ function startPhoneListener() {
 }
 
 // A connection from outside the local network is cut before anything is read.
-function localNetworkOnly(sockets) {
+// v1.10.86 - perIp: at most that many open connections from one address.
+function localNetworkOnly(sockets, perIp = Infinity) {
   return (socket) => {
     if (!isPrivateIp(socket.remoteAddress) && !isLoopbackIp(socket.remoteAddress)) { socket.destroy(); return; }
+    let same = 0;
+    for (const s of sockets) if (s.remoteAddress === socket.remoteAddress) same += 1;
+    if (same >= perIp) { socket.destroy(); return; }
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
   };
@@ -1439,14 +1443,21 @@ function localNetworkOnly(sockets) {
 // and its log links straight there. Windows Firewall allows Node.js as a
 // program (all its ports), so this second port asks nothing new.
 function guidePage(req, res) {
-  const send = (status, text) => {
-    res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  // A request with a body, or that is not GET / HEAD, gets its answer and
+  // the connection is closed (nothing here reads a body).
+  const readOnly = req.method === 'GET' || req.method === 'HEAD';
+  if (!readOnly || Number(req.headers['content-length']) > 0 || req.headers['transfer-encoding'] !== undefined) {
+    res.setHeader('Connection', 'close');
+    res.on('finish', () => req.socket.destroySoon());
+  }
+  const send = (status, text, extra = {}) => {
+    res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra });
     res.end(text);
   };
   const ip = req.socket.remoteAddress;
   if (!phone.server || (!isPrivateIp(ip) && !isLoopbackIp(ip))) return send(403, 'Phone access is turned off on the PC.');
   if (!hostAllowed(req.headers.host, phoneHostNames())) return send(403, 'Open the address shown on the PC.');
-  if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, 'Not allowed.');
+  if (!readOnly) return send(405, 'Not allowed.', { Allow: 'GET, HEAD' });
   if (String(req.url).split('?')[0] !== '/') return send(404, 'Not found.');
   // hostAllowed let only an IP address or this PC's name through.
   const address = String(req.headers.host).trim().replace(/:\d+$/, '');
@@ -1459,18 +1470,22 @@ function guidePage(req, res) {
 }
 function startGuideListener() {
   if (PHONE_HEADLESS || phone.guide) return;
-  const server = http.createServer(guidePage);
+  // Never a port the app itself may take (its own, or its start-up range).
+  const port = guidePortFor(PHONE_PORT, activeServer?.address()?.port);
+  if (!port) { console.warn(`[phone] No phone guide page: port ${PHONE_PORT + 1} is in the app's own port range. The QR code goes straight to the HTTPS address.`); return; }
+  const server = http.createServer({ connectionsCheckingInterval: 2000, keepAliveTimeout: 2000 }, guidePage);
   server.headersTimeout = 10000;
   server.requestTimeout = 15000;
   server.maxConnections = 32;
-  server.on('connection', localNetworkOnly(phone.guideSockets));
+  server.on('connection', localNetworkOnly(phone.guideSockets, 8));
   // Not fatal: the QR code then goes straight to the HTTPS address.
   server.on('error', (err) => {
-    console.warn(`[phone] The phone guide page could not open on port ${GUIDE_PORT} (${err.code || err.message}); the QR code goes straight to the HTTPS address.`);
+    console.warn(`[phone] The phone guide page could not open on port ${port} (${err.code || err.message}); the QR code goes straight to the HTTPS address.`);
     if (phone.guide === server) phone.guide = null;
   });
-  server.listen(GUIDE_PORT, PHONE_LISTEN, () => console.log(`  Phone guide page: ${guideUrls()[0] || `http://<this-pc-address>:${GUIDE_PORT}`}`));
+  server.listen(port, PHONE_LISTEN, () => console.log(`  Phone guide page: ${guideUrls()[0] || `http://<this-pc-address>:${port}`}`));
   phone.guide = server;
+  phone.guidePort = port;
 }
 function stopGuideListener() {
   const server = phone.guide;
@@ -1515,7 +1530,7 @@ const phoneUrls = (req) => {
 };
 // v1.10.86 - the guide page's address for each of them (none in Docker, or
 // when its port could not open).
-const guideUrlFor = (httpsUrl) => (phone.guide?.listening ? httpsUrl.replace(/^https:/, 'http:').replace(/:\d+$/, `:${GUIDE_PORT}`) : '');
+const guideUrlFor = (httpsUrl) => (phone.guide?.listening ? httpsUrl.replace(/^https:/, 'http:').replace(/:\d+$/, `:${phone.guidePort}`) : '');
 const guideUrls = () => (PHONE_HEADLESS ? [] : phoneUrls().map(guideUrlFor).filter(Boolean));
 const phoneStatus = (req) => ({
   enabled: PHONE_HEADLESS || phoneState.enabled,

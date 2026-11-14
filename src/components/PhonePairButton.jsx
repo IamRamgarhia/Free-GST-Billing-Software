@@ -26,7 +26,7 @@ export default function PhonePairButton({ className, onOpenSettings }) {
   const open = async () => {
     try {
       const status = await getPhoneAccess();
-      setShown(status.listening && status.pinSet ? { pair: await newPairingCode() } : { status });
+      setShown(status.listening && status.pinSet ? { pair: await newPairingCode(), status } : { status });
     } catch (err) {
       if (err.status === 403) setHidden(true);
       else toast('Could not make a pairing code. Try again.', 'error');
@@ -49,7 +49,7 @@ export default function PhonePairButton({ className, onOpenSettings }) {
               <HelpButton title="Use on a phone or tablet" doc="phone" size={16} />
             </h3>
             {shown.pair
-              ? <PairPanel key={shown.pair.code} pair={shown.pair} onNew={open} />
+              ? <PairPanel key={shown.pair.code} pair={shown.pair} onNew={open} devices={shown.status.devices} showDevices />
               : <p className="notice notice-note" style={{ fontSize: '0.9rem' }}><span>{why(shown.status)}</span></p>}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
               {!shown.pair && !shown.status.headless && <button type="button" className="btn btn-primary" onClick={toSettings}>Open phone settings</button>}

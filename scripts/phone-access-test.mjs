@@ -207,6 +207,15 @@ ok(DEVICE_COOKIE.startsWith('__Host-'), 'cookie name has the __Host- prefix (HTT
   ok(got.authorized === true, 'trusted once accepted (the certificate is its own authority)', JSON.stringify(got));
 }
 
+// ---- v1.10.86 - the guide page's port never takes one the app may use ----
+{
+  const { guidePortFor, APP_PORT_RANGE } = await import('../src/utils/phoneAccess.js');
+  ok(guidePortFor(47443, 47371) === 47444 && guidePortFor(47452, 47402) === 47453 && guidePortFor(65535, 47371) === 65534, 'guide port: the phone port + 1 (or - 1 at the top)');
+  ok(guidePortFor(47370, 47371) === 0 && guidePortFor(47400, 47371) === 0 && guidePortFor(47419, 47371) === 0, "guide port: none inside the app's start-up range 47371-47420");
+  ok(guidePortFor(47420, 47371) === 47421 && APP_PORT_RANGE[0] === 47371 && APP_PORT_RANGE[1] === 47420, 'guide port: just above the range is fine');
+  ok(guidePortFor(50000, 50001) === 0 && guidePortFor(50000, 47371, [APP_PORT_RANGE, [50001, 50050]]) === 0, "guide port: never the app's own port or its saved range");
+}
+
 // ---- v1.10.86 - the pages a phone sees before it is paired ----
 {
   const { pairPageHtml, guidePageHtml, guidePageCsp, pairPageCsp, UNLOCKED_SESSION_KEY } = await import('../src/utils/pairPage.js');

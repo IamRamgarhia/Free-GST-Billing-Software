@@ -3,7 +3,7 @@
 // phoneAccess.js); this card switches it, shows the pairing QR code and lists
 // the paired devices. Every sentence here matches docs-site security.mjs
 // (page "phone"); change them together.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Trash2, QrCode } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { toast } from './Toast';
@@ -26,7 +26,34 @@ const openPinCard = () => {
 // Docker has no guide page: there the QR code is the HTTPS address.
 const mono = { fontFamily: 'ui-monospace, Consolas, monospace' };
 const addressOf = (u) => String(u || '').replace(/\/?(pair)?#.*$/, '');
-export function PairPanel({ pair, onNew }) {
+// v1.10.86 (review) - while the code is on screen, the PC asks every 3 seconds
+// who is paired, so a pairing shows at once ("Paired: ..."), also one the
+// owner did not expect. devices: the paired devices when the code was shown.
+const POLL_MS = 3000;
+function usePairedWatch(pair, devices, onPaired) {
+  const [list, setList] = useState(devices || []);
+  const known = useRef(new Set((devices || []).map((d) => d.id)));
+  const onPairedRef = useRef(onPaired);
+  onPairedRef.current = onPaired;
+  useEffect(() => {
+    const until = pair.expiresAt + 60000;
+    const timer = setInterval(() => {
+      if (Date.now() > until) { clearInterval(timer); return; }
+      getPhoneAccess().then((s) => {
+        const fresh = s.devices.filter((d) => !known.current.has(d.id));
+        if (!fresh.length) return;
+        fresh.forEach((d) => { known.current.add(d.id); toast(`Paired: ${d.name}`, 'success', 8000); });
+        setList(s.devices);
+        onPairedRef.current?.(s);
+      }).catch(() => { /* asked again in 3 seconds */ });
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [pair.expiresAt]);
+  return list;
+}
+
+export function PairPanel({ pair, onNew, devices, onPaired, showDevices = false }) {
+  const paired = usePairedWatch(pair, devices, onPaired);
   const [i, setI] = useState(0);
   const httpsUrl = pair.urls[i] || '';
   const guideUrl = pair.guideUrls?.[i] || '';
@@ -61,6 +88,8 @@ export function PairPanel({ pair, onNew }) {
           </label>
         )}
         <p style={{ ...muted, margin: '0.5rem 0' }}>This code works once, until {new Date(pair.expiresAt).toLocaleTimeString('en-IN', { timeStyle: 'short' })} (10 minutes). <button type="button" className="btn btn-secondary btn-sm" onClick={onNew}>Show a new QR code</button></p>
+        {showDevices && paired.length > 0 && <p className="phone-paired-now" style={{ margin: '0.5rem 0', fontSize: '0.85rem' }}><b>Paired devices:</b> {paired.map((d) => d.name).join(', ')}</p>}
+        <p style={{ ...muted, margin: '0.5rem 0 0' }}>After pairing, check that <b>Paired devices</b> shows only your own devices. If the phone said the code was not valid any more after you typed the PIN, remove any device you do not know and change the PIN.</p>
       </div>
     </div>
   );
@@ -136,7 +165,7 @@ export default function PhoneAccessSettings() {
           <p className="notice notice-note" style={{ fontSize: '0.85rem' }}><span>
             <b>Windows may ask</b> whether to allow <i>Node.js JavaScript Runtime</i> on networks. Tick <b>Private networks</b> (your home or shop Wi-Fi), leave <b>Public networks</b> unticked, and click <b>Allow</b>. If you clicked Cancel, phones cannot connect: see the ? for how to fix it.
           </span></p>
-          {pair ? <PairPanel key={pair.code} pair={pair} onNew={showCode} /> : (
+          {pair ? <PairPanel key={pair.code} pair={pair} onNew={showCode} devices={status.devices} onPaired={setStatus} /> : (
             <button type="button" className="btn btn-primary" onClick={showCode} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}><QrCode size={16} /> Pair a phone or tablet</button>
           )}
           <p style={{ ...muted, margin: 0 }}>Security code of this PC: <b style={mono}>{status.shortFingerprint}</b></p>
