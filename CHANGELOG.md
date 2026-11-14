@@ -259,6 +259,15 @@ a backup is made first.
   new invoice, a product picked for that client takes its level price, or the
   selling price when it has none. The Products CSV import and export carry a
   column per level (such as *Wholesale price*).
+- **Mac app (.dmg)**: `Free-GST-Billing-Mac.dmg` on the release page. Open it,
+  drag **Free GST Billing** to Applications and open it; one app for Intel and
+  Apple silicon Macs (macOS 11 or newer), with Node.js inside, so nothing else
+  is installed. The first time, macOS 15 and 26 ask you to allow it once:
+  **Done**, then **System Settings → Privacy & Security → Open Anyway** and
+  your password (macOS 14 and older: Control-click → **Open**). The books are
+  kept in `~/Library/Application Support/Free GST Billing`. To update,
+  download the new DMG and drag the app to Applications again (**Replace**):
+  the app's update button links to it. The Terminal one-liner still works.
 
 ### Fixed
 - Purchase returns: editing a bill can no longer cut a returned line below
