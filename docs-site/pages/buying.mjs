@@ -37,6 +37,7 @@ export default [
 
 <h3>Purchase Records</h3>
 <p>The table lists <b>Date</b>, <b>Supplier</b>, <b>GSTIN</b>, <b>Invoice No</b>, <b>Taxable</b> (value before GST), <b>Tax</b> (GST), <b>Total</b>, <b>Balance due</b> (what is still to pay, in red; a dash when nothing is), <b>Status</b> and <b>Actions</b>, newest first, with a <b>Total</b> row at the bottom. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons at the top of the table save the <a href="#export">purchase register</a>. ${ui('Supplier statement')} beside them opens one supplier's account: see <a href="#supplier-statement">Supplier statement</a>.</p>
+<p>Click a column header (Date, Supplier, Invoice No, Taxable, Tax, Total, Balance due or Status) to sort the list by it: the first click sorts A to Z (oldest or lowest first), the second Z to A (newest or highest first), the third puts the usual order back. A small arrow on the header shows the sort. Each list remembers its sort on this computer and browser.</p>
 <div class="table-wrap"><table>
   <tr><th>On each row</th><th>What it does</th></tr>
   <tr><td><b>Status</b> dropdown</td><td>Unpaid, Partly paid or Paid. Picking Paid or Unpaid saves at once; Partly paid opens the payment window for the amount. See <a href="#mark-paid">Marking a bill paid from the list</a>.</td></tr>
@@ -553,6 +554,7 @@ export default [
 </ul>
 <h3>Expense Records</h3>
 <p>The table lists <b>Date</b>, <b>Description</b>, <b>Category</b>, <b>Vendor</b>, <b>Amount</b>, <b>GST</b> and <b>Mode</b> (how you paid), with a <b>Total</b> row. The pencil opens an expense to change it; the bin deletes it, after asking. The ${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} buttons save the <a href="#export">expense statement</a>.</p>
+<p>Click a column header (Date, Description, Category, Vendor, Amount, GST or Payment, which sorts by what is still due) to sort the list by it: the first click sorts A to Z (oldest or lowest first), the second Z to A (newest or highest first), the third puts the usual order back. A small arrow on the header shows the sort. Each list remembers its sort on this computer and browser.</p>
 <p>With nothing yet, it says <b>No expenses recorded yet.</b>; with filters hiding everything, <b>No expenses match your filters.</b></p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p><b>An expense is missing.</b> Check the year (an expense dated in March belongs to the year that ends that March), the category filter, and the business selected in the sidebar. If old expenses show under every business, see <a href="purchases.html#unassigned">Not assigned to a business</a>.</p></div>

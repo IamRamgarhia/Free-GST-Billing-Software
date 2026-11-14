@@ -44,6 +44,7 @@ import AppFooter from './components/AppFooter';
 import OfflineModeButton from './components/OfflineModeButton';
 import PhonePairButton from './components/PhonePairButton';
 import { isOfflineMode } from './utils/offlineMode';
+import { startView } from './utils/listPrefs';
 import HelpButton from './components/HelpButton';
 import { lockNow } from './utils/appLock';
 import { getPrintSettings } from './utils/printSettings';
@@ -92,7 +93,9 @@ function App() {
     } catch { /* sandboxed history API — fall through */ }
     // 'guide' was the built-in User Guide (removed in v1.10.75).
     const last = sessionStorage.getItem('gst_currentView');
-    return last && last !== 'guide' ? last : 'dashboard';
+    // v1.10.86 - a new tab or window opens on the screen chosen in Customise
+    // Dashboard ("Open the app on"); a reload keeps the screen it was on.
+    return last && last !== 'guide' ? last : startView();
   });
   const [profile, setProfile] = useState(null);
   // v1.10.83 - the menu's own name and logo, as last shown (see `brand` below).

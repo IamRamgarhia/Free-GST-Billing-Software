@@ -21,6 +21,7 @@ export default [
   <tr><td>${ui('New Invoice')}</td><td>Opens a blank invoice.</td></tr>
 </table></div>
 <p><b>Search clients...</b> finds a client by any part of the name, in small or capital letters. The cross clears the search. If nothing matches, or you have no clients yet, you see <b>No clients found.</b> and a ${ui('Add Your First Client')} button.</p>
+<p><b>Sort by</b> beside the search orders the cards: <b>Most owed first</b> (the usual order), <b>Name (A-Z)</b>, <b>Most billed first</b> or <b>Latest invoice first</b>. Your choice is remembered on this computer and browser.</p>
 <p>Your client list is shared by all your businesses, since the same customer may buy from each. The figures on the cards, their invoices, statements and payment history are for the business you are working in; switch business to see another's.</p>
 </section>
 
