@@ -35,8 +35,8 @@ hdiutil detach "$MNT" -quiet
 
 step "Signed (ad-hoc), universal"
 codesign --verify --deep --strict --verbose=2 "$APP"
-lipo -verify_arch "$NODE_BIN" arm64 x86_64
-lipo -verify_arch "$APP/Contents/MacOS/FreeGSTBilling" arm64 x86_64
+lipo "$NODE_BIN" -verify_arch arm64 x86_64
+lipo "$APP/Contents/MacOS/FreeGSTBilling" -verify_arch arm64 x86_64
 "$NODE_BIN" --version
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
 [ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Contents/Info.plist")" = com.dicecodes.freegstbilling ] || fail "bundle id"

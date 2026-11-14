@@ -72,7 +72,7 @@ for arch in arm64 x64; do
 done
 lipo -create -output "$APP/Contents/MacOS/node" \
   "$WORK/node-$NODE_VERSION-darwin-arm64/bin/node" "$WORK/node-$NODE_VERSION-darwin-x64/bin/node"
-lipo -verify_arch "$APP/Contents/MacOS/node" arm64 x86_64
+lipo "$APP/Contents/MacOS/node" -verify_arch arm64 x86_64
 
 # ---- the app's program: runs launcher.sh with bash (Mach-O, so the signature
 # lives inside it rather than in extended attributes a copy could drop) ----
