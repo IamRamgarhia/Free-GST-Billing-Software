@@ -32,7 +32,8 @@ import ScanReturnCard from './ScanReturnCard';
 import { putReorderDraft } from '../utils/reorderDraft';
 // v1.10.86 - sort by column, Customise Dashboard, remembered and saved filters.
 import { useListSort, sortRows, readJson, writeJson, BLOCKS_KEY, normaliseLayout, takeStartScroll } from '../utils/listPrefs';
-import { SlidersHorizontal, Bookmark } from 'lucide-react';
+import { SlidersHorizontal, Bookmark, Columns3 } from 'lucide-react';
+import FilterPopover from './FilterPopover';
 import SortTh from './SortTh';
 import DashboardCustomise from './DashboardCustomise';
 import { promptAction } from './ConfirmModal';
@@ -1492,7 +1493,23 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           {/* v1.10.86 - on a phone Customise sits here, so the header buttons keep to one row. */}
           <button type="button" className="icon-btn dash-customise-phone" onClick={() => setShowCustomise(true)} aria-label="Customise Dashboard" title="Customise Dashboard"><SlidersHorizontal size={16} /></button></>}
         subtitle="Overview of your invoices"
-        meta={`${bills.length} invoice${bills.length === 1 ? '' : 's'}`}>
+        meta={<>{bills.length} invoice{bills.length === 1 ? '' : 's'}
+          {/* v1.10.86 - "Totals for" sits up here, not on a line of its own above the cards. */}
+          {blockOn('totals') && (
+            <span className="card-period">
+              <label htmlFor="card-period">Totals for</label>
+              <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
+                <option value="all">All time</option>
+                <option value="this-month">This month</option>
+                <option value="last-month">Last month</option>
+                <option value="month">Choose a month…</option>
+                {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+              {cardPeriod === 'month' && (
+                <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
+              )}
+            </span>
+          )}</>}>
         <LockButton />
         {/* v1.10.86 - which blocks show, in what order; the screen the app opens on. */}
         <button type="button" className="btn btn-secondary dash-customise-btn" onClick={() => setShowCustomise(true)} title="Customise Dashboard: show, hide and move the blocks of this page" aria-label="Customise Dashboard">
@@ -1644,20 +1661,8 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       )}
 
       {blockOn('totals') && <div style={blockOrder('totals')}>
-      <div className="card-period" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-        <label htmlFor="card-period" className="text-muted" style={{ fontSize: '0.8rem' }}>Totals for</label>
-        <select id="card-period" className="filter-select" value={cardPeriod} onChange={(e) => setCardPeriod(e.target.value)}>
-          <option value="all">All time</option>
-          <option value="this-month">This month</option>
-          <option value="last-month">Last month</option>
-          <option value="month">Choose a month…</option>
-          {fyOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-        {cardPeriod === 'month' && (
-          <input type="month" className="filter-select" aria-label="Month" value={cardMonth} onChange={(e) => setCardMonth(e.target.value)} />
-        )}
-      </div>
-      <div className="stats-grid stats-grid-4">
+      {/* v1.10.86 - dash-totals: label and (?) on one line, every card laid out alike (index.css). */}
+      <div className="stats-grid stats-grid-4 dash-totals">
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue"><IndianRupee size={22} /></div>
           <div style={{ flex: 1 }}>
@@ -1701,7 +1706,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         </div>
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple"><Receipt size={22} /></div>
-          <div><p className="stat-label">Invoices <HelpButton title="Invoices count" doc="dashboard#invoice-count" size={14} /></p><h2 className="stat-value stat-value-purple">{stats.count}</h2></div>
+          <div style={{ flex: 1 }}><p className="stat-label">Invoices <HelpButton title="Invoices count" doc="dashboard#invoice-count" size={14} /></p><h2 className="stat-value stat-value-purple">{stats.count}</h2></div>
         </div>
       </div>
 
@@ -1739,7 +1744,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             );
           })}
         </div>
-        <div className="filters-bar">
+        <div className="filters-bar dash-filters">
           <div className="search-box">
             <Search size={16} className="search-icon" />
             {/* v1.10.86 (#197) - a barcode scanner types the label and presses
@@ -1754,7 +1759,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             <option value="all">All Years</option>
             {fyOptions.map(fy => <option key={fy.value} value={fy.value}>{fy.label}</option>)}
           </select>
-          <select className="filter-select" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+          <select className="filter-select dash-type-select" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
             <option value="all">All Types</option>
             {Object.entries(INVOICE_TYPES).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
           </select>
@@ -1767,18 +1772,31 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
             {/* v1.10.74 - rows can be Cancelled, so the filter needs it too */}
             <option value="cancelled">Cancelled</option>
           </select>
-          {/* v1.10.83 - visible labels: the boxes alone read as "dd-mm-yyyy". */}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>From
-            <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" /></label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>To
-            <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" /></label>
-          {ccOn && <CostCentreFilter centres={centres} value={centreFilter} onChange={setCentreFilter} />}
+          {/* v1.10.86 - From / To and cost centre in one "Dates & more" box, so the row fits on one line. */}
+          <FilterPopover label={ccOn ? 'Dates & more' : 'Dates'} count={[dateFrom, dateTo, ccOn && centreFilter].filter(Boolean).length}>
+            {/* v1.10.83 - visible labels: the boxes alone read as "dd-mm-yyyy". */}
+            <label>From
+              <input type="date" className="filter-date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" /></label>
+            <label>To
+              <input type="date" className="filter-date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To" /></label>
+            {ccOn && <label>Cost centre <CostCentreFilter centres={centres} value={centreFilter} onChange={setCentreFilter} /></label>}
+          </FilterPopover>
           {hasFilters && <button className="icon-btn icon-btn-red" onClick={clearFilters} title="Clear" aria-label="Clear filters"><X size={15} /></button>}
-          <button type="button" className="btn btn-secondary" onClick={() => setShowColumnPicker(v => !v)}
-            title="Choose which columns to show" aria-label="Column picker"
-            style={{ marginLeft: 'auto', fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
-            <FileText size={15} /> Columns
-          </button>
+          {/* v1.10.86 - Quick print is one Print menu here (it was a row of its own); same four choices. */}
+          <span className="dash-filter-end">
+            <ActionsMenu text="Print" icon={Printer} className="btn btn-secondary dash-filter-btn" disabled={bulkBusy}
+              label="Print the invoices shown, as one PDF" items={[
+                { label: `All shown (${filtered.length})`, icon: Download, title: 'Combine all filtered invoices into one PDF', onClick: () => bulkPrintByFilter('all') },
+                // v1.10.74 - label says "only": Partial and Overdue are not included
+                { label: `Unpaid only (${filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})`, icon: Clock, title: 'Only invoices marked Unpaid (not Partial or Overdue)', onClick: () => bulkPrintByFilter('unpaid') },
+                { label: `Overdue (${filtered.filter(b => b.status === 'overdue').length})`, icon: AlertTriangle, onClick: () => bulkPrintByFilter('overdue') },
+                { label: `Paid (${filtered.filter(b => b.status === 'paid').length})`, icon: CheckCircle, onClick: () => bulkPrintByFilter('paid') },
+              ]} />
+            <button type="button" className="btn btn-secondary dash-filter-btn dash-filter-icon" onClick={() => setShowColumnPicker(v => !v)}
+              title="Choose which columns to show" aria-label="Column picker" aria-expanded={showColumnPicker}>
+              <Columns3 size={16} />
+            </button>
+          </span>
           </>)}
         </div>
         {/* v1.10.86 (#197) - a scanned return label names one invoice: show it with Return / credit note. */}
@@ -1835,43 +1853,6 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
               ))}
             </div>
           </div>
-        )}
-
-        {/* v1.9.1 — Quick bulk-print filters. One-click "print everything
-             matching X" without needing to manually tick rows. Useful for
-             month-end filing, wholesale reminders, CA handoffs. */}
-        {folder !== 'trash' && (
-        <div style={{
-          padding: '0.5rem 0.85rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap',
-          alignItems: 'center', borderBottom: '1px solid var(--border)',
-        }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Quick print: <HelpButton title="Quick print" doc="dashboard#quick-print" size={14} />
-          </span>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('all')}
-            title="Combine all filtered invoices into one PDF">
-            <Download size={12} /> All shown ({filtered.length})
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('unpaid')}
-            title="Only invoices marked Unpaid (not Partial or Overdue)">
-            {/* v1.10.74 - label says "only": Partial and Overdue are not included */}
-            <Clock size={12} /> Unpaid only ({filtered.filter(b => (b.status || 'unpaid') === 'unpaid').length})
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('overdue')}>
-            <AlertTriangle size={12} /> Overdue ({filtered.filter(b => b.status === 'overdue').length})
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={bulkBusy}
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
-            onClick={() => bulkPrintByFilter('paid')}>
-            <CheckCircle size={12} /> Paid ({filtered.filter(b => b.status === 'paid').length})
-          </button>
-        </div>
         )}
 
         {/* Bulk-action toolbar — only renders when at least one row is ticked. */}
