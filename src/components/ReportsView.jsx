@@ -347,7 +347,7 @@ export default function ReportsView() {
       {activeTab === 'pl' && (
         <>
           {/* P&L Summary Cards */}
-          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1.5rem' }}>
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', marginBottom: '1.5rem' }}>
             <div className="stat-card">
               <div className="stat-icon stat-icon-green"><TrendingUp size={22} /></div>
               <div><p className="stat-label">Revenue (ex. tax)</p><h2 className="stat-value stat-value-green">{formatCurrency(revenueExTax, shownCurrency)}</h2></div>
@@ -522,7 +522,7 @@ export default function ReportsView() {
               {agingCurrencies.length > 1 && (
                 <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>{cur}</p>
               )}
-              <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+              <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))' }}>
                 <div className="stat-card">
                   <div className="stat-icon stat-icon-blue"><Wallet size={22} /></div>
                   <div><p className="stat-label">Total Outstanding</p><h2 className="stat-value">{formatCurrency(agingByCurrency[cur].total, cur)}</h2></div>
@@ -543,7 +543,7 @@ export default function ReportsView() {
             </div>
           ))}
           {agingCurrencies.length === 0 && (
-            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '1.5rem' }}>
+            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', marginBottom: '1.5rem' }}>
               {['Total Outstanding', 'Current (0-30d)', '31-60 days', '61-90 days', '90+ days'].map(label => (
                 <div key={label} className="stat-card">
                   <div><p className="stat-label">{label}</p><h2 className="stat-value">{formatCurrency(0)}</h2></div>

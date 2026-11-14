@@ -1088,10 +1088,10 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  /* v1.10.33 — Bumped from 900px to 1100px. The 8-column + 8-icon
-     action row needs 1050-1100px to render without ellipsis pressure
-     on Amount / Client. */
-  min-width: 1100px;
+  /* No width floor: cells don't wrap, so a table is as wide as its content
+     and .table-scroll scrolls only when it really is wider. The old 1100 px
+     floor (for the Dashboard's former 8-icon row) cut the last column off
+     every table at 1366 px. */
   /* Financial columns look right when digits align; tabular-nums
      guarantees monospace-style digit widths without a mono font. */
   font-variant-numeric: tabular-nums;

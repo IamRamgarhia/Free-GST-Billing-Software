@@ -1159,7 +1159,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
 
   // Load saved display options from server on mount (overrides localStorage if available)
   useEffect(() => {
-    if (editingSaved) return; // the bill's own options win (see above)
+    // The bill's own options win (see above). v1.10.85 - a duplicate or a
+    // conversion too: these defaults arrived a moment after it opened and put
+    // back the last new invoice's currency (a USD bill's copy came up in INR).
+    if (editingBill?.data) return;
     getInvoiceDisplayOptions().then(serverOpts => {
       if (serverOpts) {
         // v1.10.20 — Strip cross-invoice bleed-through of paymentAccountSnapshot
@@ -1186,7 +1189,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         });
       }
     }).catch(() => {});
-  }, [editingSaved]);
+  }, [editingBill]);
 
   // v1.10.37 — Debounced sessionStorage draft save. Previously the
   // effect ran on EVERY keystroke, stringifying the entire form (20+

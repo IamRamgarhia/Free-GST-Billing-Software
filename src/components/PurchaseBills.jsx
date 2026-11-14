@@ -1869,7 +1869,7 @@ export default function PurchaseBills() {
                   <th style={{ textAlign: 'right' }}>Total</th>
                   <th style={{ textAlign: 'right' }}>Balance due</th>
                   <th>Status</th>
-                  <th className="col-center">Actions</th>
+                  <th className="col-center col-sticky-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1900,7 +1900,7 @@ export default function PurchaseBills() {
                           {PAYMENT_STATUSES.map(s => <option key={s} value={s}>{PURCHASE_STATUS_LABEL[s]}</option>)}
                         </select>
                       </td>
-                      <td>
+                      <td className="col-sticky-actions">
                         <div className="table-actions">
                           {/* v1.10.30 — quick View modal (no download).
                               Modal has a Download PDF button inside for

@@ -285,6 +285,11 @@ a backup is made first.
   every new invoice starts with the customer *Cash Sale*, for counter sales.
 
 ### Fixed
+- **Duplicate** keeps the invoice's currency: a copy of a USD invoice opened
+  in INR. Client list totals of bills in another currency are counted in
+  rupees; the Reports summary cards fit narrow screens; and the Purchases and
+  GST Returns tables fit a 1366 px screen (the Purchases action buttons stay
+  in view).
 - Purchase returns: editing a bill can no longer cut a returned line below
   what went back, or rename or remove it; **Paid** on such a bill records the
   balance less the returns; a bill returned in full owes nothing, round-off

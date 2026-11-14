@@ -730,6 +730,26 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-088 - A duplicated invoice lost its currency
+
+**Version:** v1.10.83 and later · fixed in v1.10.85
+**Reported by:** the maintainer, 14 Nov 2026: "if duplicate the invoice it should auto pick the same currency it currecnlty changes to what i am using for new"
+
+**Symptom** - Duplicate on a USD invoice opened the copy in INR (the currency
+of the last new invoice).
+
+**Cause** - the editor loads the saved defaults for new invoices from the
+server when it opens. Saved bills skipped that load (v1.10.75), but a
+duplicate or a conversion did not: the defaults arrived a moment after the
+bill's own options and replaced them, currency included.
+
+**Rule** - a bill opened from saved data (edit, duplicate, conversion) keeps
+its own options; the defaults for new invoices fill only a blank new invoice.
+
+**Guard** - smoke check "duplicating a USD invoice keeps USD".
+
+---
+
 ## ERR-087 - A non-GST credit note kept its CGST/SGST columns
 
 **Version:** v1.10.84 and earlier · fixed in v1.10.85

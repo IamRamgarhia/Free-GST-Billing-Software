@@ -2356,6 +2356,21 @@ try {
     const made79 = after79.filter((id) => !before79.includes(id));
     check('v79 converting two quotations in a row makes two invoices, neither overwritten', made79.length === 2, made79.join(', '));
     for (const id of made79) await page.evaluate(async (id) => fetch('/api/bills/' + encodeURIComponent(id), { method: 'DELETE' }), id);
+
+    // 14 Nov 2026 (maintainer) - a duplicate keeps its bill's currency. The
+    // saved defaults for new invoices loaded a moment later and put back INR.
+    const usd = { ...quoteOf79('smoketest-dupusd'), invoiceType: 'tax-invoice', currency: 'USD' };
+    usd.data = { ...usd.data, invoiceType: 'tax-invoice', invoiceOptions: { currency: 'USD', exchangeRate: '84' } };
+    await page.evaluate((bill) => {
+      sessionStorage.setItem('gst_editingBill', JSON.stringify({ ...bill, _isDuplicate: true }));
+      sessionStorage.setItem('gst_currentView', 'new'); sessionStorage.removeItem('gst_invoiceDraft');
+    }, usd);
+    await page.reload({ waitUntil: 'networkidle' });
+    await sleep(4000);
+    await dismissFirstRun(page);
+    const dupCur = await page.evaluate(() => [...document.querySelectorAll('select')].map((s) => s.value).filter((v) => /^[A-Z]{3}$/.test(v)));
+    check('duplicating a USD invoice keeps USD', dupCur.includes('USD') && !dupCur.includes('INR'), JSON.stringify(dupCur));
+    await page.evaluate(() => { sessionStorage.removeItem('gst_editingBill'); sessionStorage.removeItem('gst_invoiceDraft'); });
   }
 
   // ---- v1.10.80: Support page payment note names the business ------------

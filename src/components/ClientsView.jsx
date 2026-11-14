@@ -7,6 +7,7 @@ import { getPrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction } from './ConfirmModal';
 import { askPaidMode } from './askPaidMode';
+import { billInInr, baseCurrencyOf } from '../utils/fx';
 import { toast } from './Toast';
 import { clientVisits } from '../utils/phoneClients';
 // v1.10.85 (#157, #148) - PDF preview, payment history, items, credit limit.
@@ -459,11 +460,16 @@ export default function ClientsView({ onEdit, onDuplicate, onNew }) {
 
   const statsByClient = useMemo(() => {
     const map = new Map();
+    const base = baseCurrencyOf(profileForStatement);
     for (const [key, cBills] of billsByClient) {
+      // v1.10.85 - in the business's currency, each invoice at the rate saved
+      // on it (a USD client's totals were summed in dollars but shown in ₹);
+      // one with no rate is left out, as in Outstanding.
+      const inBase = cBills.map((b) => billInInr(b, base)).filter(Boolean);
       // v1.10.74 - only real sales count; credit notes subtract; quotes,
       // challans, proformas and cancelled bills count for nothing.
-      const total = cBills.reduce((s, b) => s + salesSign(b) * (b.totalAmount || 0), 0);
-      const paid = cBills.reduce((s, b) => {
+      const total = inBase.reduce((s, b) => s + salesSign(b) * (b.totalAmount || 0), 0);
+      const paid = inBase.reduce((s, b) => {
         if (salesSign(b) !== 1) return s;
         const fromPayments = (b.payments || []).reduce((ps, p) => ps + (Number(p.amount) || 0), 0);
         if (fromPayments > 0) return s + fromPayments;
