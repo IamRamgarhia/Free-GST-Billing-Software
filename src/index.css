@@ -1223,6 +1223,17 @@ th[aria-sort="descending"] .th-sort::after { content: "\25BC"; opacity: 1; font-
 .client-search-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .client-search-bar .search-box { flex: 1 1 240px; }
 .client-sort { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+/* v1.10.86 (#197) - a scanned return label's invoice, above the invoice list. */
+.scan-return-card { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.6rem 0.85rem; padding: 0.7rem 0.9rem; border: 1.5px solid rgba(var(--primary-rgb), 0.45); border-radius: 10px; background: rgba(var(--primary-rgb), 0.07); color: var(--text-primary); }
+.scan-return-icon { color: var(--primary); flex-shrink: 0; }
+.scan-return-info { flex: 1 1 260px; min-width: 0; }
+.scan-return-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.75rem; font-size: 0.88rem; }
+.scan-return-codes { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; overflow-wrap: anywhere; }
+.scan-return-done { font-size: 0.8rem; font-weight: 600; color: var(--success); margin-top: 0.2rem; }
+.scan-return-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.scan-return-actions .btn { font-size: 0.8rem; padding: 0.4rem 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.scan-return-hint { margin: 0; padding: 0.35rem 1.25rem; font-size: 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+@media (max-width: 600px) { .scan-return-actions { width: 100%; } .scan-return-actions .btn { flex: 1 1 auto; justify-content: center; } }
 /* v1.10.86 - saved filter sets above the invoice list. */
 .saved-filters { padding: 0.5rem 0.85rem; display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
 .saved-filters-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
