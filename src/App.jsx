@@ -516,6 +516,18 @@ function App() {
     setCurrentView('new');
   };
 
+  // v1.10.86 - from a client's account: a new invoice with that client filled
+  // in (InvoiceGenerator picks it up once its defaults are loaded), and the
+  // payment receipt form opened for them.
+  const handleNewInvoiceFor = (client) => {
+    try { sessionStorage.setItem('gst_newInvoiceFor', JSON.stringify({ id: client?.id || '', name: client?.name || '' })); } catch { /* storage blocked */ }
+    handleNewInvoice();
+  };
+  const handleRecordPaymentFor = (clientName) => {
+    try { sessionStorage.setItem('gst_receiptFor', clientName || ''); } catch { /* storage blocked */ }
+    setCurrentView('receipts');
+  };
+
   const handleEditInvoice = (bill) => {
     setEditorKey((k) => k + 1);
     sessionStorage.removeItem('gst_invoiceDraft');
@@ -1128,7 +1140,7 @@ function App() {
              matched view's chunk actually loads; others stay unfetched. */}
         <Suspense fallback={<ViewLoading />}>
         {currentView === 'clients' && (
-          <ClientsView key={businessKey} onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
+          <ClientsView key={businessKey} onNew={handleNewInvoice} onNewFor={handleNewInvoiceFor} onRecordPayment={handleRecordPaymentFor} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
         )}
         {currentView === 'inventory' && (
           // v1.10.83 (#115) - remounted per business, like the screens below, so its production list follows the switch.

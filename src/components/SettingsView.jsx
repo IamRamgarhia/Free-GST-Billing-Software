@@ -24,6 +24,7 @@ import CostCentreSettings from './CostCentreSettings';
 import { BusinessTypePanel, FeaturesPanel, useFeatureDraft } from './FeatureSettings';
 import { rekeyCentres } from '../utils/costCentres';
 import InvoiceNumberSettings from './InvoiceNumberSettings';
+import InvoiceStartSettings from './InvoiceStartSettings';
 import SignatureImages, { SIGN_LAYOUTS } from './SignatureImages';
 import { PURPOSE_CODES } from '../utils/purposeCodes';
 import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, runUpdateNow, getBackupFolder, setBackupFolder } from '../store';
@@ -39,7 +40,7 @@ import { getBackupsList, restoreBackup, triggerBackup, deleteBackup, getTrashedB
 // the app window's "Check for updates", saved tabs) open their tab and scroll
 // to the section.
 const SETTINGS_TABS = [
-  ['tab-company',  'Company',            ['section-biztype', 'section-company', 'section-profiles', 'section-terms']],
+  ['tab-company',  'Company',            ['section-biztype', 'section-company', 'section-profiles', 'section-terms', 'section-newinvoice']],
   ['tab-print',    'Print & PDF',        ['section-print', 'section-region']],
   ['tab-features', 'Features',           ['section-modules', 'section-costcentres', 'section-stock']],
   ['tab-privacy',  'Privacy & Security', ['section-lock', 'section-phone', 'section-privacy']],
@@ -56,7 +57,7 @@ const sectionsOf = (tab) => (SETTINGS_TABS.find(([t]) => t === tab) || SETTINGS_
 const SETTINGS_TAB_DOCS = {
   'section-biztype': 'settings#business-type',
   'section-company': 'settings#company-details', 'section-profiles': 'settings#business-profiles',
-  'section-terms': 'settings#terms', 'section-print': 'print-settings', 'section-modules': 'settings#features',
+  'section-terms': 'settings#terms', 'section-newinvoice': 'settings#new-invoice', 'section-print': 'print-settings', 'section-modules': 'settings#features',
   'section-stock': 'settings#stock', 'section-region': 'settings#region', 'section-lock': 'settings#lock', 'section-phone': 'phone', 'section-privacy': 'security#offline-mode',
   'section-backups': 'backup#automatic-backups', 'section-books': 'backup#close-books', 'section-cloud': 'settings#google-drive', 'section-data': 'backup#export-import',
   'section-updates': 'settings#updates',
@@ -1721,6 +1722,9 @@ export default function SettingsView({ onSaved }) {
           </div>
         </details>
       </div>
+
+      {/* v1.10.86 - what a new invoice starts with (type, due date, GST %, paid by, goods or services). */}
+      <InvoiceStartSettings country={profile?.country} />
 
       {/* ---- Terms Templates ---- */}
       <div id="section-terms" className="glass-panel p-6 mb-6" style={{ order: 3 }}>

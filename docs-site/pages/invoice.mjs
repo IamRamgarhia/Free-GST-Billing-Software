@@ -13,14 +13,14 @@ export default [
 <h2>How the screen is laid out</h2>
 <p>Open it with ${ui('New Invoice')} in the sidebar, or <kbd>Ctrl</kbd> + <kbd>N</kbd>. The same screen opens when you edit, duplicate or convert an invoice from the Dashboard. The form is on the left and a live preview of the printed invoice is on the right. From top to bottom, the form has these cards:</p>
 <ol>
-  <li><a href="#invoice-types"><b>Invoice Type</b></a>: the kind of document, and whether it is for goods or services. The ${ui('Customize')} panel opens inside this card.</li>
-  <li><a href="#billed-to"><b>Billed To</b></a>: the client's name, address, state and GSTIN.</li>
-  <li><a href="#details"><b>Invoice Details</b></a>: number, dates, place of supply, the <a href="#ship-to">Ship to</a> address and the optional <a href="#order-details">order, dispatch and reference details</a>.</li>
+  <li><a href="#invoice-types"><b>Document type</b></a>: the kind of document (a drop-down), and whether it is for goods or services. The ${ui('Customize')} panel opens inside this card.</li>
+  <li><a href="#billed-to"><b>Billed To</b></a>: the client's name. Their address, state, GSTIN and the <a href="#ship-to">Ship to</a> address are under <b>More client details</b>.</li>
   <li><a href="#items"><b>Line Items</b></a>: what you are selling, with the <a href="#discounts">whole-bill discount</a> and <a href="#received-now">Received now</a> under them.</li>
-  <li><a href="#terms-notes"><b>Terms &amp; Conditions</b></a>: terms, notes for the client and a private note for you.</li>
-  <li><a href="#extra-pages"><b>Additional Pages / Sections</b></a>: extra pages printed after the invoice.</li>
+  <li><a href="#details"><b>Invoice Details</b></a>: number, dates and place of supply. The <a href="#order-details">order, dispatch and reference details</a>, the payment-details switches and the cost centre are under <b>More invoice details</b>.</li>
+  <li>One card with <a href="#terms-notes"><b>Terms &amp; Conditions</b></a>, <b>Notes / Remarks</b>, a <a href="#private-note"><b>Private note</b></a> and <a href="#extra-pages"><b>Additional pages / sections</b></a>.</li>
 </ol>
-<p>The totals are not typed anywhere. They are worked out as you type and shown in the <a href="#preview">live preview</a>.</p>
+<p id="folded"><b>Parts that open on click.</b> More client details, More invoice details, Terms, Notes, the Private note and Additional pages are folded to keep the screen short. Click the title (or the arrow before it) to open one. While closed, the line under the title says what is in it, such as <i>Standard (5 lines)</i> for the terms or <i>Bengaluru, Karnataka · GSTIN 29AAP…</i> for the client. Nothing is gone: everything is one click away, and what is filled in still prints.</p>
+<p id="total-bar">The totals are not typed anywhere. They are worked out as you type: the bar beside the Save button shows the number of items, the <b>Taxable</b> value, the <b>GST</b>, the <b>Total</b> and, when you fill in <a href="#received-now">Received now</a>, what was <b>Received</b> and the <b>Balance</b>. The bar stays on screen as you scroll (on a phone it is under the Back button). The <a href="#preview">live preview</a> shows the whole invoice.</p>
 <p>Every card title has a small ${ui('?')} next to it. It opens this guide at the part about that card.</p>
 <figure><img src="assets/img/app-invoice-editor.png" alt="The invoice screen: the form on the left, the live preview on the right." loading="lazy"><figcaption>The invoice screen: the form on the left, the live preview on the right.</figcaption></figure>
 </section>
@@ -47,10 +47,11 @@ export default [
 </section>
 
 <section id="invoice-types">
-<h2>Invoice Type: choosing the document</h2>
-<p>The chips at the top of the first card decide the printed title, the number series, whether GST is charged, and whether the document counts as a sale in your totals and GST returns. Hover over a chip to see a one-line description; the same line shows under the chips for the one you picked.</p>
+<h2>Document type: choosing the document</h2>
+<p>The <b>Document type</b> drop-down at the top of the first card decides the printed title, the number series, whether GST is charged, and whether the document counts as a sale in your totals and GST returns. A one-line description of the type you picked shows under it.</p>
+<p>A new invoice starts as the type you used last. To always start with one type, choose it in <a href="settings.html#new-invoice">Settings, Company, New invoice starts with</a>.</p>
 <div class="table-wrap"><table>
-  <tr><th>Chip</th><th>Prints as</th><th>Numbered</th><th>Use it for</th><th>GST</th><th>Counts as a sale?</th></tr>
+  <tr><th>Type</th><th>Prints as</th><th>Numbered</th><th>Use it for</th><th>GST</th><th>Counts as a sale?</th></tr>
   <tr><td>Tax Invoice</td><td>TAX INVOICE</td><td>INV…</td><td>A normal sale by a GST-registered business</td><td>Yes</td><td>Yes</td></tr>
   <tr><td>Quotation</td><td>QUOTATION</td><td>QUO…</td><td>A priced offer for work or supply. Convert it to a tax invoice when the client accepts.</td><td>Shown</td><td>No</td></tr>
   <tr><td>Sales Order</td><td>SALES ORDER</td><td>SO…</td><td>The customer's confirmed order, sent in parts with delivery challans and then invoiced. Only when <a href="#sales-orders">Sales orders</a> are turned on.</td><td>Shown</td><td>No</td></tr>
@@ -61,28 +62,28 @@ export default [
   <tr><td>Delivery Challan</td><td>DELIVERY CHALLAN</td><td>DC…</td><td>Moving goods without a sale, such as to a job worker or on approval</td><td>No</td><td>No</td></tr>
 </table></div>
 <p>The prefixes above are the defaults. You can change each one in <a href="settings.html#invoice-numbers">Settings, Invoice number format</a> or <a href="print-settings.html#prefixes">Print Settings</a>.</p>
-<h3>What changes when you click a chip</h3>
+<h3>What changes when you pick a type</h3>
 <ul>
   <li><strong>The number</strong> moves to that type's own series. Any number you typed is replaced.</li>
   <li><strong>Charge GST on this invoice</strong> is turned on for types with GST and off for the others (bill of supply, composition, delivery challan). <b>Place of Supply</b> is shown or hidden the same way.</li>
   <li><strong>The title</strong> printed at the top changes, unless you typed your own <a href="invoice-options.html#title-currency">Invoice Title</a>.</li>
 </ul>
-<p><strong>Once an invoice is saved, its type is locked.</strong> The other chips are greyed out and a note under them says why: the number and the tax already issued to your client must not change. To make a different document from it, use ${ui('Duplicate')} on the <a href="dashboard.html#row-actions">Dashboard</a>. A quotation, proforma or challan is turned into an invoice with ${ui('Convert to Tax Invoice')} (see <a href="#proforma-to-invoice">Turning a quote into an invoice</a>).</p>
+<p><strong>Once an invoice is saved, its type is locked.</strong> The drop-down is greyed out and a note under it says why: the number and the tax already issued to your client must not change. To make a different document from it, use ${ui('Duplicate')} on the <a href="dashboard.html#row-actions">Dashboard</a>. A quotation, proforma or challan is turned into an invoice with ${ui('Convert to Tax Invoice')} (see <a href="#proforma-to-invoice">Turning a quote into an invoice</a>).</p>
 <div class="note tip"><strong>Something wrong?</strong>
-<p><b>No GST box on the items, or no tax on a new tax invoice?</b> <b>Charge GST on this invoice</b> is remembered for the next invoice. After making a bill of supply or a challan, the next new invoice can start without it. Click the ${ui('Tax Invoice')} chip again, or tick <b>Charge GST on this invoice</b> under ${ui('Customize')} (group <b>Tax</b>). See <a href="troubleshooting.html#no-tax">No GST is charged at all</a>.</p>
-<p><b>The chips are greyed out.</b> The invoice is already saved. Use Duplicate to make a new document of another type.</p></div>
+<p><b>No GST box on the items, or no tax on a new tax invoice?</b> <b>Charge GST on this invoice</b> is remembered for the next invoice. After making a bill of supply or a challan, the next new invoice can start without it. Pick ${ui('Tax Invoice')} in the drop-down again, or tick <b>Charge GST on this invoice</b> under ${ui('Customize')} (group <b>Tax</b>). See <a href="troubleshooting.html#no-tax">No GST is charged at all</a>.</p>
+<p><b>The type is greyed out.</b> The invoice is already saved. Use Duplicate to make a new document of another type.</p></div>
 </section>
 
 <section id="goods-services">
 <h2>Goods, services or both</h2>
-<p>Under the type chips, <b>This invoice is for:</b> sets which units the Unit list offers and which unit a new row starts with. It does not change the tax.</p>
+<p>Beside the document type, <b>This invoice is for</b> (Goods, Services or Mixed) sets which units the Unit list offers and which unit a new row starts with. It does not change the tax.</p>
 <div class="table-wrap"><table>
-  <tr><th>Chip</th><th>Units offered</th><th>Good for</th></tr>
-  <tr><td>📦 Goods</td><td>Pcs, Nos, Kg, g, Tonne, Ltr, ml, Mtr, cm, Ft, In, Rft, Sq.ft, Sq.m, Box, Dozen, Pair, Set, Bag, Roll, Bottle and the like. The default.</td><td>Shops, traders, manufacturers</td></tr>
-  <tr><td>⏱ Services</td><td>Hrs, Day, Week, Month, Year, Visit, Session, Project, Word, Page, plus Nos, Sq.ft and Sq.m. A reminder appears to use a <b>SAC code</b> (the services version of HSN) in the HSN/SAC box. Terms print in the <b>Formatted</b> layout unless you choose otherwise.</td><td>Freelancers, consultants, repair and service businesses</td></tr>
-  <tr><td>🔀 Mixed</td><td>Every unit, unfiltered.</td><td>Selling goods and doing the work, such as supply and installation</td></tr>
+  <tr><th>Choice</th><th>Units offered</th><th>Good for</th></tr>
+  <tr><td>Goods</td><td>Pcs, Nos, Kg, g, Tonne, Ltr, ml, Mtr, cm, Ft, In, Rft, Sq.ft, Sq.m, Box, Dozen, Pair, Set, Bag, Roll, Bottle and the like. The default.</td><td>Shops, traders, manufacturers</td></tr>
+  <tr><td>Services</td><td>Hrs, Day, Week, Month, Year, Visit, Session, Project, Word, Page, plus Nos, Sq.ft and Sq.m. A reminder appears to use a <b>SAC code</b> (the services version of HSN) in the HSN/SAC box. Terms print in the <b>Formatted</b> layout unless you choose otherwise.</td><td>Freelancers, consultants, repair and service businesses</td></tr>
+  <tr><td>Mixed</td><td>Every unit, unfiltered.</td><td>Selling goods and doing the work, such as supply and installation</td></tr>
 </table></div>
-<p>Your own custom units show in every mode. The choice is remembered for your next invoice.</p>
+<p>Your own custom units show in every mode. The choice is remembered for your next invoice, unless <a href="settings.html#new-invoice">Settings, New invoice starts with</a> names one.</p>
 <p><b>A service with no quantity (a fixed fee).</b> Keep the line's quantity at 1 and type the fee as the rate. Then click ${ui('Customize')} and untick <b>Qty column</b> (see <a href="invoice-options.html#show-items">Items table</a>): the invoice prints the item and its amount with no Qty column. Untick <b>Rate column</b> too if you want only the amount. Totals and GST do not change. The choice carries on to your next new invoices, so tick it again for an invoice that needs quantities; invoices already saved keep their own setting.</p>
 <p>In <b>Services</b> mode the unit list starts with the units services use most: Hrs, Day, Month, Project and Nos. The HSN/SAC box of each line is labelled <b>SAC</b>, and the unit is not printed next to the quantity unless you turn it on (see <a href="invoice-options.html#show-items">Unit next to Qty</a>).</p>
 <p><b>A Services invoice shows only what services need.</b> The <b>Freelancer / consultant</b> business type starts every invoice in Services mode. There, the screen leaves out:</p>
@@ -92,13 +93,13 @@ export default [
   <li>the <b>Ship to</b> box;</li>
   <li>the goods boxes under <b>Order, dispatch &amp; reference details</b> (vehicle no, delivery note, dispatch, destination, terms of delivery). The PO number, service period and work details stay.</li>
 </ul>
-<p>The <b>Discount</b> on a line is just an amount or a percent, and the discount on the whole bill is behind ${ui('+ Discount on the whole bill')}. Anything already filled in still shows. Click <b>📦 Goods</b> or <b>🔀 Mixed</b> to get every box back.</p>
+<p>The <b>Discount</b> on a line is just an amount or a percent, and the discount on the whole bill is behind ${ui('+ Discount on the whole bill')}. Anything already filled in still shows. Click <b>Goods</b> or <b>Mixed</b> to get every box back.</p>
 <p><b>Long item names.</b> The item box grows as you type, so a long name stays readable. Drag its bottom corner to make it taller. Press <kbd>Enter</kbd> to add the next row; a name stays on one line. Use ${ui('+ Add description')} for more detail under the item.</p>
 </section>
 
 <section id="billed-to">
 <h2>Billed To: the client</h2>
-<p>This card says who the invoice is for. Their name, address, state and GSTIN print in the <b>BILL TO</b> block. The <b>state</b> matters most: it decides whether GST is charged as CGST + SGST or as IGST (see <a href="#gst">How GST is worked out</a>).</p>
+<p>This card says who the invoice is for. Their name, address, state and GSTIN print in the <b>BILL TO</b> block. Only the name is open on the card: the rest is under <b>More client details</b>, whose line shows the city, state, GSTIN and phone that are filled in. Picking a saved client fills them all in; click <b>More client details</b> to check or type them. The <b>state</b> matters most: it decides whether GST is charged as CGST + SGST or as IGST (see <a href="#gst">How GST is worked out</a>).</p>
 <div class="table-wrap"><table>
   <tr><th>Field</th><th>What to enter</th></tr>
   <tr><td>Client Name</td><td>Click it to see your saved clients, or type to search. Pick one to fill in everything below. You can also bill a name that is not saved.</td></tr>
@@ -162,12 +163,12 @@ export default [
 
 <section id="details">
 <h2>Invoice Details</h2>
-<p>The number, the dates and where the supply happens. Under them are the <a href="#ship-to">Ship to</a> box and the <a href="#order-details">order, dispatch and reference details</a>.</p>
+<p>The number, the dates and where the supply happens. This card comes after the items. Under it, <b>More invoice details</b> opens the <a href="#order-details">order, dispatch and reference details</a>, the <b>Payment details on the invoice</b> switches (bank details, UPI QR), the cost centre and the purpose code; its line says what is filled in.</p>
 <div class="table-wrap"><table>
   <tr><th>Field</th><th>What to know</th></tr>
   <tr><td>Invoice Number</td><td>Filled in with the next number for this type. It is only taken when you first save, so an invoice you abandon does not use up a number. If another invoice took it meanwhile, yours gets the next free number and you are told. You can also type your own number, such as the next page of a paper bill book: a number you type is kept. See <a href="settings.html#invoice-numbers">Invoice number format</a>.</td></tr>
   <tr><td>Invoice Date</td><td>Today, unless you change it. A duplicated or converted invoice starts on today's date too.</td></tr>
-  <tr><td>Due Date</td><td>Blank unless you set it. Once it passes, an unpaid invoice shows as <b>Overdue</b> on the Dashboard.</td></tr>
+  <tr><td>Due Date</td><td>Blank unless you set it, or as <a href="settings.html#new-invoice">New invoice starts with</a> says. Once it passes, an unpaid invoice shows as <b>Overdue</b> on the Dashboard.</td></tr>
   <tr><td>Cost centre</td><td>Only when cost centres are turned on. Tags the sale to a branch, project or department for the <a href="reports.html#cost-centres">By cost centre</a> report. It is not printed.</td></tr>
   <tr><td>Place of Supply</td><td>The state where the goods are delivered or the service is supplied. Leave it on <b>Defaults to Client State</b> unless that is a different state from the client's address. The tax split follows it. Not shown for bills of supply, composition bills or delivery challans, or when <b>Place of Supply</b> is turned off under Customize.</td></tr>
   <tr><td>Original Invoice Reference</td><td>Credit notes only: the invoice it is against, such as INV/2025-26/0001. It prints as "Against Invoice".</td></tr>
@@ -208,7 +209,7 @@ export default [
 
 <section id="ship-to">
 <h3>Ship to: a different delivery address</h3>
-<p><b>Ship to same as bill-to address</b> is ticked to start, so the invoice has only a BILL TO block. When the goods go somewhere else, such as a site, a warehouse or the client's customer, untick it and fill in:</p>
+<p>Under <b>More client details</b> on the Billed To card, <b>Ship to same as bill-to address</b> is ticked to start, so the invoice has only a BILL TO block. When the goods go somewhere else, such as a site, a warehouse or the client's customer, untick it and fill in:</p>
 <div class="table-wrap"><table>
   <tr><th>Field</th><th>What to enter</th></tr>
   <tr><td>Shipping Address</td><td>The delivery address, warehouse or consignee location. Can run to two lines.</td></tr>
@@ -223,7 +224,7 @@ export default [
 
 <section id="order-details">
 <h3>Order, dispatch and reference details</h3>
-<p>At the bottom of Invoice Details, click <b>Order, dispatch &amp; reference details</b> to open a set of optional boxes, the ones a Tally invoice carries. It shows how many are filled, and stays open on an invoice that has any of them.</p>
+<p>At the bottom of Invoice Details, click <b>More invoice details</b> to open a set of optional boxes, the ones a Tally invoice carries. While closed it says how many are filled. It opens by itself when you have named fields of your own.</p>
 <div class="table-wrap"><table>
   <tr><th>Box</th><th>For example</th></tr>
   <tr><td>Work details</td><td>Supply and installation of high mast lights, scope as per annexure</td></tr>
@@ -324,7 +325,7 @@ export default [
 <p>For a cash sale, or any sale paid on the spot, record the payment while you make the invoice. Under the items, on a Tax Invoice, Bill of Supply or Composition Bill:</p>
 <ol>
   <li>Type the amount in <b>Received now</b>, or click ${ui('Full')} to fill in the balance of the invoice (the total, less any TDS the client deducts).</li>
-  <li>Choose how it was paid: Cash, UPI, Bank transfer, Cheque, Card or Other. The last choice is offered first next time.</li>
+  <li>Choose how it was paid: Cash, UPI, Bank transfer, Cheque, Card or Other. The last choice is offered first next time, unless <a href="settings.html#new-invoice">Settings, New invoice starts with</a> names one.</li>
   <li>Save the invoice.</li>
 </ol>
 <p>Saving records the payment on the invoice exactly as ${ui('₹')} on the Dashboard does: dated with the invoice date, with its receipt in <a href="receipts.html">Receipts</a>. The invoice becomes <b>Paid</b>, or <b>Partly paid</b> for part of it. A <b>Cash</b> payment also goes into the <a href="cash-book.html#from-elsewhere">Cash book</a>, once.</p>
@@ -460,7 +461,7 @@ export default [
 
 <section id="terms-notes">
 <h2>Terms &amp; Conditions, notes and a private note</h2>
-<p>The fourth card holds three boxes: the <b>Terms</b> that print at the foot of the invoice, <b>Notes / Remarks</b> for the client, and a <b>Private Note</b> only you see.</p>
+<p>The last card holds the <b>Terms</b> that print at the foot of the invoice, <b>Notes / Remarks</b> for the client, a <b>Private note</b> only you see, and <a href="#extra-pages">Additional pages</a>. Each opens on click. Closed, the line under the title says what is in it: the template and how many lines for the terms (<i>Standard (5 lines)</i>), the first words of a note, or <i>none</i>. <i>not printed</i> is added when its Print box is unticked.</p>
 <h3>Terms</h3>
 <p>A text box with a small toolbar: <b>B</b>, <i>I</i>, <u>U</u>, ${ui('• List')}, ${ui('1. List')}, ${ui('H')} for a heading, ${ui('¶')} for a normal paragraph, ${ui('🔗')} to turn the selected words into a link, and ${ui('✕')} to clear formatting. You can paste from Word or Google Docs.</p>
 <ul>
@@ -476,7 +477,7 @@ export default [
 
 <section id="terms-layout">
 <h3>PDF layout: Compact or Formatted</h3>
-<p>On the right of the Terms &amp; Conditions title, <b>PDF layout</b> chooses how the terms and notes print:</p>
+<p>Inside Terms &amp; Conditions, beside <b>Print on invoice</b>, <b>PDF layout</b> chooses how the terms and notes print:</p>
 <div class="table-wrap"><table>
   <tr><th>Choice</th><th>Prints</th><th>Good for</th></tr>
   <tr><td>Compact</td><td>Small footer text, to save paper</td><td>Standard boilerplate terms on goods invoices</td></tr>
@@ -487,14 +488,14 @@ export default [
 
 <section id="private-note">
 <h3>Private Note (not shown on invoice)</h3>
-<p>The yellow box at the bottom of the card is only for you, such as <i>Client asked for 15-day credit, follow up on 20th, referred by Ravi</i>. It is saved with the invoice but never prints or goes to the client. On the Dashboard, a yellow note icon next to the client shows it.</p>
+<p>Click <b>Private note</b> in the last card. The yellow box is only for you, such as <i>Client asked for 15-day credit, follow up on 20th, referred by Ravi</i>. It is saved with the invoice but never prints or goes to the client. On the Dashboard, a yellow note icon next to the client shows it.</p>
 </section>
 
 <section id="extra-pages">
 <h2>Additional Pages / Sections</h2>
 <p>Extra pages printed <em>after</em> the invoice, such as a scope of work, a delivery timeline, a warranty card or a price breakup. Each section prints as its own page in the PDF.</p>
 <ol class="steps">
-  <li><strong>Add a section</strong>Click ${ui('Add Section')} at the top right of the card.</li>
+  <li><strong>Add a section</strong>Click <b>Additional pages / sections</b> in the last card to open it, then ${ui('Add Section')}.</li>
   <li><strong>Give it a title</strong>For example <i>Scope of Work</i> or <i>Delivery Timeline</i>. It prints as the page heading.</li>
   <li><strong>Write or paste the content</strong>Type, or paste formatted text, lists and tables from Word or Google Docs; the formatting is kept.</li>
   <li><strong>Order them</strong>The up and down arrows move a section. The red bin removes it.</li>
@@ -506,7 +507,7 @@ export default [
 
 <section id="preview">
 <h2>The live preview</h2>
-<p>The <b>Live preview</b> on the right shows the invoice exactly as it will print, with the paper size, style and options you chose, and updates as you type. ${ui('−')} and ${ui('+')} zoom out and in from 50% to 200%, and ${ui('Fit')} fits it to the width of the space. The zoom is remembered.</p>
+<p>The <b>Live preview</b> on the right shows the invoice exactly as it will print, with the paper size, style and options you chose, and updates as you type. It opens fitted to the width of its space, so the amounts on the right are never cut off, and stays fitted when the window or the paper size changes; ${ui('Fit')} is lit while it does. ${ui('−')} and ${ui('+')} zoom out and in (30% to 200%) and switch fitting off until you click ${ui('Fit')} again. The choice is remembered.</p>
 <ul>
   <li>A cancelled invoice shows CANCELLED across it; a proforma shows a faint ESTIMATE.</li>
   <li>On a thermal paper size the preview is a narrow receipt.</li>

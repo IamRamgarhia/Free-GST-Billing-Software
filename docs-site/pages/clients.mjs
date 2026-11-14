@@ -147,7 +147,7 @@ export default [
 <figure><img src="${img('app-clients.png')}" alt="A client opened, with their invoices, ageing strip and PDFs." loading="lazy"><figcaption>A client opened, with their invoices, ageing strip and PDFs.</figcaption></figure>
 <p>From top to bottom:</p>
 <ol>
-  <li>${ui('Show items')}, ${ui('Statement PDF')} and ${ui('Aging PDF')}: see <a href="#statement">Statement and ageing PDFs</a>.</li>
+  <li>${ui('New invoice')}, ${ui('Record payment')} and ${ui('Send reminder')}: see <a href="#quick-actions">Quick actions</a>. On the right, ${ui('Show items')}, ${ui('Statement PDF')} and ${ui('Aging PDF')}: see <a href="#statement">Statement and ageing PDFs</a>.</li>
   <li>The <b>Aging</b> strip, when they owe you anything: see <a href="#ageing">Ageing</a>.</li>
   <li>Their address, email and phone, if saved.</li>
   <li>All their invoices, newest first.</li>
@@ -155,6 +155,17 @@ export default [
   <li>${ui('Edit Client')} and ${ui('Delete Client')}, or ${ui('Save as Client')}.</li>
 </ol>
 <p>A client with no invoices shows <b>No invoices for this client yet.</b> and a ${ui('Create Invoice')} button.</p>
+</section>
+
+<section id="quick-actions">
+<h3>Quick actions</h3>
+<p>The buttons at the top left of an opened client:</p>
+<div class="table-wrap"><table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td>${ui('New invoice')}</td><td>Opens <a href="invoices.html">New Invoice</a> with this client already filled in: name, address, state, GSTIN, and their paper size and currency if saved with them.</td></tr>
+  <tr><td>${ui('Record payment')}</td><td>Opens a <a href="receipts.html#new-receipt">new payment receipt</a> for this client. <b>Quick Select</b> lists only their unpaid invoices: pick one to pay it, or type the amount as an advance.</td></tr>
+  <tr><td>${ui('Send reminder')}</td><td>Shown when they owe you something. Opens WhatsApp at their chat (their saved phone, or the one on their invoices) with a short message: the balance and their unpaid invoices, oldest first, with how many days ago each was due. Read it, then press send. For one invoice only, use <a href="dashboard.html#remind-all">Send reminder</a> on the Dashboard.</td></tr>
+</table></div>
 </section>
 
 <section id="client-invoices">

@@ -7,7 +7,7 @@
 import {
   clientPaymentHistory, latestPaymentDate, statementItems, itemLabel, clientOutstanding,
   creditLimitCheck, findSavedClient, statementShareMessage, agingShareMessage,
-  clientAccount, thisInvoiceDue, paidTowards, missingRateNote,
+  clientAccount, thisInvoiceDue, paidTowards, missingRateNote, balanceReminderMessage,
 } from '../src/utils/clientLedger.js';
 
 let passed = 0, failed = 0;
@@ -116,6 +116,19 @@ ok(thisInvoiceDue({ totals: { total: 1100, tdsAmount: 100 } }, dice).amount === 
 ok(thisInvoiceDue({ totals: { total: 10 }, currency: 'USD', exchangeRate: 80 }, dice).amount === 800, 'an invoice in USD at its rate', '');
 ok(thisInvoiceDue({ totals: { total: 10 }, currency: 'USD' }, dice).missing === 'USD', 'an invoice in USD with no rate is named', '');
 ok(paidTowards({ payments: [{ amount: 900 }, { amount: -300, mode: 'credit-transferred-out' }] }) === 900, 'paid on it: credit moved to another invoice is not taken off', '');
+
+// 4. v1.10.86 - Send reminder: the balance, the unpaid invoices oldest first, which are late.
+const rem = balanceReminderMessage('Sharma Traders', [
+  { number: 'INV/2', outstanding: 500, dueDate: '2026-11-10' },
+  { number: 'INV/1', outstanding: 1180, dueDate: '2026-10-15' },
+  { number: 'INV/3', outstanding: 0, dueDate: '' },
+], dice, '2026-11-14');
+const remLines = rem.split('\n');
+ok(/balance of ₹1,680\.00/.test(remLines[0]), 'says the whole balance', remLines[0]);
+ok(/INV\/1.*30 days ago/.test(remLines[1]) && /INV\/2.*4 days ago/.test(remLines[2]), 'oldest first, with how late', remLines);
+ok(!rem.includes('INV/3') && remLines[remLines.length - 1] === '- DiceCodes', 'leaves out paid invoices, signed by the business', remLines);
+const many = balanceReminderMessage('X', Array.from({ length: 7 }, (_, i) => ({ number: `N${i}`, outstanding: 1 })), dice, '2026-11-14');
+ok(many.includes('- and 2 more') && !many.includes('N5'), 'five invoices at most', many);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
