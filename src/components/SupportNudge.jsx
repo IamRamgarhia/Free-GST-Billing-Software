@@ -2,7 +2,7 @@
 // milestone card every 120 days). The maintainer asked to be in front of
 // users every day: once a business has made a few invoices, the card shows
 // once a day with the live supporters total. "Not today" hides it until
-// tomorrow, "Hide for 30 days" for a month. Never a popup, never blocks work,
+// tomorrow, "Hide for 7 days" for a week. Never a popup, never blocks work,
 // never printed on an invoice. Per browser (localStorage), which is fine for a
 // reminder: losing it only means one more card.
 import { useState } from 'react';
@@ -63,7 +63,7 @@ export default function SupportNudge({ invoiceCount, onOpen }) {
         style={{ fontSize: '0.82rem' }}>Not today</button>
       <button type="button" onClick={() => save({ ...state, snoozedUntil: now.getTime() + SNOOZE_DAYS * 86400000 })}
         style={{ background: 'none', border: 0, color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem', fontSize: '0.78rem', textDecoration: 'underline' }}>
-        Hide for 30 days
+        Hide for 7 days
       </button>
     </div>
   );

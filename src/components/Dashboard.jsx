@@ -279,6 +279,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // Anything that cannot be attributed to a business is SHOWN, never hidden.
   // See belongsToProfile() in utils.js for why that matters here.
   const [allBills, setBills] = useState([]);
+  // v1.10.86 (maintainer: "that thank you banner comes and goes on refresh") -
+  // the thank-you and support cards wait for the real invoice count; with 0
+  // while loading they flashed up and vanished.
+  const [billsLoaded, setBillsLoaded] = useState(false);
   const [profileState, setProfileState] = useState(null);
 
   // v1.10.65 — requested (#58 item 1, @sangwanmail-eng): "Dashboard should
@@ -572,6 +576,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       // Headline totals are derived from the business-filtered list (`stats`).
       setBills(data);
+      setBillsLoaded(true);
     } catch {
       toast('Failed to load invoices', 'error');
     }
@@ -1637,7 +1642,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       {/* v1.10.86 - each block in a wrapper whose CSS order follows Customise Dashboard. */}
       {blockOn('welcome') && <div style={blockOrder('welcome')}>
-      {onOpenSupport && <WelcomeCard invoiceCount={bills.length} onOpenSupport={onOpenSupport} />}
+      {onOpenSupport && billsLoaded && <WelcomeCard invoiceCount={bills.length} onOpenSupport={onOpenSupport} />}
 
       {startedSteps && (
         <div className="glass-panel p-6 mb-6">
@@ -1681,7 +1686,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
 
       </div>}
 
-      {blockOn('support') && !startedSteps && onOpenSupport && <div style={blockOrder('support')}><SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} /></div>}
+      {blockOn('support') && !startedSteps && onOpenSupport && billsLoaded && <div style={blockOrder('support')}><SupportNudge invoiceCount={bills.length} onOpen={onOpenSupport} /></div>}
 
       {blockOn('overdue') && overdueBills.length > 0 && (
         <div className="overdue-banner" onClick={() => { setStatusFilter('overdue'); }}

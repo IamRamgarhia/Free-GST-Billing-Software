@@ -78,7 +78,7 @@ export default [
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Support with UPI')}</td><td>Opens <a href="shortcuts.html#support">Support &amp; About</a>, and hides the card for the rest of the day.</td></tr>
   <tr><td>${ui('Not today')}</td><td>Hides it until tomorrow.</td></tr>
-  <tr><td>${ui('Hide for 30 days')}</td><td>Hides it for a month.</td></tr>
+  <tr><td>${ui('Hide for 7 days')}</td><td>Hides it for a week.</td></tr>
 </table>
 <p>It never blocks your work, is never a pop-up, and is never printed on an invoice. It is remembered per browser, so a different browser or computer may show it again.</p>
 </section>
