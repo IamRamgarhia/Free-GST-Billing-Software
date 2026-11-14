@@ -42,11 +42,11 @@ const NEW = (find) => ({ view: 'new', action: 'new-invoice', ...(find ? { find }
 export const HOW_TO = [
   // ---- Sales ----
   { q: 'How do I make an invoice?', k: 'new bill create sale tax invoice bill kaise banaye banana banao naya', go: NEW(), doc: 'first-invoice#walkthrough', pop: true },
-  { q: 'How do I make a credit note?', k: 'return refund sales return goods back maal wapas cn', go: NEW('Invoice Type'), doc: 'invoices#credit-note', pop: true },
-  { q: 'How do I make a quotation or estimate?', k: 'quote proforma estimate offer rate list', go: NEW('Invoice Type'), doc: 'invoices#invoice-types' },
+  { q: 'How do I make a credit note?', k: 'return refund sales return goods back maal wapas cn', go: NEW('Document type'), doc: 'invoices#credit-note', pop: true },
+  { q: 'How do I make a quotation or estimate?', k: 'quote proforma estimate offer rate list', go: NEW('Document type'), doc: 'invoices#invoice-types' },
   { q: 'How do I turn a quotation into an invoice?', k: 'convert quote proforma to invoice', go: { view: 'dashboard', find: 'Invoices' }, doc: 'invoices#proforma-to-invoice' },
-  { q: 'How do I make a delivery challan?', k: 'challan dispatch delivery note dc', go: NEW('Invoice Type'), doc: 'invoices#invoice-types' },
-  { q: 'How do I take a sales order?', k: 'order booking advance order sales order', go: NEW('Invoice Type'), doc: 'invoices#sales-orders' },
+  { q: 'How do I make a delivery challan?', k: 'challan dispatch delivery note dc', go: NEW('Document type'), doc: 'invoices#invoice-types' },
+  { q: 'How do I take a sales order?', k: 'order booking advance order sales order', go: NEW('Document type'), doc: 'invoices#sales-orders' },
   { q: 'How do I record a part payment?', k: 'partial payment received paid some amount jama advance installment kisht', go: { view: 'dashboard', find: 'Invoices' }, doc: 'dashboard#payments', pop: true },
   { q: 'How do I make a payment receipt?', k: 'receipt voucher money received parchi raseed rasid', go: { view: 'receipts' }, doc: 'receipts#new-receipt' },
   { q: 'How do I send an invoice on WhatsApp?', k: 'whatsapp share send pdf message bhejna bheje', go: { view: 'dashboard', find: 'Invoices' }, doc: 'dashboard#share', pop: true },

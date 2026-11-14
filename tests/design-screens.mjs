@@ -66,7 +66,8 @@ export const SCREENS = [
   {
     name: 'new-invoice-customize',
     go: async (page) => {
-      await page.locator('.generator-toolbar button', { hasText: /Customize/ }).first().click();
+      // v1.10.86 - Customize is in the Document type card (it was in the toolbar).
+      await page.locator('[data-inv-card="type"] button', { hasText: /Customize/ }).first().click();
       await sleep(500);
     },
   },

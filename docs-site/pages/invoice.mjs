@@ -11,14 +11,16 @@ export default [
   body: `
 <section id="screen-layout">
 <h2>How the screen is laid out</h2>
-<p>Open it with ${ui('New Invoice')} in the sidebar, or <kbd>Ctrl</kbd> + <kbd>N</kbd>. The same screen opens when you edit, duplicate or convert an invoice from the Dashboard. The form is on the left and a live preview of the printed invoice is on the right. From top to bottom, the form has these cards:</p>
+<p>Open it with ${ui('New Invoice')} in the sidebar, or <kbd>Ctrl</kbd> + <kbd>N</kbd>. The same screen opens when you edit, duplicate or convert an invoice from the Dashboard. The form is on the left and a live preview of the printed invoice is on the right. From top to bottom, the form has these cards (the usual order: you can <a href="#cards">move them</a>):</p>
 <ol>
-  <li><a href="#invoice-types"><b>Document type</b></a>: the kind of document (a drop-down), and whether it is for goods or services. The ${ui('Customize')} panel opens inside this card.</li>
+  <li><a href="#invoice-types"><b>Document type</b></a>: the kind of document (a drop-down), and whether it is for goods or services. Its ${ui('Customize invoice')} button, under the type, opens the <a href="invoice-options.html">Customize panel</a> in this card.</li>
   <li><a href="#billed-to"><b>Billed To</b></a>: the client's name. Their address, state, GSTIN and the <a href="#ship-to">Ship to</a> address are under <b>More client details</b>.</li>
   <li><a href="#items"><b>Line Items</b></a>: what you are selling, with the <a href="#discounts">whole-bill discount</a> and <a href="#received-now">Received now</a> under them.</li>
   <li><a href="#details"><b>Invoice Details</b></a>: number, dates and place of supply. The <a href="#order-details">order, dispatch and reference details</a>, the payment-details switches and the cost centre are under <b>More invoice details</b>.</li>
-  <li>One card with <a href="#terms-notes"><b>Terms &amp; Conditions</b></a>, <b>Notes / Remarks</b>, a <a href="#private-note"><b>Private note</b></a> and <a href="#extra-pages"><b>Additional pages / sections</b></a>.</li>
+  <li><b>Terms &amp; notes</b>: <a href="#terms-notes"><b>Terms &amp; Conditions</b></a>, <b>Notes / Remarks</b>, a <a href="#private-note"><b>Private note</b></a> and <a href="#extra-pages"><b>Additional pages / sections</b></a>.</li>
 </ol>
+<p id="cards"><b>Cards that open, close and move.</b> Click a card's title (or anywhere on its title row) to close it, and again to open it. A closed card shows one line of what is in it, such as <i>Tax Invoice · Goods</i>, <i>Sharma Electronics · Bengaluru, Karnataka · GSTIN 29AAACS…</i>, <i>2 items · ₹6,372.00</i>, <i>INV/2026-27/0012 · 20 Oct 2026 · due 4 Nov 2026</i> or <i>Terms: Standard · Notes: 1 line</i>. To put a card somewhere else, drag it by the ${ui('⋮⋮')} grip at the right of its title row (with the mouse, or your finger on a phone): a blue line shows where it will go. Or click ${ui('⋯')} beside the grip and choose ${ui('Move up')} or ${ui('Move down')}. ${ui('Reset layout')} in the same menu puts the cards back in the usual order with all of them open. The app remembers the order and which cards are closed in this browser. It only changes the screen: the invoice, its number and the PDF stay exactly the same, and what you typed in a closed card is kept and printed.</p>
+<p>If you save with something missing (no client name, or no item with a quantity and rate), the app opens the card it is in, even if it was closed, and puts the cursor in the box. Clicking the amber <b>Draft — click to complete</b> badge does the same.</p>
 <p id="folded"><b>Parts that open on click.</b> More client details, More invoice details, Terms, Notes, the Private note and Additional pages are folded to keep the screen short. Click the title (or the arrow before it) to open one. While closed, the line under the title says what is in it, such as <i>Standard (5 lines)</i> for the terms or <i>Bengaluru, Karnataka · GSTIN 29AAP…</i> for the client. Nothing is gone: everything is one click away, and what is filled in still prints.</p>
 <p id="total-bar">The totals are not typed anywhere. They are worked out as you type: the bar beside the Save button shows the number of items, the <b>Taxable</b> value, the <b>GST</b>, the <b>Total</b> and, when you fill in <a href="#received-now">Received now</a>, what was <b>Received</b> and the <b>Balance</b>. The bar stays on screen as you scroll (on a phone it is under the Back button). The <a href="#preview">live preview</a> shows the whole invoice.</p>
 <p>Every card title has a small ${ui('?')} next to it. It opens this guide at the part about that card.</p>
@@ -28,7 +30,7 @@ export default [
 <section id="toolbar">
 <h2>The toolbar</h2>
 <p>The toolbar stays at the top of the screen as you scroll, so Save, Print and the rest are always in reach on a long invoice.</p>
-<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save PDF, Print, WhatsApp, E-Way Bill, E-invoice, Customize, Hide Preview"></figure>
+<figure><img src="${img('toolbar.png')}" alt="The invoice toolbar: Save, Save PDF, Print, WhatsApp, E-Way Bill, E-invoice, Hide Preview"></figure>
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('←')} ${ui('Back')}</td><td>Leaves the invoice. If you have changed something that is not saved, you are asked first (see <a href="#leaving">Leaving with unsaved changes</a>).</td></tr>
@@ -40,15 +42,16 @@ export default [
   <tr><td>${ui('WhatsApp')}</td><td>Saves the invoice and sends its PDF on WhatsApp with the invoice details typed in. See <a href="#whatsapp">Sending on WhatsApp</a>.</td></tr>
   <tr><td>${ui('E-Way Bill')}</td><td>Only on tax invoices and delivery challans, and only while <b>E-way bill</b> is on in <a href="settings.html#features">Settings, Features</a>. Downloads the e-way bill file. See <a href="#eway-bill">E-way bill</a>.</td></tr>
   <tr><td>${ui('E-invoice')}</td><td>Only when <b>E-invoicing (IRN)</b> is on in Settings, Features, and only on tax invoices and credit notes. Downloads the e-invoice file and takes back the IRN. A ✓ after the name means this invoice already has an IRN. See <a href="gst-returns.html#e-invoice">E-invoicing</a>.</td></tr>
-  <tr><td>${ui('Customize')}</td><td>Opens the panel that controls what prints, the paper size, currency and more. While it is open the button reads ${ui('Hide Options')}. See <a href="invoice-options.html">Customize: what prints and how</a>.</td></tr>
   <tr><td>${ui('Hide Preview')}</td><td>Hides the preview so the form uses the whole width, handy for long invoices. ${ui('Show Preview')} brings it back. The app remembers your choice in this browser. Save PDF and Print still work while it is hidden.</td></tr>
 </table></div>
+<p>The ${ui('Customize invoice')} button is not in the toolbar: it is in the <a href="#invoice-types">Document type</a> card, under the type.</p>
 <p>While a save, download or print is running, the buttons are greyed out and while the PDF is being made Save PDF reads <b>Generating...</b> with a thin moving bar along its foot. Wait for it to finish. A saved invoice shows a green <i>Invoice saved</i> message at the top right, with a tick that draws itself (no movement if Windows has animations turned off).</p>
 </section>
 
 <section id="invoice-types">
 <h2>Document type: choosing the document</h2>
 <p>The <b>Document type</b> drop-down at the top of the first card decides the printed title, the number series, whether GST is charged, and whether the document counts as a sale in your totals and GST returns. A one-line description of the type you picked shows under it.</p>
+<p id="customize-button">Under the type, ${ui('Customize invoice')} opens the panel that controls what prints, the paper size, currency and more, inside this card. While it is open the button reads ${ui('Hide Options')}. See <a href="invoice-options.html">Customize: what prints and how</a>.</p>
 <p>A new invoice starts as the type you used last. To always start with one type, choose it in <a href="settings.html#new-invoice">Settings, Company, New invoice starts with</a>.</p>
 <div class="table-wrap"><table>
   <tr><th>Type</th><th>Prints as</th><th>Numbered</th><th>Use it for</th><th>GST</th><th>Counts as a sale?</th></tr>
@@ -257,7 +260,8 @@ export default [
   <tr><td>Discount</td><td>A discount on this row, as an amount or a percentage. See <a href="#discounts">Discounts</a>. Hidden when <b>Discount column</b> is off under Customize.</td></tr>
   <tr><td>GST %</td><td>0, 0.1, 0.25, 3, 5, 12, 18, 28 or 40%, plus any rates you added in <a href="print-settings.html#tax-rates">Print Settings</a>. ${ui('Custom…')} takes any rate from 0 to 100, up to two decimals. New rows start at 18%. Since 22 September 2025 most goods are at 5%, 18% or 40%; 12% and 28% stay for older invoices and the items still taxed at them. Which rate applies to your item: see <a href="gst-basics.html#which-rate">GST basics: what rate do I charge?</a> Hidden when there is no GST on the invoice. Outside India the label is your country's tax, such as VAT %.</td></tr>
   <tr><td>Cess %</td><td>Compensation cess, for tobacco, cars, coal and the like. Hidden until you turn on <b>GST Cess % column</b> under Customize.</td></tr>
-  <tr><td>Bin</td><td>Removes the row. The last remaining row cannot be removed.</td></tr>
+  <tr><td>Amount</td><td>At the right end of each row, under the boxes: the row's amount after its discount, worked out for you (not typed). With GST it reads <b>With GST</b> and includes the row's GST; point at it to see the value before GST and the GST. It is the same figure the totals add up.</td></tr>
+  <tr><td>Bin</td><td>The red bin beside the amount removes the row. The last remaining row cannot be removed.</td></tr>
 </table></div>
 <h3>Buttons under the rows</h3>
 <ul>
@@ -291,7 +295,7 @@ export default [
 
 <section id="tax-inclusive">
 <h3>Prices that already include GST</h3>
-<p>If your rates already include GST, such as an MRP or a counter price, tick <b>Prices include tax</b> at the top right of the Line Items card. The box only shows when the invoice charges GST.</p>
+<p>If your rates already include GST, such as an MRP or a counter price, tick <b>Prices include tax</b> at the top of the Line Items card. The box only shows when the invoice charges GST.</p>
 <p>The GST is then worked out backwards from each rate: a ₹1,180 item at 18% is ₹1,000 taxable value plus ₹180 GST. The printed Subtotal is the value before tax, so Subtotal + tax = Total, and the client pays exactly the price you typed.</p>
 <p><b>Print rates before GST</b> appears beside it once it is ticked. Tick it and the Rate column prints each price without GST (₹13.25 at 18% prints as ₹11.23), so Qty × Rate matches the Amount on the invoice. Only the printing changes: the GST and the total stay exactly the same.</p>
 </section>
@@ -359,7 +363,7 @@ export default [
 <h2>Reverse charge</h2>
 <p>Under reverse charge (RCM), the <em>buyer</em> pays the GST to the government instead of you, under section 9(3) or 9(4). Common cases are goods transport (GTA) services, legal services from an advocate, and supplies from an unregistered person to a registered one. Ask your CA whether it applies.</p>
 <ol class="steps">
-  <li><strong>Open Customize</strong>Click ${ui('Customize')} in the toolbar.</li>
+  <li><strong>Open Customize</strong>Click ${ui('Customize invoice')} in the Document type card, under the type.</li>
   <li><strong>Tick reverse charge</strong>Under <b>Compliance flags (India)</b>, tick <b>Reverse Charge applies (Section 9(3)/9(4)) — recipient pays GST</b>.</li>
   <li><strong>Check the preview</strong>The invoice now says <i>Reverse Charge: Yes</i> and prints a notice that the recipient pays the GST.</li>
 </ol>
@@ -709,10 +713,10 @@ export default [
   body: `
 <section id="remembered">
 <h2>Your choices become the default</h2>
-<p>Open the panel with ${ui('Customize')} in the invoice toolbar. Whatever you change here is used for this invoice <strong>and remembered for your next new invoice</strong>, including the title, reverse charge, TDS and TCS. If a setting was only meant for one invoice, change it back afterwards.</p>
+<p>Open the panel with ${ui('Customize invoice')} in the Document type card of the invoice screen, under the type. Whatever you change here is used for this invoice <strong>and remembered for your next new invoice</strong>, including the title, reverse charge, TDS and TCS. If a setting was only meant for one invoice, change it back afterwards.</p>
 <p>A saved invoice keeps the options it was saved with.</p>
 <p>These are per-invoice settings. The app-wide look, such as fonts, watermarks, copies and translated labels, is in <a href="print-settings.html">Print and PDF settings</a>.</p>
-<figure><img src="assets/img/app-customize.png" alt="The Customize panel opens inside the Invoice Type card." loading="lazy"><figcaption>The Customize panel opens inside the Invoice Type card.</figcaption></figure>
+<figure><img src="assets/img/app-customize.png" alt="The Customize panel opens inside the Document type card." loading="lazy"><figcaption>The Customize panel opens inside the Document type card.</figcaption></figure>
 </section>
 
 <section id="title-currency">
