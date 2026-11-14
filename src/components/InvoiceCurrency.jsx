@@ -24,7 +24,7 @@ export default function InvoiceCurrency({ options, baseCurrency, regionMode, inv
   return (
     <div className={`form-group${foreign || compact ? ' full-width' : ''}`} data-invoice-currency style={{ marginBottom: compact ? '0.75rem' : 0 }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flex: '0 1 150px', minWidth: 120 }}>
+        <div style={{ flex: foreign ? '0 1 150px' : '1 1 150px', minWidth: 120 }}>
           <label className="form-label" htmlFor={compact ? 'inv-currency-c' : 'inv-currency'}>
             Currency <HelpButton title="Invoice currency and exchange rate" doc="invoices#currency" size={14} />
           </label>
