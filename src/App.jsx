@@ -1394,7 +1394,12 @@ function App() {
                   View on GitHub
                 </a>
               )}
-              {/* The .deb, AppImage and Docker copies update by installing the new package (server.js updateHint). */}
+              {/* The .deb, AppImage, Docker and Mac app copies update by installing the new package (server.js updateHint). */}
+              {updateInfo.downloadUrl && (
+                <a href={updateInfo.downloadUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+                  <Download size={16} /> Download the new Mac app
+                </a>
+              )}
               {!updateInfo.updateHint && (
                 <button type="button" className="btn btn-primary" disabled={updating} onClick={handleUpdateNow}>
                   <Download size={16} /> {updating ? 'Updating…' : 'Update Now'}

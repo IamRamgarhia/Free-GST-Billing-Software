@@ -380,6 +380,13 @@ export default function ControlPanel() {
               {lastResult.error}
             </p>
           )}
+          {lastResult.downloadUrl && (
+            <p style={{ margin: '0.6rem 0 0' }}>
+              <a href={lastResult.downloadUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ textDecoration: 'none', display: 'inline-flex' }}>
+                <Download size={16} /> Download the new Mac app
+              </a>
+            </p>
+          )}
         </div>
       )}
     </div>
