@@ -5,7 +5,7 @@ export default [
 {
   slug: 'settings',
   title: 'Settings',
-  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Business type, Company, Profiles, Terms, Print & PDF, Features, Stock, Region, App lock, Backups, Google Drive, Import/Export and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
+  lead: 'Every tab of Settings, card by card, in the order the tabs appear: Company, Print & PDF, Features, Privacy & Security, Data & Backups and Updates. Each card in the app has a ? next to its title that opens the matching part of this page.',
   body: `
 <section id="save-bar">
 <h2>Settings tabs and the Save all changes bar</h2>
@@ -16,7 +16,7 @@ export default [
   <tr><td>${ui('Print &amp; PDF')}</td><td>Print and PDF settings, Region</td></tr>
   <tr><td>${ui('Features')}</td><td>Features, Cost centres (when turned on), Stock alerts</td></tr>
   <tr><td>${ui('Privacy &amp; Security')}</td><td>App lock (PIN), <a href="phone.html">Use on phone or tablet</a>, Privacy &amp; internet</td></tr>
-  <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, Google Drive, Import/Export</td></tr>
+  <tr><td>${ui('Data &amp; Backups')}</td><td>Backups and the Trash bin, <a href="backup.html#close-books">Close the books</a> and the edit history, Google Drive, Import/Export</td></tr>
   <tr><td>${ui('Updates')}</td><td>App updates</td></tr>
 </table></div>
 <p>Click a tab to show it; the tab you are on is filled in blue. On a phone or a small screen the buttons wrap onto two lines; nothing is hidden. Searching with ${ui('Ctrl + K')} for a setting (for example "Google Drive") opens its tab at that card.</p>
@@ -44,7 +44,7 @@ export default [
 
 <section id="business-type">
 <h2>Business type</h2>
-<p>The first tab. Pick what kind of business you run, and the app shows the screens and features that business needs and hides the rest, so the menu stays short. Use it when you first set the app up, or when the menu shows things you never use.</p>
+<p>The first card on the ${ui('Company')} tab. Pick what kind of business you run, and the app shows the screens and features that business needs and hides the rest, so the menu stays short. Use it when you first set the app up, or when the menu shows things you never use.</p>
 <p>The card shows <b>Your business type:</b> with the type that is saved now, or <b>Not chosen yet</b>.</p>
 <figure><img src="assets/img/settings-business-type.png" alt="Settings, Company tab: the row of six Settings tabs at the top, then the Business type card with seven business type cards, Everything picked, and Company Details starting below it." loading="lazy"><figcaption>The Business type card at the top of the Company tab. The saved type is shown in blue; the Save all changes bar is at the bottom.</figcaption></figure>
 <ol class="steps">

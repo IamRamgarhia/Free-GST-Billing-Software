@@ -102,7 +102,7 @@ export default [
 <p>The app checks the period's invoices and shows problems before you file. The <b>red box</b> is for problems that make the return wrong or that the portal rejects. The <b>amber box</b> is for things worth fixing. Each box shows the first three messages; fix them and the next ones appear (the amber box also says "+N more").</p>
 <div class="table-wrap"><table>
   <tr><th>Message</th><th>What to do</th></tr>
-  <tr><td>"<b>N export invoice(s) (…) are not in the GSTR-1 file.</b> Add them in Table 6A on the GST portal with the shipping bill details"</td><td>Nothing is wrong with the invoices. On the portal, enter each export in Table 6A with its shipping bill number, date and port code. See <a href="#exports">Exports</a>.</td></tr>
+  <tr><td>"<b>N export invoice(s) (…) are in Table 6A of the GSTR-1 file.</b> For goods, add the shipping bill number, date and port code on the portal after uploading"</td><td>Nothing is wrong with the invoices. After uploading the file, open Table 6A on the portal and add each export of goods' shipping bill number, date and port code (services need none). See <a href="#exports">Exports</a>.</td></tr>
   <tr><td>"Invoice X: <b>Invalid client GSTIN format</b> — …"</td><td>The client's GSTIN is mistyped. Correct it on the <a href="clients.html#client-form">client</a> and on the invoice, then save the invoice again.</td></tr>
   <tr><td>"Invoice X: <b>inter-state sale</b> to … <b>without the buyer's state as Place of Supply</b>"</td><td>A B2C sale charged IGST, but its place of supply is missing or is your own state. The portal refuses that. Open the invoice, set <a href="invoices.html#details">Place of Supply</a> to the buyer's state, and save.</td></tr>
   <tr><td>"<b>Your business GSTIN is not set.</b> Go to Settings → Company Details to add it."</td><td>Add it in <a href="settings.html#company-details">Settings, Company Details</a>. The files need it.</td></tr>
@@ -136,7 +136,7 @@ export default [
   <tr><td><a href="#doc-summary">Document Summary — Table 13</a></td><td>13</td><td>Number ranges of documents issued, and how many were cancelled</td></tr>
   <tr><td><a href="#gstr-1-summary">GSTR-1 Summary Totals</a></td><td>-</td><td>B2B and B2C together, less credit notes</td></tr>
 </table></div>
-<p>Exports to clients abroad are not in these tables or in the GSTR-1 file. The red box lists them: add them in Table 6A on the portal with the shipping bill details.</p>
+<p>Exports to clients abroad are not in these tables: they are in Table 6A of the GSTR-1 file. The amber note at the top lists them; for goods, add the shipping bill number, date and port code on the portal after uploading.</p>
 <figure><img src="assets/img/app-gstr1.png" alt="The GSTR-1 tab for one month." loading="lazy"><figcaption>The GSTR-1 tab for one month.</figcaption></figure>
 </section>
 
@@ -228,7 +228,7 @@ export default [
 <section id="exports">
 <h3>Exports and SEZ</h3>
 <ul>
-  <li><strong>Exports</strong>: an invoice to a client whose country is not India. It is kept out of B2B and B2C and out of the JSON file, because the portal's export table (6A) can need the shipping bill number, date and port code, which the app does not record. The <b>Exports — Table 6A</b> table on the GSTR-1 tab lists them, ready to type into Table 6A on the portal: type <b>WPAY</b> (IGST paid) or <b>WOPAY</b> (under a LUT, no IGST), invoice number and date, rate, taxable value, IGST and invoice value. ${ui('Exports')} saves the same rows as <code>GSTR1_Exports_6A.csv</code>. For services no shipping bill is needed; for goods add it on the portal.</li>
+  <li><strong>Exports</strong>: an invoice to a client whose country is not India. It is kept out of B2B and B2C and goes into Table 6A of the JSON file. The shipping bill number, date and port code of an export of goods are not recorded in the app: add them on the portal after uploading. The <b>Exports — Table 6A</b> table on the GSTR-1 tab lists the exports, to check against the portal: type <b>WPAY</b> (IGST paid) or <b>WOPAY</b> (under a LUT, no IGST), invoice number and date, rate, taxable value, IGST and invoice value. ${ui('Exports')} saves the same rows as <code>GSTR1_Exports_6A.csv</code>. For services no shipping bill is needed; for goods add it on the portal.</li>
 </ul>
 <figure><img src="assets/img/gstr1-exports.png" alt="The Exports — Table 6A table on the GSTR-1 tab: one invoice to a US client, type WOPAY, billed in USD at a rate of 84.2, with taxable value, IGST of zero and invoice value in rupees." loading="lazy"><figcaption>An export under a LUT (WOPAY), in rupees at the rate saved on the invoice.</figcaption></figure>
 <ul>
@@ -275,8 +275,8 @@ export default [
   <li>HSN codes shorter than 4 digits, or 6 if you ticked turnover above ₹5 crore in <a href="settings.html#gstr-details">Settings</a>.</li>
   <li>Custom units, which are sent as OTH (others).</li>
 </ul>
-<p><strong>What the JSON holds:</strong> B2B invoices, B2C totals, B2C Large invoices, credit notes to registered clients, credit notes to buyers without a GSTIN (a large inter-state one in Table 9B; the rest reduce the B2C totals), the HSN summary and the document summary. It is laid out the way the portal takes it today: from the May 2025 return, the HSN summary (Table 12) comes in two lists, <b>B2B</b> (buyers with a GSTIN, SEZ units too) and <b>B2C</b> (buyers without a GSTIN, and exports), each description at most 30 characters, and services with unit <b>NA</b> and quantity 0. Empty tables and blank values are left out, because the portal rejects them.</p>
-<p><strong>What you add on the portal by hand:</strong> exports (Table 6A), credit notes on exports, debit notes, advances received (Table 11), amendments to earlier periods (Table 9A), and nil-rated, exempt or non-GST sales (Table 8). Items at 0% are sent at a 0% rate in B2B and B2C.</p>
+<p><strong>What the JSON holds:</strong> B2B invoices, B2C totals, B2C Large invoices, exports (Table 6A, WPAY or WOPAY), nil-rated, exempt and non-GST sales (Table 8), deemed exports, credit notes to registered clients, credit notes to buyers without a GSTIN (a large inter-state one in Table 9B, and credit notes on exports; the rest reduce the B2C totals), the HSN summary and the document summary. It is laid out the way the portal takes it today: from the May 2025 return, the HSN summary (Table 12) comes in two lists, <b>B2B</b> (buyers with a GSTIN, SEZ units too) and <b>B2C</b> (buyers without a GSTIN, and exports), each description at most 30 characters, and services with unit <b>NA</b> and quantity 0. Empty tables and blank values are left out, because the portal rejects them.</p>
+<p><strong>What you add on the portal by hand:</strong> the shipping bill number, date and port code of an export of goods (after uploading, in Table 6A), debit notes, advances received (Table 11) and amendments to earlier periods (Table 9A). Items at 0% are sent at a 0% rate in B2B and B2C.</p>
 <div class="note tip"><strong>Something wrong?</strong>
 <p>Blocked? Open each invoice the message names, correct the number or the rate, save, and export again. See <a href="troubleshooting.html#gstr1-blocked">"GSTR-1 export blocked"</a>. "No invoices to export" means the period has no tax invoices or credit notes: check the <a href="#period">period</a>.</p></div>
 </section>
@@ -288,7 +288,7 @@ export default [
   <li><strong>Download the JSON</strong>${ui('JSON Export')} on the GSTR-1 tab, for the right month or quarter.</li>
   <li><strong>Open the return</strong>Log in at gst.gov.in, go to <b>Returns Dashboard</b>, pick the financial year and period, and open GSTR-1.</li>
   <li><strong>Upload it</strong>Choose <b>Prepare Offline</b>, upload the JSON, and wait for it to be processed. If the portal reports errors, it gives an error file to download: fix those invoices in the app and upload a fresh JSON.</li>
-  <li><strong>Add what the file cannot hold</strong>Exports in Table 6A, and anything else listed under <a href="#json-checks">What you add on the portal by hand</a>.</li>
+  <li><strong>Add what the file cannot hold</strong>The shipping bill details of exports of goods (Table 6A), and anything else listed under <a href="#json-checks">What you add on the portal by hand</a>.</li>
   <li><strong>Check and file</strong>Compare the portal's summary with the app's <a href="#gstr-1-summary">Summary Totals</a>, then submit and file with DSC or EVC (OTP).</li>
   <li><strong>Mark it filed</strong>Back in the app, click ${ui('Mark Filed')}.</li>
 </ol>
