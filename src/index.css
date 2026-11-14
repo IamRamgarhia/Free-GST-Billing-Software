@@ -3390,7 +3390,7 @@ kbd {
 .invoice-type-field .form-label { margin: 0; }
 .invoice-type-grow { flex: 1 1 10rem; }
 .type-select { width: 100%; max-width: 20rem; }
-.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-secondary); }
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-secondary); }
 .segmented-btn { border: 0; border-radius: 999px; padding: 0.35rem 0.85rem; background: transparent; font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
 .segmented-btn:hover { color: var(--primary); }
 .segmented-btn-active, .segmented-btn-active:hover { background: var(--primary); color: #fff; }

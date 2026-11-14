@@ -1049,7 +1049,7 @@ function SummaryTab({ bills, expenses, purchases, profile, comparison, inputs, p
 
   return (
     <>
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '1rem' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', marginBottom: '1rem' }}>
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue"><TrendingUp size={22} /></div>
           <div><p className="stat-label">Sales excl. GST (FY {fy})</p><h2 className="stat-value">{formatCurrency(sales)}</h2></div>

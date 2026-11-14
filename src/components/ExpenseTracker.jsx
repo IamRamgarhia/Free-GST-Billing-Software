@@ -321,7 +321,7 @@ export default function ExpenseTracker() {
       />
 
       {/* Stats */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))' }}>
         {/* v1.10.85 (#165) - what is still to pay on the expenses shown; click to list them */}
         <button type="button" className="stat-card" onClick={() => setPayFilter(payFilter === 'due' ? 'all' : 'due')}
           title={payFilter === 'due' ? 'Show all expenses' : 'Show only Unpaid and Partly paid expenses'}
