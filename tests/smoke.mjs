@@ -1826,6 +1826,26 @@ try {
         : `page ends at ${seam.ends.map(Math.round).join(', ')}px${cutInto.length ? ` - CUTS THROUGH at ${cutInto.map(Math.round).join(', ')}` : ''}`);
   }
 
+  // ---- v1.10.86 (#188): the invoice stays inside A4 ----------------------
+  // A word with no spaces in the item name, every column on and crore-size
+  // amounts: the sheet used to grow past 210mm (the PDF was then shrunk as a
+  // whole, with a blank strip down the right) and the table ran past its margin.
+  await openDraft({
+    ...seamDraft(3),
+    items: seamDraft(3).items.map((it, i) => ({ ...it, name: i === 1 ? 'SKU-ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123456789-NOSPACESATALL' : it.name,
+      quantity: 1234.5, rate: 123456.78, discount: 7.5, taxPercent: 18 })),
+  });
+  const a4fit = await page.evaluate(() => {
+    const sheet = document.querySelector('#invoice-preview');
+    const table = sheet?.querySelector('table.inv-table');
+    if (!table) return null;
+    const p = getComputedStyle(table.parentElement), t = getComputedStyle(table), px = (v) => parseFloat(v) || 0;
+    const room = table.parentElement.clientWidth - px(p.paddingLeft) - px(p.paddingRight) - px(t.marginLeft) - px(t.marginRight);
+    return { sheet: sheet.scrollWidth - sheet.clientWidth, table: Math.round(table.offsetWidth - room), fit: sheet.getAttribute('data-table-fit') };
+  });
+  check('#188 a long item name and every column on stay inside the A4 sheet and the table margin',
+    !!a4fit && a4fit.sheet <= 1 && a4fit.table <= 1, JSON.stringify(a4fit));
+
   // ---- v1.10.73: Boxed grid and Tally style designs ----------------------
   // Chosen through Customize, the way a person does it. The choice is saved
   // as the default for new invoices, so it is put back to Classic at the end.

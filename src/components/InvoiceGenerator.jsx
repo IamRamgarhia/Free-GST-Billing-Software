@@ -7,6 +7,7 @@ import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, b
 import { receiptForPayment } from '../utils/bankMatch';
 import { PAID_MODES, lastPaidMode, rememberPaidMode } from './askPaidMode';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
+import { fitItemTable, pdfScalePlan } from '../utils/invoiceFit';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
 import { useCostCentres } from './useCostCentres';
@@ -808,6 +809,21 @@ const rememberSizeStep = (step) => {
 function showHiddenPaneInClone(clonedDoc) {
   const pane = clonedDoc.querySelector('.preview-pane');
   if (pane) Object.assign(pane.style, { left: '0px', top: '0px', opacity: '1' });
+}
+
+// Test hook for tests/smoke.mjs (ERR-024): where the things a PDF page must
+// never cut through sit, in the invoice's own CSS px. Read-only.
+function pdfLayoutHook(root) {
+  const t = root.getBoundingClientRect().top;
+  const rel = (el) => { const r = el.getBoundingClientRect(); return [r.top - t, r.bottom - t]; };
+  const firstRow = root.querySelector('.inv-table tbody tr');
+  const sig = root.querySelector('.inv-signature, [data-pdf-signature]');
+  return {
+    rowHeight: firstRow ? rel(firstRow)[1] - rel(firstRow)[0] : 0,
+    signature: sig ? rel(sig) : null,
+    blocks: [...root.querySelectorAll('.inv-footer-block')].map(rel).filter(([a, b]) => b - a > 2),
+    atoms: [...root.querySelectorAll('.inv-signature, img, [data-pdf-page-boundary]')].map(rel).filter(([a, b]) => b - a > 2),
+  };
 }
 
 function fitSpacersToOnePage(container, pageWmm, pageHmm, ps) {
@@ -2797,6 +2813,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       return await __buildPDFInner(printSettings, archive, spacerFit, forPrint);
     } finally {
       spacerFit.restore?.();
+      spacerFit.restoreWidth?.();
       if (scalerEl) scalerEl.style.transform = '';
     }
   };
@@ -2964,28 +2981,60 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
         '.inv-footer, .inv-footer-block, .inv-signature, .inv-totals, [data-pdf-page-boundary]'
       ).forEach(el => edges.push(...span(el)));
+      // v1.10.86 (#188) - the whole <thead> too: its first row's edge ran
+      // through the two-row header cells (Description, HSN, Qty span both rows
+      // under CGST / SGST), and page 1 ended with the column titles cut in half.
       const keepWhole = [...container.querySelectorAll(
-        '.inv-table tbody tr, .inv-table thead tr, .inv-header, .inv-parties, ' +
+        '.inv-table tbody tr, .inv-table thead, .inv-table thead tr, .inv-header, .inv-parties, ' +
         // v1.10.73 - [data-pdf-page-boundary] too: the Boxed grid and Tally
         // designs mark every block with it (signature included), and a page
         // must end at those blocks' edges, never through one.
         '.inv-footer-block, .inv-signature, .inv-totals, [data-pdf-page-boundary], img'
       )].map(span);
+      // ...and never end a page between the column titles and the first item.
+      const head = container.querySelector('.inv-table thead');
+      const firstRow = container.querySelector('.inv-table tbody tr');
+      if (head && firstRow) keepWhole.push([span(head)[0], span(firstRow)[1]]);
       return safePageBoundaries(edges, keepWhole);
     };
     // v1.10.70 - hide the extra pages BEFORE measuring, not after. The
     // separate-terms page sits inside the footer row, so measuring with it
     // still visible laid the footer out differently from the capture.
     extraPages.forEach(el => el.style.display = 'none');
+    // v1.10.86 (#188) - PDF font scale above 100% lays the invoice out on a
+    // narrower sheet that then fills the paper width (larger text). It used to
+    // enlarge the page picture past the paper: 140% cut 20% off each side.
+    const rawScale = Number(printSettings.pdfFontScale);
+    const requestedScale = isFinite(rawScale) && rawScale > 0
+      ? Math.max(0.5, Math.min(1.4, rawScale))
+      : 1.0;
+    const scalePlan = paperCfg.kind === 'thermal'
+      ? { layoutWidthMm: paperCfg.widthMm, placeScale: requestedScale }
+      : pdfScalePlan(paperCfg.widthMm, requestedScale);
+    if (scalePlan.layoutWidthMm !== paperCfg.widthMm) {
+      const el = printRef.current;
+      const prevWidth = el.style.width;
+      el.style.width = `${scalePlan.layoutWidthMm}mm`;
+      fitItemTable(el);
+      spacerFit.restoreWidth = () => { el.style.width = prevWidth; fitItemTable(el); };
+    }
     // v1.10.77 (#88) - trim the Tally / Boxed padding if it alone pushes the
     // invoice onto a second page; put back right after the capture.
     if (paperCfg.kind !== 'thermal') spacerFit.restore = fitSpacersToOnePage(printRef.current, pdfWidth, pdfPageHeight, printSettings);
-    const domBoundariesPx = collectRowBoundaries(printRef.current);
+    // v1.10.86 (#188) - where a page may end is measured on html2canvas's copy
+    // (in onclone below), which is what gets drawn. Measured on the screen
+    // copy, it was a few pixels off by the foot of page 1 (the copy is laid out
+    // 2px wider, without the sheet's border), and in the Boxed design page 1
+    // ended through the first line of the bank details / totals box. These
+    // screen measurements are only the fallback.
+    let domBoundariesPx = collectRowBoundaries(printRef.current);
     const domContainerWidth = printRef.current.getBoundingClientRect().width;
+    const captureWidthPx = printRef.current.scrollWidth;
+    let cloneLayoutHook = null;
 
     const mainCanvas = await html2canvas(printRef.current, {
       ...captureOptions(printRef.current),
-      onclone: (clonedDoc) => {
+      onclone: async (clonedDoc) => {
         showHiddenPaneInClone(clonedDoc);
         // v1.10.60 (#51) — embed the stylesheet rather than letting the
         // clone re-fetch it. Without this, any fetch failure yields a
@@ -3005,7 +3054,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           // Match the target paper width so html2canvas captures at the right
           // aspect ratio. jsPDF will scale to fit the page width; we set the
           // HTML width to widthMm so glyphs land where CSS put them.
-          inv.style.width = `${paperCfg.widthMm}mm`;
+          inv.style.width = `${scalePlan.layoutWidthMm}mm`;
           inv.style.overflow = 'visible'; inv.style.minHeight = 'unset';
           inv.style.border = 'none'; inv.style.boxShadow = 'none'; inv.style.borderRadius = '0';
           // v1.9.2 — add printing-mode class so CSS rules force darker colours
@@ -3018,11 +3067,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           }
         }
         clonedDoc.querySelectorAll('[data-pdf-page]').forEach(el => el.style.display = 'none');
+        if (inv) {
+          try { if (clonedDoc.fonts?.ready) await clonedDoc.fonts.ready; } catch { /* non-fatal */ }
+          domBoundariesPx = collectRowBoundaries(inv);
+          cloneLayoutHook = pdfLayoutHook(inv);
+        }
       }
     });
     extraPages.forEach(el => el.style.display = '');
     spacerFit.restore?.();
     spacerFit.restore = null;
+    spacerFit.restoreWidth?.();
+    spacerFit.restoreWidth = null;
 
     // v1.10.3 — Record each original page as a "recipe" so multi-copy
     // (GST Rule 48) can duplicate multi-page invoices correctly.
@@ -3052,10 +3108,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // scale. The invoice image lands smaller on the page → text is
     // proportionally smaller → more content fits per PDF page. This
     // matches how MS Word / LibreOffice "shrink to fit" works.
-    const rawScale = Number(printSettings.pdfFontScale);
-    const pdfScale = isFinite(rawScale) && rawScale > 0
-      ? Math.max(0.5, Math.min(1.4, rawScale))
-      : 1.0;
+    const pdfScale = scalePlan.placeScale;
     // v1.10.45 — Reserve vertical space for page-2+ header band and the
     // page-number footer band, so content never overlaps them.
     // Reported: business name "Hem E..." collided with the "TERMS &
@@ -3093,20 +3146,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // Test hook for tests/smoke.mjs (ERR-024): where each PDF page ends, and
     // where the things a page must never cut through sit - all in the same
     // DOM pixels. Read-only, and costs nothing to anyone else.
+    // v1.10.86 - measured on the copy that was drawn (see onclone).
     try {
-      const t = printRef.current.getBoundingClientRect().top;
-      const rel = (el) => { const r = el.getBoundingClientRect(); return [r.top - t, r.bottom - t]; };
-      const firstRow = printRef.current.querySelector('.inv-table tbody tr');
-      const sig = printRef.current.querySelector('.inv-signature, [data-pdf-signature]');
       window.__lastPdfLayout = {
-        pageHeight: contentHeightMulti * domContainerWidth / contentWidth,
-        fullHeight: contentHeightFull * domContainerWidth / contentWidth,
-        total: mainCanvas.height * domContainerWidth / mainCanvas.width,
+        pageHeight: contentHeightMulti * captureWidthPx / contentWidth,
+        fullHeight: contentHeightFull * captureWidthPx / contentWidth,
+        total: mainCanvas.height * captureWidthPx / mainCanvas.width,
         ends: [],
-        rowHeight: firstRow ? rel(firstRow)[1] - rel(firstRow)[0] : 0,
-        signature: sig ? rel(sig) : null,
-        blocks: [...printRef.current.querySelectorAll('.inv-footer-block')].map(rel).filter(([a, b]) => b - a > 2),
-        atoms: [...printRef.current.querySelectorAll('.inv-signature, img, [data-pdf-page-boundary]')].map(rel).filter(([a, b]) => b - a > 2),
+        ...(cloneLayoutHook || pdfLayoutHook(printRef.current)),
       };
     } catch { /* test hook only */ }
 
@@ -3151,7 +3198,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       // v1.10.8 multi-page path — snap page breaks to safe DOM row boundaries.
       //
       // 1. Convert DOM-pixel boundaries → canvas-pixel boundaries.
-      const domToCanvasScale = mainCanvas.width / domContainerWidth;
+      // html2canvas draws the copy at `scale` canvas px per CSS px.
+      const domToCanvasScale = mainCanvas.width / (captureWidthPx || domContainerWidth);
       const canvasBoundariesPx = domBoundariesPx.map(y => y * domToCanvasScale);
       const totalCanvasHeightPx = mainCanvas.height;
       if (!canvasBoundariesPx.includes(totalCanvasHeightPx)) {
