@@ -1556,11 +1556,22 @@ try {
   }));
   await page.locator('.settings-jumpnav a[href="#tab-data"]').click();
   await sleep(500);
-  const dataCards = await page.evaluate(() => ['section-backups', 'section-cloud', 'section-data', 'section-company']
+  // v1.10.86 - and the Control Panel's backup ZIP card (section-backupzip).
+  const dataCards = await page.evaluate(() => ['section-backups', 'section-backupzip', 'section-cloud', 'section-data', 'section-company']
     .map((id) => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; }));
-  check('v84 Settings has 6 tabs, and Data & Backups shows Backups, Google Drive and Import/Export (not Company)',
-    tabs84.names.join('|') === 'Company|Print & PDF|Features|Privacy & Security|Data & Backups|Updates' && dataCards.join() === 'true,true,true,false',
+  check('v84 Settings has 7 tabs, and Data & Backups shows Backups, Backup files (ZIP), Google Drive and Import/Export (not Company)',
+    tabs84.names.join('|') === 'Company|Print & PDF|Features|Privacy & Security|Data & Backups|Appearance|App & updates' && dataCards.join() === 'true,true,true,true,false',
     JSON.stringify({ ...tabs84, dataCards }));
+  // v1.10.86 - the Control Panel moved into Settings: a tab still on it opens App & updates.
+  await page.evaluate(() => { sessionStorage.setItem('gst_currentView', 'controlpanel'); sessionStorage.setItem('gst_settingsTab', 'tab-company'); });
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(2500);
+  await dismissFirstRun(page);
+  const cpMoved = await page.evaluate(() => ['section-updates', 'section-app', 'section-company']
+    .map((id) => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; }).join()
+    + '|' + [...document.querySelectorAll('.nav-btn')].some((b) => /Control Panel/.test(b.innerText)));
+  check('v86 an old saved Control Panel screen opens Settings -> App & updates, and the menu has no Control Panel',
+    cpMoved === 'true,true,false|false', cpMoved);
 
   // One click saves two different sections.
   const getMeta = (key) => page.evaluate(async (k) => ((await (await fetch('/api/meta/' + k)).json()).value || {}), key);

@@ -18,7 +18,7 @@ export const VIEW_LABELS = {
   dashboard: 'Dashboard', new: 'New Invoice', clients: 'Clients', inventory: 'Products',
   expenses: 'Expenses', purchases: 'Purchases', recurring: 'Recurring', receipts: 'Receipts',
   cashbook: 'Cash book', reports: 'Reports', filing: 'GST Returns', incometax: 'Income Tax',
-  settings: 'Settings', controlpanel: 'Control Panel', support: 'Support & About',
+  settings: 'Settings', support: 'Support & About',
 };
 
 export const SECTION_LABELS = {
@@ -27,7 +27,9 @@ export const SECTION_LABELS = {
   'section-modules': 'Features', 'section-costcentres': 'Cost centres', 'section-stock': 'Low-stock alerts',
   'section-lock': 'App lock (PIN)', 'section-phone': 'Phone access', 'section-privacy': 'Privacy & internet',
   'section-backups': 'Backups', 'section-books': 'Close the books', 'section-cloud': 'Google Drive backup',
-  'section-data': 'Data management', 'section-appearance': 'Appearance', 'section-updates': 'App updates',
+  'section-data': 'Data management', 'section-appearance': 'Appearance', 'section-updates': 'App & updates',
+  // v1.10.86 - the Control Panel's cards, now in Settings.
+  'section-app': 'Restart, stop or remove the app', 'section-backupzip': 'Backup files (ZIP)',
 };
 
 const ACTION_LABELS = {
@@ -130,7 +132,7 @@ export const HOW_TO = [
   { q: 'How do I back up my data?', k: 'backup back up save copy data safe', go: S('section-backups'), doc: 'backup#automatic-backups', pop: true },
   { q: 'How do I back up to Google Drive?', k: 'google drive cloud backup online', go: S('section-cloud'), doc: 'settings#google-drive' },
   { q: 'How do I restore a backup?', k: 'restore backup import data bring back', go: S('section-data'), doc: 'backup#restore-from-backup' },
-  { q: 'How do I move to a new computer?', k: 'new pc computer laptop move transfer shift', go: { view: 'controlpanel' }, doc: 'backup#move-pc' },
+  { q: 'How do I move to a new computer?', k: 'new pc computer laptop move transfer shift', go: S('section-backupzip'), doc: 'backup#move-pc' },
   { q: 'How do I set a PIN lock?', k: 'pin password lock security', go: S('section-lock'), doc: 'settings#lock' },
   { q: 'How do I reset my PIN?', k: 'forgot pin reset password remove lock bhool gaya', go: S('section-lock'), doc: 'troubleshooting#pin-forgotten' },
   { q: 'How do I pair my phone?', k: 'phone mobile tablet pair qr wifi android iphone', go: S('section-phone', 'Pair a phone or tablet'), doc: 'phone#pair', pop: true },

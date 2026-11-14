@@ -32,7 +32,7 @@ Two private options:
 
 Please include:
 
-- Version (shown in the app's Control Panel / launcher)
+- Version (shown in the app's Settings → App & updates / launcher)
 - Operating system and browser — **the browser matters**; several real
   bugs here have reproduced only in Firefox and not Chrome
 - Steps to reproduce, and what an attacker gains

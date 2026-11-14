@@ -171,7 +171,7 @@ npm run dev    # live reload on http://localhost:5173
 
 ### The Free GST Billing icon
 
-Every install puts a **Free GST Billing** icon on your computer (the blue **B**). Click it every day: it starts the app if needed and opens it. Update, backup, restart and stop are in the app's **⚙ Control Panel**. Don't use the browser's own *Install app* button: that icon cannot start the app.
+Every install puts a **Free GST Billing** icon on your computer (the blue **B**). Click it every day: it starts the app if needed and opens it. Update, restart and stop are in the app's **Settings → App & updates**; backup ZIPs, restore and moving to another PC in **Settings → Data & Backups**. Don't use the browser's own *Install app* button: that icon cannot start the app.
 
 ---
 

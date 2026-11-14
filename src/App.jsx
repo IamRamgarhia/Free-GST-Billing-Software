@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart, Banknote } from 'lucide-react';
+import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, Menu, Heart, Banknote } from 'lucide-react';
 import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, getMenuDots, onMenuChanged, getAllBills, getAllProducts, getAllRecurring, getStockAlertSettings, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden, DATA_SAVED_EVENT } from './store';
 import { isModuleEnabled, localToday, DOCS_URL, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
@@ -44,7 +44,6 @@ const CashBook = lazy(() => import('./components/CashBook'));
 const GSTReturns = lazy(() => import('./components/GSTReturns'));
 const IncomeTax = lazy(() => import('./components/IncomeTax'));
 const PurchaseBills = lazy(() => import('./components/PurchaseBills'));
-const ControlPanel = lazy(() => import('./components/ControlPanel'));
 const SupportView = lazy(() => import('./components/SupportView'));
 import StarBanner from './components/StarBanner';
 import AppFooter from './components/AppFooter';
@@ -78,6 +77,14 @@ function ViewLoading() {
 
 const MENU_BRAND_KEY = 'gst_menuBrand';
 
+// v1.10.86 - the Control Panel moved into Settings -> App & updates: an old
+// ?view=controlpanel link or a saved gst_currentView opens that tab instead.
+const fromControlPanel = (view) => {
+  if (view !== 'controlpanel') return view;
+  try { sessionStorage.setItem('gst_settingsTab', 'section-updates'); } catch { /* storage blocked */ }
+  return 'settings';
+};
+
 function App() {
   // v1.10.86 - the second first-run window (SetupWizard: business type, paper,
   // language) is gone; the welcome asks the business type itself.
@@ -94,14 +101,14 @@ function App() {
         // Strip the query string so a refresh doesn't keep snapping back to
         // the shortcut target — only the *first* navigation honours it.
         window.history.replaceState({}, '', window.location.pathname);
-        return v;
+        return fromControlPanel(v);
       }
     } catch { /* sandboxed history API — fall through */ }
     // 'guide' was the built-in User Guide (removed in v1.10.75).
     const last = sessionStorage.getItem('gst_currentView');
     // v1.10.86 - a new tab or window opens on the screen chosen in Customise
     // Dashboard ("Open the app on"); a reload keeps the screen it was on.
-    return last && last !== 'guide' ? last : startView();
+    return last && last !== 'guide' ? fromControlPanel(last) : startView();
   });
   const [profile, setProfile] = useState(null);
   // v1.10.83 - the menu's own name and logo, as last shown (see `brand` below).
@@ -625,7 +632,7 @@ function App() {
   const dots = Object.fromEntries(Object.entries(allDots).filter(([id]) => shownIds.includes(id)));
   const anyDot = rollupDot(Object.keys(dots), dots);
   // v1.10.86 - icons and names for the Customise menu window, as in the sidebar.
-  const menuExtras = { ...NAV_EXTRAS, support: { icon: Heart, label: 'Support & About' }, controlpanel: { icon: HardDrive, label: 'Control Panel' }, settings: { icon: Settings, label: 'Settings' } };
+  const menuExtras = { ...NAV_EXTRAS, support: { icon: Heart, label: 'Support & About' }, settings: { icon: Settings, label: 'Settings' } };
   // v1.10.86 - a Settings tab / section from the sidebar (as openSettingsAt below).
   const openSettingsSection = (sectionId) => {
     try { sessionStorage.setItem('gst_settingsTab', sectionId); } catch { /* storage blocked */ }
@@ -1013,17 +1020,6 @@ function App() {
                   <Heart size={18} /> Support &amp; About
                 </button>
               ),
-              controlpanel: (
-                <button key={id}
-                  className={`nav-btn ${currentView === 'controlpanel' ? 'nav-btn-active' : ''}`}
-                  onClick={() => setCurrentView('controlpanel')}
-                  title={`${serverStatus === 'online' ? 'App Ready' : serverStatus === 'offline' ? 'App Not Running' : 'Connecting...'} - update, backup, restore, move to another PC`}
-                >
-                  <HardDrive size={18} /> Control Panel
-                  {/* v1.10.83 - the app's status dot, formerly the "App Ready" box under the menu. */}
-                  <span className={`server-status-dot server-status-${serverStatus}`} aria-label={serverStatus === 'online' ? 'App Ready' : serverStatus === 'offline' ? 'App Not Running' : 'Connecting'} />
-                </button>
-              ),
               settings: (
                 <button key={id}
                   className={`nav-btn ${currentView === 'settings' ? 'nav-btn-active' : ''}`}
@@ -1109,9 +1105,6 @@ function App() {
         )}
         {currentView === 'settings' && (
           <SettingsView onSaved={(p) => setProfile(p)} />
-        )}
-        {currentView === 'controlpanel' && (
-          <ControlPanel />
         )}
         {currentView === 'support' && (
           <SupportView />
@@ -1232,7 +1225,7 @@ function App() {
       {showPalette && (
         <Suspense fallback={null}>
           <QuickSearch onClose={() => setShowPalette(false)}
-            navItems={navItems} bottomIds={bottomIds} topIds={topIds} updateInfo={updateInfo}
+            navItems={navItems} topIds={topIds} updateInfo={updateInfo}
             onNewInvoice={handleNewInvoice} onEditInvoice={handleEditInvoice} onView={setCurrentView}
             onSettings={openSettingsSection} onDarkMode={() => setDarkMode(d => !d)}
             onShortcuts={() => setShowShortcutsHelp(true)} onUpdate={() => setShowUpdateModal(true)} onOpenDocs={openDocs} />
@@ -1308,7 +1301,7 @@ function App() {
             <div className="notice notice-warn" style={{ marginBottom: '1rem' }}>
               <span className="notice-icon">💡</span>
               <div>
-                <strong>Recommended:</strong> export a backup before updating, just in case. <button type="button" className="btn-link" onClick={() => { setShowUpdateModal(false); setCurrentView('settings'); }} style={{ background: 'none', border: 0, color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}>Open Settings → Data Management</button> and click <em>Export Backup…</em>.
+                <strong>Recommended:</strong> export a backup before updating, just in case. <button type="button" className="btn-link" onClick={() => { setShowUpdateModal(false); openSettingsSection('section-data'); }} style={{ background: 'none', border: 0, color: 'var(--primary)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}>Open Settings → Data &amp; Backups</button> and click <em>Export Backup…</em>.
               </div>
             </div>
 

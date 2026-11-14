@@ -188,7 +188,7 @@ engine every Windows 10/11 has).
 | Self-repair | While the window is open or in the tray it asks `/api/version` every 12 s (quietly, 8 s time limit). Three misses, or a page that cannot load: "Starting again...", `start-windows.ps1 -PrintUrl` (the same lock rules: never a second server for the books), then the page reloads - only if the server is a new process (its `pid`) or the page had failed: a server that was only slow keeps the page as it was, so nothing typed is lost. Not while a Setup runs (its `FreeGSTBillingSetup` mutex) or Quit runs; after 3 tries the launcher's own text is shown. |
 | Notifications | The app's notifications (the Notification API: "an update is out") are shown near the clock through `NotificationReceived`, also while the window is hidden; a click opens the window. A hidden window keeps running (timers too). The overdue / low-stock notices are the bell inside the app, not Windows notifications. |
 | Jump list | Right-click the taskbar or Start icon: New Invoice, Dashboard, Clients, Reports = `Free GST Billing.exe /view=<screen>` (the app's own `?view=`). A running window goes to that screen (`open-view.txt` in the window's folder + the `-show` event). Built with WPF's `JumpList` (part of .NET Framework), under the window's AppUserModelID. |
-| Tray menu | The version (greyed), **Open Free GST Billing**, **Check for updates** (opens Settings on its Updates tab, the app's own check), **Open books folder** (the `home.txt` folder in Explorer), **Make a backup now** (the app's own backup, Control Panel > Backup Data: `backup-windows.ps1` into Documents\FreeGSTBill Backups; the result is shown near the clock), **Quit (stop the app)**: Quit closes the window and the tray icon and stops this install's server by its own id (`stop-app.ps1 -Sys`, as the uninstaller), never "all node.exe". |
+| Tray menu | The version (greyed), **Open Free GST Billing**, **Check for updates** (opens Settings on its App & updates tab, the app's own check), **Open books folder** (the `home.txt` folder in Explorer), **Make a backup now** (the app's own backup, Settings > Data & Backups > Backup Data: `backup-windows.ps1` into Documents\FreeGSTBill Backups; the result is shown near the clock), **Quit (stop the app)**: Quit closes the window and the tray icon and stops this install's server by its own id (`stop-app.ps1 -Sys`, as the uninstaller), never "all node.exe". |
 | Start with Windows | The Startup icon runs `Free GST Billing.exe /tray`: the server starts and the app waits near the clock, no window. |
 | Events | `Local\FreeGSTBillingHost-<first 8 bytes of SHA-1 of the lower-case program folder>` + `-show` (a second start), `-close` (the uninstaller: `stop-app.ps1 -CloseWindow`, which kills only if the window has not closed within 5 s) and `-quit`. |
 | Title | The page's `document.title` ("Invoices - DiceCodes"). |
@@ -268,7 +268,7 @@ By hand, a test install and its removal:
 ## Not done yet
 
 - Code signing (SmartScreen warning on downloaded copies).
-- The Control Panel's *Remove the App* opens the guide for a Setup copy;
+- *Remove the App* (Settings > App & updates) opens Windows' Apps list for a Setup copy;
   removing is done in Settings -> Apps.
 - The Setup carries Node.js 22 LTS; the ZIP's portable Node.js
   (`$PortableNodeVersion`, 20, past its end of life in April 2026) moves in a

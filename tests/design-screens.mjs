@@ -98,7 +98,7 @@ export const SCREENS = [
     name: `settings-${t}`,
     go: async (page) => { await page.locator(`a[href="#tab-${t}"]`).first().click(); await sleep(500); },
   })),
-  view('control-panel', 'Control Panel'),
+  // v1.10.86 - the Control Panel moved into Settings: settings-updates (App & updates) and settings-data show it.
   view('support', 'Support & About'),
   {
     name: 'phone-pairing',
