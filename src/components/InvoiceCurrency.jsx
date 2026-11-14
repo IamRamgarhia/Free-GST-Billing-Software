@@ -22,7 +22,7 @@ export default function InvoiceCurrency({ options, baseCurrency, regionMode, inv
   const lastRate = options.fxRates?.[currency];
   const dateText = invoiceDate ? parseLocalDate(invoiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'the invoice date';
   return (
-    <div className="form-group full-width" data-invoice-currency style={{ marginBottom: compact ? '0.75rem' : 0 }}>
+    <div className={`form-group${foreign || compact ? ' full-width' : ''}`} data-invoice-currency style={{ marginBottom: compact ? '0.75rem' : 0 }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ flex: '0 1 150px', minWidth: 120 }}>
           <label className="form-label" htmlFor={compact ? 'inv-currency-c' : 'inv-currency'}>

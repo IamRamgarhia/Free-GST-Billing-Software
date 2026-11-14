@@ -5070,7 +5070,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 </div>
               )}
               <div className="form-group full-width" style={{ position: 'relative' }}>
-                <label className="form-label">Client Name</label>
+                <div className="label-with-toggle">
+                  <label className="form-label">Client Name</label>
+                  {/* v1.10.86 - add a client in the window any time, not only from the suggestions. */}
+                  {!readOnlyDoc && (
+                    <button type="button" className="btn btn-primary" data-testid="add-client-btn"
+                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.55rem' }}
+                      onClick={() => {
+                        if (!selectedClientId) return openAddClientModal();
+                        setModalClient({ name: '', country: '' });
+                        setIsEditingClient(false);
+                        setShowClientModal(true);
+                      }}>
+                      <UserPlus size={13} /> New client
+                    </button>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <input type="text" className="form-input" style={{ flex: 1 }} value={client.name} ref={clientNameRef}
                     onChange={(e) => {

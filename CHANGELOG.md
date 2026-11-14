@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   received and balance stay on screen next to Save. The document type is one
   drop-down that starts as the type you used last, and the preview opens
   fitted to its space.
+- **Add a client in one click**: a blue **New client** button next to Client
+  Name on New Invoice opens the client window, and **Add Client** is the
+  main button on the Clients screen again. Invoice Details uses both
+  columns (Currency sits beside Due Date).
 - **New Invoice cards you can close and move**: Document type, Billed To,
   Line Items, Invoice Details and Terms & notes open and close from their
   title, and a closed card shows one line of what is in it ("2 items ·

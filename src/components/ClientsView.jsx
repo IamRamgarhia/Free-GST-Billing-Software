@@ -792,9 +792,9 @@ export default function ClientsView({ onEdit, onDuplicate, onNew, onPrint, onNew
         secondary={<>
           <BarButton icon={Upload} label="Import CSV" onClick={() => setShowImport(true)}
             title="Import CSV: add clients from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)" />
-          <BarButton icon={UserPlus} label="Add Client" onClick={() => openAddClient()} />
+          <BarButton icon={FileText} label="New Invoice" onClick={onNew} />
         </>}
-        primary={<button className="btn btn-primary" onClick={onNew}><FileText size={18} /> New Invoice</button>}
+        primary={<button className="btn btn-primary" onClick={() => openAddClient()}><UserPlus size={18} /> Add Client</button>}
       />
 
       {showImport && (
