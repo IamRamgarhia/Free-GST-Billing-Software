@@ -3,6 +3,7 @@ import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, Refr
 import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
+import SidebarMenu from './components/SidebarMenu';
 import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
@@ -494,7 +495,8 @@ function App() {
   const [navOpen, setNavOpen] = useState(false);
   const closeNavAfterPick = (e) => {
     const picked = e.target.closest('button');
-    if (picked && !picked.classList.contains('profile-switcher-btn')) setNavOpen(false);
+    // v1.10.86 - nor opening / closing a menu group or arranging the menu.
+    if (picked && !picked.classList.contains('profile-switcher-btn') && !picked.hasAttribute('data-keep-open')) setNavOpen(false);
   };
 
   // v1.10.76 - a fresh editor for every invoice opened, so nothing (such as
@@ -1022,15 +1024,9 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-btn ${currentView === item.id ? 'nav-btn-active' : ''}`}
-              onClick={item.onClick || (() => setCurrentView(item.id))}
-            >
-              <item.icon size={18} /> {item.label}
-            </button>
-          ))}
+          {/* v1.10.86 - in groups that open and close, and drag to any place. */}
+          <SidebarMenu items={navItems} currentView={currentView}
+            onPick={(item) => (item.onClick ? item.onClick() : setCurrentView(item.id))} />
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {/* Update-available banner — only shows when GitHub has a newer version
                 AND the user hasn't already dismissed THIS specific version. New
