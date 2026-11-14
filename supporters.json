@@ -31,7 +31,27 @@
     "Maulik Ramani",
     "Manmohan Singh",
     "AbeeraaProduction",
-    "Mohammad Hasib"
+    "Mohammad Hasib",
+    {
+      "name": "Abhijeet Saha",
+      "amount": 101,
+      "date": "2026-11-09"
+    },
+    {
+      "name": "Alok Kumar Biswal",
+      "amount": 200,
+      "date": "2026-11-13"
+    },
+    {
+      "name": "Ashraful Alom Mondal",
+      "amount": 11,
+      "date": "2026-11-13"
+    },
+    {
+      "name": "Shubham Namdev",
+      "amount": 200,
+      "date": "2026-11-14"
+    }
   ],
   "updated": "2026-11-07",
   "people": [
