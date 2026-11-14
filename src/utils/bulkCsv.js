@@ -13,7 +13,7 @@ import { excelSerialToIso } from './xlsxRead.js';
 import { purchaseTotals } from './purchaseOrders.js';
 import {
   computeInvoiceTotals, stockEffect, toCsvLine, INVOICE_TYPES, getStateCode,
-  stateNameForCode, resolveLineDiscount,
+  stateNameForCode, resolveLineDiscount, spreadBillDiscount,
 } from '../utils.js';
 
 // ---------------------------------------------------------------- parsing --
@@ -188,6 +188,8 @@ const SALES_FIELDS = {
   taxInclusive: ['Prices Include Tax', 'Tax Inclusive', 'Inclusive'],
   notes: ['Notes', 'Note', 'Remarks'],
   billDiscount: ['Bill Discount', 'Invoice Discount'],
+  // v1.10.85 (#190) - Yes: the bill discount is a trade discount, taken before GST.
+  billDiscountBeforeGst: ['Bill Discount Before GST', 'Discount Before GST'],
   roundOff: ['Round Off', 'Round-off', 'Rounding'],
   // v1.10.85 (#172) - the order and dispatch details, so a marketplace order ID
   // or a courier's AWB lands in the invoice (and its search finds it).
@@ -300,8 +302,11 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
     const invoiceOptions = {
       showGST, showPlaceOfSupply: showGST, currency: 'INR', showRoundOff: yes(head.roundOff),
       ...(billDiscount > 0 ? { invoiceDiscountType: 'fixed', invoiceDiscountValue: billDiscount } : {}),
+      ...(billDiscount > 0 && yes(head.billDiscountBeforeGst) ? { invoiceDiscountBeforeGst: true } : {}),
     };
     const totals = computeInvoiceTotals({ items, profile, client, details, showGST, taxInclusive, invoiceOptions });
+    // #190 - the lines are saved with their part of a before-GST discount (GSTR-1 reads them).
+    const savedItems = spreadBillDiscount(items, invoiceOptions, !showGST || taxInclusive);
     bills.push({
       id: invoiceNumber,
       clientName: client.name,
@@ -314,7 +319,7 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
       ...paidPart(received?.get(invoiceNumber), totals.total, invoiceDate),
       importedAt: new Date().toISOString(),
       data: {
-        profile, client, details, items, totals, invoiceType,
+        profile, client, details, items: savedItems, totals, invoiceType,
         customTerms: '', customNotes: head.notes || '', extraSections: [], invoiceOptions, taxInclusive,
         stockApplied: stockEffect(items, invoiceType, 'unpaid'),
       },

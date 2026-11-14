@@ -105,6 +105,14 @@ console.log('\n[Review] Import never merges different invoices or double-books a
   const back = salesCsvToBills(billsToSalesCsv(src.bills), { profile: prof });
   eq(`${src.bills[0].totalAmount}`, `${Math.round(3 * 290.3 * 1.18 - 50)}`, 'Bill discount and round-off are applied on import');
   eq(back.bills[0].totalAmount, src.bills[0].totalAmount, 'An exported invoice re-imports to the same total');
+  // v1.10.85 (#190) - "Bill Discount Before GST" = Yes: a trade discount, GST on the reduced value.
+  const trade = salesCsvToBills(head.replace('GST %\n', 'GST %,Bill Discount,Bill Discount Before GST\n') + '10,2026-10-01,Alpha Traders,Punjab,Pens,10,100,18,100,Yes\n', { profile: prof });
+  eq(`${trade.bills[0].data.totals.taxableAmount}|${trade.bills[0].totalAmount}`, '900|1062', 'Bill Discount Before GST: GST on 900 (1,000 - 100), total 1,062');
+  eq(trade.bills[0].data.items[0].billDiscShare, 100, 'and the saved line carries its part (GSTR-1 reads it)');
+  const tradeBack = salesCsvToBills(billsToSalesCsv(trade.bills), { profile: prof });
+  eq(tradeBack.bills[0].totalAmount, 1062, 'it re-imports to the same total');
+  const cash = salesCsvToBills(head.replace('GST %\n', 'GST %,Bill Discount,Bill Discount Before GST\n') + '11,2026-10-01,Alpha Traders,Punjab,Pens,10,100,18,100,No\n', { profile: prof });
+  eq(cash.bills[0].totalAmount, 1080, 'No (or blank): after GST as before, 1,180 - 100');
 
   const existing = [{ supplierName: 'Ravi Paper Mart', supplierGstin: '03AAAAA1111A1Z1', invoiceNumber: 'RP-9' }];
   const p = purchaseCsvToRecords('Invoice Number,Invoice Date,Supplier Name,Item Name,Quantity,Rate\nRP-9,2026-10-01,ravi paper mart,A4 Paper,10,250\n', { existing });

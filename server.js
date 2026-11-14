@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 import { redact } from './src/utils/errorReport.js';
 import { validateCashEntry, cleanCashEntry } from './src/utils/cashBook.js';
 import { validatePurchasePayments } from './src/utils/purchasePayments.js';
-import { templateTotals, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES, withNewActSections } from './src/utils.js';
+import { templateTotals, templateItems, clientYearToDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, businessKeyOf, getFinancialYearLabel, INVOICE_TYPES, withNewActSections } from './src/utils.js';
 import { resolveAppHome } from './src/utils/appHome.js';
 import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
 import { lockProblem, bookedOn, isLockDate } from './src/utils/periodLock.js';
@@ -3226,7 +3226,8 @@ function generateFromTemplate(tpl, today) {
           details: { invoiceNumber, invoiceDate, dueDate, placeOfSupply: tpl.placeOfSupply || '' },
           // Normalize item.name from legacy description field (v1.6.7-and-earlier
           // templates used `description` — auto-fired bills rendered blank rows).
-          items: (tpl.items || []).map(i => ({
+          // v1.10.85 (#190) - with their part of a before-GST bill discount.
+          items: templateItems({ ...tpl, invoiceOptions: opts }).map(i => ({
             ...i,
             name: i.name || i.description || '',
           })),

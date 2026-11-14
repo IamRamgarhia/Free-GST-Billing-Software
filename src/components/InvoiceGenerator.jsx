@@ -3,7 +3,7 @@ import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Setting
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES } from '../utils';
+import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES, spreadBillDiscount } from '../utils';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { openWhatsAppShare, invoiceShareMessage } from '../utils/share';
 import { confirmAction, promptAction } from './ConfirmModal';
@@ -193,6 +193,10 @@ const DEFAULT_OPTIONS = {
   // its own line above the grand total when > 0.
   invoiceDiscountValue: 0,
   invoiceDiscountType: 'fixed', // 'fixed' | 'percent'
+  // v1.10.85 (#190) - true: taken BEFORE GST (a trade discount, spread over
+  // the lines so GST is worked out on the reduced value). Off by default, so
+  // every older bill computes exactly as before.
+  invoiceDiscountBeforeGst: false,
   // v1.10.24 — Client-credit auto-apply. When true, opening a new invoice
   // for a client with an existing overpayment auto-applies the credit up
   // to the invoice total. When false (default), the user sees a banner
@@ -1703,7 +1707,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     items, profile, client, details, showGST, taxInclusive,
     // v1.10.83 - TDS recorded with a payment belongs to that issued invoice only.
     invoiceOptions: { ...invoiceOptions, tcsCumulativeThisYear: clientYtd, tdsCumulativeThisYear: clientYtd, tdsRecorded: isIssuedInvoice ? invoiceOptions.tdsRecorded : undefined },
-  }), [isIssuedInvoice, invoiceOptions.tdsRecorded, clientYtd, invoiceOptions.tcsSection, invoiceOptions.tdsSection, items, client.state, client?.country, client?.gstin, client?.isSEZ, profile?.state, profile?.country, profile?.gstin, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, invoiceOptions.isLUT, details?.placeOfSupply]);
+  }), [isIssuedInvoice, invoiceOptions.tdsRecorded, clientYtd, invoiceOptions.tcsSection, invoiceOptions.tdsSection, items, client.state, client?.country, client?.gstin, client?.isSEZ, profile?.state, profile?.country, profile?.gstin, showGST, taxInclusive, invoiceOptions.showRoundOff, invoiceOptions.showTDS, invoiceOptions.tdsRate, invoiceOptions.tdsCumulativeThisYear, invoiceOptions.showTCS, invoiceOptions.tcsRate, invoiceOptions.tcsCumulativeThisYear, invoiceOptions.reverseCharge, invoiceOptions.invoiceDiscountValue, invoiceOptions.invoiceDiscountType, invoiceOptions.invoiceDiscountBeforeGst, invoiceOptions.isLUT, details?.placeOfSupply]);
+  // v1.10.85 (#190) - the lines as they are saved and printed: each with its
+  // part of a whole-bill discount taken before GST (none after GST).
+  const { invoiceDiscountBeforeGst: discBeforeGst, invoiceDiscountValue: discValue, invoiceDiscountType: discType } = invoiceOptions;
+  const billItems = useMemo(
+    () => spreadBillDiscount(items, { invoiceDiscountBeforeGst: discBeforeGst, invoiceDiscountValue: discValue, invoiceDiscountType: discType }, !showGST || taxInclusive),
+    [items, discBeforeGst, discValue, discType, showGST, taxInclusive],
+  );
 
   // v1.10.83 - exports and SEZ supplies under a LUT (Settings › Company).
   // A new invoice ticks "under LUT" by itself when the business's saved LUT
@@ -2324,7 +2335,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ...((serverCopy?.einvoice || einvoice) ? { einvoice: serverCopy?.einvoice || einvoice } : {}),
       // v1.10.83 - the "TDS certificate received" tick from Reports › TDS & TCS.
       ...(ownBill && (serverCopy?.tdsCertificate || editingBill.tdsCertificate) ? { tdsCertificate: true } : {}),
-      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive,
+      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items: billItems, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive,
         // A converted quotation/proforma/challan's stock moved to its invoice:
         // its own record stays empty, or a save would take the stock twice.
         stockApplied: isIssued && (serverCopy?.convertedTo || editingBill.convertedTo) ? {} : stockEffect(items, invoiceType, seedStatus) }
@@ -3786,7 +3797,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // and where; uncaught, the click used to do nothing at all.
     let ewb;
     try {
-      ewb = generateEWayBillJSON(profile, client, details, items, totals, invoiceType, { taxInclusive });
+      ewb = generateEWayBillJSON(profile, client, details, billItems, totals, invoiceType, { taxInclusive });
     } catch (err) {
       toast(err.message || 'Could not make the E-Way Bill file', 'warning', 8000);
       return;
@@ -3850,7 +3861,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             invoiceNumber: details.invoiceNumber, invoiceDate: details.invoiceDate, invoiceType,
             status: editingBill && !editingBill._isDuplicate ? editingBill.status : 'unpaid',
             currency: invoiceOptions.currency || 'INR', einvoice,
-            data: { profile, client, details, items, totals, invoiceType, customTerms, invoiceOptions, taxInclusive },
+            data: { profile, client, details, items: billItems, totals, invoiceType, customTerms, invoiceOptions, taxInclusive },
           }}
           profile={profile} bills={allBillsForCredit} saved={showEinvoice.saved}
           onSaveIrn={saveEinvoice} onClose={() => setShowEinvoice(false)} />
@@ -5188,10 +5199,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountType: e.target.value }))}
                 style={{ width: 128 }}>
                 <option value="fixed">{currencySymbolFor(invoiceOptions.currency)} (fixed)</option>
-                <option value="percent">% of total</option>
+                <option value="percent">{invoiceOptions.invoiceDiscountBeforeGst ? '% of value' : '% of total'}</option>
               </select>
+              {/* v1.10.85 (#190) - Before GST: a trade discount, GST on the reduced value. */}
+              {showGST && (
+                <select className="form-input" aria-label="When the discount is taken"
+                  value={invoiceOptions.invoiceDiscountBeforeGst ? 'before' : 'after'}
+                  onChange={(e) => setInvoiceOptions(prev => ({ ...prev, invoiceDiscountBeforeGst: e.target.value === 'before' }))}
+                  style={{ width: 200 }}>
+                  <option value="after">After GST (cash discount)</option>
+                  <option value="before">Before GST (trade discount)</option>
+                </select>
+              )}
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                Applied after tax. For GST-compliant pre-tax discount, use per-line discount instead.
+                {invoiceOptions.invoiceDiscountBeforeGst && showGST
+                  ? 'Shared over the lines before GST, so GST is worked out on the reduced value.'
+                  : 'Taken off the total after GST.'}
               </span>
             </div>
             )}
@@ -5458,7 +5481,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               transformOrigin: 'top left',
             }}>
               <InvoicePreview ref={printRef} profile={profile} client={client} details={details}
-                items={items} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
+                items={billItems} totals={totals} invoiceType={invoiceType} customTerms={customTerms}
                 customNotes={customNotes} extraSections={extraSections} options={invoiceOptions}
                 cancelled={editingBill?.status === 'cancelled'} einvoice={einvoice} />
             </div>
@@ -5483,7 +5506,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
         profile={profile}
         client={client}
         details={details}
-        items={items}
+        items={billItems}
         totals={totals}
         invoiceType={invoiceType}
         customTerms={customTerms}

@@ -306,10 +306,16 @@ export default [
   <tr><td>W/Tax</td><td>₹ off the total including tax, so the client's total drops by exactly that much.</td><td>₹50 off ₹1,180: taxable about ₹957.63</td></tr>
 </table></div>
 <p>A % discount is a percentage of the row (at most 100%). A discount can never be more than the row itself. This is the GST-correct way to give a discount, because it comes off before tax and lowers the GST too.</p>
-<h3>On the whole bill (after tax)</h3>
-<p>Under the items, <b>Discount on total (whole bill)</b> takes an amount (fixed) or a <b>% of total</b>. It is taken off <em>after</em> tax, as a cash discount: the GST stays the same and the GST returns are not changed. It prints as its own line above the total. Leave it at 0 for none.</p>
+<h3>On the whole bill: after GST or before GST</h3>
+<p>Under the items, <b>Discount on total (whole bill)</b> takes an amount (fixed) or a percent. A third list says when it comes off:</p>
+<div class="table-wrap"><table>
+  <tr><th>Choice</th><th>Means</th><th>Example: ₹10,000 of goods at 18% GST, discount ₹1,000</th></tr>
+  <tr><td>After GST (cash discount)</td><td>The default. Taken off the total after tax: the GST stays the same and the GST returns are not changed. Prints as <b>Discount on total</b> above the total. A percent is a % of the total with GST.</td><td>₹10,000 + ₹1,800 GST − ₹1,000 = ₹10,800</td></tr>
+  <tr><td>Before GST (trade discount)</td><td>Shared over the lines in proportion to their value (after any line discount), and GST is worked out on what is left. The taxable value, CGST/SGST or IGST, cess, GSTR-1 and the HSN summary all use the reduced value. Each line's part shows in its <b>Disc.</b> column, and the total shows <b>Trade discount (before GST)</b>. A percent is a % of the value before GST.</td><td>₹9,000 + ₹1,620 GST = ₹10,620</td></tr>
+</table></div>
+<p>The parts are worked out to the paisa and always add up to the discount exactly. On a bill whose prices include tax, a Before GST discount comes off the prices as typed (GST included), and the GST is then worked out again on what is left. The choice is remembered for your next invoice. Invoices saved before keep their own choice (After GST), so their totals never change. Leave the amount at 0 for no discount.</p>
 <div class="note tip"><strong>Something wrong?</strong>
-<p><b>The GST did not go down after a discount.</b> You used the whole-bill discount, which is after tax. Use a line discount instead.</p></div>
+<p><b>The GST did not go down after a discount.</b> The whole-bill discount is set to After GST. Choose <b>Before GST (trade discount)</b> in the list beside it, or use a line discount.</p></div>
 </section>
 
 <section id="gst">
@@ -922,7 +928,7 @@ export default [
 <section id="printed-totals">
 <h2>What prints: the totals</h2>
 <p>On the left, the <b>amount in words</b> and a <b>Scan to pay (UPI)</b> QR code with your UPI ID and the amount. The QR only prints on rupee invoices, with a UPI ID set and a total above zero.</p>
-<p>On the right, in order: Subtotal, Discount, CGST and SGST or IGST, GST Cess, TCS, Discount on total, Round-off, and <b>Total Due</b>. For a credit note, the last line reads <b>Credit Amount</b>. With TDS, <b>Less: TDS</b> and <b>Net Receivable</b> follow.</p>
+<p>On the right, in order: Subtotal, Discount, Trade discount (before GST), CGST and SGST or IGST, GST Cess, TCS, Discount on total, Round-off, and <b>Total Due</b>. For a credit note, the last line reads <b>Credit Amount</b>. With TDS, <b>Less: TDS</b> and <b>Net Receivable</b> follow.</p>
 </section>
 
 <section id="printed-footer">
