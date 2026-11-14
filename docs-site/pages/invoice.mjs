@@ -657,6 +657,7 @@ export default [
   <li><strong>Enter what is being credited</strong>Add the returned items, or the price difference, with the same GST rates as the original.</li>
   <li><strong>Save</strong>Its total is subtracted from your sales on the Dashboard, returned goods go back into stock, and it goes into GSTR-1 as a credit note.</li>
 </ol>
+<p><b>Quicker, for a return:</b> on the Dashboard, type or scan the invoice number, order ID or AWB in the Invoices search and click ${ui('Return / credit note')} on the invoice it finds. The credit note opens with the client, items, quantities, rates and order details of the invoice, and the invoice already in <b>Original Invoice Reference</b>. Lower a quantity for a part return, then ${ui('Save')}. See <a href="dashboard.html#scan-a-return">Scan a return</a>.</p>
 </section>
 
 <section id="proforma-to-invoice">
