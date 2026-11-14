@@ -1100,6 +1100,9 @@ textarea.form-input { resize: vertical; min-height: 60px; }
 }
 
 .table-header h3 { margin: 0; font-size: 1rem; }
+/* A button next to the export buttons (Purchases: Supplier statement | Print
+   / PDF) sat flush against them: the header is not a flex row, so no gap. */
+.table-header > .btn { margin-right: 0.4rem; }
 
 /* v1.10.33 — Scroll container gets a fade at the right edge so
    users know there's more table off-screen on narrow viewports. */
@@ -3305,6 +3308,9 @@ kbd {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* A phone: the buttons go under the name instead of past the screen edge. */
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 0.35rem;
   font-size: 0.875rem;
 }

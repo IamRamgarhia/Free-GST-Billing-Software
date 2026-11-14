@@ -45,6 +45,16 @@ npm run release:check    # everything below marked [auto]
 - [auto] on `main`, everything committed
 - [auto] the version is newer than the latest release, and `main` on GitHub still says the last release (ERR-057: users were offered a version that did not exist)
 
+After the smoke suite, the design check (about 2 minutes; it starts its own copy of the app on fresh demo books, never yours):
+
+```
+npm run test:design
+```
+
+- [ ] It must end with **"Design check passed"**. It opens every main screen at 1366x768 and 390x844 and fails on: a screen that scrolls sideways, a box (button, field, tab, card, notice) less than 4px from a line or another box, overlapping controls, cut-off button text, and a screen that looks different from its saved picture in `tests/design-baseline/`.
+- [ ] A spacing failure is fixed in the app (src/index.css), never by loosening the check. Each one names the screen, the elements and the gap, with a screenshot that outlines them in red.
+- [ ] A "changed" failure: open its `-diff.png` (red = what changed). Only when the change was **intended** (this week's work), run `npm run test:design -- --update` and commit the new pictures with the fix. An unexpected change is a bug.
+
 ## 4. Test on real systems (the script cannot do these)
 
 - [ ] **Docker, fresh Ubuntu install** of the exact ZIP + the smoke suite: `npm run test:fresh-linux` (Playwright image; it unpacks the ZIP, starts the app with its own Linux start script and runs tests/smoke.mjs).

@@ -4488,7 +4488,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 })()}
                 <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                   <label className="form-label">PDF Style <HelpButton title="PDF Style" doc="invoice-options#style" size={16} /></label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {PDF_STYLES.map(s => (
                       <button key={s.id} type="button"
                         className={`type-chip ${(invoiceOptions.pdfStyle || 'classic') === s.id ? 'type-chip-active' : ''}`}

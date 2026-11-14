@@ -145,7 +145,7 @@ export function FeaturesPanel({ features, regionMode }) {
             const mod = menuModules.find(m => m.id === item.module);
             return (
               <div key={item.id} data-menu-item={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(item.id, -1)}
                     aria-label={`Move ${item.label} up`} title="Move up" style={{ padding: 2 }}><ChevronUp size={16} /></button>
                   <button type="button" className="icon-btn" disabled={i === items.length - 1} onClick={() => move(item.id, 1)}
