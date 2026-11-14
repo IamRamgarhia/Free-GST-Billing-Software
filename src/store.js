@@ -261,6 +261,23 @@ export const getMenuClosed = () => {
 };
 export const setMenuClosed = (ids) => {
   try { localStorage.setItem(MENU_CLOSED_KEY, JSON.stringify(ids || [])); } catch { /* ignore */ }
+  menuChanged(); // v1.10.86 - the sidebar and "Customise menu" both show it
+};
+// v1.10.86 - items taken out of the menu in "Customise menu" (list of item
+// ids, see utils/menuGroups.js hiddenItems). Mirrored like the order.
+const MENU_HIDDEN_KEY = 'gst_menuHidden';
+export const getMenuHidden = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(MENU_HIDDEN_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+};
+export const setMenuHidden = (ids) => {
+  try {
+    if (ids?.length) localStorage.setItem(MENU_HIDDEN_KEY, JSON.stringify(ids));
+    else localStorage.removeItem(MENU_HIDDEN_KEY);
+  } catch { /* ignore */ }
+  menuChanged();
 };
 
 // v1.10.85 - the names of the price levels (Settings -> Features -> Price
@@ -695,6 +712,7 @@ const EXPORTABLE_LOCALSTORAGE_KEYS = [
   'gst_offlineMode',                 // v1.10.83 — Offline mode: no automatic internet use
   'gst_menuOrder',                   // v1.10.83 — sidebar order (v1.10.86: with groups)
   'gst_menuClosed',                  // v1.10.86 — sidebar groups that are closed
+  'gst_menuHidden',                  // v1.10.86 — items taken out of the menu (Customise menu)
   'gst_filing_status',               // GSTR-1/3B "Filed" pill states per period key
   'gst_printSettings',               // v1.8.4 — thermal printer defaults (font, weight, all-caps, etc.)
   'gst_itrCalcInputs',               // v1.7.0 — regime calculator inputs

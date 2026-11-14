@@ -6,6 +6,7 @@
 import {
   MENU_GROUPS, menuGroups, normalOrder, orderedMenu, moveItem, moveGroup,
   stepItem, stepGroup, moveMenuItem, groupOfItem, closedGroups, toggleGroup,
+  canHide, hiddenItems, toggleHidden,
 } from '../src/utils/menuGroups.js';
 import { MENU_ITEMS } from '../src/utils.js';
 
@@ -102,6 +103,17 @@ eq(closedGroups(['money', 'ghost', 3]), ['money'], 'unknown closed ids ignored')
 eq(closedGroups('x'), [], 'bad saved value is safe');
 eq(toggleGroup([], 'sales'), ['sales'], 'close');
 eq(toggleGroup(['sales', 'money'], 'sales'), ['money'], 'open');
+
+console.log('Taken out of the menu (Customise menu)');
+eq(hiddenItems(undefined), [], 'nothing saved (older versions) = everything shown');
+eq(hiddenItems('x'), [], 'bad saved value is safe');
+eq(['dashboard', 'new', 'clients', 'settings', 'support'].filter(canHide), [], 'core screens, Support & About and Settings can never be taken out');
+eq(['inventory', 'reports', 'controlpanel'].every(canHide), true, 'other screens and Control Panel can');
+eq(['guide', 'darkMode', 'ghost'].filter(canHide), [], 'top-right buttons and unknown ids are not menu items here');
+eq(hiddenItems(['reports', 'settings', 'ghost', 'reports', 'dashboard']), ['reports'], 'saved list cleaned: unknown, locked and repeated ids dropped');
+eq(toggleHidden([], 'reports'), ['reports'], 'take out');
+eq(toggleHidden(['reports', 'expenses'], 'reports'), ['expenses'], 'put back');
+eq(toggleHidden([], 'settings'), [], 'Settings cannot be taken out');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

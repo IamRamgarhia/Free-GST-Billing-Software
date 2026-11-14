@@ -375,10 +375,10 @@ export default [
 <ul>
   <li>The tick box shows or hides the item.</li>
   <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. In the top box an item at the top or bottom of a group moves on into the next group, and the arrows beside a group's name move the whole group. ${ui('Reset menu')}, shown once you have moved something, puts back the usual groups and order.</li>
-  <li>You can also arrange the menu in the sidebar itself, by dragging or with ${ui('Arrange menu')}: see <a href="shortcuts.html#menu-groups">The sidebar</a>. Both always show the same order.</li>
-  <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, <b>Support &amp; About</b> and <b>Lock app</b> (shown only when a PIN is set) say <b>(always shown)</b> and have no tick box. You can still move them.</li>
+  <li>${ui('Customise menu…')} opens the same window as the pencil at the top of the sidebar: open or close the groups, and take items out of the menu without switching the feature off. An item taken out says <b>Not in the menu</b> here. See <a href="shortcuts.html#menu-groups">Customise menu</a>. Both always show the same order.</li>
+  <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, and <b>Support &amp; About</b> say <b>(always shown)</b> and have no tick box. You can still move them.</li>
 </ul>
-<p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything hidden. Save with ${ui('Save all changes')}.</p>
+<p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything unticked here, but still finds a screen only taken out of the menu. Save the ticks and arrows with ${ui('Save all changes')}; Customise menu saves straight away.</p>
 </section>
 
 <section id="features-inside-screens">

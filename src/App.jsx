@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart, Banknote } from 'lucide-react';
-import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
+import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
 import SidebarMenu from './components/SidebarMenu';
+import MenuCustomise, { onOpenCustomiseMenu } from './components/MenuCustomise';
+import { hiddenItems } from './utils/menuGroups';
 import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
@@ -564,6 +566,12 @@ function App() {
   // sidebar straight away.
   const [, setMenuTick] = useState(0);
   useEffect(() => onMenuChanged(() => setMenuTick(t => t + 1)), []);
+  // v1.10.86 - "Customise menu" (the pencil at the top of the sidebar, or
+  // Settings -> Features). Items taken out there leave the sidebar only:
+  // navItems / bottomIds keep them, so Ctrl+K search still finds them.
+  const [showMenuEditor, setShowMenuEditor] = useState(false);
+  useEffect(() => onOpenCustomiseMenu(() => setShowMenuEditor(true)), []);
+  const menuHidden = hiddenItems(getMenuHidden());
   // Sidebar items in the saved order; hidden ones dropped. `module: null`
   // items (Settings, Support & About, Lock app) are always shown.
   const menu = orderedMenu(getMenuOrder()).filter(m => !m.module || showIfModule(m.module));
@@ -600,6 +608,14 @@ function App() {
   };
   const navItems = menu.filter(m => m.section === 'main').map(m => ({ id: m.id, ...NAV_EXTRAS[m.id] }));
   const bottomIds = menu.filter(m => m.section === 'bottom').map(m => m.id);
+  // v1.10.86 - icons and names for the Customise menu window, as in the sidebar.
+  const menuExtras = { ...NAV_EXTRAS, support: { icon: Heart, label: 'Support & About' }, controlpanel: { icon: HardDrive, label: 'Control Panel' }, settings: { icon: Settings, label: 'Settings' } };
+  // v1.10.86 - a Settings tab / section from the sidebar (as openSettingsAt below).
+  const openSettingsSection = (sectionId) => {
+    try { sessionStorage.setItem('gst_settingsTab', sectionId); } catch { /* storage blocked */ }
+    setCurrentView('settings');
+    setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: sectionId })), 80);
+  };
   // v1.10.83 - small buttons at the top right of every screen (asked for:
   // "dark mode button should be on top, not in the sidebar").
   const topIds = menu.filter(m => m.section === 'top').map(m => m.id);
@@ -981,18 +997,21 @@ function App() {
           <div className="profile-switcher-row">
             <button
               className="profile-switcher-btn"
-              onClick={() => (shownProfiles.length > 1 || anyHidden) && setShowProfileMenu(v => !v)}
-              title={shownProfiles.length > 1 || anyHidden ? 'Switch business profile' : profile?.businessName || 'My Business'}
-              style={{ cursor: shownProfiles.length > 1 || anyHidden ? 'pointer' : 'default' }}
+              onClick={() => setShowProfileMenu(v => !v)}
+              title={shownProfiles.length > 1 || anyHidden ? 'Switch business, or edit its details' : 'Edit business details'}
+              aria-haspopup="menu" aria-expanded={showProfileMenu}
             >
               <Building2 size={14} />
               <span className="profile-switcher-name">{profile?.businessName || 'My Business'}</span>
-              {(shownProfiles.length > 1 || anyHidden) && <ChevronDown size={13} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
+              {/* v1.10.86 - always opens: "Edit business details" is in it (the pencil is now Customise menu). */}
+              <ChevronDown size={13} style={{ marginLeft: 'auto', opacity: 0.6 }} />
             </button>
+            {/* v1.10.86 - opens Customise menu (was: edit the business, now in the list on the left). */}
             <button
+              type="button"
               className="profile-switcher-edit"
-              onClick={() => { setShowProfileMenu(false); setCurrentView('settings'); }}
-              title="Edit business profile"
+              onClick={() => { setShowProfileMenu(false); setShowMenuEditor(true); }}
+              title="Customise menu" aria-label="Customise menu"
             >
               <Pencil size={13} />
             </button>
@@ -1008,6 +1027,12 @@ function App() {
                   {bp.businessName}
                 </button>
               ))}
+              <button
+                className="profile-switcher-item profile-switcher-details"
+                onClick={() => { setShowProfileMenu(false); openSettingsSection('section-company'); }}
+              >
+                <Pencil size={13} /> Edit business details
+              </button>
               {anyHidden && (
                 <button className="profile-switcher-item profile-switcher-manage" onClick={openHidden}>
                   Open a hidden company...
@@ -1024,8 +1049,8 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {/* v1.10.86 - in groups that open and close, and drag to any place. */}
-          <SidebarMenu items={navItems} currentView={currentView}
+          {/* v1.10.86 - in groups that open and close; arranged in Customise menu (the pencil). */}
+          <SidebarMenu items={navItems.filter(i => !menuHidden.includes(i.id))} currentView={currentView}
             onPick={(item) => (item.onClick ? item.onClick() : setCurrentView(item.id))} />
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {/* Update-available banner — only shows when GitHub has a newer version
@@ -1057,7 +1082,7 @@ function App() {
             )}
             {/* v1.10.83 - in the order chosen in Settings → Features; switched-off
                 ones are already left out of bottomIds. */}
-            {bottomIds.map(id => ({
+            {bottomIds.filter(id => !menuHidden.includes(id)).map(id => ({
               support: (
                 <button key={id}
                   className={`nav-btn nav-btn-support${currentView === 'support' ? ' nav-btn-support-active' : ''}`}
@@ -1099,6 +1124,11 @@ function App() {
         </nav>
       </div>
 
+      {/* v1.10.86 - outside the sidebar, so on a phone it is not inside the slide-in menu. */}
+      {showMenuEditor && (
+        <MenuCustomise extras={menuExtras} onClose={() => setShowMenuEditor(false)}
+          onOpenFeatures={() => { setShowMenuEditor(false); openSettingsSection('section-modules'); }} />
+      )}
       <div className="main-content">
         <div className="app-topbar">
           {/* v1.10.83 - the promise, on every screen (it was under the app name in the menu). */}
