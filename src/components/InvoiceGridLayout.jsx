@@ -310,7 +310,7 @@ function TallyLayout({ ctx }) {
             return (
               <tr key={item.id || i}>
                 <td style={{ ...vc, ...center }}>{i + 1}</td>
-                <td style={vc}>
+                <td className="grid-desc" style={vc}>
                   <strong>{item.name || '-'}</strong>
                   {item.description && <div style={{ ...small, whiteSpace: 'pre-wrap' }}>{item.description}</div>}
                   {item.size && sizeHasDims(item.size) && <div style={small}>{sizeLine(item)}</div>}
@@ -483,7 +483,7 @@ function BoxedLayout({ ctx }) {
               return (
                 <tr key={item.id || i}>
                   <td style={{ ...cell, ...center, borderLeft: 'none' }}>{i + 1}</td>
-                  <td style={cell}>
+                  <td className="grid-desc" style={cell}>
                     {item.name || '-'}
                     {item.description && <div style={{ ...small, whiteSpace: 'pre-wrap' }}>{item.description}</div>}
                   {item.size && sizeHasDims(item.size) && <div style={small}>{sizeLine(item)}</div>}

@@ -1688,7 +1688,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           <div style={{ flex: 1 }}>
             <p className="stat-label">Total Invoiced <HelpButton title="Total Invoiced" doc="dashboard#total-invoiced" size={14} /></p>
             {Object.entries(stats.byCurrency).map(([cur, v]) => (
-              <div key={cur} className="stat-value" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined }}>
+              <div key={cur} className="stat-value" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined, '--len': formatCurrency(v.total, cur).length }}>
                 {formatCurrency(v.total, cur)}
               </div>
             ))}
@@ -1705,7 +1705,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           <div style={{ flex: 1 }}>
             <p className="stat-label">Tax Collected <HelpButton title="Tax Collected" doc="dashboard#tax-collected" size={14} /></p>
             {Object.entries(stats.byCurrency).map(([cur, v]) => (
-              <div key={cur} className="stat-value stat-value-green" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined }}>
+              <div key={cur} className="stat-value stat-value-green" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined, '--len': formatCurrency(v.tax, cur).length }}>
                 {formatCurrency(v.tax, cur)}
               </div>
             ))}
@@ -1717,7 +1717,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           <div style={{ flex: 1 }}>
             <p className="stat-label">Outstanding <HelpButton title="Outstanding" doc="dashboard#outstanding" size={14} /></p>
             {Object.entries(stats.byCurrency).map(([cur, v]) => (
-              <div key={cur} className="stat-value stat-value-amber" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined }}>
+              <div key={cur} className="stat-value stat-value-amber" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined, '--len': formatCurrency(v.unpaid, cur).length }}>
                 {formatCurrency(v.unpaid, cur)}
               </div>
             ))}

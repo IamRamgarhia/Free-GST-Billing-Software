@@ -1419,7 +1419,7 @@ export default function PurchaseBills() {
       <div className="stats-grid stats-grid-4">
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple"><ShoppingCart size={22} /></div>
-          <div><p className="stat-label">{returnStats.total > 0 ? 'Total Purchases (less returns)' : 'Total Purchases'}</p><h2 className="stat-value stat-value-purple">{formatCurrency(totalStats.total - returnStats.total)}</h2>
+          <div><p className="stat-label">{returnStats.total > 0 ? 'Total Purchases (less returns)' : 'Total Purchases'}</p><h2 className="stat-value stat-value-purple" style={{ '--len': formatCurrency(totalStats.total - returnStats.total).length }}>{formatCurrency(totalStats.total - returnStats.total)}</h2>
             {returnStats.total > 0 && <p className="text-muted" style={{ fontSize: '0.72rem', margin: 0 }}>{formatCurrency(totalStats.total)} bought, {formatCurrency(returnStats.total)} returned</p>}</div>
         </div>
         {/* v1.10.83 (#123) - what is still to pay on the bills shown. */}
@@ -1427,12 +1427,12 @@ export default function PurchaseBills() {
           <div className="stat-icon stat-icon-amber"><IndianRupee size={22} /></div>
           <div>
             <p className="stat-label">Owed to suppliers <HelpButton title="Owed to suppliers" doc="purchases#owed-to-suppliers" size={13} /></p>
-            <h2 className="stat-value" style={{ color: totalStats.owed > 0.005 ? 'var(--danger)' : undefined }}>{formatCurrency(totalStats.owed)}</h2>
+            <h2 className="stat-value" style={{ color: totalStats.owed > 0.005 ? 'var(--danger)' : undefined, '--len': formatCurrency(totalStats.owed).length }}>{formatCurrency(totalStats.owed)}</h2>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon stat-icon-green"><ShoppingCart size={22} /></div>
-          <div><p className="stat-label">GST (ITC Eligible)</p><h2 className="stat-value stat-value-green">{formatCurrency(totalStats.tax - returnStats.tax)}</h2></div>
+          <div><p className="stat-label">GST (ITC Eligible)</p><h2 className="stat-value stat-value-green" style={{ '--len': formatCurrency(totalStats.tax - returnStats.tax).length }}>{formatCurrency(totalStats.tax - returnStats.tax)}</h2></div>
         </div>
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue"><ShoppingCart size={22} /></div>

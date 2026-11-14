@@ -2443,6 +2443,36 @@ a:focus-visible {
 .inv-td-muted { color: #475569; }
 .inv-td-amount { font-weight: 600; color: #0f172a; white-space: nowrap; }
 
+/* v1.10.86 (#188) - a word longer than its box (an SKU, a long email or URL,
+   a name typed without spaces) now breaks inside the box. It used to make the
+   item table, or the address block, wider than the sheet; the PDF of a too-wide
+   sheet is shrunk as a whole, so the invoice came out small with a blank strip
+   down the right side. Amount cells stay on one line (white-space: nowrap). */
+.invoice-preview-container { overflow-wrap: break-word; }
+/* In a table, flex row or grid a long word also widens its column, so these
+   boxes may break anywhere. Not the HSN, quantity or place-of-supply boxes:
+   squeezed, they broke short codes in two ("48191 / 010", "Karnatak / a"). */
+.invoice-preview-container .inv-td-name,
+.invoice-preview-container .grid-desc,
+.invoice-preview-container .inv-party-name,
+.invoice-preview-container .inv-party-details,
+.invoice-preview-container .inv-business-name,
+.invoice-preview-container .inv-business-details,
+.invoice-preview-container .grid-inv table:not(.inv-table):not(.inv-hsn-summary) td { overflow-wrap: anywhere; }
+/* The place of supply column keeps whole words ("Karnataka"), as before. */
+.invoice-preview-container .inv-party-right,
+.invoice-preview-container .inv-party-right * { overflow-wrap: normal; }
+/* v1.10.86 (#188) - when the item columns need more room than the sheet has
+   (every column on, large amounts), the table steps down to tighter padding
+   and smaller figures, only as far as it must (utils/invoiceFit.js). */
+.invoice-preview-container[data-table-fit] :is(.inv-table, .inv-hsn-summary) :is(th, td) { padding-left: 0.25rem !important; padding-right: 0.25rem !important; }
+.invoice-preview-container[data-table-fit] .inv-table .inv-td { font-size: 0.66rem !important; }
+.invoice-preview-container[data-table-fit] :is(.inv-table.grid-items, .inv-hsn-summary) td { font-size: 0.9em !important; }
+.invoice-preview-container[data-table-fit="2"] :is(.inv-table, .inv-hsn-summary) :is(th, td) { padding-left: 0.15rem !important; padding-right: 0.15rem !important; }
+.invoice-preview-container[data-table-fit="2"] .inv-table .inv-td { font-size: 0.6rem !important; }
+.invoice-preview-container[data-table-fit="2"] :is(.inv-table.grid-items, .inv-hsn-summary) td { font-size: 0.8em !important; }
+.invoice-preview-container[data-table-fit="2"] .inv-table .inv-th { font-size: 0.55rem !important; }
+
 .inv-tr-even td { background: #fafbfc; }
 
 .inv-gst-pill {
@@ -3691,3 +3721,64 @@ html:not([data-theme="dark"]) .welcome-card-close:hover { background: rgba(15, 2
 .inv-bank-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 0.75rem; align-items: baseline; }
 .inv-bank-grid .inv-detail-label { min-width: 0; display: block; }
 .inv-bank-grid p { overflow-wrap: anywhere; }
+
+/* ========= v1.10.86 - totals cards, phone width, spacing ========= */
+
+/* Dashboard / Purchases totals: from about Rs 10 lakh the amount was wider
+   than its card at 1366 px, and the whole Dashboard scrolled sideways. Each
+   card now keeps its share of the row and the amount steps down in size to
+   fit (--len is the amount's length in characters, set by the screen). */
+.stats-grid-4 > .stat-card { container-type: inline-size; min-width: 0; }
+.stats-grid-4 > .stat-card > div:not(.stat-icon) { min-width: 0; }
+.stats-grid-4 .stat-value { white-space: nowrap; font-size: clamp(0.95rem, calc((100cqi - 4.25rem) / (var(--len, 8) * 0.62)), 1.5rem); }
+
+@media (max-width: 900px) {
+  /* New Invoice on a phone: the form and the preview were two 250 px boxes,
+     each scrolling on its own, under the button bar. Now the page scrolls as
+     one - the whole form, then the preview below it. */
+  .generator-container { height: auto; }
+  .split-view { flex: none; }
+  .split-view > .editor-pane { flex: none; overflow: visible; }
+  .split-view > .preview-pane { flex: none; }
+}
+
+@media (max-width: 768px) {
+  /* The invoice buttons (Save, Save PDF, Print, WhatsApp...) in one row that
+     scrolls sideways, so the bar that stays on screen is two rows, not five. */
+  .generator-actions { flex-wrap: nowrap; overflow-x: auto; width: 100%; justify-content: flex-start; padding-bottom: 2px; }
+  .generator-actions > * { flex-shrink: 0; }
+  .generator-toolbar { margin-bottom: 1rem; }
+
+  /* Finger-sized tap targets: small buttons, chips, status pickers and the
+     round (?) help buttons were 19-28 px tall. */
+  .main-content .btn:not(#section-phone *), .modal-overlay .btn { min-height: 36px; }
+  .type-chip, .status-select { min-height: 34px; }
+  .main-content .icon-btn:not(#section-phone *), .modal-overlay .icon-btn { min-width: 32px; min-height: 32px; }
+  .main-content button:not(#section-phone *), .modal-overlay button { min-height: 32px; }
+  .main-content .form-input:not(#section-phone *), .modal-overlay .form-input { min-height: 36px; }
+
+  /* Invoice list: the client column was squeezed to ~85 px, so a long name
+     ran to ten lines and every row was 200 px tall. */
+  .data-table td.td-client { min-width: 170px; }
+
+  /* Income tax: Old vs New regime side by side did not fit a phone. */
+  .regime-cards { grid-template-columns: 1fr !important; }
+
+  /* Page headers: the action buttons wrap under the title (Clients' "New
+     Invoice" ran past the card's right edge). */
+  .page-header > div { flex-wrap: wrap; min-width: 0; }
+  /* Client cards: the totals go under the name, which had a 100 px column. */
+  .client-card-header { flex-wrap: wrap; gap: 0.75rem; padding: 1rem; }
+  .client-card-stats { flex-wrap: wrap; gap: 0.75rem 1.25rem; }
+}
+
+/* v1.10.86 - spacing: boxes stacked with no gap looked joined into one. A few
+   general rules instead of one fix per screen (the invoice sheet itself and
+   the phone-access section are left as they are). */
+/* Rows of buttons or chips that wrap onto a second line: the lines touched. */
+.main-content [style*="flex-wrap: wrap"]:not(.invoice-preview-container *):not(#section-phone *),
+.modal-overlay [style*="flex-wrap: wrap"]:not(.invoice-preview-container *) { row-gap: 0.5rem !important; }
+/* A notice (info, warning, note, error) never touches the box or button
+   above or below it. */
+:is(.main-content, .modal-overlay) * + .notice:not(#section-phone *),
+:is(.main-content, .modal-overlay) .notice + *:not(#section-phone *) { margin-top: 0.75rem; }

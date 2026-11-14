@@ -241,7 +241,8 @@ export default function IncomeTax() {
   return (
     <div className="dashboard-container">
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* v1.10.86 - wraps on a phone: the title was squeezed into a narrow column beside the Year box. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <div>
             <h1 className="page-title">Income Tax Helper <HelpButton title="Income tax — how to use" doc="income-tax" size={16} /></h1>
             <p className="page-subtitle">{yearLabel(fy)}: Old vs New Regime, bank-statement import, ITR summary</p>
@@ -291,7 +292,7 @@ export default function IncomeTax() {
 
       {/* Sub-tab strip */}
       <div className="glass-panel" style={{ padding: '0.5rem', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {TABS.map(t => (
             <button key={t.key}
               className={`btn ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`}
@@ -712,7 +713,7 @@ function RegimeCalculatorTab({ inputs, setInputs, comparison, onReset }) {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+        <div className="regime-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
           <RegimeCard title="Old Regime" result={comparison.old} highlighted={comparison.recommended === 'old'} color="#8b5cf6" />
           <RegimeCard title="New Regime" result={comparison.new} highlighted={comparison.recommended === 'new'} color="#059669" />
         </div>

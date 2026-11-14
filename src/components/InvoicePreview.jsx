@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import QRCode from 'qrcode';
 import SignatureImages from './SignatureImages';
 import DOMPurify from 'dompurify';
@@ -9,6 +9,7 @@ import InvoiceGridLayout, { HsnSummaryTable } from './InvoiceGridLayout';
 import { exportDeclaration } from '../utils/lut';
 import { purposeCodeText } from '../utils/purposeCodes';
 import { sizeLabel, sizePieces, lineSqft, sizeHasDims, rftLabel } from '../utils/glass';
+import { fitItemTable } from '../utils/invoiceFit';
 
 // v1.10.36 — Optional `previewOnly` prop suppresses the internal
 // `id="invoice-preview"`. The parent's on-screen preview keeps the id
@@ -22,6 +23,14 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
   // (a page refresh while editing an invoice), and reading a bank field from
   // null blanked the whole app. Empty until it arrives.
   const profile = profileProp || {};
+  // v1.10.86 (#188) - the item table steps down to a tighter size when its
+  // columns need more room than the sheet has (see utils/invoiceFit.js).
+  const sheetRef = useRef(null);
+  const setSheetRef = useCallback((el) => {
+    sheetRef.current = el;
+    if (typeof ref === 'function') ref(el); else if (ref) ref.current = el;
+  }, [ref]);
+  useLayoutEffect(() => { fitItemTable(sheetRef.current); });
   // Interstate detection must match InvoiceGenerator.jsx — it honours
   // details.placeOfSupply (POS override) and client.isSEZ (SEZ supplies
   // are always interstate regardless of physical state). Without this
@@ -1144,7 +1153,7 @@ const InvoicePreview = React.forwardRef(({ profile: profileProp, client, details
       data-user-colors={_ps_final.userColorsEnabled ? '1' : '0'}
       data-row-density={_ps_final.rowDensity || 'normal'}
       data-header-compact={_ps_final.headerCompact ? '1' : '0'}
-      ref={ref} {...(previewOnly ? {} : { id: 'invoice-preview' })} style={finalContainerStyle}>
+      ref={setSheetRef} {...(previewOnly ? {} : { id: 'invoice-preview' })} style={finalContainerStyle}>
       {cancelled && (
         <div aria-hidden="true" style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
