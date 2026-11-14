@@ -22,6 +22,7 @@ import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import SetupWizard from './components/SetupWizard';
 import ToastContainer, { toast } from './components/Toast';
+import UpdateOverlay from './components/UpdateOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
@@ -304,17 +305,14 @@ function App() {
 
   // v1.10.69 - see runUpdateNow() in store.js for why this is no longer a link.
   const [updating, setUpdating] = useState(false);
+  // v1.10.86 - the progress window (UpdateOverlay) shows the steps and any
+  // error; on success the page reloads on the new version by itself.
   const handleUpdateNow = async () => {
     setUpdating(true);
-    toast('Updating… your data is backed up first. This takes about a minute.', 'info', 8000);
+    setShowUpdateModal(false);
     const result = await runUpdateNow();
     setUpdating(false);
-    if (result.ok) {
-      setShowUpdateModal(false);
-      toast('Update finished. Reload the page to use the new version.', 'success', 10000);
-    } else {
-      toast(`Update failed — ${result.error}`, 'error', 10000);
-    }
+    if (result.hint) toast(result.error, 'info', 10000);
   };
 
   const dismissUpdate = () => {
@@ -1415,7 +1413,7 @@ function App() {
               </p>
             )}
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.6rem', marginBottom: 0 }}>
-              {updateInfo.updateHint || <><em>Update Now</em> backs up your data, then fetches the newest release. It takes about a minute — leave this window open, then reload the page when it finishes.</>}
+              {updateInfo.updateHint || <><em>Update Now</em> backs up your data, then fetches the newest release. It takes about a minute — leave this window open; the app opens again on the new version by itself.</>}
             </p>
           </div>
         </div>
@@ -1423,6 +1421,7 @@ function App() {
 
       <ToastContainer />
       <ConfirmModalContainer />
+      <UpdateOverlay />
     </div>
   );
 }

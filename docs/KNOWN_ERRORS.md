@@ -730,6 +730,31 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-089 - "Update Software" on the ZIP copy stayed on "Updating..." for good
+
+**Version:** v1.10.44 and later (ZIP copy on Windows) · fixed in v1.10.86
+**Reported by:** the maintainer, 14 Nov 2026: users cannot tell anything is happening after "Update Software"
+
+**Symptom** - Control Panel -> Update Now turned into "Updating..." and never
+came back; a blank black window may have opened behind the app.
+
+**Cause** - the server ran update-windows.ps1 with its input as an open pipe.
+The script ends with Read-Host "Press Enter to close", and PowerShell then
+reads that pipe, not the keyboard: nothing ever wrote to it, so the script
+never ended and the request never answered. Its output went to the pipe too,
+so the window it opened stayed empty. Restore (and Backup, after an error) end the same way.
+
+**Rule** - control scripts started by the server get no input (stdin
+'ignore' in runControlScript): Read-Host answers at once with nothing. A
+question such as "Install Node.js LTS now? Type Y" is then a no, never a yes.
+The page shows the update's steps itself (UpdateOverlay).
+
+**Guard** - none automated for the hang (it needs a real ZIP copy on Windows);
+scripts/mac-app-test.mjs checks that every step line of both update scripts is
+still recognised for the progress window.
+
+---
+
 ## ERR-088 - A duplicated invoice lost its currency
 
 **Version:** v1.10.83 and later · fixed in v1.10.85

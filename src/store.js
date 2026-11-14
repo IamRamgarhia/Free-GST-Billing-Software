@@ -8,6 +8,7 @@ import { salesOrderOf, releaseChallansPlan, reabsorbChallansPlan } from './utils
 import { DEFAULT_LEVEL_NAMES, normaliseLevelNames, priceLevelList } from './utils/priceLevels';
 
 import { logProblem } from './utils/problemLog';
+import { setUpdateProgress } from './utils/updateNotice';
 
 const API = '/api';
 
@@ -753,27 +754,57 @@ const getAppVersion = async () => {
 // v1.10.44 and registers no protocol, so on every install made since then the
 // button did nothing at all - no error, no window, nothing. The Control Panel
 // already ran the update properly through the server; these now do the same.
+// v1.10.86 - a progress window shows each step (updateNotice.js
+// setUpdateProgress -> components/UpdateOverlay.jsx). While the server works,
+// its step is asked for every second (/api/control-panel/update-progress).
+// A ZIP copy restarts by itself afterwards, so the page reloads on the new
+// version. A copy that cannot update itself (hint: .deb, AppImage, Docker,
+// Mac app) shows no window: the caller keeps its own message.
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+const versionNow = () => fetch('/api/version', { cache: 'no-store' }).then((r) => r.json());
+
 export const runUpdateNow = async () => {
+  setUpdateProgress({ step: 'Starting the update...', pct: 3 });
+  const result = await updateSteps();
+  if (result.hint) setUpdateProgress(null);
+  else if (!result.ok) setUpdateProgress({ error: result.error });
+  return result;
+};
+
+const updateSteps = async () => {
+  let polling = true;
+  const poll = async () => {
+    while (polling) {
+      await pause(1000);
+      try {
+        const p = await (await fetch('/api/control-panel/update-progress', { cache: 'no-store' })).json();
+        if (polling && p.step) setUpdateProgress({ step: p.step, pct: p.pct });
+      } catch { /* the next try */ }
+    }
+  };
   try {
+    poll();
+    const first = await versionNow().catch(() => ({}));
     const res = await fetch('/api/control-panel/launch-script', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'update' }),
     });
     const data = await res.json();
-    if (!data.ok) return { ok: false, error: data.error || data.stderr || 'The update script did not finish.' };
+    polling = false;
+    if (!data.ok) return { ok: false, hint: !!data.hint, downloadUrl: data.downloadUrl, stdout: data.stdout, stderr: data.stderr, error: data.error || data.stderr || 'The update script did not finish.' };
     // v1.10.84 - a copy installed by the Windows Setup: the new Setup is now
     // running. It stops this server, installs and starts the new version;
     // reload when the new version answers, so nobody has to.
     if (data.installer) {
+      setUpdateProgress({ step: 'Installing the new version. The app closes and opens again by itself in about a minute.', pct: null });
       // If the Setup fails it starts the old version again: the server goes
       // away and comes back with the same version (a new process).
-      const first = await fetch('/api/version', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({}));
       let wentAway = false;
       for (let i = 0; i < 120; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
+        await pause(3000);
         try {
-          const v = await (await fetch('/api/version', { cache: 'no-store' })).json();
+          const v = await versionNow();
           if (v.current && v.current !== data.version) { window.location.reload(); return { ok: true }; }
           if (v.pid && first.pid && v.pid !== first.pid) wentAway = true;
           if (wentAway && i > 10) {
@@ -783,9 +814,25 @@ export const runUpdateNow = async () => {
       }
       return { ok: false, error: `The new version did not start within 6 minutes. Open Free GST Billing again from its icon. What happened is written in ${data.log}.` };
     }
-    return { ok: true };
+    // v1.10.86 - a ZIP copy: the new files are in, but this server is still
+    // the old program. Restart it (Control Panel's Restart) and reload once a
+    // new process answers.
+    setUpdateProgress({ step: 'Starting the new version...', pct: 97 });
+    const restarted = await fetch('/api/control-panel/restart', { method: 'POST' }).then((r) => r.json()).catch(() => ({}));
+    if (restarted.ok) {
+      for (let i = 0; i < 40; i++) {
+        await pause(750);
+        try {
+          const v = await versionNow();
+          if (v.pid && v.pid !== first.pid) { window.location.reload(); return { ok: true }; }
+        } catch { /* still starting */ }
+      }
+    }
+    return { ok: false, error: 'The new version is in place, but the app could not restart by itself. Close Free GST Billing and open it again from its icon.' };
   } catch (e) {
     return { ok: false, error: e.message };
+  } finally {
+    polling = false;
   }
 };
 

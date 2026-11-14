@@ -266,5 +266,15 @@ try {
   fs.rmSync(T, { recursive: true, force: true });
 }
 
+// v1.10.86 - the Setup script stays plain ASCII (Inno Setup reads it in the
+// PC's code page), and an update of the installed copy says "Updating".
+{
+  const iss = fs.readFileSync(new URL('../installer/free-gst-billing.iss', import.meta.url), 'utf8');
+  eq([...iss].filter((c) => c.charCodeAt(0) > 126 || (c.charCodeAt(0) < 32 && !'\r\n\t'.includes(c))).length, 0, 'free-gst-billing.iss is plain ASCII');
+  eq(/procedure CurPageChanged\(CurPageID: Integer\);\s*begin\s*if IsUpgrade then SayUpdating\(CurPageID\);/.test(iss), true, 'An update calls SayUpdating on every page');
+  eq(/if IsUpgrade then begin\s*WizardForm\.Caption := 'Updating Free GST Billing';/.test(iss), true, 'An update\'s window title is "Updating Free GST Billing"');
+  for (const page of ['wpReady', 'wpPreparing', 'wpInstalling', 'wpFinished']) eq(new RegExp(`${page}: begin`).test(iss), true, `SayUpdating rewords ${page}`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

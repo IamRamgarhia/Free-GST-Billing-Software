@@ -53,22 +53,40 @@ export function parseChangelog(md, limit = 6) {
   return entries.slice(0, limit);
 }
 
-// Inline Markdown -> [{ t: 'text' | 'b' | 'i' | 'code' | 'link', v, href? }].
-// Links only to http(s) addresses; anything else stays text.
-export function inlineParts(text) {
-  const out = [];
-  const re = /\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-  let at = 0; let m;
-  const s = String(text || '');
-  while ((m = re.exec(s))) {
-    if (m.index > at) out.push({ t: 'text', v: s.slice(at, m.index) });
-    if (m[1] !== undefined) out.push({ t: 'b', v: m[1] });
-    else if (m[2] !== undefined) out.push({ t: 'i', v: m[2] });
-    else if (m[3] !== undefined) out.push({ t: 'code', v: m[3] });
-    else out.push({ t: 'link', v: m[4], href: m[5] });
-    at = re.lastIndex;
+// v1.10.86 - Support & About shows only the main titles (maintainer, 14 Nov:
+// "write short main titles here only in app"; the full notes are on GitHub).
+// A bullet's title is its bold lead ("**Sales orders, with a dispatch
+// status** (#135): ..." -> "Sales orders, with a dispatch status"); a bullet
+// without one (or with a one-word lead such as "**Duplicate** keeps ...") gives
+// its first sentence or clause instead, cut short. Plain text, no Markdown.
+const plainText = (s) => String(s || '')
+  .replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*([^*\s][^*]*)\*/g, '$1')
+  .replace(/`([^`]+)`/g, '$1').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+
+export function headline(text, max = 80) {
+  const s = String(text || '').trim();
+  const bold = /^\*\*(.+?)\*\*/.exec(s);
+  let t = bold && /\s/.test(bold[1].trim()) ? plainText(bold[1]) : '';
+  if (!t) {
+    const p = plainText(s);
+    const stop = /[.:;](?=\s|$)| \(/g;
+    let m;
+    while ((m = stop.exec(p))) { const c = p.slice(0, m.index).trim(); if (/\s/.test(c)) { t = c; break; } }
+    if (!t) t = p;
   }
-  if (at < s.length) out.push({ t: 'text', v: s.slice(at) });
-  // A relative link such as [docs/AUDIT.md](docs/AUDIT.md) is kept as its text.
-  return out.map((p) => (p.t === 'text' ? { ...p, v: p.v.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') } : p));
+  t = t.trim().replace(/[\s,.:;]+$/, '');
+  return t.length > max ? `${t.slice(0, max).replace(/\s+\S*$/, '')}\u2026` : t;
+}
+
+// The titles of one version, by section ("Changed (#92, thanks ...)" is
+// "Changed"); Thanks and the like have no titles. At most `per` per section:
+// `more` says how many others the full notes have.
+export function releaseTitles(entry, per = 8) {
+  return (entry?.sections || [])
+    .filter((s) => !/^(thanks|not changed)/i.test(s.title))
+    .map((s) => {
+      const all = s.blocks.filter((b) => b.kind === 'item').map((b) => headline(b.text)).filter(Boolean);
+      return { title: s.title.replace(/\s*\(.*$/, ''), items: all.slice(0, per), more: Math.max(0, all.length - per) };
+    })
+    .filter((s) => s.items.length);
 }

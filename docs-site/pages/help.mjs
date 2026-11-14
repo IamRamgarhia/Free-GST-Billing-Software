@@ -253,7 +253,7 @@ export default [
 
 <section id="update-failed">
 <h3>An update went wrong</h3>
-<p>You may see: <strong>"Update failed — ..."</strong> in the app, <strong>"ERROR: could not reach GitHub. Are you online?"</strong>, <strong>"Could not check for updates. Check internet connection."</strong>, or <strong>"The new version is in place, but it is not ready to run yet"</strong>.</p>
+<p>You may see: <strong>"The update did not finish"</strong> in the app's update window, <strong>"ERROR: could not reach GitHub. Are you online?"</strong>, <strong>"Could not check for updates. Check internet connection."</strong>, or <strong>"The new version is in place, but it is not ready to run yet"</strong>.</p>
 <p>Your data folder is never changed by an update, and a backup was saved in <code>Documents\\FreeGSTBill Backups</code> before it started.</p>
 <ol>
   <li>Check the internet, then run the update again. This fixes most problems.</li>
@@ -264,7 +264,7 @@ export default [
 
 <section id="update-not-showing">
 <h3>"Update complete", but the old version is still there</h3>
-<p>You may see: <strong>"[OK] Update complete! Restart the app (Stop Server -> Open App) to run the new version."</strong> or <strong>"Update finished. Reload the page to use the new version."</strong></p>
+<p>You may see: <strong>"[OK] Update complete! Restart the app (Stop Server -> Open App) to run the new version."</strong> (the launcher's update) or <strong>"The new version is in place, but the app could not restart by itself."</strong> (the app's update window).</p>
 <p>The new files are in place, but the running app or your browser still has the old version.</p>
 <ol>
   <li>Press <kbd>Ctrl</kbd> + <kbd>F5</kbd> (Mac: <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>).</li>

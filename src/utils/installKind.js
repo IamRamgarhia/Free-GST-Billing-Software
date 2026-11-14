@@ -26,3 +26,22 @@ export function updateHintFor(kind, latest) {
 export function updateDownloadUrlFor(kind) {
   return kind === 'macapp' ? MAC_DMG_URL : null;
 }
+
+// v1.10.86 - the ZIP updaters' own lines (update-windows.ps1, update-unix.sh)
+// as a step for the page's progress bar: { step, pct }, or null for a line
+// that is not a step. The two scripts print their steps in different orders,
+// so the server never lets the bar go backwards.
+const UPDATE_STEPS = [
+  [/putting the previous version back/i, 'The update did not finish. Putting the previous version back...', 90],
+  [/Backing up your data/i, 'Backing up your books...', 10],
+  [/Checking (the )?latest release/i, 'Checking GitHub for the new version...', 20],
+  [/Downloading update|Latest release:|Using the local package|no download needed/i, 'Downloading the new version...', 35],
+  [/Extracting/i, 'Unpacking the new version...', 55],
+  [/Applying (the )?update/i, 'Putting the new version in place...', 70],
+  [/Re-?installing dependencies/i, 'Installing the parts it needs (this can take a few minutes)...', 85],
+  [/Update complete|Nothing to do/i, 'Done. Starting the new version...', 95],
+];
+export function updateStepFromLine(line) {
+  const hit = UPDATE_STEPS.find(([re]) => re.test(String(line || '')));
+  return hit ? { step: hit[1], pct: hit[2] } : null;
+}

@@ -74,7 +74,7 @@ import { splitPurchaseTax, clientPaperPrefs, clientPaperOptions, getPaperSize } 
 import { buildXlsx, colName } from '../src/utils/xlsx.js';
 import { bulkRowToProduct, closingStock, stockValueOf } from '../src/utils/products.js';
 import { upiNote, parseSupporters, shouldShowSupportNudge } from '../src/utils/supporters.js';
-import { parseChangelog, inlineParts } from '../src/utils/changelog.js';
+import { parseChangelog, headline, releaseTitles } from '../src/utils/changelog.js';
 import { unzipSync, strFromU8 } from 'fflate';
 import {
   compute44AE,
@@ -1078,9 +1078,19 @@ console.log('\n[V81] What\'s new: the changelog on the Support page');
     { kind: 'item', text: 'CSV dates read day first.', children: [] },
   ], 'Items, nested items and wrapped lines');
   eq(e[1].sections[0].blocks.map((b) => b.kind), ['para', 'item'], 'A plain line is a paragraph');
-  eq(inlineParts('**B** *i* `c` [x](https://a.b) [y](docs/z.md) [j](javascript:alert(1))').map((p) => p.t),
-    ['b', 'text', 'i', 'text', 'code', 'text', 'link', 'text'], 'Bold, italic, code and http links; other links stay text');
-  eq(inlineParts('[j](javascript:alert(1))').some((p) => p.t === 'link'), false, 'A javascript: link is never a link');
+  // v1.10.86 - only the main titles on Support & About.
+  eq(headline('**Sales orders, with a dispatch status** (#135, #112): the order between the quotation and the invoice.'), 'Sales orders, with a dispatch status', 'A bold lead is the title');
+  eq(headline("**Duplicate** keeps the invoice's currency: a copy of a USD invoice opened in INR."), "Duplicate keeps the invoice's currency", 'A one-word bold lead: its first clause instead');
+  eq(headline("**The app's status is a dot on *Control Panel*.** The box is gone."), "The app's status is a dot on Control Panel", 'Italics inside the bold lead are plain text');
+  eq(headline("The invoice screen's **Save & Download** button is now **Save PDF** (it still saves)."), "The invoice screen's Save & Download button is now Save PDF", 'No bold lead: the first sentence, without Markdown');
+  eq(headline('Docker: `FGSB_ALLOW_UNSAFE_LAN` is gone. More text.'), 'Docker: FGSB_ALLOW_UNSAFE_LAN is gone', 'A one-word lead before ":" keeps the next clause');
+  eq(headline('See [the guide](javascript:void) <b>now</b>'), 'See the guide <b>now</b>', 'A link is only its text, and HTML stays text (React shows it as text)');
+  const long = headline(`A ${'very '.repeat(30)}long line`);
+  eq([long.length <= 81, long.endsWith('…'), long.includes('  ')], [true, true, false], 'A long first sentence is cut short at a word, with ...');
+  eq(releaseTitles(e[0]), [{ title: 'Fixed', items: ['Old Node.js', 'CSV dates read day first'], more: 0 }], 'Titles per section; nested items are left out');
+  const many = { sections: [{ title: 'Added', blocks: Array.from({ length: 11 }, (_, i) => ({ kind: 'item', text: `**Thing ${i}** here`, children: [] })) }, { title: 'Changed (#92, thanks @x)', blocks: [{ kind: 'item', text: 'One change.', children: [] }] }, { title: 'Thanks', blocks: [{ kind: 'item', text: 'Reported by @a.', children: [] }] }] };
+  eq(releaseTitles(many).map((s) => [s.title, s.items.length, s.more]), [['Added', 8, 3], ['Changed', 1, 0]], 'At most 8 per section (the rest counted), "Changed (...)" is Changed, no Thanks');
+  eq(releaseTitles(e[1]), [{ title: 'Added', items: ['Lock button'], more: 0 }], 'A plain paragraph gives no title');
 }
 
 console.log('\n[ERR-006] A client on custom paper keeps its width');

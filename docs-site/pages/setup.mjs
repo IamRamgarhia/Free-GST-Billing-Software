@@ -531,8 +531,8 @@ export default [
 <ol class="steps">
   <li><strong>Check</strong>Click ${ui('Check for Updates')}. It needs internet. Next to the button you see <i>Current: v… | Latest: v…</i>.</li>
   <li><strong>Update</strong>If there is a newer version, a green box says <b>New version v… is available!</b>. Click ${ui('Update Now')}.</li>
-  <li><strong>Wait</strong>The message says <i>Updating… your data is backed up first. This takes about a minute.</i></li>
-  <li><strong>Reload</strong>When it says <i>Update finished</i>, reload the page (<kbd>F5</kbd>) to use the new version.</li>
+  <li><strong>Wait</strong>A window in the middle of the app, <b>Updating Free GST Billing…</b>, shows what it is doing with a progress bar. Your data is backed up first. It takes about a minute.</li>
+  <li><strong>Done</strong>The page reloads by itself on the new version. If something went wrong, the window says what: click ${ui('Close')}.</li>
 </ol>
 <p>Your invoices, data and saved PDFs are never touched by an update. For the other ways to update, see <a href="backup.html#update">Updating</a>.</p>
 <h3>Something wrong?</h3>
@@ -709,7 +709,7 @@ export default [
   <li>${ui('Update Now')} in the <a href="control-panel.html">Control Panel</a>.</li>
   <li>In the launcher, ${ui('More options')}, then ${ui('Update to the latest version')}.</li>
 </ul>
-<p>Every update first saves a backup of your data in <code>Documents\\FreeGSTBill Backups</code>, then replaces the app. It never touches your data folder or your saved PDFs. It takes about a minute; reload the page when it finishes.</p>
+<p>Every update first saves a backup of your data in <code>Documents\\FreeGSTBill Backups</code>, then replaces the app. It never touches your data folder or your saved PDFs. It takes about a minute: a window shows each step, and the page reloads on the new version by itself.</p>
 <p>To update by hand instead: download the ZIP, stop the app, extract the ZIP over your app folder replacing the files, and open the launcher again.</p>
 <p>If you extract a new ZIP into a different folder by mistake, its launcher does not install a second copy. It shows <b>Already installed on this computer</b>, with the folder, version and number of invoices, and offers ${ui('Update the installed copy')} and ${ui('Open the installed copy')}. The update uses the files in the folder you extracted, so it needs no download and works without internet; your invoices, saved PDFs and trash stay as they are. The new folder can then be deleted.</p>
 <p>Updating also removes files that older versions left behind, such as launchers under their old names, once their replacements are in place. Your data, backups and Node.js are never touched.</p>
@@ -756,10 +756,10 @@ export default [
 <p><b>What it does.</b> Downloads the newest version from GitHub and puts it in place of the old one. Your data folder is not changed.</p>
 <p><b>When to use it.</b> When a new version is out (we ship one most Saturdays) or a problem you reported has been fixed. You need internet.</p>
 <ol>
-  <li>Click ${ui('Update Now')}. The button shows <b>Updating...</b>; wait until it finishes. It can take a few minutes.</li>
-  <li><b>Windows:</b> a black window opens. It first saves a backup of your data, <code>pre-update-<i>date</i>.zip</code>, in <code>Documents\\FreeGSTBill Backups</code>, then downloads and applies the update. It ends with <b>[OK] Update complete!</b></li>
-  <li><b>Mac and Linux:</b> it does the same, saving the backup as <code>pre-update-<i>date</i>.tar.gz</code> in <code>Documents/FreeGSTBill Backups</code>. If you already have the newest version it says so and changes nothing. It ends with <b>[OK] Update complete</b> and the old and new version numbers.</li>
-  <li>Restart the app to run the new version: click ${ui('Stop Server')} (see <a href="#stop">Stop Server</a>), then open the app again from its icon or launcher. Then press <kbd>Ctrl</kbd> + <kbd>F5</kbd> (Mac: <kbd>&#8984;</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>).</li>
+  <li>Click ${ui('Update Now')}. A window in the middle of the app, <b>Updating Free GST Billing…</b>, shows each step (backing up, downloading, unpacking, putting the new version in place) with a progress bar. It can take a few minutes; do not close the app.</li>
+  <li><b>Windows:</b> it first saves a backup of your data, <code>pre-update-<i>date</i>.zip</code>, in <code>Documents\\FreeGSTBill Backups</code>, then downloads and applies the update. A black updater window may open behind the app: leave it, it closes by itself.</li>
+  <li><b>Mac and Linux:</b> it does the same, saving the backup as <code>pre-update-<i>date</i>.tar.gz</code> in <code>Documents/FreeGSTBill Backups</code>. If you already have the newest version it changes nothing.</li>
+  <li>When it is done, the app restarts by itself and the page reloads on the new version. If the update could not finish, the window says why: click ${ui('Close')}. What the updater printed is in the result panel under the cards.</li>
 </ol>
 <p><b>Is it safe?</b> Yes. Your data is backed up first and the update never touches the data folder. On Mac and Linux, if the update fails half way, the old app files are put back.</p>
 <p><b>Something wrong?</b></p>

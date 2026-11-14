@@ -22,7 +22,7 @@ import { makeDir, makeDirAsync } from './src/utils/makeDir.js';
 import { lockProblem, bookedOn, isLockDate } from './src/utils/periodLock.js';
 import { LOCK_NAME, acquireLock, writeLock, releaseLock, portIdentity } from './src/utils/serverLock.js';
 import { SETUP_NAME, allowedDownloadUrl, checkSetupBytes, setupAssetFrom } from './src/utils/setupDownload.js';
-import { updateHintFor, updateDownloadUrlFor } from './src/utils/installKind.js';
+import { updateHintFor, updateDownloadUrlFor, updateStepFromLine } from './src/utils/installKind.js';
 // v1.10.85 - phone / tablet access on the same Wi-Fi (off by default).
 import https from 'https';
 import {
@@ -2133,7 +2133,17 @@ const CONTROL_ACTIONS = ['update', 'backup', 'restore', 'move', 'stop'];
 // guides tell people to use it.
 const controlActions = () => Object.fromEntries(CONTROL_ACTIONS.map(a => [a, (a === 'stop' && !isWindows) || (a === 'update' && INSTALLED) ? true : !!pickScript(a)]));
 
-function runControlScript(scriptPath) {
+// v1.10.86 - what a running update is doing, for the page's progress window
+// (GET /api/control-panel/update-progress, asked every second while it runs).
+// The bar never goes backwards: the Windows and Unix scripts differ in order.
+let updateProgress = {};
+const setUpdateStep = (step, pct) => { updateProgress = { step, pct: Math.max(pct, updateProgress.pct || 0) }; };
+
+// v1.10.86 - onLine sees each line the script prints (the update's steps).
+// stdin is closed ('ignore'): the scripts end with Read-Host "Press Enter to
+// close", which waited for ever on the open pipe, so the request never
+// answered and the page said "Updating..." for good.
+function runControlScript(scriptPath, onLine) {
   return new Promise((resolve) => {
     if (!scriptPath) { resolve({ ok: false, error: 'Not available here: the script for this action is not in the app folder. Download the latest ZIP to get it.' }); return; }
     // v1.10.66 (#59) — update-unix.sh is plain POSIX sh, so it runs under `sh`
@@ -2147,8 +2157,12 @@ function runControlScript(scriptPath) {
       : [unixShell, [scriptPath]];
     let out = '', err = '';
     try {
-      const child = spawn(cmd, args, { detached: false, windowsHide: false });
-      child.stdout?.on('data', d => { out += d.toString(); });
+      const child = spawn(cmd, args, { detached: false, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] });
+      child.stdout?.on('data', d => {
+        out += d.toString();
+        // ponytail: a line split across two chunks may be missed; steps are short lines, so rare.
+        if (onLine) d.toString().split(/\r?\n/).forEach(onLine);
+      });
       child.stderr?.on('data', d => { err += d.toString(); });
       child.on('error', e => resolve({ ok: false, error: e.message }));
       child.on('exit', code => resolve({ ok: code === 0, exitCode: code, stdout: out.slice(-4000), stderr: err.slice(-2000) }));
@@ -2266,6 +2280,7 @@ async function updateWithSetup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fgsb-update-'));
   const exe = path.join(dir, SETUP_NAME);
   let checked = 'test mode (a local file)';
+  setUpdateStep('Checking GitHub for the new version...', 5);
   if (INSTALL_TEST_ROOT) {
     // The Setup's test mode: the new Setup is a file in the test folder, so the
     // whole update can be tried without publishing a release.
@@ -2286,7 +2301,18 @@ async function updateWithSetup() {
       throw new Error(e.message.startsWith('The download') ? e.message : 'The new version could not be downloaded. Check the internet connection and try again.');
     }
     if (!res.ok) throw new Error(`The download failed (${res.status}). Try again later.`);
-    const buf = Buffer.from(await res.arrayBuffer());
+    // v1.10.86 - read in pieces, so the page's bar shows how much has arrived.
+    const total = asset.size || Number(res.headers.get('content-length')) || 0;
+    const parts = [];
+    let got = 0;
+    for await (const part of res.body) {
+      parts.push(part);
+      got += part.length;
+      setUpdateStep(total ? `Downloading the new version... ${Math.round(got / 1048576)} of ${Math.round(total / 1048576)} MB` : 'Downloading the new version...',
+        total ? 10 + Math.floor(70 * Math.min(got / total, 1)) : 10);
+    }
+    const buf = Buffer.concat(parts);
+    setUpdateStep('Checking the download...', 82);
     const check = checkSetupBytes(buf, asset);
     if (!check.ok) throw new Error(`${check.problem} Nothing was run; try again later.`);
     checked = check.checked;
@@ -2296,6 +2322,7 @@ async function updateWithSetup() {
   fs.writeFileSync(path.join(dir, 'checked.txt'), `Checked before running: ${checked}\r\n`);
   const args = ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/LOG=${log}`];
   if (INSTALL_TEST_ROOT) args.push(`/TESTROOT=${INSTALL_TEST_ROOT}`);
+  setUpdateStep('Starting the Setup...', 88);
   // Detached: the Setup stops this server and must carry on without it.
   spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   return { log, checked };
@@ -2312,6 +2339,7 @@ app.post('/api/control-panel/launch-script', async (req, res) => {
     setTimeout(() => process.exit(0), 400);
     return;
   }
+  if (action === 'update') updateProgress = {};
   if (action === 'update' && INSTALLED) {
     try {
       const { log, checked } = await updateWithSetup();
@@ -2321,11 +2349,15 @@ app.post('/api/control-panel/launch-script', async (req, res) => {
     }
     return;
   }
-  if (action === 'update' && updateHint()) { res.json({ ok: false, error: updateHint(), downloadUrl: UPDATE_DOWNLOAD_URL }); return; }
+  // v1.10.86 - hint: this copy cannot update itself (the page keeps its own message).
+  if (action === 'update' && updateHint()) { res.json({ ok: false, hint: true, error: updateHint(), downloadUrl: UPDATE_DOWNLOAD_URL }); return; }
   const script = pickScript(action);
-  const result = await runControlScript(script);
+  const onLine = action === 'update' ? (line) => { const s = updateStepFromLine(line); if (s) setUpdateStep(s.step, s.pct); } : undefined;
+  const result = await runControlScript(script, onLine);
   res.json(result);
 });
+
+app.get('/api/control-panel/update-progress', (req, res) => res.json(updateProgress));
 
 // v1.10.83 - Restart from the Control Panel ("if something is not working").
 // A new copy is started with --after-pid and waits for this one to exit, so

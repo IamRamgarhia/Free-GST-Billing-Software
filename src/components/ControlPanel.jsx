@@ -77,12 +77,16 @@ export default function ControlPanel() {
 
   // v1.10.84 - installed with the Windows Setup: the new Setup installs the
   // update and the page reloads by itself (runUpdateNow).
-  const updateInstalled = async () => {
+  // v1.10.86 - the ZIP copy too: the progress window (UpdateOverlay) shows the
+  // steps and any error, and the page reloads on the new version. What the
+  // script printed stays below; a copy that cannot update itself keeps its
+  // message (hint) and download link here.
+  const updateNow = async () => {
     setBusy('update');
     setLastResult(null);
-    toast('Downloading the new version… the app restarts by itself in about a minute.', 'info', 10000);
     const r = await runUpdateNow();
-    if (!r.ok) { setLastResult({ action: 'update', ...r }); toast(`Update failed — ${r.error}`, 'error', 10000); }
+    if (!r.ok) setLastResult({ action: 'update', ...r });
+    if (r.hint) toast(`Update failed — ${r.error}`, 'error', 10000);
     setBusy(null);
   };
 
@@ -213,7 +217,7 @@ export default function ControlPanel() {
           body="Pull the latest release from GitHub. Your data folder is snapshotted first and never touched."
           buttonLabel={label('update', 'Update Now', 'Updating…')}
           disabled={!!busy || !can('update')}
-          onClick={() => (status?.installed ? updateInstalled() : launchScript('update'))}
+          onClick={updateNow}
           variant="primary"
         />
         <ActionCard

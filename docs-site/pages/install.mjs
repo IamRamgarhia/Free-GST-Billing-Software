@@ -63,7 +63,7 @@ ${which}
   <li><strong>Click Install, then Finish</strong>The app opens in its own window. The last page shows where your books are and where Setup wrote what it did (<code>Free GST Billing - install log.txt</code>).</li>
 </ol>
 <p><b>Your old icons</b> are not deleted: they are moved into the <code>Old shortcuts (backup)</code> folder next to that log, so two icons never start two copies of the app.</p>
-<p><b>Updates:</b> when a new version is out, the app shows <i>Update to vX</i> in the menu (and a Windows notification, if you allow it in the update window). Click it, then ${ui('Update Now')}: the new Setup downloads and installs by itself, and the app reloads in about a minute. Your books are not touched. You never need to reinstall.</p>
+<p><b>Updates:</b> when a new version is out, the app shows <i>Update to vX</i> in the menu (and a Windows notification, if you allow it in the update window). Click it, then ${ui('Update Now')}: a window in the app shows the progress while the new Setup downloads and installs by itself, and the app reloads in about a minute. Your books are not touched. You never need to reinstall. Running a newer Setup by hand over the installed app updates it too: its window then says <b>Updating Free GST Billing</b> and ${ui('Update')} instead of Install.</p>
 <p><b>Removing it:</b> Windows ${ui('Settings')} → ${ui('Apps')} → <b>Free GST Billing</b> → ${ui('Uninstall')}. It asks <i>Also delete your books?</i>: the answer is <b>No</b> unless you click Yes, and books in your earlier copy's folder are never deleted by it.</p>
 </section>
 
@@ -435,8 +435,8 @@ bash "_system/start-unix.sh"</code></pre>
 <ol class="steps">
   <li><strong>Open the app</strong>When a new version is out, the sidebar shows <b>Update to v…</b> (you can also go to <b>Settings → App Updates</b>).</li>
   <li><strong>Read what is new and click Update Now</strong>A window shows what changed. Click ${ui('Update Now')}.</li>
-  <li><strong>Wait about a minute</strong>A window shows the progress; it backs up your data first, then updates.</li>
-  <li><strong>Reload the page</strong>Press ${key('F5')} (on a Mac ${key('Cmd', 'R')}). The version at the bottom of the Dashboard shows the new number.</li>
+  <li><strong>Wait about a minute</strong>A window in the middle of the app, <b>Updating Free GST Billing…</b>, shows each step with a progress bar: it backs up your data first, then updates. Do not close the app while it runs.</li>
+  <li><strong>It opens on the new version</strong>The page reloads by itself. The version at the bottom of the Dashboard shows the new number. If the update could not finish, the window says why: click ${ui('Close')}.</li>
 </ol>
 <p>Changes still look the same? Press ${key('Ctrl', 'F5')} (Mac: ${key('Cmd', 'Shift', 'R')}) to make the browser load the new version.</p>
 </section>
@@ -452,7 +452,7 @@ bash "_system/start-unix.sh"</code></pre>
   <tr><td>${ui('Skip this version')}</td><td>Hides the <b>Update to v…</b> button for this version. The next version will be offered as usual, and you can still update from <b>Settings → App Updates</b>.</td></tr>
   <tr><td>${ui('Remind me later')}</td><td>Closes the window; the sidebar button stays.</td></tr>
   <tr><td>${ui('View on GitHub')}</td><td>Opens the release page in your browser.</td></tr>
-  <tr><td>${ui('Update Now')}</td><td>Backs up your data, then fetches and installs the new version. It takes about a minute: leave the window open, then reload the page when it finishes.</td></tr>
+  <tr><td>${ui('Update Now')}</td><td>Backs up your data, then fetches and installs the new version. A window shows each step; leave the app open, and it reloads on the new version by itself (about a minute).</td></tr>
 </table></div>
 <div class="note tip"><strong>Something wrong?</strong>
 <p>If the update stops with an error, your data is still safe. See <a href="troubleshooting.html#update-failed">The update failed</a>, or use one of the other ways on this page.</p>
