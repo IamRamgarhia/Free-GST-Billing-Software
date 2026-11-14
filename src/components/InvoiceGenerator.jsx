@@ -42,6 +42,7 @@ import { priceForLevel } from '../utils/priceLevels';
 import { findSavedClient, paidTowards } from '../utils/clientLedger';
 import { START_KEY, lastInvoiceType, rememberInvoiceType, startTypeFor, startDueDate, startTaxRate, startPaidMode, startOptionsPatch, htmlLineCount, htmlFirstWords } from '../utils/invoiceStart';
 import CreditLimitWarning from './CreditLimitWarning';
+import { useInvoiceCards, InvoiceCard } from './InvoiceCards';
 
 // Rich text editor component that works with contentEditable properly
 function RichEditor({ value, onChange, placeholder, toolbar = false }) {
@@ -545,6 +546,7 @@ const LineItem = memo(function LineItem({
   onFieldChange, onSelectProduct, onSetProductSearch,
   onAddCustomUnit, onRemoveCustomUnit, onRemove, clampNonNeg,
   isLastRow, onAddRow, isOnlyRow, onSizeChange, sizeLines, onRftChange, notInProducts, onSaveAsProduct,
+  lineAmount, lineTax,
 }) {
   // v1.10.37 — Keyboard shortcut: Enter on any input inside the LAST
   // row adds a new row. Muscle-memory for POS users — reported: "if
@@ -572,7 +574,8 @@ const LineItem = memo(function LineItem({
   };
   return (
     <div className="line-item-row" data-item-id={item.id} onKeyDown={handleRowKeyDown}>
-      <div className="line-item-field" style={{ flex: 2.5, minWidth: 220, position: 'relative' }}>
+      {/* v1.10.86 - sized in index.css (.line-item-name-field): beside a preview it has the first line to itself. */}
+      <div className="line-item-field line-item-name-field">
         {/* v1.10.74 - was "Description", which clashed with "+ Add description" below. */}
         <label className="form-label">Item</label>
         {/* v1.10.37 — Keyboard nav on product suggestions. Reported:
@@ -778,16 +781,15 @@ const LineItem = memo(function LineItem({
             onChange={(e) => onFieldChange(item.id, 'cessPercent', clampNonNeg(e.target.value))} />
         </div>
       )}
-      <div className="line-item-field line-item-delete">
-        {/* v1.10.74 - removeItem keeps the last row, so the button did nothing there; say so. */}
-        <button className="icon-btn icon-btn-red" onClick={() => onRemove(item.id)}
-          disabled={isOnlyRow} title={isOnlyRow ? 'An invoice needs at least one line' : 'Remove'}><Trash2 size={16} /></button>
-      </div>
+      {/* v1.10.86 - the row's foot: + Add description on the left; the line's
+          total and the delete button lined up at the right of every row (the
+          delete button used to wrap onto a line of its own). */}
+      <div className={`line-item-foot${item.description || item._descOpen ? ' line-item-foot-desc' : ''}`}>
       {/* v1.10.22 — inline expandable description per row. Reported: "add
           option so user can directly enter product description into
           invoice directly". Hidden by default; expands on click. Persists
           with the item and renders under the item name in the PDF/preview. */}
-      <div className="line-item-description-row" style={{ flexBasis: '100%', marginTop: 4 }}>
+      <div className="line-item-description-row">
         {item.description || item._descOpen ? (
           <textarea
             className="form-input"
@@ -804,6 +806,18 @@ const LineItem = memo(function LineItem({
             + Add description
           </button>
         )}
+      </div>
+      <div className="line-item-end">
+        {/* v1.10.86 - the line's amount as the invoice works it out (totals.lines):
+            after its discount, with its GST. Shown only, never typed. */}
+        <span className="line-item-amount" data-testid="line-amount"
+          title={lineTax > 0 ? `${formatCurrency(lineAmount - lineTax, currency || 'INR')} + ${taxLabel} ${formatCurrency(lineTax, currency || 'INR')}` : 'Qty x Rate, less the discount'}>
+          {lineTax > 0 ? `With ${taxLabel}` : 'Amount'} <strong>{formatCurrency(lineAmount || 0, currency || 'INR')}</strong>
+        </span>
+        {/* v1.10.74 - removeItem keeps the last row, so the button did nothing there; say so. */}
+        <button type="button" className="icon-btn icon-btn-red" onClick={() => onRemove(item.id)} aria-label="Remove this line"
+          disabled={isOnlyRow} title={isOnlyRow ? 'An invoice needs at least one line' : 'Remove'}><Trash2 size={16} /></button>
+      </div>
       </div>
     </div>
   );
@@ -1392,6 +1406,34 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     return null;
   }, [client?.name, items, editingBill]);
 
+  // v1.10.86 - what keeps a new invoice from being saved: its card is opened
+  // (it may be closed) and the box focused. The client name first, then the
+  // first line without a name, quantity or rate. Used by Save / Print / PDF /
+  // WhatsApp and by the "Draft - click to complete" badge.
+  const focusMissing = () => {
+    const focusSoon = (find) => setTimeout(() => {
+      const el = find();
+      if (!el) return;
+      el.focus();
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
+    if (!client?.name?.trim()) {
+      cards.open('client');
+      focusSoon(() => clientNameRef.current);
+      return;
+    }
+    const line = items.find((it) => !(it.name || '').trim() || !((it.quantity || 0) * (it.rate || 0) > 0)) || items[0];
+    if (!line) return;
+    cards.open('items');
+    focusSoon(() => {
+      const row = document.querySelector(`.line-item-row[data-item-id="${line.id}"]`);
+      return (!(line.name || '').trim() && row?.querySelector('.line-item-name'))
+        || (!(Number(line.quantity) > 0) && row?.querySelector('input[type="number"]'))
+        || row?.querySelector('.line-item-rate') || row?.querySelector('.line-item-name');
+    });
+  };
+  const showProblem = (problem) => { toast(problem, 'warning'); focusMissing(); };
+
   // Debounced auto-save (2s after last change), gated on meaningful content.
   //
   // v1.8.1 CHANGE: for NEW bills that haven't been explicitly saved yet,
@@ -1758,6 +1800,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   const [gstinHint, setGstinHint] = useState(null);
   // v1.10.86 - "More client details" (address, state, GSTIN, ship-to) is folded.
   const [clientMoreOpen, setClientMoreOpen] = useState(false);
+  // v1.10.86 - the cards of this screen: their order and which are closed (InvoiceCards.jsx).
+  const cards = useInvoiceCards();
   const handleClientGstinBlur = () => {
     const decoded = decodeGstin(client.gstin);
     if (!decoded) { setGstinHint(null); return; }
@@ -3948,7 +3992,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // reserves an invoice number, so a blank one must not get through here
     // either.
     const problem = validateForSave();
-    if (problem) { toast(problem, 'warning'); return; }
+    if (problem) { showProblem(problem); return; }
     if (isThermalPaper()) {
       // Thermal → show the preview modal. Actual print fires from the
       // modal's Print button via executePrint. User can Cancel there
@@ -3966,7 +4010,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   // its Print button gets the same blank-invoice check as the Print button.
   const printFromPreview = async () => {
     const problem = validateForSave();
-    if (problem) { toast(problem, 'warning'); return; }
+    if (problem) { showProblem(problem); return; }
     await executePrint();
   };
 
@@ -4000,7 +4044,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // reserves an invoice number, so a blank one must not get through here
     // either.
     const problem = validateForSave();
-    if (problem) { toast(problem, 'warning'); return; }
+    if (problem) { showProblem(problem); return; }
     try {
       setSaving(true);
       setPdfBusy(true);
@@ -4053,7 +4097,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // so the PDF and the message carry the number it was saved under.
     if (!printRef.current) return;
     const problem = validateForSave();
-    if (problem) { toast(problem, 'warning'); return; }
+    if (problem) { showProblem(problem); return; }
     sendPdfOnWhatsApp({ phone: client?.phone, toast, prepare: async () => {
       setSaving(true);
       try {
@@ -4127,6 +4171,28 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   ].filter(Boolean).join(' · ');
   const termsLines = htmlLineCount(customTerms);
   const termsName = termsTemplates.find((t) => t.id === selectedTermsId)?.name || 'Custom';
+  // v1.10.86 - the line each card of this screen shows while it is closed.
+  const shortDate = (d) => {
+    const at = d ? parseLocalDate(d) : null;
+    // Kept on one line (no-break spaces) when the summary wraps.
+    return at && !isNaN(at.getTime()) ? at.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/ /g, '\u00a0') : '';
+  };
+  const notesLines = htmlHasText(customNotes) ? Math.max(1, htmlLineCount(customNotes)) : 0;
+  // v1.10.86 - each line's amount, from the same per-line figures the totals add up.
+  const lineAmountOf = (idx) => { const l = totals.lines?.[idx]; return l ? Math.round((l.taxable + l.tax + l.cess) * 100) / 100 : 0; };
+  const lineTaxOf = (idx) => { const l = totals.lines?.[idx]; return l ? Math.round((l.tax + l.cess) * 100) / 100 : 0; };
+  const cardSummary = {
+    type: [typeConfig?.label || invoiceType, { goods: 'Goods', services: 'Services', mixed: 'Mixed' }[invoiceOptions.invoiceMode || 'goods']].join(' · '),
+    client: client.name?.trim() ? [client.name.trim(), clientSummary].filter(Boolean).join(' · ') : 'No client yet',
+    items: itemCount ? `${itemCount} item${itemCount === 1 ? '' : 's'} · ${money(totals.total)}` : 'No items yet',
+    details: [details.invoiceNumber, shortDate(details.invoiceDate), details.dueDate && `due ${shortDate(details.dueDate)}`].filter(Boolean).join(' · '),
+    terms: [
+      `Terms: ${termsLines ? termsName : 'none'}`,
+      notesLines > 0 && `Notes: ${notesLines} line${notesLines === 1 ? '' : 's'}`,
+      internalNote.trim() && 'Private note',
+      extraSections.length > 0 && `${extraSections.length} extra page${extraSections.length === 1 ? '' : 's'}`,
+    ].filter(Boolean).join(' · '),
+  };
   const notPrinted = (key) => (invoiceOptions[key] === false ? ' · not printed' : '');
   const saveEinvoice = async (value) => {
     try {
@@ -4195,22 +4261,9 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               : isDraft ? 'Draft — click to complete'
               : ((!editingBill || editingBill._isDuplicate) && !hasBeenSaved.current) ? 'Not saved yet'
               : 'Ready';
-            const onClick = () => {
-              if (!isDraft) return;
-              // Focus the first missing input to accelerate the "make
-              // it saveable" path. Client name first (most common
-              // missing field), then the first line item description.
-              if (!client?.name?.trim()) {
-                clientNameRef.current?.focus();
-                clientNameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-              }
-              const emptyRow = [...document.querySelectorAll('.line-item-row .line-item-name')].find(el => !el.value.trim());
-              if (emptyRow) {
-                emptyRow.focus();
-                emptyRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            };
+            // Focus the first missing input to accelerate the "make it
+            // saveable" path (v1.10.86: opening its card first if it is closed).
+            const onClick = () => { if (isDraft) focusMissing(); };
             return (
               <button type="button" onClick={onClick} disabled={!isDraft}
                 title={isDraft ? 'Click to focus the first missing field' : label}
@@ -4268,7 +4321,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             // invoice number, so an empty save leaves a permanent gap in a
             // sequence GST expects to be gapless.
             const problem = validateForSave();
-            if (problem) { toast(problem, 'warning'); return; }
+            if (problem) { showProblem(problem); return; }
             try {
               setSaving(true);
               const no = await saveInvoiceToDB();
@@ -4320,26 +4373,11 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               Moved here beside E-Way Bill, and this whole toolbar is now
               sticky (see .generator-toolbar), so it — and Save, Print and the
               rest — stay reachable from anywhere on a long invoice. */}
-          {/* v1.10.69 - requested (#71 item 1, @sangwanmail-eng): "Can we move
-              the Customize button so that it appears before the Show Preview
-              button?"
-              It used to sit in the Invoice Type card, which scrolls away. Here
-              it is in the sticky toolbar, next to the preview toggle it pairs
-              with - both change how the invoice looks, so both are reachable
-              from anywhere on a long invoice. The options panel it opens has
-              not moved. */}
-          <button className="btn btn-secondary" type="button"
-            onClick={() => {
-              const open = !showOptions;
-              setShowOptions(open);
-              // v1.10.83 - the panel is in the Invoice Type card at the top;
-              // from further down the page it opened out of sight ("it does
-              // nothing"), so take the user to it.
-              if (open) setTimeout(() => document.getElementById('invoice-options-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-            }}
-            title={showOptions ? 'Hide the layout and column options' : 'Choose columns, sections, paper size and PDF style'}>
-            <Settings size={18} /> {showOptions ? 'Hide Options' : 'Customize'}
-          </button>
+          {/* v1.10.86 - Customize moved from here into the Document type card,
+              right under the type, where the panel it opens is (asked for by
+              the maintainer, 15 Nov 2026). In v1.10.69 (#71) it had come up
+              here from that card; the card now opens and closes, and the
+              button sits beside what it changes. */}
           <button className="btn btn-secondary" type="button"
             onClick={() => setPreviewCollapsed(v => !v)}
             title={previewCollapsed ? 'Show the live preview' : 'Hide the preview and use the full width for entry'}>
@@ -4355,17 +4393,22 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               already sets which business an invoice belongs to; a second
               picker here only made it possible to issue the invoice from a
               company other than the one on screen. */}
-          {/* Invoice Type */}
-          <div className="glass-panel p-6 mb-6">
-            {/* v1.10.69 (#71 item 1) - Customize moved up to the sticky
-                toolbar. Two buttons doing the same thing would only raise the
-                question of whether they do. */}
+          {/* Client Modal */}
+          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} defaultCountry={profile?.country} />
+
+          {/* v1.10.86 - the cards, in the order this browser keeps (InvoiceCards.jsx). */}
+          {cards.order.map((cardId) => {
+          // Invoice Type
+          if (cardId === 'type') return (
+          <InvoiceCard key="type" id="type" cards={cards} title="Document type" summary={cardSummary.type}
+            help={<HelpButton title="Invoice Type" doc="invoices#invoice-types" size={16} />}>
             {/* v1.10.86 (#147) - the type is one drop-down (seven chips took
                 half a phone screen) beside Goods / Services; a new invoice
                 starts as the last type used, or as Settings says. */}
             <div className="invoice-type-row">
               <div className="invoice-type-field invoice-type-grow">
-                <label className="form-label" htmlFor="invoice-type">Document type <HelpButton title="Invoice Type" doc="invoices#invoice-types" size={16} /></label>
+                {/* v1.10.86 - "Document type" is the card's title now. */}
+                <label className="form-label" htmlFor="invoice-type">Type</label>
                 <select id="invoice-type" className="form-input type-select" value={invoiceType}
                   disabled={isIssuedInvoice || readOnlyDoc}
                   title={isIssuedInvoice ? 'The type cannot change once an invoice is saved. Duplicate it to make a different document.' : typeConfig?.description}
@@ -4420,6 +4463,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
             {salesOrderOf({ data: { details } }) && invoiceType !== 'sales-order' && (
               <p className="type-desc" style={{ color: 'var(--text)' }}>Made from sales order <strong>{details.salesOrderNo}</strong>.</p>
             )}
+
+            {/* v1.10.86 - Customize, moved here from the toolbar: right under
+                the type, and the panel opens just below it. */}
+            <div className="invoice-customize-row">
+              <button className="btn btn-secondary" type="button"
+                aria-expanded={showOptions} aria-controls="invoice-options-panel"
+                onClick={() => setShowOptions(v => !v)}
+                title={showOptions ? 'Hide the layout and column options' : 'Choose columns, sections, paper size and PDF style'}>
+                <Settings size={18} /> {showOptions ? 'Hide Options' : 'Customize invoice'}
+              </button>
+              {!showOptions && <span className="invoice-customize-hint">Columns, what prints, paper size and PDF style</span>}
+            </div>
 
             {/* Customization Options */}
             {showOptions && (
@@ -4928,16 +4983,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 </div>
               </div>
             )}
-          </div>
+          </InvoiceCard>
+          );
 
-          {/* Client Modal */}
-          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} defaultCountry={profile?.country} />
-
-          {/* Client Details */}
-          <div className="glass-panel p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="section-title" style={{ margin: 0 }}>Billed To <HelpButton title="Billed To" doc="invoices#billed-to" size={16} /></h3>
-            </div>
+          // Client Details
+          if (cardId === 'client') return (
+          <InvoiceCard key="client" id="client" cards={cards} title="Billed To" summary={cardSummary.client}
+            help={<HelpButton title="Billed To" doc="invoices#billed-to" size={16} />}>
 
             {/* v1.10.24 — Client credit banner. Shows when the picked
                 client has overpayment sitting unused on prior bills;
@@ -5219,13 +5271,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               </div>}
             </div>
             </FoldSection>
-          </div>
+          </InvoiceCard>
+          );
 
-          {/* Line Items - v1.10.86 (#147): right under Billed To, before the invoice details */}
-          <div className="glass-panel p-6 mb-6">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <h3 className="section-title" style={{ margin: 0 }}>Line Items <HelpButton title="Line Items" doc="invoices#items" size={16} /></h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          // Line Items - v1.10.86 (#147): right under Billed To, before the invoice details
+          if (cardId === 'items') return (
+          <InvoiceCard key="items" id="items" cards={cards} title="Line Items" summary={cardSummary.items}
+            help={<HelpButton title="Line Items" doc="invoices#items" size={16} />}>
+            {/* v1.10.86 - moved from the title row, which now opens and closes the card. */}
+            {showGST && (
+              <div className="inv-items-opts">
               {showGST && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer', userSelect: 'none' }}>
                   <input type="checkbox" checked={taxInclusive} onChange={e => setTaxInclusive(e.target.checked)}
@@ -5245,7 +5300,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 </label>
               )}
               </div>
-            </div>
+            )}
             {barcodesOn && !servicesMode && !readOnlyDoc && products.some((p) => p.barcode) && (
               <ScanBarcodeBox onScan={scanBarcode} />
             )}
@@ -5279,18 +5334,21 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 onRftChange={handleRftChange}
                 notInProducts={isUnknownItem(item)}
                 onSaveAsProduct={saveLineAsProduct}
+                lineAmount={lineAmountOf(idx)}
+                lineTax={lineTaxOf(idx)}
               />
             ))}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <button className="btn btn-secondary mt-2" onClick={addItem}><Plus size={18} /> Add Item</button>
+              {/* v1.10.86 - a clearer Add Item, under the rows. */}
+              <button type="button" className="btn btn-secondary add-item-btn" onClick={addItem}><Plus size={18} /> Add Item</button>
               {!hasDeliveryCharge && !servicesMode && (
-                <button type="button" className="btn btn-secondary mt-2" onClick={addDeliveryCharge}
+                <button type="button" className="btn btn-secondary" onClick={addDeliveryCharge}
                   title="Adds a 'Delivery charges' line, taxed at the goods' GST rate (composite supply)">
                   <Truck size={16} /> Delivery charges
                 </button>
               )}
               {hasDeliveryCharge && showGST && (
-                <span className="mt-2" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Delivery is taxed like the goods it ships with (composite supply), so it starts at the highest GST rate on this invoice. Change it if needed.
                 </span>
               )}
@@ -5390,11 +5448,13 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               excludeId={editingBill && !editingBill._isDuplicate ? editingBill.id : null} invoiceType={invoiceType} totals={totals}
               currency={invoiceOptions.currency} exchangeRate={invoiceOptions.exchangeRate}
               paid={editingBill && !editingBill._isDuplicate ? paidTowards(editingBill) : 0} creditApplied={editingBill ? 0 : creditToApply} />
-          </div>
+          </InvoiceCard>
+          );
 
-          {/* Invoice Details */}
-          <div className="glass-panel p-6 mb-6">
-            <h3 className="section-title">Invoice Details <HelpButton title="Invoice Details" doc="invoices#details" size={16} /></h3>
+          // Invoice Details
+          if (cardId === 'details') return (
+          <InvoiceCard key="details" id="details" cards={cards} title="Invoice Details" summary={cardSummary.details}
+            help={<HelpButton title="Invoice Details" doc="invoices#details" size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
                 <label className="form-label">Invoice Number</label>
@@ -5470,7 +5530,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <div className="form-group full-width notice notice-warn" style={{ padding: '0.6rem 0.85rem', borderRadius: 6, display: 'block', fontSize: '0.82rem', lineHeight: 1.5 }}>
                   <strong>Export under LUT? First set the client&apos;s country.</strong> You are billing in {invoiceOptions.currency}, but {client?.name || 'this client'} is saved in India, so this is billed as a sale in India: no LUT, and IGST is charged. If they are abroad, set their country. The invoice then becomes an export: the place of supply prints &quot;Outside India&quot;, the LUT box appears here (no IGST, and the LUT line prints on the PDF), and your SWIFT and purpose code print.{' '}
                   <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', marginTop: 4 }}
-                    onClick={() => { setClientMoreOpen(true); setTimeout(() => { const el = document.getElementById('client-country'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.focus(); }, 50); }}>
+                    onClick={() => { cards.open('client'); setClientMoreOpen(true); setTimeout(() => { const el = document.getElementById('client-country'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.focus(); }, 50); }}>
                     Set the client's country
                   </button>
                 </div>
@@ -5610,12 +5670,16 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 );
               })()}
             </div>
-          </div>
+          </InvoiceCard>
+          );
 
-          {/* v1.10.86 (#147, #189) - Terms, notes, the private note and extra
-              pages: each opens on click and, while closed, says what is in it
-              ("Standard (5 lines)"). Nothing in them moved or changed. */}
-          <div className="glass-panel p-6 mb-6 fold-card">
+          // v1.10.86 (#147, #189) - Terms, notes, the private note and extra
+          // pages: each opens on click and, while closed, says what is in it
+          // ("Standard (5 lines)"). Nothing in them moved or changed.
+          // v1.10.86 - the card around them has a title and closes too.
+          if (cardId === 'terms') return (
+          <InvoiceCard key="terms" id="terms" cards={cards} title="Terms & notes" summary={cardSummary.terms}
+            help={<HelpButton title="Terms & Conditions" doc="invoices#terms-notes" size={16} />}>
             <FoldSection title="Terms & Conditions" testId="fold-terms"
               help={<HelpButton title="Terms & Conditions" doc="invoices#terms-notes" size={16} />}
               summary={termsLines ? `${termsName} (${termsLines} line${termsLines === 1 ? '' : 's'})${notPrinted('showTerms')}` : 'none'}>
@@ -5770,7 +5834,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 <Plus size={15} /> Add Section
               </button>
             </FoldSection>
-          </div>
+          </InvoiceCard>
+          );
+          return null;
+          })}
         </div>
 
         {/* Live Preview — visually hidden in focus mode (v1.10.22) but

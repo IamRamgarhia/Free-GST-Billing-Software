@@ -1684,7 +1684,8 @@ try {
     `without bank ${doneOf(noBank)}/4, with bank ${doneOf(withBank)}/4`);
 
   // ---- #71 (@sangwanmail-eng) -------------------------------------------
-  // 1. Customize belongs in the sticky toolbar, right before Show Preview.
+  // 1. Customize was moved to the sticky toolbar in v1.10.69 (#71); in v1.10.86
+  //    it moved into the Document type card, under the type (maintainer, 15 Nov).
   await openDraft({
     invoiceType: 'tax-invoice',
     client: { name: 'Smoke 71 Client', address: '', city: '', pin: '', state: 'Punjab', gstin: '', country: 'India', email: '', phone: '', isSEZ: false },
@@ -1692,17 +1693,27 @@ try {
     items: draftItems,
     taxInclusive: false,
   });
-  const bar71 = await page.evaluate(() => {
-    const el = document.querySelector('.generator-toolbar');
-    return el ? [...el.querySelectorAll('button')].map((b) => b.innerText.trim().replace(/\s+/g, ' ')).filter(Boolean) : null;
+  const cust71 = await page.evaluate(() => {
+    const bar = document.querySelector('.generator-toolbar');
+    const inBar = bar ? [...bar.querySelectorAll('button')].some((b) => /Customize|Hide Options/.test(b.innerText)) : true;
+    const all = [...document.querySelectorAll('button')].filter((b) => /^(Customize invoice|Hide Options)$/.test(b.innerText.trim()));
+    const card = all[0]?.closest('[data-inv-card]');
+    return { inBar, count: all.length, card: card ? card.getAttribute('data-inv-card') : null, underType: !!card?.querySelector('#invoice-type') };
   });
-  const cIdx = bar71 ? bar71.findIndex((t) => /Customize|Hide Options/.test(t)) : -1;
-  const pIdx = bar71 ? bar71.findIndex((t) => /Show Preview|Hide Preview/.test(t)) : -1;
-  check('#71.1 Customize sits in the toolbar, immediately before the preview button',
-    cIdx !== -1 && pIdx === cIdx + 1, JSON.stringify(bar71));
-  const cCount = await page.evaluate(() =>
-    [...document.querySelectorAll('button')].filter((b) => /^(Customize|Hide Options)$/.test(b.innerText.trim())).length);
-  check('#71.1 and there is only one of it', cCount === 1, `found ${cCount}`);
+  check('#71.1 Customize sits in the Document type card, under the type, and no longer in the toolbar',
+    !cust71.inBar && cust71.card === 'type' && cust71.underType, JSON.stringify(cust71));
+  check('#71.1 and there is only one of it', cust71.count === 1, `found ${cust71.count}`);
+  // v1.10.86: a card closes from its header and then says in one line what is in it.
+  await page.locator('[data-inv-card="client"] .inv-card-toggle').click();
+  await sleep(300);
+  const closed86 = await page.evaluate(() => {
+    const c = document.querySelector('[data-inv-card="client"]');
+    return { open: c.classList.contains('inv-card-open'), summary: c.querySelector('.inv-card-summary')?.innerText || '', fields: c.querySelectorAll('input, select, textarea').length };
+  });
+  check('v86 a closed card shows one line of what is in it, and its form is put away',
+    !closed86.open && /Smoke 71 Client/.test(closed86.summary) && closed86.fields === 0, JSON.stringify(closed86));
+  await page.locator('[data-inv-card="client"] .inv-card-toggle').click(); // open again: remembered in this browser
+  await sleep(300);
 
   // 2. Qty / Rate / Cess replace their contents when you click and type.
   await openView('Purchases');
@@ -1865,7 +1876,8 @@ try {
   // Chosen through Customize, the way a person does it. The choice is saved
   // as the default for new invoices, so it is put back to Classic at the end.
   const pickStyle = async (label) => {
-    const custom = page.getByRole('button', { name: /^customize$/i }).first();
+    // v1.10.86 - the button is "Customize invoice", in the Document type card.
+    const custom = page.getByRole('button', { name: /^customize invoice$/i }).first();
     if (await custom.count()) { await custom.click(); await sleep(700); }
     await page.locator('button.type-chip', { hasText: label }).first().click();
     await sleep(1500); // display options save after 800 ms
@@ -1907,7 +1919,7 @@ try {
   const off72 = await notePos();
   check('#72 the system-generated note is off unless chosen', off72.note === -1, JSON.stringify(off72));
   await page.evaluate(() => {
-    const b = [...document.querySelectorAll('.generator-toolbar button')].find((x) => /^Customize$/.test(x.innerText.trim()));
+    const b = [...document.querySelectorAll('[data-inv-card="type"] button')].find((x) => /^Customize invoice$/.test(x.innerText.trim()));
     if (b) b.click();
   });
   await sleep(1000);

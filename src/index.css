@@ -3375,8 +3375,6 @@ kbd {
 
 /* A part of the form that opens on click; closed, it says what is in it. */
 .fold-section { border-top: 1px solid var(--border); }
-.fold-card { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-.fold-card > .fold-section:first-child { border-top: 0; }
 .fold-section > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 0.15rem 0.5rem; padding: 0.75rem 0; cursor: pointer; list-style: none; user-select: none; }
 .fold-section > summary::-webkit-details-marker { display: none; }
 .fold-section > summary::before {
@@ -3392,6 +3390,87 @@ kbd {
 .fold-section[open] > summary .fold-summary { display: none; }
 .fold-body { padding: 0.25rem 0 0.75rem; }
 .fold-body > .form-group:last-child, .fold-body > .grid > .form-group:last-child { margin-bottom: 0; }
+
+/* ========= v1.10.86 - New Invoice cards: open / close, drag to reorder ========= */
+/* Each card's header opens and closes it; closed, it says in one line what is
+   in it. The grip and the ⋯ menu move it (InvoiceCards.jsx). */
+.inv-card { position: relative; margin-bottom: 1rem; }
+.inv-card-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.75rem;
+  min-height: 3.5rem; padding: 0.5rem 0.75rem 0.5rem 1.5rem; cursor: pointer; user-select: none;
+}
+.inv-card-title { display: flex; align-items: center; min-width: 0; margin: 0; }
+.inv-card-toggle {
+  border: 0; background: none; padding: 0.25rem 0; margin: 0; font: inherit; color: inherit;
+  letter-spacing: inherit; text-align: left; cursor: pointer;
+}
+.inv-card-head:hover .inv-card-toggle { text-decoration: underline; text-underline-offset: 3px; }
+/* Up to two lines; the rest is in its tooltip. */
+.inv-card-summary {
+  flex: 1 1 8rem; min-width: 0; font-size: 0.82rem; line-height: 1.35; color: var(--text-secondary);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+}
+.inv-card-space { flex: 1 1 0; }
+.inv-card-tools { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
+.inv-card-tools .icon-btn { color: var(--text-muted); background: transparent; }
+.inv-card-tools .icon-btn:hover { color: var(--text); background: var(--bg-secondary); }
+.inv-card-grip {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px;
+  border-radius: 7px; color: var(--text-muted); cursor: grab; touch-action: none;
+}
+.inv-card-grip:hover { color: var(--text); background: var(--bg-secondary); }
+.inv-card-chevron { flex: none; margin: 0 0.25rem; color: var(--text-muted); transition: transform 0.15s; }
+.inv-card-open .inv-card-chevron { transform: rotate(180deg); }
+.inv-card-body { padding: 0.25rem 1.5rem 1.5rem; }
+.inv-card-body > .fold-section:first-child { border-top: 0; }
+.inv-card-body > .fold-section:last-child > .fold-body { padding-bottom: 0; }
+/* While one is dragged: it fades, and a blue line shows where it will land
+   (in the gap between two cards, so nothing else moves). */
+.inv-card-drag-on, .inv-card-drag-on * { cursor: grabbing !important; user-select: none; }
+.inv-card-held { opacity: 0.45; }
+.inv-card-drop-before::before, .inv-card-drop-after::after {
+  content: ''; position: absolute; left: 0.5rem; right: 0.5rem; height: 3px; border-radius: 2px;
+  background: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22); pointer-events: none; z-index: 2;
+}
+.inv-card-drop-before::before { top: calc(-0.5rem - 2px); }
+/* Above the first card there is no gap (the form's box would cut the line off). */
+.inv-card-first.inv-card-drop-before::before { top: 0; }
+.inv-card-drop-after::after { bottom: calc(-0.5rem - 2px); }
+/* Customize, in the Document type card under the type. */
+.invoice-customize-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.75rem; margin-top: 0.75rem; }
+.invoice-customize-hint { font-size: 0.8rem; color: var(--text-secondary); }
+.inv-items-opts { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-bottom: 1rem; }
+/* An item row's foot: + Add description on the left; the line's amount and
+   its delete button at the right, in the same place on every row. */
+.line-item-foot { flex-basis: 100%; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.5rem 0.75rem; }
+.line-item-foot > .line-item-description-row { flex: 0 1 auto; min-width: 0; }
+.line-item-foot-desc > .line-item-description-row { flex: 1 1 14rem; }
+.line-item-foot > .line-item-description-row > textarea { width: 100%; }
+.line-item-end { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.line-item-amount { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+.line-item-amount strong { margin-left: 0.25rem; font-size: 0.92rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.btn.add-item-btn, [data-theme="dark"] .btn.add-item-btn { border-style: dashed; border-color: var(--primary); color: var(--primary); }
+/* The item name: beside the preview, or on a phone, it has the row's first
+   line to itself, so HSN / Qty / Unit / Rate share the next line and
+   Discount / GST the one after, none of them stretched alone across the row. */
+.line-item-name-field { flex: 2.5 1 0%; min-width: 220px; position: relative; }
+/* A drop-down's text stopped short of its arrow (Unit read "No" on a phone). */
+.line-item-field select.form-input { padding-left: 0.45rem; padding-right: 1.3rem; background-position: right 0.4rem center; }
+@media (max-width: 1599px) {
+  .split-view:not(.split-view-focus) .line-item-name-field { flex-basis: 100%; }
+  /* A services row (SAC, Qty, Rate, Discount, GST) fits on one line. */
+  .split-view:not(.split-view-focus) .line-item-row .line-item-field { min-width: 64px; }
+}
+@media (max-width: 900px) { .line-item-name-field { flex-basis: 100%; min-width: 0; } }
+@media (max-width: 480px) {
+  .inv-card-head { padding-left: 1rem; padding-right: 0.5rem; }
+  .inv-card-body { padding: 0.25rem 1rem 1rem; }
+  /* The one line under the title, not squeezed beside it. */
+  .inv-card-summary { order: 3; flex-basis: 100%; margin-top: -0.25rem; }
+  .inv-card-space { display: none; }
+  /* HSN / Qty / Unit / Rate on one line, Discount / GST on the next. */
+  .line-item-row .line-item-field { min-width: 60px; }
+}
 
 /* The private note: yellow, never printed. Its text was pale on yellow in dark mode. */
 .private-note-box { background: #fefce8; border: 1px dashed #ca8a04; border-radius: 8px; padding: 0.75rem 1rem; }
