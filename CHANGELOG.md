@@ -336,6 +336,19 @@ a backup is made first.
   The certificate's private key and the paired devices are never put in a
   backup.
 
+### Thanks
+Reported or asked for by @Barunsaha (#181, #172, #159), @Harsh705 (#182,
+#183), @snvrahulkumarde-collab (#184, #185, #186, #165, #148),
+@theaitechstudio (#187), @ethbroken-svg (#190), @sundarelectricservice
+(#191), @vhoramunis9510 (#112), @aryanphogat (#125), @ashishpipariya2071-lgtm
+(#135), @crimsouneclub2-hub (#137), @7harsh-m (#140), @dhirensawalakhe (#157),
+@dhananjayseti09013 (#158), @fulbandhemanish-droid (#160), @Manishkumarroy823
+(#168), @Sujalvishwkarma (#171), @AmanKrSarkar (#189), @Sanjeev-1695 (#147),
+@supremecom143 (#122), @ezonebsp (#142), @Rounak2001 (#175), @premtarate999
+(#180) and @infoaimautomation-ui (#115). Thank you.
+
+**Next update:** Saturday 21 November 2026.
+
 ---
 
 ## [1.10.84] - 2026-11-07
