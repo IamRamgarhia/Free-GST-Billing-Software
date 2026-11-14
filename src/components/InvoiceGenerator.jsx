@@ -14,7 +14,7 @@ import { useCostCentres } from './useCostCentres';
 import { CostCentreSelect } from './CostCentrePicker';
 import { centreFields } from '../utils/costCentres';
 import { isExportOrSez, lutCoversDate, normaliseLutArn, fyOf } from '../utils/lut';
-import { PURPOSE_CODES } from '../utils/purposeCodes';
+import { PURPOSE_CODE_OPTIONS } from '../utils/purposeCodes';
 import { baseCurrencyOf, currencyForClient, isForeignClient, currencyCountryMismatch } from '../utils/fx';
 import { costOfGoodsSold } from '../utils/products';
 import InvoiceCurrency from './InvoiceCurrency';
@@ -29,6 +29,7 @@ import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { lineFactor } from '../utils';
 import { suggestGstRate, autoFillRate, rateText } from '../utils/hsnRates';
 import HelpButton from './HelpButton';
+import ComboInput from './ComboInput';
 import { getClientCredit, planCreditApplication } from '../utils/clientCredit';
 import ClientModal from './ClientModal';
 import { EInvoiceEditorModal } from './EInvoiceModal';
@@ -5582,13 +5583,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                           return (
                             <div className="form-group">
                               <label className="form-label" htmlFor="purpose-code">Purpose code (RBI) <HelpButton title="Purpose codes" doc="settings#paid-from-abroad" size={14} /></label>
-                              <input id="purpose-code" type="text" className="form-input" list="purpose-codes-inv" disabled={readOnlyDoc}
+                              <ComboInput id="purpose-code" type="text" className="form-input" options={PURPOSE_CODE_OPTIONS} listLabel="Purpose codes" disabled={readOnlyDoc}
                                 value={invoiceOptions.purposeCode || ''}
                                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, purposeCode: e.target.value.toUpperCase().trim() }))}
                                 placeholder={accountCode ? `${accountCode} (from your bank account)` : 'e.g. P0802 software, P1006 consulting'} />
-                              <datalist id="purpose-codes-inv">
-                                {PURPOSE_CODES.map(p => <option key={p.code} value={p.code}>{`${p.code} - ${p.label}`}</option>)}
-                              </datalist>
                             </div>
                           );
                         })()}

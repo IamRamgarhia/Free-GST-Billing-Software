@@ -9,6 +9,7 @@ import { localToday, trackedStock } from '../utils';
 import { saveStockAdjustment } from '../store';
 import HelpButton from './HelpButton';
 import { toast } from './Toast';
+import ComboInput from './ComboInput';
 
 // Category (any level, typed with >) and brand, each with the ones already used.
 export function CategoryBrandFields({ form, products, onChange }) {
@@ -16,16 +17,14 @@ export function CategoryBrandFields({ form, products, onChange }) {
     <>
       <div className="form-group">
         <label className="form-label" htmlFor="product-category">Category (optional) <HelpButton title="Categories and brands" doc="products#categories" size={14} /></label>
-        <input id="product-category" type="text" className="form-input" list="fgsb-category-list" autoComplete="off"
+        <ComboInput id="product-category" type="text" className="form-input" options={categoryOptions(products)} listLabel="Categories used before"
           value={form.category} onChange={(e) => onChange('category', e.target.value)} placeholder="e.g. Garments > Men > Shirts"
           title="A main category, and up to 3 sub-levels after >" />
-        <datalist id="fgsb-category-list">{categoryOptions(products).map((c) => <option key={c} value={c} />)}</datalist>
       </div>
       <div className="form-group">
         <label className="form-label" htmlFor="product-brand">Brand (optional)</label>
-        <input id="product-brand" type="text" className="form-input" list="fgsb-brand-list" autoComplete="off"
+        <ComboInput id="product-brand" type="text" className="form-input" options={brandOptions(products)} listLabel="Brands used before"
           value={form.brand} onChange={(e) => onChange('brand', e.target.value)} placeholder="e.g. DiceCodes" />
-        <datalist id="fgsb-brand-list">{brandOptions(products).map((b) => <option key={b} value={b} />)}</datalist>
       </div>
     </>
   );

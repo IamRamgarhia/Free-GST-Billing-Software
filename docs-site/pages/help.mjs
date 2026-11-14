@@ -21,7 +21,14 @@ export default [
   <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
 </ul>
 <p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
-<h3 id="menu-groups">Open, close and customise the menu</h3>
+<p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
+<p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
+<p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
+<figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
+</section>
+
+<section id="menu-groups">
+<h2>Open, close and customise the menu</h2>
 <p><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</p>
 <p><b>Customise menu</b>: click the pencil beside your business name at the top of the sidebar (or ${ui('Customise menu…')} in <a href="settings.html#features-menu">Settings → Features</a>). The window lists the groups and their items as the menu shows them, and a <b>Bottom of the menu</b> part for Support &amp; About, Control Panel and Settings. It works with a mouse, a finger or the keyboard; on a phone it opens from the bottom of the screen.</p>
 <ul>
@@ -33,10 +40,6 @@ export default [
   <li>${ui('Reset menu')} puts back the three groups in the usual order, opens them all and shows every item. ${ui('Done')}, ${ui('✕')} or <kbd>Esc</kbd> closes the window.</li>
 </ul>
 <p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
-<p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
-<p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
-<p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
-<figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
 </section>
 
 <section id="support">

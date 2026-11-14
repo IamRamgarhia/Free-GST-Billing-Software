@@ -935,7 +935,8 @@ html:not([data-theme="dark"]) .profile-switcher-item + .profile-switcher-details
 }
 /* A phone: a sheet from the bottom, full width. */
 @media (max-width: 600px) {
-  .mc-overlay { align-items: flex-end; }
+  /* v1.10.86 - .modal-overlay (further down) centred it, so the sheet floated. */
+  .modal-overlay.mc-overlay { align-items: flex-end; }
   .modal-content.mc-dialog { width: 100%; max-width: none; max-height: 92vh; border-radius: 16px 16px 0 0; }
   .mc-head, .mc-body, .mc-foot { padding-left: 1rem; padding-right: 1rem; }
   .mc-row { gap: 0.6rem; }
@@ -4243,4 +4244,52 @@ html[data-compact] .client-card-header .client-avatar { width: 32px; height: 32p
   .modal-content.qs-panel { width: calc(100% - 1rem); max-height: calc(100dvh - 1rem); }
   .qs-list { max-height: calc(100dvh - 8rem); }
   .qs-keys, .qs-hint { display: none; }
+}
+
+/* v1.10.86 - the suggestion list of a text box (components/ComboInput.jsx),
+   in place of the browser's black <datalist> list. Drawn on <body>. */
+.combo-pop {
+  position: fixed; z-index: 10001; display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; color: var(--text); border: 1px solid var(--border-color); border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16); font-size: 0.875rem;
+}
+[data-theme="dark"] .combo-pop { background: #1e293b; border-color: #334155; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }
+.combo-search {
+  display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; margin: 0;
+  padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border-color); color: var(--text-muted); cursor: text;
+}
+.combo-search input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; box-shadow: none;
+  padding: 0.15rem 0; font: inherit; color: var(--text);
+}
+.combo-search input::placeholder { color: var(--text-muted); }
+.combo-search:focus-within { color: var(--primary); box-shadow: inset 0 -2px 0 var(--primary); }
+/* The whole bar shows the focus (above), not a ring squeezed round the text. */
+.combo-search input:focus-visible { outline: none !important; }
+.combo-list { list-style: none; margin: 0; padding: 4px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.combo-opt {
+  display: flex; flex-direction: column; gap: 2px; padding: 0.5rem 0.7rem; border-radius: 6px;
+  line-height: 1.3; cursor: pointer; overflow-wrap: anywhere;
+}
+.combo-opt.is-active { background: var(--primary-light); color: var(--primary); }
+[data-theme="dark"] .combo-opt.is-active { background: rgba(var(--primary-rgb), 0.22); color: var(--primary-pale); }
+.combo-opt.is-current .combo-opt-value { font-weight: 600; }
+.combo-opt-label { font-size: 0.75rem; color: var(--text-muted); }
+.combo-opt.is-active .combo-opt-label { color: inherit; opacity: 0.8; }
+.combo-empty { padding: 0.75rem; color: var(--text-muted); font-size: 0.82rem; line-height: 1.4; }
+.combo-more { flex-shrink: 0; padding: 0.45rem 0.75rem; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.72rem; }
+@media (pointer: coarse) { .combo-opt { padding: 0.65rem 0.75rem; } }
+
+/* v1.10.86 - the Edit window of a list row (components/EditDialog.jsx), on
+   the Customise menu window's look (.mc-*). */
+.modal-content.mc-dialog.ed-dialog { max-width: 520px; }
+.ed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem 1rem; }
+.ed-grid > .form-group { margin: 0; min-width: 0; }
+.ed-grid > .ed-wide { grid-column: 1 / -1; }
+.ed-actions { display: flex; gap: 0.5rem; }
+.ed-dialog .mc-foot { align-items: center; }
+.btn.ed-delete { color: var(--danger); }
+.btn.ed-delete:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-light); }
+@media (max-width: 600px) {
+  .ed-grid { grid-template-columns: minmax(0, 1fr); }
 }

@@ -397,7 +397,7 @@ export default [
 <ul>
   <li>The tick box shows or hides the item.</li>
   <li>The ${ui('▲')} and ${ui('▼')} arrows on the left move the item up or down. In the top box an item at the top or bottom of a group moves on into the next group, and the arrows beside a group's name move the whole group. ${ui('Reset menu')}, shown once you have moved something, puts back the usual groups and order.</li>
-  <li>${ui('Customise menu…')} opens the same window as the pencil at the top of the sidebar: open or close the groups, and take items out of the menu without switching the feature off. An item taken out says <b>Not in the menu</b> here. See <a href="shortcuts.html#menu-groups">Customise menu</a>. Both always show the same order.</li>
+  <li>${ui('Customise menu…')} opens the same window as the pencil at the top of the sidebar: open or close the groups, and take items out of the menu without switching the feature off. An item taken out says <b>Not in the menu</b> here. See <a href="shortcuts.html#sidebar">Customise menu</a>. Both always show the same order.</li>
   <li><b>Dashboard</b>, <b>New invoice</b>, <b>Clients</b>, <b>Settings</b>, and <b>Support &amp; About</b> say <b>(always shown)</b> and have no tick box. You can still move them.</li>
 </ul>
 <p>Quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) leaves out anything unticked here, but still finds a screen only taken out of the menu. Save the ticks and arrows with ${ui('Save all changes')}; Customise menu saves straight away.</p>
@@ -556,7 +556,7 @@ export default [
   <tr><td>${ui('App colour')}</td><td>The colour of the buttons, the open item in the menu, links, focus outlines and progress bars. Pick one of the eight colours (blue is the default), or the rainbow circle for a colour of your own. A very light or very dark colour is made a little darker or lighter by itself, so the white writing on buttons stays easy to read, in light and in dark mode.</td></tr>
   <tr><td>${ui('Text size')}</td><td>${ui('Smaller')}, ${ui('Normal')}, ${ui('Larger')} or ${ui('Largest')}. Everything on the screens grows or shrinks together: the menu, lists, forms, buttons and windows. The invoice preview keeps the size the invoice will print at.</td></tr>
   <tr><td>${ui('Compact lists')}</td><td>Shorter rows in the Invoices, Purchases, Expenses and Products lists (and the reports), and smaller client cards, so more fit on the screen without scrolling.</td></tr>
-  <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="help.html#dark-mode">Dark mode</a>.</td></tr>
+  <tr><td>Dark mode</td><td>The moon button at the top right of every screen. See <a href="shortcuts.html#dark-mode">Dark mode</a>.</td></tr>
 </table></div>
 <p>${ui('Back to the default look')} (shown once something was changed) puts back blue, Normal and the usual row height.</p>
 <p>These are kept for this browser, and a copy goes in the app's data folder, so they come back if the browser clears its data or you move to the Windows Setup's window. A phone or tablet starts with the computer's choices and can change its own.</p>
