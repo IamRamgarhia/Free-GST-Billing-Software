@@ -128,6 +128,7 @@ export default [
 <section id="whats-new">
 <h2>What's new</h2>
 <p>The <b>What's new</b> card in the app lists the last six updates, read from the changelog that comes with your copy of the app. The newest is open; click any version number to open or close it. Each shows its date and only the main titles of what changed, under headings such as <i>Added</i> and <i>Fixed</i> (at most eight under each; the rest are counted). <b>Read the full notes</b> opens that version's complete notes on GitHub.</p>
+<p><b>After an update</b>, the first time the app opens it shows a small window with the main news of the new version in three or four slides: what is new first, then what was fixed. Use ${ui('Next')} and ${ui('Back')} (or the arrow keys), or the dots to jump; ${ui('Skip')} or <kbd>Esc</kbd> closes it. The last slide has ${ui('Read the full notes')}, which opens the notes on GitHub, and ${ui('Done')}. It is shown once per update, never on a new install (the welcome screens are shown there), and not while the app is locked. ${ui("See what's new")} next to the What's new title shows the slides again.</p>
 <p>The card shows what <b>your</b> copy contains. If it stops at an older version, you have not updated yet: see <a href="update.html#in-app">Updating the app</a>. The <b>full changelog</b> link has every version since the first, and <b>GitHub Releases</b> has the downloads. If the card is missing, the changelog file could not be read; the ${ui('Changelog')} button above opens it on GitHub.</p>
 </section>
 

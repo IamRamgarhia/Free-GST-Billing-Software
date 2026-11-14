@@ -170,13 +170,13 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
     <>
       <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}
         title={`Import ${sales ? 'invoices' : 'purchase bills'} from a CSV file, or export them as CSV`}>
-        <FileSpreadsheet size={16} /> CSV import / export
+        <FileSpreadsheet size={16} /> Import / export CSV
       </button>
       {open && (
         <div className="modal-overlay" onClick={close}>
           <div className="modal-content" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 className="section-title" style={{ margin: 0 }}>{sales ? 'Sales invoices' : 'Purchase bills'}: CSV import / export <HelpButton title="CSV import" doc={sales ? 'dashboard#csv' : 'purchases#csv-purchases'} size={16} style={{ marginLeft: 6 }} /></h3>
+              <h3 className="section-title" style={{ margin: 0 }}>{sales ? 'Sales invoices' : 'Purchase bills'}: Import / export CSV <HelpButton title="CSV import" doc={sales ? 'dashboard#csv' : 'purchases#csv-purchases'} size={16} style={{ marginLeft: 6 }} /></h3>
               <button type="button" className="icon-btn" onClick={close} title="Close"><X size={16} /></button>
             </div>
             <p className="text-muted" style={{ fontSize: '0.85rem' }}>

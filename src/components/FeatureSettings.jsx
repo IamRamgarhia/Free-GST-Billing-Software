@@ -1,9 +1,11 @@
 import { useState, useEffect, Fragment } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { FEATURE_GROUPS, isModuleEnabled } from '../utils';
-import { BUSINESS_TYPES, businessTypeById, applyBusinessType, featureChanges, moduleLabel, orderedMenu, moveMenuItem, invoiceDefaultsForType } from '../utils/businessTypes';
-import { menuGroups, normalOrder, stepGroup } from '../utils/menuGroups';
-import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, onMenuChanged, setMenuClosed, getAllRecurring, patchInvoiceDefaults, getPriceLevelNames, setPriceLevelNames } from '../store';
+import { BUSINESS_TYPES, businessTypeById, applyBusinessType, featureChanges, moduleLabel, orderedMenu, moveMenuItem, invoiceDefaultsForType, printStyleForType } from '../utils/businessTypes';
+import { getPrintSettings, savePrintSettings, PRINT_SETTINGS_EVENT } from '../utils/printSettings';
+import { menuGroups, normalOrder, stepGroup, hiddenItems } from '../utils/menuGroups';
+import { openCustomiseMenu } from './MenuCustomise';
+import { getEnabledModules, setEnabledModules, getBusinessType, setBusinessType, getMenuOrder, setMenuOrder, onMenuChanged, setMenuClosed, getMenuHidden, setMenuHidden, getAllRecurring, patchInvoiceDefaults, getPriceLevelNames, setPriceLevelNames, applyTypeTerms } from '../store';
 import { PriceLevelNames } from './PriceLevelFields';
 import { levelNameProblem } from '../utils/listCsv';
 import { toast } from './Toast';
@@ -39,14 +41,23 @@ export function useFeatureDraft() {
     if (featuresChanged && levelProblem) { toast(`Features not saved. ${levelProblem}`, 'error'); return; }
     if (featuresChanged) {
       setEnabledModules(draft.modules); setMenuOrder(draft.order); setPriceLevelNames(draft.levels);
-      if (!draft.order.length) setMenuClosed([]); // v1.10.86 - Reset menu opens every group too
+      // v1.10.86 - Reset menu also opens every group and shows every item.
+      if (!draft.order.length && orderKey(saved.order) !== orderKey([])) { setMenuClosed([]); setMenuHidden([]); }
     }
-    if (typeChanged && draft.type) { setBusinessType(draft.type); patchInvoiceDefaults(invoiceDefaultsForType(draft.type)); }
+    if (typeChanged && draft.type) {
+      setBusinessType(draft.type);
+      patchInvoiceDefaults(invoiceDefaultsForType(draft.type));
+      // v1.10.86 - one Business type picker: it also sets the print style
+      // (Print & PDF shows which) and rewords the starting Standard Terms.
+      savePrintSettings(printStyleForType(getPrintSettings(), draft.type));
+      window.dispatchEvent(new Event(PRINT_SETTINGS_EVENT));
+      applyTypeTerms(draft.type).catch(() => {});
+    }
     setSaved(draft);
     toast('Features saved. The menu now shows your choices.', 'success');
   };
   const discard = () => setDraft(saved);
-  // v1.10.86 - the sidebar can now be arranged by dragging; this list follows
+  // v1.10.86 - the menu can now be arranged in Customise menu; this list follows
   // it straight away, unless the order here has unsaved changes of its own.
   useEffect(() => onMenuChanged(() => {
     const order = getMenuOrder();
@@ -92,7 +103,7 @@ export function BusinessTypePanel({ features }) {
     <div id="section-biztype" className="glass-panel p-6 mb-6" style={{ order: 0 }}>
       <h3 className="section-title" style={{ marginTop: 0, marginBottom: '0.25rem' }}>Business type <HelpButton title="Business type" doc="settings#business-type" size={16} style={{ marginLeft: 6 }} /></h3>
       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-        Pick what kind of business you run. The tick boxes in Features are filled in for that business; nothing changes until you save.
+        Pick what kind of business you run. The tick boxes in Features are filled in for that business, and the print style and the starting terms follow it; nothing changes until you save.
       </p>
       <p style={{ fontSize: '0.85rem', margin: '0.85rem 0' }}>
         Your business type: <strong>{chosen ? chosen.label : 'Not chosen yet'}</strong>
@@ -136,6 +147,11 @@ function Check({ id, label, help, modules, onToggle, note }) {
 export function FeaturesPanel({ features, regionMode }) {
   const { draft, setDraft } = features;
   const recurring = useActiveRecurringCount();
+  // v1.10.86 - items taken out of the menu in Customise menu (menu only, the
+  // switch here stays as it is); redrawn when that window changes them.
+  const [, setMenuTick] = useState(0);
+  useEffect(() => onMenuChanged(() => setMenuTick(t => t + 1)), []);
+  const menuHidden = hiddenItems(getMenuHidden());
   const notes = { recurring: recurring > 0 ? recurringNote(recurring) : '' };
   const type = businessTypeById(draft.type);
 
@@ -150,7 +166,7 @@ export function FeaturesPanel({ features, regionMode }) {
   const menuModules = FEATURE_GROUPS.find(g => g.id === 'menu')?.modules || [];
   const moveGroup = (id, dir) => setDraft({ ...draft, order: stepGroup(draft.order, id, dir) });
   // v1.10.86 - the top part in its groups; an item's arrows go on into the
-  // next group at the end of one, as in the sidebar's "Arrange menu".
+  // next group at the end of one, as in Customise menu.
   const groups = menuGroups(draft.order);
   const renderSection = (section, title) => (
     <div className="surface-card">
@@ -195,6 +211,7 @@ export function FeaturesPanel({ features, regionMode }) {
                     <span style={{ ...muted, display: 'block' }}>{item.help}</span>
                   </span>
                 )}
+                {menuHidden.includes(item.id) && <span style={{ ...muted, flexShrink: 0, marginTop: 2 }}>Not in the menu</span>}
               </div>
             );
           })}
@@ -220,10 +237,12 @@ export function FeaturesPanel({ features, regionMode }) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', margin: '1.1rem 0 0.5rem' }}>
         <h4 style={{ margin: 0, fontSize: '0.92rem' }}>Menu <HelpButton title="Menu: show, hide and order" doc="settings#features-menu" size={16} style={{ marginLeft: 6 }} /></h4>
         <span style={muted}>
-          {/* v1.10.86 - groups; the sidebar's own "Arrange menu" changes this same order. */}
-          Use the arrows to change the order and the groups. You can also drag items in the menu itself.{' '}
+          {/* v1.10.86 - groups; Customise menu changes this same order. */}
+          Use the arrows to change the order and the groups.{' '}
           {draft.order.length > 0 && <button type="button" onClick={() => setDraft({ ...draft, order: [] })} style={{ fontSize: '0.72rem', background: 'none', border: 0, color: 'var(--primary)', cursor: 'pointer', padding: 0 }}>Reset menu</button>}
         </span>
+        {/* v1.10.86 - the same window as the pencil at the top of the menu: open / closed groups and items out of the menu. */}
+        <button type="button" className="btn btn-secondary" onClick={openCustomiseMenu} style={{ fontSize: '0.78rem', padding: '0.35rem 0.7rem', marginLeft: 'auto' }}>Customise menu…</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
         {renderSection('main', 'Top of the menu')}

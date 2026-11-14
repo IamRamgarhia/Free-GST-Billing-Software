@@ -25,7 +25,7 @@ export default [
   <tr><td><b>Actions</b></td><td>The printer prints it (<a href="#print">Printing</a>), the pencil edits it (<a href="#edit-receipt">Editing</a>), the bin deletes it (<a href="#delete">Deleting</a>).</td></tr>
 </table></div>
 <p><strong>Searching.</strong> Type in the <b>Search receipts...</b> box above the list. It finds receipts whose client name or receipt number contains what you typed. Clear the box to see them all again.</p>
-<p><strong>Empty list.</strong> With no receipts yet you see "No receipts generated yet." and a ${ui('Create Receipt')} button. With a search that finds nothing you see "No receipts match your search."</p>
+<p><strong>Empty list.</strong> With no receipts yet you see "No receipts generated yet." and a ${ui('New Receipt')} button. With a search that finds nothing you see "No receipts match your search."</p>
 <div class="note tip"><strong>Something wrong?</strong><p>A receipt you made is missing: check the business selected at the top of the sidebar, since each business sees only its own receipts. A receipt from a Dashboard payment is missing: it is made when you click ${ui('Record Payment')}, so a payment recorded in a very old version may not have one; print it from the invoice's Payment History instead.</p></div>
 </section>
 

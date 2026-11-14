@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Home, FileText, Settings, Plus, Users, Package, BarChart3, Wallet, RefreshCw, Receipt, BookOpen, Moon, Sun, Download, X, ShoppingCart, ChevronDown, Building2, Pencil, HelpCircle, Search, Command, Bell, Calculator, HardDrive, Menu, Heart, Banknote } from 'lucide-react';
-import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
+import { getAllProfilesWithHidden, saveProfile, getEnabledModules, getMenuOrder, getMenuHidden, onMenuChanged, getAllBills, getAllProducts, getStockAlertSettings, getAllClients, runUpdateNow, getLockStatus, visibleProfiles, hasHiddenProfiles, openHiddenCompanies, hideCompaniesAgain, isOpenedHidden } from './store';
 import { isModuleEnabled, getUpcomingFilings, countsAsSales, localToday, toLocalIsoDate, DOCS_URL, findLowStock, trackedStock } from './utils';
 import { orderedMenu } from './utils/businessTypes';
 import SidebarMenu from './components/SidebarMenu';
+import MenuCustomise, { onOpenCustomiseMenu } from './components/MenuCustomise';
+import { hiddenItems } from './utils/menuGroups';
 import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice';
 // v1.10.4 — Route-level lazy loading. Prior App.jsx synchronously
 // imported all 12 views (~15k LOC combined), so a first-paint on
@@ -21,12 +23,12 @@ import { notifyUpdate, canAskToNotify, askToNotify } from './utils/updateNotice'
 // once fetched.
 import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
-import SetupWizard from './components/SetupWizard';
 import ToastContainer, { toast } from './components/Toast';
 import UpdateOverlay from './components/UpdateOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
+import { WhatsNewAfterUpdate } from './components/WhatsNewSlides';
 const SettingsView = lazy(() => import('./components/SettingsView'));
 const ClientsView = lazy(() => import('./components/ClientsView'));
 const InventoryView = lazy(() => import('./components/InventoryView'));
@@ -45,9 +47,10 @@ import AppFooter from './components/AppFooter';
 import OfflineModeButton from './components/OfflineModeButton';
 import PhonePairButton from './components/PhonePairButton';
 import { isOfflineMode } from './utils/offlineMode';
+import { startView } from './utils/listPrefs';
 import HelpButton from './components/HelpButton';
+import ActionsMenu from './components/ActionsMenu';
 import { lockNow } from './utils/appLock';
-import { getPrintSettings } from './utils/printSettings';
 
 const openDocs = () => window.open(DOCS_URL, '_blank', 'noopener,noreferrer');
 
@@ -71,10 +74,8 @@ function ViewLoading() {
 const MENU_BRAND_KEY = 'gst_menuBrand';
 
 function App() {
-  // v1.9.3 — Setup Wizard shown on first-run (before onboardingComplete = true)
-  const [showWizard, setShowWizard] = useState(() => {
-    try { return !getPrintSettings().onboardingComplete; } catch { return false; }
-  });
+  // v1.10.86 - the second first-run window (SetupWizard: business type, paper,
+  // language) is gone; the welcome asks the business type itself.
   const [currentView, setCurrentView] = useState(() => {
     // PWA manifest "shortcuts" deep-link in via ?view=X (e.g. right-clicking
     // the pinned taskbar icon → "New Invoice" opens /?view=new). Honour that
@@ -93,7 +94,9 @@ function App() {
     } catch { /* sandboxed history API — fall through */ }
     // 'guide' was the built-in User Guide (removed in v1.10.75).
     const last = sessionStorage.getItem('gst_currentView');
-    return last && last !== 'guide' ? last : 'dashboard';
+    // v1.10.86 - a new tab or window opens on the screen chosen in Customise
+    // Dashboard ("Open the app on"); a reload keeps the screen it was on.
+    return last && last !== 'guide' ? last : startView();
   });
   const [profile, setProfile] = useState(null);
   // v1.10.83 - the menu's own name and logo, as last shown (see `brand` below).
@@ -564,6 +567,12 @@ function App() {
   // sidebar straight away.
   const [, setMenuTick] = useState(0);
   useEffect(() => onMenuChanged(() => setMenuTick(t => t + 1)), []);
+  // v1.10.86 - "Customise menu" (the pencil at the top of the sidebar, or
+  // Settings -> Features). Items taken out there leave the sidebar only:
+  // navItems / bottomIds keep them, so Ctrl+K search still finds them.
+  const [showMenuEditor, setShowMenuEditor] = useState(false);
+  useEffect(() => onOpenCustomiseMenu(() => setShowMenuEditor(true)), []);
+  const menuHidden = hiddenItems(getMenuHidden());
   // Sidebar items in the saved order; hidden ones dropped. `module: null`
   // items (Settings, Support & About, Lock app) are always shown.
   const menu = orderedMenu(getMenuOrder()).filter(m => !m.module || showIfModule(m.module));
@@ -600,6 +609,14 @@ function App() {
   };
   const navItems = menu.filter(m => m.section === 'main').map(m => ({ id: m.id, ...NAV_EXTRAS[m.id] }));
   const bottomIds = menu.filter(m => m.section === 'bottom').map(m => m.id);
+  // v1.10.86 - icons and names for the Customise menu window, as in the sidebar.
+  const menuExtras = { ...NAV_EXTRAS, support: { icon: Heart, label: 'Support & About' }, controlpanel: { icon: HardDrive, label: 'Control Panel' }, settings: { icon: Settings, label: 'Settings' } };
+  // v1.10.86 - a Settings tab / section from the sidebar (as openSettingsAt below).
+  const openSettingsSection = (sectionId) => {
+    try { sessionStorage.setItem('gst_settingsTab', sectionId); } catch { /* storage blocked */ }
+    setCurrentView('settings');
+    setTimeout(() => window.dispatchEvent(new CustomEvent('fgsb:settings-open', { detail: sectionId })), 80);
+  };
   // v1.10.83 - small buttons at the top right of every screen (asked for:
   // "dark mode button should be on top, not in the sidebar").
   const topIds = menu.filter(m => m.section === 'top').map(m => m.id);
@@ -619,12 +636,24 @@ function App() {
   useEffect(() => {
     document.title = (pageLabel ? `${pageLabel} - ${windowName}` : windowName) + updateNote;
   }, [pageLabel, windowName, updateNote]);
+  // v1.10.86 - a search box you can see (it opens the Ctrl+K quick search);
+  // a search icon on a phone (CSS hides the words).
+  const openPalette = () => { setPaletteQuery(''); setPaletteIdx(0); setShowPalette(true); };
+  const searchBox = (
+    <button type="button" className="topbar-search" onClick={openPalette}
+      title="Search or jump to a page (Ctrl+K)" aria-label="Search or jump to a page (Ctrl+K)">
+      <Search size={16} />
+      <span className="topbar-search-text">Search or jump to…</span>
+      <kbd className="topbar-search-kbd">Ctrl+K</kbd>
+    </button>
+  );
   const topActions = topIds.map(id => ({
+    // v1.10.86 - Help (?) is a small menu: the user guide and the keyboard shortcuts.
     guide: (
-      <button key={id} type="button" className="topbar-btn" onClick={openDocs}
-        title="User guide (opens in your browser)" aria-label="User guide">
-        <HelpCircle size={18} />
-      </button>
+      <ActionsMenu key={id} label="Help" icon={HelpCircle} iconSize={18} className="topbar-btn" items={[
+        { label: 'User guide (opens in your browser)', icon: BookOpen, onClick: openDocs },
+        { label: 'Keyboard shortcuts (Ctrl+/)', icon: Command, onClick: () => setShowShortcutsHelp(true) },
+      ]} />
     ),
     /* Opens the list of overdue / due-soon invoices, GST filing deadlines and
        low-stock items, each a click away from the page that fixes it. */
@@ -730,6 +759,8 @@ function App() {
       ['Digital signature', 'section-company'], ['Company letterhead', 'section-print'],
       ['Business type', 'section-biztype'], ['Features', 'section-modules'], ['Region preference', 'section-region'],
       ['Google Drive backup', 'section-cloud'], ['App updates', 'section-updates'],
+      // v1.10.86
+      ['Appearance: App colour', 'section-appearance'], ['Appearance: Text size', 'section-appearance'], ['Appearance: Compact lists', 'section-appearance'],
     ];
     settingsJumps.forEach(([s, sectionId]) => {
       acts.push({ label: `⚙️ Settings → ${s}`, hint: '', category: 'settings', run: () => openSettingsAt(sectionId) });
@@ -905,43 +936,20 @@ function App() {
           if (p) setProfile(p);
           setShowWelcome(false);
         }} />
+        {/* v1.10.86 - mounted (and blocked) during the welcome so a new install
+            marks this version's slides as seen: none right after setup. */}
+        <WhatsNewAfterUpdate blocked />
         <ToastContainer />
         <ConfirmModalContainer />
       </>
     );
   }
 
-  // v1.10.33 — "Finish setup" bottom-right pill. Shown when the user
-  // hit Skip on the wizard (onboardingSkipped=true) so they can come
-  // back later without hunting through Settings. Hidden after they
-  // finish setup (finish() clears the flag) or if they explicitly said
-  // "None of these — I'll configure manually".
-  const showResumeSetupPill = (() => {
-    try {
-      const ps = getPrintSettings();
-      return !showWizard && ps.onboardingComplete === true && ps.onboardingSkipped === true;
-    } catch { return false; }
-  })();
-
   return (
     <div className={`app-layout${sidebarAutoHide ? ' sidebar-autohide' : ''}`}>
-      {showWizard && <SetupWizard onClose={() => setShowWizard(false)} />}
-      {showResumeSetupPill && (
-        <button type="button"
-          onClick={() => setShowWizard(true)}
-          title="Come back to the setup wizard — pick a business type, paper size, and language."
-          style={{
-            // Above the docked Save bar on Settings, so it never covers Save.
-            position: 'fixed', bottom: currentView === 'settings' ? '5.5rem' : '1.25rem', right: '1.25rem', zIndex: 9998,
-            padding: '0.6rem 1rem', borderRadius: 999,
-            background: 'var(--primary)', color: '#fff', border: 'none',
-            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-            boxShadow: '0 6px 20px rgba(30,64,175,0.35), 0 2px 4px rgba(0,0,0,0.15)',
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-          }}>
-          ✨ Finish setup
-        </button>
-      )}
+      {/* v1.10.86 - "What's new" slides, once after an update (never during the
+          first-run welcome, which renders above instead of this layout). */}
+      <WhatsNewAfterUpdate blocked={showWelcome} />
       {/* v1.10.66 (#59) — phone-only top bar with the menu button. CSS hides it
           on wider screens, where the sidebar is always shown. */}
       <div className="mobile-topbar">
@@ -951,6 +959,7 @@ function App() {
         </button>
         <span className="mobile-topbar-title">GST Billing</span>
         <span className="mobile-topbar-business">{profile?.businessName || ''}</span>
+        {searchBox}
         {topActions}
       </div>
       {navOpen && <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
@@ -981,18 +990,21 @@ function App() {
           <div className="profile-switcher-row">
             <button
               className="profile-switcher-btn"
-              onClick={() => (shownProfiles.length > 1 || anyHidden) && setShowProfileMenu(v => !v)}
-              title={shownProfiles.length > 1 || anyHidden ? 'Switch business profile' : profile?.businessName || 'My Business'}
-              style={{ cursor: shownProfiles.length > 1 || anyHidden ? 'pointer' : 'default' }}
+              onClick={() => setShowProfileMenu(v => !v)}
+              title={shownProfiles.length > 1 || anyHidden ? 'Switch business, or edit its details' : 'Edit business details'}
+              aria-haspopup="menu" aria-expanded={showProfileMenu}
             >
               <Building2 size={14} />
               <span className="profile-switcher-name">{profile?.businessName || 'My Business'}</span>
-              {(shownProfiles.length > 1 || anyHidden) && <ChevronDown size={13} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
+              {/* v1.10.86 - always opens: "Edit business details" is in it (the pencil is now Customise menu). */}
+              <ChevronDown size={13} style={{ marginLeft: 'auto', opacity: 0.6 }} />
             </button>
+            {/* v1.10.86 - opens Customise menu (was: edit the business, now in the list on the left). */}
             <button
+              type="button"
               className="profile-switcher-edit"
-              onClick={() => { setShowProfileMenu(false); setCurrentView('settings'); }}
-              title="Edit business profile"
+              onClick={() => { setShowProfileMenu(false); setShowMenuEditor(true); }}
+              title="Customise menu" aria-label="Customise menu"
             >
               <Pencil size={13} />
             </button>
@@ -1008,6 +1020,12 @@ function App() {
                   {bp.businessName}
                 </button>
               ))}
+              <button
+                className="profile-switcher-item profile-switcher-details"
+                onClick={() => { setShowProfileMenu(false); openSettingsSection('section-company'); }}
+              >
+                <Pencil size={13} /> Edit business details
+              </button>
               {anyHidden && (
                 <button className="profile-switcher-item profile-switcher-manage" onClick={openHidden}>
                   Open a hidden company...
@@ -1024,8 +1042,8 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {/* v1.10.86 - in groups that open and close, and drag to any place. */}
-          <SidebarMenu items={navItems} currentView={currentView}
+          {/* v1.10.86 - in groups that open and close; arranged in Customise menu (the pencil). */}
+          <SidebarMenu items={navItems.filter(i => !menuHidden.includes(i.id))} currentView={currentView}
             onPick={(item) => (item.onClick ? item.onClick() : setCurrentView(item.id))} />
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {/* Update-available banner — only shows when GitHub has a newer version
@@ -1057,7 +1075,7 @@ function App() {
             )}
             {/* v1.10.83 - in the order chosen in Settings → Features; switched-off
                 ones are already left out of bottomIds. */}
-            {bottomIds.map(id => ({
+            {bottomIds.filter(id => !menuHidden.includes(id)).map(id => ({
               support: (
                 <button key={id}
                   className={`nav-btn nav-btn-support${currentView === 'support' ? ' nav-btn-support-active' : ''}`}
@@ -1099,10 +1117,16 @@ function App() {
         </nav>
       </div>
 
+      {/* v1.10.86 - outside the sidebar, so on a phone it is not inside the slide-in menu. */}
+      {showMenuEditor && (
+        <MenuCustomise extras={menuExtras} onClose={() => setShowMenuEditor(false)}
+          onOpenFeatures={() => { setShowMenuEditor(false); openSettingsSection('section-modules'); }} />
+      )}
       <div className="main-content">
         <div className="app-topbar">
           {/* v1.10.83 - the promise, on every screen (it was under the app name in the menu). */}
           <span className="topbar-free" title="Free forever: no paid version, no locked features, no ads, no tracking. Works on this computer, even offline.">Free forever</span>
+          {searchBox}
           {topActions}
         </div>
         {/* v1.10.83 - a screen that throws shows "ran into a problem" here
@@ -1124,7 +1148,7 @@ function App() {
              matched view's chunk actually loads; others stay unfetched. */}
         <Suspense fallback={<ViewLoading />}>
         {currentView === 'clients' && (
-          <ClientsView key={businessKey} onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} />
+          <ClientsView key={businessKey} onNew={handleNewInvoice} onEdit={handleEditInvoice} onDuplicate={handleDuplicateInvoice} onPrint={handlePrintInvoice} />
         )}
         {currentView === 'inventory' && (
           // v1.10.83 (#115) - remounted per business, like the screens below, so its production list follows the switch.
@@ -1321,12 +1345,16 @@ function App() {
             </div>
             <table className="kv-list">
               <tbody>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>K</kbd></td><td>Open command palette (jump to any page)</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>N</kbd></td><td>New invoice</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>S</kbd></td><td>Save current invoice (when on the invoice form)</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>P</kbd></td><td>Download PDF (when on the invoice form)</td></tr>
+                {/* v1.10.86 - each one checked in the code: App.jsx (K, /, N, Shift+L)
+                    and InvoiceGenerator.jsx (S, P, Enter, Shift+D). */}
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>K</kbd></td><td>Search or jump to a page (the search box at the top)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>N</kbd></td><td>New invoice (when not typing in a box)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>S</kbd></td><td>Save the invoice (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>P</kbd></td><td>Download the PDF (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Enter</kbd></td><td>Add an item row (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>D</kbd></td><td>Copy the last item row (on New Invoice)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>L</kbd></td><td>Lock the app (when a PIN is set)</td></tr>
-                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>/</kbd></td><td>Toggle this help</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>/</kbd></td><td>Show or hide this list</td></tr>
                 <tr><td><kbd>Esc</kbd></td><td>Close any open modal</td></tr>
               </tbody>
             </table>

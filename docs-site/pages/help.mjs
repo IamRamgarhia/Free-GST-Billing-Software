@@ -14,23 +14,27 @@ export default [
 <h2>The sidebar</h2>
 <p>From top to bottom:</p>
 <ul>
-  <li><strong>Your business</strong>, with a pencil to edit it. If you have more than one, click the name to <a href="#switch-business">switch</a>.</li>
+  <li><strong>Your business</strong>. Click the name for <b>Edit business details</b> and, if you have more than one business, to <a href="#switch-business">switch</a>. The pencil beside it opens <a href="#menu-groups">Customise menu</a>.</li>
   <li><strong>The screens</strong>, in three groups: <b>Sales</b> (Dashboard, New Invoice, Clients, Receipts, Recurring), <b>Stock &amp; buying</b> (Products, Purchases, Expenses) and <b>Money &amp; reports</b> (Cash book, Reports, GST Returns, Income Tax). Features you <a href="settings.html#features">turn off</a> disappear from here; a group with nothing left in it is not shown.</li>
   <li><strong>Update to v…</strong>, when a new version is out.</li>
   <li><a href="#support"><strong>Support &amp; About</strong></a>, <strong>Control Panel</strong> and <strong>Settings</strong>.</li>
   <li>A dot on <b>Control Panel</b>: green when the app is running, red when it is not (hover over it to read which).</li>
 </ul>
 <p>At the end of the Dashboard, below the invoices, a small line shows the app's version, a link to DiceCodes and <a href="#support">Support</a>. It is never printed.</p>
-<h3 id="menu-groups">Open, close and arrange the groups</h3>
+<h3 id="menu-groups">Open, close and customise the menu</h3>
+<p><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</p>
+<p><b>Customise menu</b>: click the pencil beside your business name at the top of the sidebar (or ${ui('Customise menu…')} in <a href="settings.html#features-menu">Settings → Features</a>). The window lists the groups and their items as the menu shows them, and a <b>Bottom of the menu</b> part for Support &amp; About, Control Panel and Settings. It works with a mouse, a finger or the keyboard; on a phone it opens from the bottom of the screen.</p>
 <ul>
-  <li><b>Open or close a group</b>: click its name (or press <kbd>Enter</kbd> on it). The little arrow points down when it is open. The app remembers which groups you closed. A closed group still shows the screen you are on.</li>
-  <li><b>Move an item or a group with the mouse</b>: point at it and a grip (⋮⋮) appears on the right. Drag the grip up or down; a blue line shows where it will go. Drop an item into another group to move it there. Clicking the item itself still opens it.</li>
-  <li><b>On a phone, or with the keyboard</b>: click ${ui('Arrange menu')} under the groups. Every item and group gets ${ui('↑')} and ${ui('↓')} arrows; at the top or bottom of a group an item moves on into the next group. Click ${ui('Done')} when finished.</li>
-  <li><b>Back to the start</b>: ${ui('Reset menu')} (in Arrange menu, or in <a href="settings.html#features-menu">Settings → Features</a>) puts back the three groups in the usual order and opens them all.</li>
+  <li>${ui('↑')} and ${ui('↓')} move an item or a whole group. At the top or bottom of a group an item moves on into the next group.</li>
+  <li>Or drag the grip (⋮⋮) at the left of an item or a group, with the mouse or a finger. A blue line shows where it will go; drop an item into another group to move it there.</li>
+  <li>The <b>Open</b> switch beside a group's name sets whether it is open or closed in the menu.</li>
+  <li>The switch on an item takes it out of the menu, or puts it back. This only changes the menu: the screen stays on, and quick search (<kbd>Ctrl</kbd> + <kbd>K</kbd>) still opens it. Dashboard, New Invoice, Clients, Support &amp; About and Settings say <b>Always shown</b>.</li>
+  <li>An item greyed out with <b>Off in Settings → Features</b> is a feature that is switched off. Click the link to turn it on in <a href="settings.html#features">Settings → Features</a>.</li>
+  <li>${ui('Reset menu')} puts back the three groups in the usual order, opens them all and shows every item. ${ui('Done')}, ${ui('✕')} or <kbd>Esc</kbd> closes the window.</li>
 </ul>
 <p>Changes are saved straight away, and <a href="settings.html#features-menu">Settings → Features</a> shows the same order. Support &amp; About, Control Panel and Settings always stay at the bottom.</p>
 <p>The ☰ button beside the app name shrinks the sidebar to a slim strip of icons and gives the page more room; it is highlighted while the menu hides itself. Point at the strip to open it; in the strip a thin line separates the groups. Click ☰ again to keep the menu open.</p>
-<p><b>At the top right of every screen</b> are small buttons: <b>?</b> opens this User Guide in your browser (it needs internet), the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
+<p><b>At the top of every screen</b> is the <b>Search or jump to…</b> box, which opens <a href="#command-palette">Quick search</a>. <b>At the top right</b> are small buttons: <b>?</b> has <b>User guide (opens in your browser)</b>, which opens this guide (it needs internet), and <b>Keyboard shortcuts (Ctrl+/)</b>; the 🔔 bell opens <a href="#notifications">Notifications</a>, the Wi-Fi button turns <a href="security.html#offline-mode">Offline mode</a> on or off and shows what it changes (it turns orange, with a line through it, while Offline mode is on), the moon or sun switches <a href="#dark-mode">dark mode</a>. To lock the app, use <b>Lock</b> on the Dashboard (when a <a href="settings.html#lock">PIN</a> is set). On a phone they sit in the bar at the top, beside the ☰ menu button, with a magnifying glass for the search. You can hide or reorder them in <a href="settings.html#features-menu">Settings → Features</a>.</p>
 <p>On a narrow screen, the sidebar folds away behind the ☰ menu button.</p>
 <figure class="narrow"><img src="assets/img/dashboard-phone.png" alt="The Dashboard on a phone: the ☰ menu button, app name, business name and the ?, bell, Wi-Fi and moon buttons in the bar at the top, then the Dashboard buttons, the overdue banner, the Totals for box and the total cards one under another." loading="lazy"><figcaption>The Dashboard at phone width.</figcaption></figure>
 </section>
@@ -45,7 +49,7 @@ export default [
 
 <section id="switch-business">
 <h2>Switching business</h2>
-<p>With more than one business saved, click its name at the top of the sidebar and choose another. Every screen changes to that business's invoices, purchases, expenses, receipts, recurring invoices, reports and returns. <b>Manage profiles…</b> opens <a href="settings.html#multiple-businesses">Settings</a>.</p>
+<p>Click the business name at the top of the sidebar to open its list. <b>Edit business details</b> opens your business's details in <a href="settings.html#company-details">Settings</a>. With more than one business saved, choose another to switch. Every screen changes to that business's invoices, purchases, expenses, receipts, recurring invoices, reports and returns. <b>Manage profiles…</b> opens <a href="settings.html#multiple-businesses">Settings</a>.</p>
 </section>
 
 <section id="notifications">
@@ -71,7 +75,7 @@ export default [
 
 <section id="command-palette">
 <h2>Quick search: Ctrl + K</h2>
-<p>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> anywhere, even while typing, and start typing. You can:</p>
+<p>Click the <b>Search or jump to…</b> box at the top of every screen (on a phone, the magnifying glass at the top), or press <kbd>Ctrl</kbd> + <kbd>K</kbd> anywhere, even while typing, and start typing. You can:</p>
 <ul>
   <li>go to any screen, or start a new invoice;</li>
   <li>open an invoice by its number or client;</li>
@@ -79,7 +83,7 @@ export default [
   <li>jump to Settings, switch dark mode, or see what is new in an update.</li>
 </ul>
 <ol class="steps">
-  <li><strong>Open it</strong>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Type a command or page name…</b></li>
+  <li><strong>Open it</strong>Click <b>Search or jump to…</b> at the top, or press <kbd>Ctrl</kbd> + <kbd>K</kbd> (Mac: <kbd>⌘</kbd> + <kbd>K</kbd>). A box opens with <b>Type a command or page name…</b></li>
   <li><strong>Type a few letters</strong>For example <code>gst</code>, an invoice number such as <code>0012</code>, or part of a client's name. The list narrows as you type.</li>
   <li><strong>Pick one</strong>Move with <kbd>↑</kbd> <kbd>↓</kbd> and press <kbd>Enter</kbd>, or click it. The box closes and the screen opens.</li>
 </ol>
@@ -89,11 +93,14 @@ export default [
 
 <section id="keyboard">
 <h2>Keyboard shortcuts</h2>
+<p>The list is also in the app: click the ${ui('?')} button at the top right and pick <b>Keyboard shortcuts (Ctrl+/)</b>. The same button's <b>User guide (opens in your browser)</b> opens this guide.</p>
 <table>
-  <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Quick search</td></tr>
-  <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>New invoice</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Quick search (the <b>Search or jump to…</b> box)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>New invoice (when you are not typing in a box)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save the invoice (on the invoice screen)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td><td>Download the PDF (on the invoice screen)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Add an item row (on the invoice screen)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></td><td>Copy the last item row (on the invoice screen)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td><td>Lock the app (when a PIN is set)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Show or hide the <b>Keyboard Shortcuts</b> window, which lists these</td></tr>
   <tr><td><kbd>Esc</kbd></td><td>Close a dialog</td></tr>
@@ -104,7 +111,7 @@ export default [
 
 <section id="dark-mode">
 <h2>Dark mode</h2>
-<p>The moon button at the top right of every screen switches the app to dark colours, and the sun button switches back. Invoices and PDFs always print in their normal colours.</p>
+<p>The moon button at the top right of every screen switches the app to dark colours, and the sun button switches back. Invoices and PDFs always print in their normal colours. The app's own colour, the text size and compact lists are in <a href="settings.html#appearance">Settings, Appearance</a>.</p>
 <figure><img src="assets/img/dashboard-dark.png" alt="The Dashboard in dark mode: dark sidebar and cards, with the sun button at the top right to switch back." loading="lazy"><figcaption>The Dashboard in dark mode. The sun button at the top right switches back.</figcaption></figure>
 </section>
 

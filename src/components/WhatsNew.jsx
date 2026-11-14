@@ -5,10 +5,13 @@
 // parses it), never as HTML.
 // v1.10.86 - What's new lists only the main titles, with a link to each
 // version's full notes on GitHub.
+// v1.10.86 - "See what's new" opens the slides shown once after an update.
 import { useEffect, useState } from 'react';
-import { Bug, Lightbulb, CalendarClock, ListChecks, Sparkles } from 'lucide-react';
+import { Bug, Lightbulb, CalendarClock, ListChecks, Sparkles, Play } from 'lucide-react';
 import { parseChangelog, releaseTitles } from '../utils/changelog';
 import HelpButton from './HelpButton';
+import WhatsNewSlides from './WhatsNewSlides';
+import { APP_VERSION } from '../utils/problemLog';
 
 const REPO = 'https://github.com/IamRamgarhia/Free-GST-Billing-Software';
 const CHANGELOG_URL = `${REPO}/blob/main/CHANGELOG.md`;
@@ -41,6 +44,7 @@ const longDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN'
 
 export default function WhatsNew() {
   const [entries, setEntries] = useState(null);
+  const [slides, setSlides] = useState(null); // the entry shown as slides
   useEffect(() => {
     let live = true;
     fetch('/api/changelog')
@@ -94,9 +98,14 @@ export default function WhatsNew() {
 
       {entries && entries.length > 0 && (
         <div id="whats-new" className="glass-panel" style={{ ...card, marginBottom: '1.25rem', scrollMarginTop: '1rem' }} aria-labelledby="whats-new-title">
-          <h3 id="whats-new-title" style={{ margin: '0 0 0.25rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Sparkles size={18} style={{ color: 'var(--primary)' }} /> What&apos;s new <HelpButton title="What's new" doc="support#whats-new" size={16} />
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+            <h3 id="whats-new-title" style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Sparkles size={18} style={{ color: 'var(--primary)' }} /> What&apos;s new <HelpButton title="What's new" doc="support#whats-new" size={16} />
+            </h3>
+            <button type="button" className="btn btn-secondary" onClick={() => setSlides(entries.find((e) => e.version === APP_VERSION) || entries[0])}>
+              <Play size={15} /> See what&apos;s new
+            </button>
+          </div>
           <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             The latest updates. Every version since the first is in the <a href={CHANGELOG_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>full changelog</a>, and the downloads are on <a href={`${REPO}/releases`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>GitHub Releases</a>.
           </p>
@@ -110,6 +119,7 @@ export default function WhatsNew() {
           ))}
         </div>
       )}
+      {slides && <WhatsNewSlides entry={slides} onClose={() => setSlides(null)} />}
     </>
   );
 }

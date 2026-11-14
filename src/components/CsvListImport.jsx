@@ -1,7 +1,7 @@
 // v1.10.83 (#121) - the Import CSV window of Products and Clients: download a
 // sample file, choose your file, see what will be added, import. Parsing is
 // in src/utils/listCsv.js. Old invoices are imported elsewhere (Dashboard ->
-// CSV import / export), so this window says where.
+// Import / export CSV), so this window says where.
 // v1.10.84 - also an Excel .xlsx (Vyapar, #130; a workbook with several sheets
 // gets a sheet picker) and Tally's masters .xml (#131), read by
 // src/utils/importFile.js into the same rows a CSV gives.
@@ -101,7 +101,7 @@ export default function CsvListImport({ what, sample, sampleName, doc, intro, pa
           </div>
         )}
         <p className="text-muted" style={{ fontSize: '0.8rem', margin: '0.75rem 0 0' }}>
-          Old invoices? Import them on the Dashboard with <b>CSV import / export</b>, which has its own template.
+          Old invoices? Import them on the Dashboard with <b>Import / export CSV</b>, which has its own template.
           <HelpButton title="Importing old invoices" doc="dashboard#csv" size={14} />
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>

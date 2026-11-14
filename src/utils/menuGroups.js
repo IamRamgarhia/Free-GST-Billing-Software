@@ -1,4 +1,5 @@
-// v1.10.86 - sidebar groups that open and close, and drag to any place.
+// v1.10.86 - sidebar groups that open and close, and drag to any place
+// (the dragging and arrows live in Customise menu, components/MenuCustomise.jsx).
 //
 // Asked for: "all this sidebar can have accordion button if user want to
 // expand or not ... and they can also drag to any place".
@@ -160,3 +161,20 @@ export const moveMenuItem = (order, id, dir) => {
 // Open / closed groups: the saved list of closed group ids, cleaned.
 export const closedGroups = (saved) => asList(saved).filter(isGroup);
 export const toggleGroup = (closed, id) => (closed.includes(id) ? closed.filter(x => x !== id) : [...closed, id]);
+
+// v1.10.86 - items taken out of the menu in "Customise menu" (the pencil at
+// the top of the sidebar). Menu only: the screen itself stays on, reachable
+// through Ctrl+K search and links; switching a feature off is still done in
+// Settings -> Features. The screens you can never lose (the core ones and
+// the always-shown Support & About and Settings) cannot be taken out.
+// Saved as a list of item ids (gst_menuHidden); nothing saved = all shown.
+export const canHide = (id) => {
+  const item = MENU_ITEMS.find(m => m.id === id);
+  return !!item && item.section !== 'top' && !item.core && item.module !== null;
+};
+export const hiddenItems = (saved) => [...new Set(asList(saved).filter(canHide))];
+export const toggleHidden = (hidden, id) => {
+  if (!canHide(id)) return hiddenItems(hidden);
+  const list = hiddenItems(hidden);
+  return list.includes(id) ? list.filter(x => x !== id) : [...list, id];
+};

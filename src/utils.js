@@ -1133,6 +1133,18 @@ export const decodeGstin = (value) => {
   };
 };
 
+// v1.10.86 - what a typed GSTIN fills in on the business form (first-run
+// welcome, Settings → Company): the state and the PAN, only where still empty,
+// never over what was typed. {} for a GSTIN that is short or fails its checksum.
+export const gstinFill = (current, gstin) => {
+  const d = decodeGstin(gstin);
+  if (!d || !d.checksumOk) return {};
+  const patch = {};
+  if (d.state && !String(current?.state || '').trim()) patch.state = d.state;
+  if (!String(current?.pan || '').trim()) patch.pan = d.pan;
+  return patch;
+};
+
 // v1.10.31 — GST-H1: legacy codes normalized.
 // AP was reorganised in June 2014; old GSTINs with prefix `28` (before
 // bifurcation) should map to the current code `37` (Andhra Pradesh).

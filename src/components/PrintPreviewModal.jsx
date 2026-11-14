@@ -115,8 +115,8 @@ export default function PrintPreviewModal({
       <div ref={modalRef} className="modal-content print-preview-content"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: isThermal ? 'min(520px, 96vw)' : 'min(900px, 96vw)',
-          maxHeight: 'min(92vh, 92dvh)',
+          maxWidth: isThermal ? 'min(520px, calc(96vw / var(--ui-zoom, 1)))' : 'min(900px, calc(96vw / var(--ui-zoom, 1)))',
+          maxHeight: 'calc(min(92vh, 92dvh) / var(--ui-zoom, 1))',
           padding: 0,
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
