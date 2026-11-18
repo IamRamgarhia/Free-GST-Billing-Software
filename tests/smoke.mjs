@@ -26,6 +26,7 @@ import { readFileSync } from 'fs';
 import { request as httpRequest } from 'http';
 import { PDFDocument } from 'pdf-lib';
 import { setTimeout as sleep } from 'timers/promises';
+import { runV86bChecks, cleanupV86b } from './smoke-v86b.mjs';
 
 const results = [];
 let serverProc = null;
@@ -53,6 +54,8 @@ async function startServer() {
 /** Remove only the records this suite created. */
 async function cleanup(page) {
   try {
+    // v1.10.86 #214 #202 #199 #209 - clients, receipts, the purchase and products of smoke-v86b.mjs.
+    await cleanupV86b(page).catch(() => {});
     await page.evaluate(async () => {
       const del = async (kind) => {
         const list = await (await fetch(`/api/${kind}`)).json();
@@ -3071,6 +3074,9 @@ try {
       sessionStorage.removeItem('fgsb_gstr2bFile');
     });
   }
+
+  // v1.10.86 #214 #202 #199 #209 - opening balance, receipt series, purchase line product, Table 14.
+  await runV86bChecks({ page, APP, check, sleep });
 
   // Put the real business details back.
   await page.evaluate(async (prof) => {
