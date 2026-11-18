@@ -1,7 +1,7 @@
 // File-based storage via local Express API server
 // All data persists as JSON files in the ./data/ folder
 
-import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta, isModuleEnabled } from './utils';
+import { getFinancialYearLabel, parseLocalDate, nextCounterValue, startFor, numberSeriesFor, counterKeyFor, formatDocNumber, seriesNumberOf, INVOICE_TYPES, savedPdfNameFor, stockUpdates, appliedStock, stockDelta, isModuleEnabled, businessKeyOf } from './utils';
 import { poCounterKey, formatPoNumber } from './utils/purchaseOrders';
 import { dnCounterKey, formatDnNumber } from './utils/debitNotes';
 import { salesOrderOf, releaseChallansPlan, reabsorbChallansPlan } from './utils/salesOrders';
@@ -607,6 +607,11 @@ export const deleteBankStatement = (id) => apiFetch(`${API}/bank-statements/${en
 export const getAllReceipts = async () => {
   return apiFetch(`${API}/receipts`);
 };
+
+// v1.10.86 (#202) - reserve the next receipt number of the RCP series, as
+// "New receipt" on the Receipts page does: the business's own numbering when
+// it has one. `owner` is that business (a profile: gstin, businessName).
+export const reserveReceiptNo = (owner) => getNextInvoiceNumber('RCP', { businessKey: businessKeyOf(owner) });
 
 export const saveReceipt = async (receipt) => {
   const res = await apiFetch(`${API}/receipts`, { method: 'POST', body: JSON.stringify(receipt) });

@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Receipt, Plus, Trash2, Search, Printer, Pencil } from 'lucide-react';
 import { getAllReceipts, saveReceipt, deleteReceipt, getAllBills, getAllClients, getProfile, getNextInvoiceNumber, saveBill } from '../store';
-import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness, countsAsSales, businessKeyOf, localToday, amountDue, paymentStatusFor, isCancelledBill } from '../utils';
+import { formatCurrency, numberToWords, belongsToProfile, isUnassignedToBusiness, countsAsSales, businessKeyOf, localToday, amountDue, paymentStatusFor, isCancelledBill, clientKey } from '../utils';
 import UnassignedBanner from './UnassignedBanner';
 import { toast } from './Toast';
 import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import PageHeader from './PageHeader';
 import ComboInput from './ComboInput';
+import { isReceiptsPayment, withReceiptPayment } from '../utils/bankMatch';
 
 const PAYMENT_MODES = ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'];
+const MODE_NAMES = { 'bank-transfer': 'Bank Transfer', upi: 'UPI', cash: 'Cash', cheque: 'Cheque', card: 'Card', other: 'Other' };
 
 // date is filled in when the form opens (localToday): set here it was the
 // day the app was loaded, in UTC.
@@ -117,7 +119,9 @@ export default function ReceiptVoucher() {
       clientName: rcp.clientName || '',
       clientAddress: rcp.clientAddress || '',
       amount: String(rcp.amount ?? ''),
-      paymentMode: rcp.paymentMode || 'Bank Transfer',
+      // v1.10.86 (#202) - a receipt made from a Dashboard payment keeps the
+      // mode as a code (bank-transfer): shown and saved by its name.
+      paymentMode: MODE_NAMES[rcp.paymentMode] || rcp.paymentMode || 'Bank Transfer',
       referenceNo: rcp.referenceNo || '',
       againstInvoice: rcp.againstInvoice || '',
       note: rcp.note || '',
@@ -190,10 +194,13 @@ export default function ReceiptVoucher() {
       // which also fixes its stock); otherwise paid once the payments cover
       // the total less TDS.
       const statusFor = (bill, paid) => (isCancelledBill(bill) ? 'cancelled' : paymentStatusFor(bill, paid));
+      // v1.10.86 (#202) - this receipt's payment on an invoice: same id or
+      // same receipt number (utils/bankMatch).
+      const isThisReceipt = isReceiptsPayment({ id: receipt.id, receiptNo });
       const stripReceiptFromBill = async (bill) => {
         if (!bill) return;
         const priorPayments = bill.payments || [];
-        const kept = priorPayments.filter(p => p.receiptNo !== receiptNo);
+        const kept = priorPayments.filter(p => !isThisReceipt(p));
         if (kept.length === priorPayments.length) return;
         const newTotal = kept.reduce((s, p) => s + (Number(p.amount) || 0), 0);
         await saveBill({ ...bill, paidAmount: newTotal, status: statusFor(bill, newTotal), payments: kept }, { overwrite: true });
@@ -217,8 +224,6 @@ export default function ReceiptVoucher() {
           const bill = bills.find(b => b.invoiceNumber === form.againstInvoice.trim() || b.id === form.againstInvoice.trim());
           if (!bill) unmatchedRef = form.againstInvoice.trim(); // v1.10.74 - tell the user below
           if (bill) {
-            const priorPayments = bill.payments || [];
-            const priorIdx = priorPayments.findIndex(p => p.receiptNo === receiptNo);
             const nextEntry = {
               // The receipt's id, as payments recorded on the Dashboard carry
               // theirs: editing or deleting the payment there then updates this
@@ -228,12 +233,12 @@ export default function ReceiptVoucher() {
               date: form.date,
               mode: modeMap[form.paymentMode] || 'other',
               note: `Receipt ${receiptNo}${form.referenceNo ? ' · ref ' + form.referenceNo : ''}`,
-              recordedAt: priorIdx >= 0 ? priorPayments[priorIdx].recordedAt : new Date().toISOString(),
+              recordedAt: new Date().toISOString(),
               receiptNo,
             };
-            const nextPayments = priorIdx >= 0
-              ? priorPayments.map((p, i) => i === priorIdx ? nextEntry : p)
-              : [...priorPayments, nextEntry];
+            // v1.10.86 (#202) - replaces the payment it already has (same id
+            // or receipt number), never a second one.
+            const nextPayments = withReceiptPayment(bill.payments, { id: receipt.id, receiptNo }, nextEntry);
             const newTotal = nextPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
             await saveBill({ ...bill, paidAmount: newTotal, status: statusFor(bill, newTotal), payments: nextPayments }, { overwrite: true });
           }
@@ -310,8 +315,8 @@ export default function ReceiptVoucher() {
   // v1.10.74 - nor on quotes, challans or credit notes: real sales only.
   // v1.10.86 - once the client is one with unpaid invoices, only theirs.
   const unpaidAll = bills.filter(b => b.status !== 'paid' && countsAsSales(b));
-  const formClient = form.clientName.trim().toLowerCase();
-  const unpaidOfClient = formClient ? unpaidAll.filter(b => (b.clientName || '').trim().toLowerCase() === formClient) : [];
+  const formClient = clientKey(form.clientName);
+  const unpaidOfClient = formClient ? unpaidAll.filter(b => clientKey(b.clientName) === formClient) : [];
   const unpaidBills = unpaidOfClient.length ? unpaidOfClient : unpaidAll;
 
   // v1.10.66 (#64 item 2) — receipts saved before this release carry no

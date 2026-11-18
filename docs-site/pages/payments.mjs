@@ -17,7 +17,7 @@ export default [
 <div class="table-wrap"><table>
   <tr><th>Column</th><th>What it shows</th></tr>
   <tr><td><b>Date</b></td><td>The date on the receipt.</td></tr>
-  <tr><td><b>Receipt No</b></td><td>Its number, such as RCP/2026-27/0012 (made here) or RCPT-... (made from a Dashboard payment). See <a href="#numbers">Receipt numbers</a>.</td></tr>
+  <tr><td><b>Receipt No</b></td><td>Its number, such as RCP/2026-27/0012, or RCPT-... on older payments. See <a href="#numbers">Receipt numbers</a>.</td></tr>
   <tr><td><b>Client</b></td><td>Who paid you (<b>Received From</b>).</td></tr>
   <tr><td><b>Against Invoice</b></td><td>The invoice it was for, or a dash if none.</td></tr>
   <tr><td><b>Amount</b></td><td>The money received.</td></tr>
@@ -91,7 +91,7 @@ export default [
 <h2>Receipt numbers</h2>
 <p>Receipts made on this screen have their own series, starting RCP, and follow your <a href="settings.html#invoice-numbers">invoice number format</a>: separator, financial year (April to March) and digits, for example RCP/2026-27/0001. If you set a brand prefix, it is used for receipts too (ACME-RCP/...). A business with its own numbering numbers its receipts separately. Receipts never share a count with invoices.</p>
 <p>The number you see when the form opens is a preview. The number is only taken when you save, so two people saving at once never get the same one. If you typed your own number, yours is kept and the series does not move.</p>
-<p>Receipts made by recording a payment on the Dashboard are numbered differently, RCPT- followed by letters and numbers from the payment (for example RCPT-LX3K9A2B1C). That is normal.</p>
+<p>A payment recorded on the Dashboard, with <b>Received now</b> on New Invoice, or from a bank statement match also gets the next number of this same series. Older ones, made before 21 November 2026, keep their number: RCPT- followed by letters and numbers from the payment (for example RCPT-LX3K9A2B1C). A payment saved while the app could not reach its number counter gets an RCPT- number too. That is normal.</p>
 </section>
 
 <section id="print">

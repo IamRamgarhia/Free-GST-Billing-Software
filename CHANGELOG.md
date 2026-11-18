@@ -120,6 +120,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there.
 - **Windows: install with one command**, `winget install DiceCodes.FreeGSTBilling`
   (once Microsoft has listed it).
+- **Opening balance for clients** (#214): on the client form, what a client
+  owed you (or paid in advance) when you started, with its "as on" date (1
+  April to start). It counts in their Outstanding, the Statement PDF (first
+  row), ageing and reminders, the credit limit warning and the Dashboard's
+  Outstanding. A receipt on no invoice (Record payment, Against Invoice left
+  blank) pays it off. Clients CSV import reads an optional Opening Balance
+  column.
+- **Every receipt in one number series** (#202): payments recorded on the
+  Dashboard, with Received now on New Invoice, or from a bank statement match
+  now get the next RCP number (RCP/2026-27/0013), the same series as the
+  Receipts page. Older receipts keep their numbers.
 
 ### Changed
 - **The Windows Setup says "Updating"** when it updates the installed app
@@ -169,6 +180,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Packages**: DOMPurify 3.4.18, Vite 7.3.8.
 
 ### Fixed
+- **One client, one account** (#202): a bill typed as "abc traders" or with
+  extra spaces no longer makes a second card on the Clients screen; it is in
+  the saved client's account. Typing a saved client's name on a new invoice
+  saves it under that client, as if picked from the list.
+- **Editing a receipt no longer pays the invoice twice** (#202): editing, on
+  the Receipts page, a payment recorded on the Dashboard used to add a second
+  payment to the invoice. Editing an older payment on the Dashboard no longer
+  leaves its old receipt behind.
 - **Update Now on the ZIP copy no longer stays on "Updating..." for ever**
   (ERR-089): the update finishes and the app restarts on the new version.
   Restore no longer hangs the same way.

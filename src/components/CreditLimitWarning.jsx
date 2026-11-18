@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { formatCurrency, SALES_INVOICE_TYPES } from '../utils';
-import { clientAccount, creditLimitCheck, thisInvoiceDue, missingRateNote } from '../utils/clientLedger';
+import { clientAccount, creditLimitCheck, thisInvoiceDue, missingRateNote, openingOf, openingDue } from '../utils/clientLedger';
+import { getAllReceipts } from '../store';
 import { baseCurrencyOf } from '../utils/fx';
 import HelpButton from './HelpButton';
 
@@ -16,9 +17,16 @@ export default function CreditLimitWarning({ savedClient, bills, profile, exclud
   const limit = Number(savedClient?.creditLimit) || 0;
   const isSale = SALES_INVOICE_TYPES.includes(invoiceType || 'tax-invoice');
   const name = savedClient?.name || '';
+  // v1.10.86 (#214) - their opening balance counts too, less what they paid
+  // against it (receipts on no invoice), so the receipts are read when needed.
+  const hasOpening = limit > 0 && isSale && openingOf(savedClient, profile) > 0;
+  const [receipts, setReceipts] = useState([]);
+  useEffect(() => {
+    if (hasOpening) getAllReceipts().then((r) => setReceipts(r || [])).catch(() => {});
+  }, [hasOpening]);
   const account = useMemo(
-    () => (limit > 0 && isSale ? clientAccount(name, bills, profile, excludeId) : null),
-    [limit, isSale, name, bills, profile, excludeId],
+    () => (limit > 0 && isSale ? clientAccount(name, bills, profile, excludeId, openingDue(savedClient, bills, receipts, profile).due) : null),
+    [limit, isSale, name, bills, profile, excludeId, savedClient, receipts],
   );
   if (!account) return null;
   const thisOne = thisInvoiceDue({ totals, currency, exchangeRate, paid, creditApplied }, profile);

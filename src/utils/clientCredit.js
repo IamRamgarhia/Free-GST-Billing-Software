@@ -21,7 +21,7 @@
  * for the client is unchanged.
  */
 
-import { amountDue, paymentStatusFor, isCancelledBill, SALES_INVOICE_TYPES, localToday } from '../utils';
+import { amountDue, paymentStatusFor, isCancelledBill, SALES_INVOICE_TYPES, localToday, clientKey } from '../utils';
 
 // What the client owes on a bill: the total less TDS they deduct. Nothing on
 // a cancelled invoice, or on a quotation / proforma / challan (not a sale), so
@@ -57,8 +57,9 @@ export function getBillOverpayment(bill) {
  */
 export function getClientCredit(clientName, allBills) {
   if (!clientName) return { available: 0, sources: [] };
-  const lower = clientName.trim().toLowerCase();
-  const bills = (allBills || []).filter(b => (b.clientName || '').trim().toLowerCase() === lower);
+  // v1.10.86 (#202) - the same name key as the client ledger.
+  const lower = clientKey(clientName);
+  const bills = (allBills || []).filter(b => clientKey(b.clientName) === lower);
   const sources = [];
   let available = 0;
   for (const b of bills) {

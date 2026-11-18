@@ -3,7 +3,8 @@
 // Pure functions (no fetch / React), so scripts/csv-test.mjs can import each
 // sample back through the same code the screens use. Headings are matched
 // loosely (case, spaces, %, / ignored), so the Products export imports back.
-import { toCsvLine } from '../utils.js';
+import { toCsvLine, localToday, clientKey } from '../utils.js';
+import { openingFields } from './clientLedger.js';
 import { rowsToRecords, toNum, percentPart, norm } from './bulkCsv.js';
 import { barcodeProblem, normaliseBarcode } from './barcode.js';
 import { normaliseCategory, CATEGORY_LEVELS } from './stock.js';
@@ -37,13 +38,17 @@ const CLIENT_FIELDS = {
   email: ['email', 'email id'],
   address: ['address', 'billing address'],
   state: ['state'],
+  // v1.10.86 (#214) - optional: what they owed you when you started (a
+  // minus amount: their advance), as on 1 April of this financial year.
+  openingBalance: ['opening balance', 'opening bal', 'opening balance amount'],
 };
 
 // Already in the list (trimmed name, any case), or a repeat inside the file.
 const dedupe = (existing) => {
-  const known = new Set((existing || []).map((x) => String(x.name || '').trim().toLowerCase()));
+  // v1.10.86 (#202) - the client name key: extra spaces do not count either.
+  const known = new Set((existing || []).map((x) => clientKey(x.name)));
   return (name) => {
-    const k = name.toLowerCase();
+    const k = clientKey(name);
     if (known.has(k)) return true;
     known.add(k);
     return false;
@@ -177,15 +182,20 @@ export function levelNameProblem(names) {
   return dupAt >= 0 ? `Two price levels are both called "${used[first[dupAt]]}".` : '';
 }
 
-export function clientsCsvToList(text, existing = []) {
+export function clientsCsvToList(text, existing = [], today = '') {
   const { records } = rowsToRecords(text, CLIENT_FIELDS);
   const seen = dedupe(existing);
   const out = { clients: [], skipped: 0, errors: [] };
   for (const r of records) {
     const name = r.name || '';
     if (!name) continue;
+    const opening = toNum(r.openingBalance);
+    if (!Number.isFinite(opening)) { out.errors.push(`Row ${r._line} (${name}): Opening Balance must be a number`); continue; }
     if (seen(name)) { out.skipped++; continue; }
-    out.clients.push({ name, address: r.address || '', state: r.state || '', gstin: (r.gstin || '').toUpperCase(), email: r.email || '', phone: r.phone || '' });
+    out.clients.push({
+      name, address: r.address || '', state: r.state || '', gstin: (r.gstin || '').toUpperCase(), email: r.email || '', phone: r.phone || '',
+      ...(Math.abs(opening) > 0.005 ? openingFields({ openingBalance: Math.abs(opening), openingBalanceType: opening < 0 ? 'advance' : 'receivable' }, '', today || localToday()) : {}),
+    });
   }
   return out;
 }

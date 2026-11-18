@@ -45,7 +45,7 @@ export default [
 <section id="unsaved-clients">
 <h3>Names you invoiced but never saved</h3>
 <p>An invoice can go to a name that is not in your saved list, for example a walk-in customer. That name still gets a card, so you can see what they owe, but it shows no state or GSTIN. Open the card and click ${ui('Save as Client')} at the bottom to save them: the form opens with the name filled in.</p>
-<div class="note tip"><strong>Something wrong?</strong><p><b>One client shows as two cards.</b> Cards are matched by name. "Sharma Traders" and "Sharma Traders Pvt Ltd" are two different names, so they make two cards. If you renamed a saved client, old invoices keep the name they were made with and stay on a card of their own. Small and capital letters do not matter.</p><p><b>A client is missing.</b> Clear the search box. A client with no saved record and no invoices does not exist yet: add them with ${ui('Add Client')}.</p></div>
+<div class="note tip"><strong>Something wrong?</strong><p><b>One client shows as two cards.</b> Cards are matched by name. "Sharma Traders" and "Sharma Traders Pvt Ltd" are two different names, so they make two cards. If you renamed a saved client, old invoices keep the name they were made with and stay on a card of their own. Small and capital letters do not matter, and neither do extra spaces: "sharma  traders " is the same card as "Sharma Traders". When you type a saved client's name on a new invoice without picking it from the list, the invoice is still saved under that client.</p><p><b>A client is missing.</b> Clear the search box. A client with no saved record and no invoices does not exist yet: add them with ${ui('Add Client')}.</p></div>
 </section>
 
 <section id="client-form">
@@ -127,6 +127,20 @@ export default [
   <li>On the client list, their card shows <b>Over credit limit</b> next to the name while they owe more than the limit.</li>
 </ul>
 <p>What they owe is counted for the business you are working in: unpaid tax invoices, bills of supply and composition bills, less payments, TDS they deducted and credit notes. Quotations, proformas, challans and cancelled invoices are not counted. An invoice in another currency counts at the exchange rate saved on it; one without a rate is left out, and the warning says so ("1 invoice in USD without an exchange rate left out"). On New Invoice, <i>this invoice</i> is what is still due on it: less a payment already recorded on it and any client credit you apply. The card's mark also takes off an advance or overpayment they have with you.</p>
+</section>
+
+<section id="opening-balance">
+<h3>Opening balance</h3>
+<p>Starting with this app when a client already owes you money from before? Type it in <b>Opening balance</b> on the client form, so their account is right from day one.</p>
+<div class="table-wrap"><table>
+  <tr><th>Field</th><th>What to fill in</th></tr>
+  <tr><td>Opening balance</td><td>The amount, without a minus sign. Leave it blank (or 0) when there is none.</td></tr>
+  <tr><td>As on</td><td>The date of that balance. It starts as 1 April, the start of this financial year.</td></tr>
+  <tr><td>It is</td><td><b>Owed to you</b> (they have to pay you) or <b>Their advance</b> (they paid you before, and you still owe them goods or work).</td></tr>
+</table></div>
+<p>It counts in the client's <b>Outstanding</b> on their card, the <a href="#statement-pdf">Statement PDF</a> (as the first row, <b>Opening Balance</b>, on its date), the <a href="#ageing">ageing</a> and reminders, the <a href="#credit-limit">credit limit</a> warning, and the Dashboard's <b>Outstanding</b> card (which then says how much of it is opening balances). It belongs to the business you were in when you typed it.</p>
+<p><b>When they pay it:</b> open the client's card, click ${ui('Record payment')} (or go to the Receipts page and click ${ui('New receipt')}), and leave <b>Against Invoice</b> blank. A receipt on no invoice, dated on or after the "as on" date, pays off the opening balance first. The statement then shows it as <b>Received against opening balance</b>.</p>
+<p>In ${ui('Import CSV')}, an optional <code>Opening Balance</code> column fills it in for new clients, as on 1 April of this financial year. A minus amount there means their advance.</p>
 </section>
 
 <section id="client-print-prefs">
@@ -282,6 +296,7 @@ export default [
   <tr><td><code>Phone</code> (or <code>Mobile</code>), <code>Email</code></td><td>Optional</td></tr>
   <tr><td><code>Address</code></td><td>Optional</td></tr>
   <tr><td><code>State</code></td><td>Optional. Write it in full, as in the app's list (Punjab, not PB).</td></tr>
+  <tr><td><code>Opening Balance</code></td><td>Optional. What they owed you when you started, as on 1 April of this financial year (a minus amount: their advance). See <a href="#opening-balance">Opening balance</a>.</td></tr>
 </table></div>
 <p>The sample file looks like this:</p>
 <pre><code>Name,GSTIN,Phone,Email,Address,State

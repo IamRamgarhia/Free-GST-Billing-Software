@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES, decodeGstin, COUNTRIES } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, detectCountryFromBrowser, getCountriesForRegion, PAPER_SIZES, decodeGstin, COUNTRIES, localToday } from '../utils';
+import { fyStartDate, openingFields } from '../utils/clientLedger';
 import { getRegionMode, activePriceLevels } from '../store';
 import { PriceLevelSelect } from './PriceLevelFields';
 import HelpButton from './HelpButton';
 
-export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry }) {
+// v1.10.86 (#214) - businessKey: the business an opening balance typed here is with.
+export default function ClientModal({ show, onClose, onSave, client, isEditing, defaultCountry, businessKey = '' }) {
   // Country defaults: explicit prop (active business profile) → browser locale → 'India'.
   const fallbackCountry = defaultCountry || detectCountryFromBrowser();
   const emptyForm = {
@@ -21,6 +23,12 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
     // and the price level (Settings -> Features -> Price levels).
     creditLimit: '',
     priceLevel: '',
+    // v1.10.86 (#214) - optional: what they owed you (or paid in advance)
+    // when you started; as on 1 April of this financial year unless changed.
+    openingBalance: '',
+    openingBalanceDate: fyStartDate(localToday()),
+    openingBalanceType: 'receivable',
+    openingBalanceBusiness: '',
   };
   const [form, setForm] = useState({ ...emptyForm });
   const [taxIdWarning, setTaxIdWarning] = useState('');
@@ -38,6 +46,10 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
         autoPrint: !!client.autoPrint,
         creditLimit: client.creditLimit || '',
         priceLevel: client.priceLevel || '',
+        openingBalance: client.openingBalance || '',
+        openingBalanceDate: client.openingBalanceDate || fyStartDate(localToday()),
+        openingBalanceType: client.openingBalanceType === 'advance' ? 'advance' : 'receivable',
+        openingBalanceBusiness: client.openingBalanceBusiness || '',
       });
     } else if (show) {
       setForm({ ...emptyForm });
@@ -79,7 +91,7 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
   const handleSave = () => {
     if (!form.name.trim()) return;
     const limit = Number(form.creditLimit);
-    onSave({ ...form, creditLimit: Number.isFinite(limit) && limit > 0 ? Math.round(limit * 100) / 100 : '' });
+    onSave({ ...form, creditLimit: Number.isFinite(limit) && limit > 0 ? Math.round(limit * 100) / 100 : '', ...openingFields(form, businessKey, localToday()) });
   };
   const levels = activePriceLevels();
 
@@ -185,6 +197,34 @@ export default function ClientModal({ show, onClose, onSave, client, isEditing, 
                 title="New Invoice warns when what they owe plus the new invoice goes over this. It never stops you." />
             </div>
             <PriceLevelSelect levels={levels} value={form.priceLevel} onChange={(v) => setForm(prev => ({ ...prev, priceLevel: v }))} />
+          </div>
+
+          {/* v1.10.86 (#214) - opening balance, optional. */}
+          <div className="form-group" style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem' }}>
+            <div>
+              <label htmlFor="client-opening" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 3 }}>
+                Opening balance (optional) <HelpButton title="Opening balance" doc="clients#opening-balance" size={14} />
+              </label>
+              <input id="client-opening" type="number" min="0" step="any" className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }}
+                value={form.openingBalance} placeholder="0"
+                onChange={e => setForm(prev => ({ ...prev, openingBalance: e.target.value }))}
+                title="What this client owed you, or had paid you in advance, when you started using this app." />
+            </div>
+            <div>
+              <label htmlFor="client-opening-date" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 3 }}>As on</label>
+              <input id="client-opening-date" type="date" className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }}
+                value={form.openingBalanceDate}
+                onChange={e => setForm(prev => ({ ...prev, openingBalanceDate: e.target.value }))} />
+            </div>
+            <div>
+              <label htmlFor="client-opening-type" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: 3 }}>It is</label>
+              <select id="client-opening-type" className="form-input" style={{ fontSize: '0.8rem', padding: '0.35rem' }}
+                value={form.openingBalanceType}
+                onChange={e => setForm(prev => ({ ...prev, openingBalanceType: e.target.value }))}>
+                <option value="receivable">Owed to you</option>
+                <option value="advance">Their advance</option>
+              </select>
+            </div>
           </div>
 
           {/* v1.9.1 — per-client print preferences. All optional; leave blank

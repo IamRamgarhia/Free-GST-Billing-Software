@@ -12,7 +12,7 @@
  * period that is still unpaid is money still owed, so it goes in an "Earlier"
  * column instead of disappearing.
  */
-import { countsAsSales, amountDue } from '../utils.js';
+import { countsAsSales, amountDue, clientKey } from '../utils.js';
 import { purchaseBalance } from './purchasePayments.js';
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -41,7 +41,7 @@ function byParty(entries, months) {
     const ym = String(date || '').slice(0, 7);
     if (!(due > 0) || !ym || ym > last) continue;
     const name = String(rawName || '').trim() || 'Unknown';
-    const id = name.toLowerCase();
+    const id = clientKey(name); // v1.10.86 (#202) - extra spaces do not split a party
     const row = rows.get(id) || { name, earlier: 0, months: {}, total: 0 };
     if (ym < first) row.earlier += due;
     else row.months[ym] = (row.months[ym] || 0) + due;
