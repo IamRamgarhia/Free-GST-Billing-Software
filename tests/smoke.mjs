@@ -417,7 +417,9 @@ try {
     const { statSync } = await import('fs');
     pdfBytes = statSync(await dl.path()).size;
   } catch { /* leaves pdfBytes 0 → fails below */ }
-  check('PDF downloads and is styled', pdfBytes > 300_000, `${pdfBytes} bytes`);
+  // v1.10.86 - 300 KB -> 200 KB: the styled A4 invoice is about 277 KB now
+  // (lighter fonts/images); an unstyled one is far smaller, so it still fails.
+  check('PDF downloads and is styled', pdfBytes > 200_000, `${pdfBytes} bytes`);
 
   // #161: with the preview hidden, Save PDF leaves it hidden (it used
   // to open and close again), and the PDF is still a full, styled page.
@@ -440,7 +442,7 @@ try {
   } catch { /* leaves 0 → fails below */ }
   const paneShown = await page.evaluate(() => window.__paneShown);
   check('#161 hidden preview stays hidden on Save PDF, PDF still styled',
-    !paneShown && hiddenPdfBytes > 300_000, `${hiddenPdfBytes} bytes, preview shown: ${paneShown}`);
+    !paneShown && hiddenPdfBytes > 200_000, `${hiddenPdfBytes} bytes, preview shown: ${paneShown}`);
   await page.getByRole('button', { name: /Show Preview/i }).first().click();
   await sleep(400);
 
