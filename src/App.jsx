@@ -1243,13 +1243,14 @@ function App() {
             <table className="kv-list">
               <tbody>
                 {/* v1.10.86 - each one checked in the code: App.jsx (K, /, N, Shift+L)
-                    and InvoiceGenerator.jsx (S, P, Enter, Shift+D). */}
+                    and InvoiceGenerator.jsx (S, P, Enter, Shift+D, Shift+F). */}
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>K</kbd></td><td>Search or jump to a page (the search box at the top)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>N</kbd></td><td>New invoice (when not typing in a box)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>S</kbd></td><td>Save the invoice (on New Invoice)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>P</kbd></td><td>Download the PDF (on New Invoice)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Enter</kbd></td><td>Add an item row (on New Invoice)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>D</kbd></td><td>Copy the last item row (on New Invoice)</td></tr>
+                <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>F</kbd></td><td>Hide or show the preview (on New Invoice)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>Shift</kbd>&nbsp;+&nbsp;<kbd>L</kbd></td><td>Lock the app (when a PIN is set)</td></tr>
                 <tr><td><kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>/</kbd></td><td>Show or hide this list</td></tr>
                 <tr><td><kbd>Esc</kbd></td><td>Close any open modal</td></tr>

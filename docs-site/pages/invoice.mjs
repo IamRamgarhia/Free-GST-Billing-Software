@@ -640,6 +640,7 @@ export default [
   <tr><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td><td>Save and download the PDF (not print)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Add an item row</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></td><td>Duplicate the last row</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td><td>Hide or show the preview (remembered, like the <b>Hide Preview</b> button)</td></tr>
   <tr><td><kbd>Enter</kbd> in the last row</td><td>Add a row</td></tr>
   <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd></td><td>Pick from the client or product suggestions</td></tr>
   <tr><td><kbd>Esc</kbd></td><td>Close suggestions or a dialog</td></tr>

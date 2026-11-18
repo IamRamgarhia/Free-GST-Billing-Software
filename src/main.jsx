@@ -159,10 +159,13 @@ if ('serviceWorker' in navigator) {
 // noise, not problems: ResizeObserver's loop notice, and "Script error."
 // from another origin, which carries no details at all.
 const NOISE = /ResizeObserver loop|^Script error\.?$/i;
+const DEV_SERVER = /\/@vite\/client|\/node_modules\/\.vite\//;
 let lastProblemToast = 0;
 const recordUncaught = (message, stack, alreadyLogged = false) => {
   const msg = String(message || '');
-  if (!msg || NOISE.test(msg) || isChunkLoadError(msg)) return;
+  // v1.10.86 (#204) - the Vite dev server's live-reload socket (someone running
+  // `npm run dev` in a cloud editor) is not a problem in the app.
+  if (!msg || NOISE.test(msg) || isChunkLoadError(msg) || DEV_SERVER.test(String(stack || ''))) return;
   // apiFetch logs its own failures (with method, path and status) first.
   if (!alreadyLogged) logProblem({ kind: 'uncaught', message: msg, stack });
   if (Date.now() - lastProblemToast > 10_000) {

@@ -1537,7 +1537,8 @@ function stopPhoneListener() {
 function announceFirstPairing() {
   if (!PHONE_HEADLESS || !phone.server || phoneState.devices.length || pairing.active()) return;
   const { code } = pairing.issue();
-  const where = PHONE_EXTRA_HOSTS[0] || '<your-NAS-address>';
+  // v1.10.86 (#207) - Docker Desktop on the same PC: 127.0.0.1 works (an IP is always allowed).
+  const where = PHONE_EXTRA_HOSTS[0] || '127.0.0.1';
   // v1.10.86 - the code after #, as in the QR code: never sent to a server.
   console.log(`\n  Pair your first phone, tablet or PC: open https://${where}:${PHONE_PORT}/pair#code=${code}`);
   console.log(`  (or open https://${where}:${PHONE_PORT}/pair and type the code ${code}). It works for 10 minutes; a new one is printed here after that.\n`);
@@ -3196,7 +3197,15 @@ function startServer(port) {
     try { fs.writeFileSync(PORT_FILE, String(port), 'utf-8'); } catch { /* ignore */ }
     // v1.10.84 - the lock now says where this server answers.
     writeLock(LOCK_FILE, { pid: process.pid, port: server.address().port, at: Date.now(), host: LOCK_HOST, id: LOCK_ID });
-    console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
+    // v1.10.86 (#207) - in Docker that address works only inside the container;
+    // say how to open the app instead (Docker Desktop's Run button skips the
+    // settings in docker-compose.yml, and then nothing is reachable).
+    if (INSTALL_KIND === 'docker') {
+      console.log('\n  Free GST Billing Software is running in Docker.');
+      if (!PHONE_HEADLESS) console.warn("  It cannot be opened yet: start it with docker-compose.yml (docker compose up -d), not with Docker Desktop's Run button. The compose file opens port 47443 and sets your PIN.");
+      else if (!currentLock()) console.warn('  It cannot be opened yet: set FGSB_PIN in docker-compose.yml to 6 or 8 digits (not CHANGE-ME), then run docker compose up -d again.');
+      else console.log(`  Open https://127.0.0.1:${PHONE_PORT} on this computer, or https://<this computer's address>:${PHONE_PORT} on another device (https, not http). The browser warns once that the connection is not private: choose Advanced, then Continue.`);
+    } else console.log(`\n  Free GST Billing Software running at http://localhost:${port}`);
     console.log(`  Data stored in: ${DATA_DIR}\n`);
     // v1.10.85 - and the phone listener, when it was left on.
     if (PHONE_HEADLESS || phoneState.enabled) startPhoneListener();

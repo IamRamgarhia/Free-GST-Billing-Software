@@ -23,8 +23,11 @@ WORKDIR /data
 VOLUME /data
 EXPOSE 47443
 
+# v1.10.86 (#207) - with FGSB_PHONE_ACCESS=1 it also checks that 47443 is open
+# (it is not when FGSB_PIN is missing), so Docker shows "unhealthy" instead of
+# a healthy container nobody can reach.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:47371/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:47371/api/health').then((r) => { if (!r.ok) process.exit(1); if (process.env.FGSB_PHONE_ACCESS !== '1') process.exit(0); const s = require('net').connect(Number(process.env.FGSB_PHONE_PORT) || 47443, '127.0.0.1', () => { s.end(); process.exit(0); }); s.on('error', () => process.exit(1)); }).catch(() => process.exit(1))"]
 
 # data/port.txt remembers a desktop's port; in a container the port is always
 # 47371 (books copied from a PC must not move it), so that file is reset.

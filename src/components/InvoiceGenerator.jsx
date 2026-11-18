@@ -3683,6 +3683,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
   //   Ctrl/Cmd+P       — download PDF
   //   Ctrl/Cmd+Enter   — add a new line item (v1.10.22)
   //   Ctrl/Cmd+Shift+D — duplicate the LAST line item (v1.10.22)
+  //   Ctrl/Cmd+Shift+F — hide / show the live preview (v1.10.86, #211)
   //   Esc              — close the leave-guard modal (v1.10.22)
   useEffect(() => {
     const onKey = (e) => {
@@ -3717,6 +3718,10 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
           const last = prev[prev.length - 1];
           return [...prev, { ...last, id: Date.now().toString() }];
         });
+      } else if (e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        // v1.10.86 (#211) - hide or show the live preview (remembered, like the button).
+        e.preventDefault();
+        setPreviewCollapsed(v => !v);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -4380,7 +4385,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               button sits beside what it changes. */}
           <button className="btn btn-secondary" type="button"
             onClick={() => setPreviewCollapsed(v => !v)}
-            title={previewCollapsed ? 'Show the live preview' : 'Hide the preview and use the full width for entry'}>
+            title={previewCollapsed ? 'Show the live preview (Ctrl+Shift+F)' : 'Hide the preview and use the full width for entry (Ctrl+Shift+F)'}>
             {previewCollapsed ? <><Eye size={18} /> Show Preview</> : <><EyeOff size={18} /> Hide Preview</>}
           </button>
         </div>

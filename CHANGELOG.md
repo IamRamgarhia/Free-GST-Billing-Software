@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - planned for Saturday 21 November 2026 (v1.10.86)
 
 ### Added
+- **Hide or show the preview with Ctrl+Shift+F** on New Invoice (#211), like
+  the Hide Preview button; it is remembered and listed under Keyboard shortcuts.
 - **Discount on the whole purchase bill** (thanks @npadhya, #196): under the
   items of **Add Purchase Bill**, type a discount in **Discount on whole
   bill**, as **₹** or **%**. It is taken before GST (a trade discount): shared
@@ -169,6 +171,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Packages**: DOMPurify 3.4.18, Vite 7.3.8.
 
 ### Fixed
+- **Docker: the app could not be opened** when the container was started
+  with Docker Desktop's Run button or without a PIN (#207). The log now says
+  what is missing and which address to open (https://127.0.0.1:47443 on the
+  same PC), Docker shows the container as unhealthy until it can be reached,
+  and the guide covers Docker Desktop on Windows and Mac.
+- **No error reports from the developer server** (#204): its live-reload
+  connection is not a problem in the app.
 - **Update Now on the ZIP copy no longer stays on "Updating..." for ever**
   (ERR-089): the update finishes and the app restarts on the new version.
   Restore no longer hangs the same way.

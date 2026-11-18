@@ -135,7 +135,7 @@ Both keep your books in `~/.local/share/free-gst-billing-data`. To update, insta
 
 1. Download **`docker-compose.yml`** from the [latest release](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest). It uses the image `ghcr.io/iamramgarhia/free-gst-billing`.
 2. Put your own 6 or 8 digit PIN in `FGSB_PIN`, then run `docker compose up -d`.
-3. Open the pairing link that `docker logs free-gst-billing` shows, on your phone or PC.
+3. Open the pairing link that `docker logs free-gst-billing` shows, on your phone or PC. On Docker Desktop (Windows or Mac), start it with `docker compose up -d`, not the Run button, and open `https://127.0.0.1:47443/pair` on that PC.
 
 Every device is paired with a one-time code and the PIN, over HTTPS; nothing gets in without pairing. Never forward its port on your router. **To update:** put the new version in the `image:` line, then `docker compose pull` and `docker compose up -d`; the books stay in the volume. Step by step: [On a NAS: Docker](https://dicecodes.com/free-gst-software-documentation/install-linux.html#nas-docker).
 

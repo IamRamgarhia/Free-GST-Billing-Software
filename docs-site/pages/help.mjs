@@ -132,6 +132,7 @@ export default [
   <tr><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td><td>Download the PDF (on the invoice screen)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Add an item row (on the invoice screen)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></td><td>Copy the last item row (on the invoice screen)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td><td>Hide or show the preview (on the invoice screen; remembered)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td><td>Lock the app (when a PIN is set)</td></tr>
   <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Show or hide the <b>Keyboard Shortcuts</b> window, which lists these</td></tr>
   <tr><td><kbd>Esc</kbd></td><td>Close a dialog</td></tr>
