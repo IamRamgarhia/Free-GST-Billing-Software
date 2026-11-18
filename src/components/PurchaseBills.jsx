@@ -5,7 +5,7 @@ import PageHeader, { BarButton } from './PageHeader';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes, saveDebitNote } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS_2025, tdsSectionsFor, movedSection, sectionOptionLabel, sectionShort } from '../utils';
 import { purchaseTdsAmount } from '../utils/tdsTcs';
-import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial } from '../utils/purchaseOrders';
+import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial, withBillDiscount } from '../utils/purchaseOrders';
 import PurchaseOrders from './PurchaseOrders';
 import TableExport from './TableExport';
 import ActionsMenu from './ActionsMenu';
@@ -124,7 +124,13 @@ const emptyForm = {
   tdsSection: '194C',
   tdsRate: 1,
   tdsAmountManual: '',
+  // v1.10.86 - a discount on the whole bill, before GST (see withBillDiscount).
+  billDiscountValue: '',
+  billDiscountType: 'fixed',
 };
+
+// v1.10.86 - the bill discount's line on the view and the PDF.
+const billDiscLabel = (p) => `Less: discount on bill${p?.billDiscountType === 'percent' && p?.billDiscountValue ? ` (${p.billDiscountValue}%)` : ''}`;
 
 // v1.10.83 (#112) - calcItemTax / calcPurchaseTotal moved to
 // utils/purchaseOrders.js unchanged, shared with purchase orders.
@@ -386,6 +392,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       tdsSection: purchase.tdsSection || '194C',
       tdsRate: purchase.tdsRate ?? 1,
       tdsAmountManual: purchase.tdsManual ? String(purchase.tdsAmount) : '',
+      billDiscountValue: purchase.billDiscountValue || '',
+      billDiscountType: purchase.billDiscountType === 'percent' ? 'percent' : 'fixed',
     });
     setEditingId(purchase.id);
     setShowForm(true);
@@ -617,8 +625,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       doc.setFont('helvetica', 'normal');
       (purchase.items || []).forEach((item, idx) => {
         if (y > 265) { doc.addPage(); y = 20; }
-        // v1.10.85 (#171) - after its discount.
-        const lineTotal = purchaseLineTax({ ...item, quantity: Number(item.quantity) || 0, rate: Number(item.rate) || 0 }).amount;
+        // v1.10.85 (#171) - after its discount. v1.10.86 - before the bill discount (in the totals).
+        const lineTotal = purchaseLineTax({ ...item, quantity: Number(item.quantity) || 0, rate: Number(item.rate) || 0, billDiscShare: 0 }).amount;
         const withTax = lineTotal * (1 + (Number(item.taxPercent) || 0) / 100);
         // v1.10.30 — reported: "in purchase bill pdf long names got cut in
         // pdf fix". Prior code used `.slice(0, 40)` which mid-word truncated
@@ -651,6 +659,10 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       y += 4; doc.setDrawColor(...getAccentRGB()); doc.setLineWidth(0.4);
       doc.line(marginL + 100, y, marginR, y); y += 6;
       doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80);
+      if (t.billDiscount > 0.005) {
+        doc.text('Value of goods', marginL + 100, y); doc.text(fmt(t.taxable + t.billDiscount), marginR, y, { align: 'right' }); y += 5;
+        doc.text(billDiscLabel(purchase), marginL + 100, y); doc.text('-' + fmt(t.billDiscount), marginR, y, { align: 'right' }); y += 5;
+      }
       doc.text('Taxable', marginL + 100, y); doc.text(fmt(t.taxable), marginR, y, { align: 'right' }); y += 5;
       // v1.10.74 - show the tax split instead of one combined line.
       if (purchase.interstate) {
@@ -733,12 +745,38 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       toast('Add at least one item with a quantity and rate', 'warning');
       return;
     }
+    // v1.10.86 - the discount on the whole bill: 0 or more, at most 100% or
+    // what the items come to.
+    const billDisc = parseFloat(form.billDiscountValue) || 0;
+    const billDiscType = form.billDiscountType === 'percent' ? 'percent' : 'fixed';
+    const discProblem = billDisc < 0 ? 'The discount on the whole bill cannot be less than 0'
+      : billDiscType === 'percent' && billDisc > 100 ? 'The discount on the whole bill cannot be more than 100%'
+      : billDiscType === 'fixed' && billDisc > calcPurchaseTotal(withBillDiscount(form.items, 0)).taxable + 0.005 ? 'The discount on the whole bill is more than the items come to'
+      : '';
+    if (discProblem) { toast(discProblem, 'warning'); return; }
     // v1.10.85 (#168) - goods already sent back on a debit note: their line
     // cannot drop below what went back, nor be renamed or removed.
-    const returnsProblem = editingId ? editProblem(purchases.find(p => p.id === editingId), form.items, debitNotes) : '';
+    // v1.10.86 - nor can the bill discount change.
+    const returnsProblem = editingId ? editProblem(purchases.find(p => p.id === editingId), form.items, debitNotes, { value: billDisc, type: billDiscType }) : '';
     if (returnsProblem) { toast(returnsProblem, 'warning', 10000); return; }
     try {
-      const totals = calcPurchaseTotal(form.items, form.applyRoundOff);
+      // v1.10.86 - each line keeps its part of the bill discount (billDiscShare).
+      const items = withBillDiscount(form.items.map(i => ({
+        name: (i.name || '').trim(),
+        hsn: (i.hsn || '').trim(),
+        quantity: parseFloat(i.quantity) || 0,
+        rate: parseFloat(i.rate) || 0,
+        taxPercent: parseFloat(i.taxPercent) || 0,
+        cessPercent: parseFloat(i.cessPercent) || 0,
+        // v1.10.83 (#112) - only lines from a purchase order carry a unit.
+        ...(String(i.unit || '').trim() ? { unit: String(i.unit).trim() } : {}),
+        // v1.10.85 (#171, #160) - a discount and serial numbers only when given.
+        ...lineDiscountFields(i),
+        ...(String(i.serialNo || '').trim() ? { serialNo: String(i.serialNo).trim() } : {}),
+        // v1.10.85 (#148) - bought in the product's second unit (Box = 12).
+        ...altLineFields(i),
+      })), billDisc, billDiscType);
+      const totals = calcPurchaseTotal(items, form.applyRoundOff);
       const before = editingId ? purchases.find(p => p.id === editingId) : null;
       const purchaseFields = {
         ...(editingId ? { id: editingId } : {}),
@@ -751,21 +789,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
         // directly above, which is who sold it.
         ownerGstin: ownerProfile?.gstin || '',
         ownerName: ownerProfile?.businessName || '',
-        items: form.items.map(i => ({
-          name: (i.name || '').trim(),
-          hsn: (i.hsn || '').trim(),
-          quantity: parseFloat(i.quantity) || 0,
-          rate: parseFloat(i.rate) || 0,
-          taxPercent: parseFloat(i.taxPercent) || 0,
-          cessPercent: parseFloat(i.cessPercent) || 0,
-          // v1.10.83 (#112) - only lines from a purchase order carry a unit.
-          ...(String(i.unit || '').trim() ? { unit: String(i.unit).trim() } : {}),
-          // v1.10.85 (#171, #160) - a discount and serial numbers only when given.
-          ...lineDiscountFields(i),
-          ...(String(i.serialNo || '').trim() ? { serialNo: String(i.serialNo).trim() } : {}),
-          // v1.10.85 (#148) - bought in the product's second unit (Box = 12).
-          ...altLineFields(i),
-        })),
+        items,
+        ...(billDisc > 0 ? { billDiscountValue: billDisc, billDiscountType: billDiscType } : {}),
         // v1.10.85 (#168) - what its debit notes took off (never saved), so
         // Paid below records the balance less the returns.
         ...(before?._returned ? { _returned: before._returned } : {}),
@@ -1258,7 +1283,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
   const isPo = form.kind === 'po';
   const editingBill = !isPo && editingId ? purchases.find(p => p.id === editingId) : null;
   const fromPoNumber = form.fromPo ? orders.find(o => o.id === form.fromPo)?.poNumber : '';
-  const formTotals = calcPurchaseTotal(form.items, !isPo && form.applyRoundOff);
+  const formTotals = calcPurchaseTotal(withBillDiscount(form.items, isPo ? 0 : form.billDiscountValue, form.billDiscountType), !isPo && form.applyRoundOff);
   const formTds = !isPo && form.tdsOn ? purchaseTdsFields(form, formTotals.taxable).tdsAmount : 0;
 
   return (
@@ -1363,7 +1388,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                   </thead>
                   <tbody>
                     {(p.items || []).map((it, idx) => {
-                      const line = purchaseLineTax({ ...it, quantity: Number(it.quantity) || 0, rate: Number(it.rate) || 0 }).amount;
+                      const line = purchaseLineTax({ ...it, quantity: Number(it.quantity) || 0, rate: Number(it.rate) || 0, billDiscShare: 0 }).amount;
                       const withTax = line * (1 + (Number(it.taxPercent) || 0) / 100);
                       return (
                         <tr key={idx}>
@@ -1383,6 +1408,13 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
               </div>
               {/* Totals */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.35rem 1rem', fontSize: '0.9rem', maxWidth: 320, marginLeft: 'auto' }}>
+                {/* v1.10.86 - the discount on the whole bill, before GST. */}
+                {t.billDiscount > 0.005 && (
+                  <>
+                    <span style={{ color: 'var(--text-muted)' }}>Value of goods</span><span style={{ textAlign: 'right' }}>{formatCurrency(t.taxable + t.billDiscount)}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{billDiscLabel(p)}</span><span style={{ textAlign: 'right' }}>-{formatCurrency(t.billDiscount)}</span>
+                  </>
+                )}
                 <span style={{ color: 'var(--text-muted)' }}>Taxable</span>
                 <span style={{ textAlign: 'right' }}>{formatCurrency(t.taxable)}</span>
                 {/* v1.10.74 - tax split: IGST, or CGST + SGST half each. */}
@@ -1806,8 +1838,28 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
             <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', marginTop: '0.25rem' }}
               onClick={addItem}><Plus size={14} /> Add Item</button>
 
+            {/* v1.10.86 - a discount on the whole bill, before GST: shared over
+                the items, GST on what is left (as a trade discount on invoices). */}
+            {!isPo && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                <label htmlFor="bill-discount" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Discount on whole bill <HelpButton title="Discount on the whole bill" doc="purchases#bill-discount" size={14} /></label>
+                <input id="bill-discount" type="number" min="0" step="any" className="form-input" style={{ width: 110 }} placeholder="0"
+                  value={form.billDiscountValue} onFocus={e => e.target.select()}
+                  onChange={e => updateField('billDiscountValue', e.target.value)} />
+                <select className="form-input" aria-label="Discount on whole bill: amount or percent" style={{ width: 72, paddingLeft: '0.7rem', paddingRight: '1.8rem' }}
+                  value={form.billDiscountType} onChange={e => updateField('billDiscountType', e.target.value)}>
+                  <option value="fixed">₹</option>
+                  <option value="percent">%</option>
+                </select>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Before GST: shared over the items, GST on what is left.</span>
+              </div>
+            )}
+
             <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '0.85rem' }}>
               <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {formTotals.billDiscount > 0.005 && (
+                  <span>Discount on bill: <strong>-{formatCurrency(formTotals.billDiscount)}</strong></span>
+                )}
                 <span>Taxable: <strong>{formatCurrency(formTotals.taxable)}</strong></span>
                 {/* v1.10.83 (#117) - the split as filed, not one tax figure. */}
                 {form.interstate ? (

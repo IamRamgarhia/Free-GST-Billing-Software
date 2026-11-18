@@ -137,8 +137,14 @@ export const returnedOnBill = (bill, debitNotes) => {
 // Editing a bill that has returns: a returned line cannot go below what went
 // back, nor be renamed or removed (its debit notes point at it). '' when the
 // new lines are fine, else what to fix.
-export function editProblem(bill, newItems, debitNotes) {
+// v1.10.86 - nor can its discount on the whole bill change (`discount`,
+// { value, type } as on the form): the debit notes went back at its share.
+const billDiscountKey = (value, type) => ((Number(value) || 0) > 0 ? `${Number(value)}|${type === 'percent' ? 'percent' : 'fixed'}` : '');
+export function editProblem(bill, newItems, debitNotes, discount = null) {
   if (!notesFor(bill, debitNotes).length) return '';
+  if (discount && billDiscountKey(discount.value, discount.type) !== billDiscountKey(bill?.billDiscountValue, bill?.billDiscountType)) {
+    return 'Goods on this bill went back to the supplier on a debit note, so its discount on the whole bill cannot change. Cancel or delete the debit note first (Returns tab).';
+  }
   const items = newItems || [];
   for (const l of returnableLines(bill, debitNotes)) {
     if (!(l.returned > 0)) continue;

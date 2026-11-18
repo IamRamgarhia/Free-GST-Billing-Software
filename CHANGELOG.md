@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - planned for Saturday 21 November 2026 (v1.10.86)
 
 ### Added
+- **Discount on the whole purchase bill** (thanks @npadhya, #196): under the
+  items of **Add Purchase Bill**, type a discount in **Discount on whole
+  bill**, as **₹** or **%**. It is taken before GST (a trade discount): shared
+  over the items by their value, with GST and cess worked out on what is left,
+  so a bill with items at different GST rates gets the right input tax credit.
+  The totals, the view and the PDF show it on its own line; GSTR-3B, GSTR-2B
+  matching, Owed to suppliers, TDS and the products' purchase price use the
+  value after it, and a return takes its part back. It cannot change once
+  goods on the bill have gone back on a debit note.
 - **MRP on products and on the invoice** (#189, #192): an optional MRP on
   each product (form, list, CSV / Excel import and export). It comes onto the
   invoice line when you pick the product, and you can change it there; on a

@@ -90,7 +90,7 @@ export default [
   <tr><td><b>Cost centre</b></td><td>Only when cost centres are on. The branch, site or project this bill belongs to, or <b>None</b>. See <a href="reports.html#cost-centres">Cost centres</a>.</td></tr>
   <tr><td><b>Inter-state purchase</b></td><td>Tick when the supplier charged IGST. See <a href="#interstate">Suppliers in another state</a>.</td></tr>
 </table></div>
-<p>Under the fields come the <a href="#purchase-items">Items</a>, the running totals and <a href="#round-off">Apply round-off</a>.</p>
+<p>Under the fields come the <a href="#purchase-items">Items</a>, the <a href="#bill-discount">Discount on whole bill</a>, the running totals and <a href="#round-off">Apply round-off</a>.</p>
 <ol class="steps">
   <li><strong>Supplier</strong>Type the supplier's name. If you have bought from them before, pick them from the list: GSTIN and address fill in.</li>
   <li><strong>Bill details</strong>Set the <b>Date</b> and type the <b>Invoice Number</b> from their bill. Leave <b>Payment Status</b> on Unpaid and record the payment after saving (<a href="#record-payment">see how</a>), or pick Paid if you paid it all and do not need the details.</li>
@@ -142,9 +142,21 @@ export default [
 <p>${ui('Add Item')} adds a new row and puts the cursor in its name, so you can keep typing: ${key('Tab')} to the button, ${key('Enter')}, and type the next item.</p>
 <p>Clicking <b>Qty</b>, <b>Rate</b> or <b>Cess %</b> selects what is in it, so typing replaces it (you get 18, not 018).</p>
 <p>If you pick a different item in the same row, its details replace the old item's. A value you typed yourself is kept.</p>
-<p>The strip under the items adds up as you type: <b>Taxable</b> (quantity × rate for every row, less any discount), <b>CGST</b> and <b>SGST</b> (half the GST each) or <b>IGST</b> for an inter-state bill, <b>Cess</b> when there is any, <b>Round-off</b> when ticked, and <b>Total</b>.</p>
+<p>The strip under the items adds up as you type: <b>Discount on bill</b> when there is one (see <a href="#bill-discount">Discount on the whole bill</a>), <b>Taxable</b> (quantity × rate for every row, less any discount), <b>CGST</b> and <b>SGST</b> (half the GST each) or <b>IGST</b> for an inter-state bill, <b>Cess</b> when there is any, <b>Round-off</b> when ticked, and <b>Total</b>.</p>
 <div class="note info"><strong>HSN, CGST, SGST, IGST?</strong>
 <p><b>HSN</b> is the code for the type of goods (<b>SAC</b> for services). <b>CGST</b> and <b>SGST</b> are the central and state halves of GST, charged when the supplier is in your state; <b>IGST</b> is the single tax charged when they are in another state. See the <a href="glossary.html#terms">glossary</a>.</p></div>
+</section>
+
+<section id="bill-discount">
+<h3>Discount on the whole bill</h3>
+<p>When the supplier took a discount off the whole bill before GST (a trade discount, such as "Less: discount 5%" above the GST lines), type it in <b>Discount on whole bill</b> under the items: the number, then <b>₹</b> (an amount) or <b>%</b> (a percent of the items). Leave it empty when there is none. It is on purchase bills only, not purchase orders.</p>
+<ul>
+  <li>It is shared over the items by their value (after any line discount), and GST and cess are worked out on what is left. On a bill with items at 18% and 5%, each rate gets its own share, so your input tax credit matches the supplier's bill. For example, ₹1,000 off ₹6,000 at 18% and ₹4,000 at 5% takes ₹600 and ₹400 off them: GST ₹972 + ₹180.</li>
+  <li>The strip under the items shows <b>Discount on bill</b>, then <b>Taxable</b> after it. The view and the PDF show each item at its full value, then <b>Value of goods</b>, <b>Less: discount on bill</b> and <b>Taxable</b>.</li>
+  <li>GSTR-3B, GSTR-2B matching, <b>Owed to suppliers</b>, TDS and the product's <b>Purchase price</b> all use the value after the discount. A <a href="#purchase-returns">return</a> takes its part of the discount back with it.</li>
+  <li>Once goods on the bill have gone back on a debit note, its discount cannot be changed: cancel or delete the debit note first (Returns tab).</li>
+</ul>
+<p>A discount above 100%, or more than the items come to, is refused when you save.</p>
 </section>
 
 <section id="round-off">

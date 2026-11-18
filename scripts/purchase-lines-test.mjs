@@ -9,8 +9,9 @@ import {
 } from '../src/utils/debitNotes.js';
 import {
   purchaseTotals, purchaseLineTax, purchaseUnitCost, lineDiscountFields, lineWithQuantity, purchaseHasSerial, billFormFromPo, poRemainingItems,
+  withBillDiscount,
 } from '../src/utils/purchaseOrders.js';
-import { purchaseBalance, purchaseStatus, markPurchasePaid } from '../src/utils/purchasePayments.js';
+import { purchaseBalance, purchaseStatus, markPurchasePaid, validatePurchasePayments } from '../src/utils/purchasePayments.js';
 import { supplierOutstanding, periodMonths } from '../src/utils/partyOutstanding.js';
 import { releaseChallansPlan, reabsorbChallansPlan, orderStatus } from '../src/utils/salesOrders.js';
 import { ownPrefixProblem, prefixClashWarning, belongsToProfile } from '../src/utils.js';
@@ -166,6 +167,44 @@ console.log('\n[#160] Serial numbers on purchase lines');
 {
   const p = { items: [{ name: 'Phone', serialNo: '356938035643809, 356938035643817' }, { name: 'Case' }] };
   eq([purchaseHasSerial(p, '356938035643817'), purchaseHasSerial(p, '43809'), purchaseHasSerial(p, '999'), purchaseHasSerial(p, '')], [true, true, false, false], 'Found by a whole or part serial / IMEI');
+}
+
+console.log('\n[v1.10.86] Discount on the whole purchase bill (before GST)');
+{
+  const lines = [
+    { name: 'Steel', quantity: 1, rate: 6000, taxPercent: 18 },
+    { name: 'Rice', quantity: 1, rate: 4000, taxPercent: 5 },
+  ];
+  const d = withBillDiscount(lines, 1000, 'fixed');
+  eq(d.map(i => i.billDiscShare), [600, 400], '₹1,000 off is shared by value: 600 and 400');
+  const t = purchaseTotals(d);
+  eq([r2(t.taxable), r2(t.tax), r2(t.finalTotal), t.billDiscount], [9000, 1152, 10152, 1000], 'GST on what is left, at each line\'s rate: 972 + 180 = 1,152 ITC');
+  eq(withBillDiscount(lines, 10, 'percent').map(i => i.billDiscShare), [600, 400], '10% the same');
+  eq(withBillDiscount(lines, 150, 'percent').map(i => i.billDiscShare), [6000, 4000], 'A percent never above 100');
+  eq(withBillDiscount(lines, 0, 'fixed'), lines, 'No discount: lines unchanged');
+  eq(withBillDiscount(d, 0).some(i => 'billDiscShare' in i), false, 'Taking it off drops the old parts');
+  eq(withBillDiscount(d, 500, 'fixed').map(i => i.billDiscShare), [300, 200], 'A new amount replaces the old parts');
+  const three = withBillDiscount([1, 2, 3].map(() => ({ quantity: 1, rate: 100, taxPercent: 18 })), 100, 'fixed');
+  eq(r2(three.reduce((s, i) => s + i.billDiscShare, 0)), 100, 'The parts add up to the exact paise (33.34 + 33.33 + 33.33)');
+  eq(withBillDiscount([{ ...lines[0], discount: 10, discountType: 'percent' }, lines[1]], 940, 'fixed').map(i => i.billDiscShare), [540, 400],
+    'Shared by value after line discounts (5,400 and 4,000)');
+  eq(withBillDiscount([{ quantity: '2', rate: '50', taxPercent: '18' }], '10', 'fixed')[0].billDiscShare, 10, 'Form strings work');
+  eq(purchaseUnitCost({ quantity: 10, rate: 600, taxPercent: 18, billDiscShare: 600 }), 540, 'Cost price for Products after the bill discount');
+  eq(lineDiscountFields(d[0]), { billDiscShare: 600 }, 'Saved with the line');
+  eq(purchaseTotals(lines).billDiscount, 0, 'A bill without one: 0');
+
+  const db = { ...bill, items: [{ name: 'Steel', quantity: 10, rate: 600, taxPercent: 18 }, { name: 'Rice', quantity: 10, rate: 400, taxPercent: 5 }] };
+  const dbd = { ...db, billDiscountValue: 10, billDiscountType: 'percent', items: withBillDiscount(db.items, 10, 'percent') };
+  eq(purchaseBalance(dbd), 10152, 'What is owed to the supplier follows');
+  eq(validatePurchasePayments({ ...dbd, payments: [{ id: 'a', amount: 10152, date: '2026-11-03', mode: 'upi' }] }), '', 'Paying the discounted total: fine (the server check too)');
+  eq(validatePurchasePayments({ ...dbd, payments: [{ id: 'a', amount: 11000, date: '2026-11-03', mode: 'upi' }] }) !== '', true, '...the total before the discount: refused');
+  const dn = dnOf(dbd, { 0: 2 });
+  eq([dn.items[0].billDiscShare, debitNoteTotals(dn).taxable, debitNoteTotals(dn).tax], [120, 1080, 194.4], 'Returning 2 of 10: their part of the discount goes too (taxable 1,080, GST 194.40)');
+  eq(editProblem(dbd, dbd.items, [dn], { value: 10, type: 'percent' }), '', 'Same discount on a bill with a return: fine');
+  eq(/cannot change/.test(editProblem(dbd, dbd.items, [dn], { value: 5, type: 'percent' })), true, 'A changed discount on a bill with a return: refused');
+  eq(/cannot change/.test(editProblem(dbd, dbd.items, [dn], { value: 10, type: 'fixed' })), true, '...or ₹ in place of %');
+  eq(editProblem(dbd, dbd.items, [], { value: 5, type: 'percent' }), '', 'No returns: free to change');
+  eq(editProblem(db, db.items, [dnOf(db, { 0: 1 })], { value: 0, type: 'percent' }), '', 'No discount before or after: fine');
 }
 
 console.log(`\npurchase-lines-test: ${passed} passed, ${failed} failed`);
