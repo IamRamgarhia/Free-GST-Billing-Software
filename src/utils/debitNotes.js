@@ -19,9 +19,10 @@
 // Pure: no React, no storage (tested in scripts/debit-note-test.mjs).
 import { formatDocNumber, getFinancialYearLabel, parseLocalDate, roundQty, splitPurchaseTax, baseQty, altLineFields } from '../utils.js';
 import { purchaseTotals, lineDiscountFields, lineWithQuantity } from './purchaseOrders.js';
+import { productKey, findLineProduct } from './purchaseStock.js';
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const nameKey = (it) => String(it?.name || '').trim().toLowerCase();
+const nameKey = (it) => productKey(it?.name); // v1.10.86 (#199) - inner spaces ignored too
 export const isActiveDebitNote = (dn) => !!dn && !dn.cancelled;
 const notesFor = (bill, debitNotes) => (debitNotes || []).filter((dn) => isActiveDebitNote(dn) && bill?.id && dn.purchaseId === bill.id);
 
@@ -99,14 +100,12 @@ export function debitNoteTotals(dn) {
 
 // What the debit note does to stock: the returned goods go out ({ id: -qty }),
 // nothing once it is cancelled. Products are found by productId, else name,
-// as saving the bill found them.
+// as saving the bill found them (v1.10.86 #199 - utils/purchaseStock.js).
 export function debitNoteStock(dn, products) {
   if (!isActiveDebitNote(dn)) return {};
-  const byName = new Map((products || []).map((p) => [nameKey(p), p.id]));
-  const ids = new Set((products || []).map((p) => p.id));
   const out = {};
   for (const it of dn.items || []) {
-    const id = (it.productId && ids.has(it.productId)) ? it.productId : byName.get(nameKey(it));
+    const id = findLineProduct(products, it)?.id;
     const q = baseQty(it); // #148 - in the base unit
     if (id && q) out[id] = roundQty((out[id] || 0) - q);
   }
@@ -114,11 +113,7 @@ export function debitNoteStock(dn, products) {
 }
 
 // Returned lines that match no product, so no stock moves for them (names).
-export const unmatchedLines = (dn, products) => {
-  const names = new Set((products || []).map((p) => nameKey(p)));
-  const ids = new Set((products || []).map((p) => p.id));
-  return (dn?.items || []).filter((it) => !(it.productId && ids.has(it.productId)) && !names.has(nameKey(it))).map((it) => it.name || '-');
-};
+export const unmatchedLines = (dn, products) => (dn?.items || []).filter((it) => !findLineProduct(products, it)).map((it) => it.name || '-');
 
 // What the debit notes against a bill take off it (with GST). A bill sent
 // back in full also loses its round-off, so nothing at all is owed on it.

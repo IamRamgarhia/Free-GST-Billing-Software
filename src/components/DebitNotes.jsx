@@ -280,7 +280,8 @@ export default function DebitNotesList({ notes, purchases = [], ownerProfile, on
       {notes.length === 0 ? (
         <div className="empty-state">
           <RotateCcw size={48} />
-          <p>No purchase returns yet. Use the return button on a purchase bill to send goods back.</p>
+          {/* v1.10.86 (#213) - the Returns tab is always there now: say how to make one. */}
+          <p>No purchase returns yet. To send goods back, open a purchase bill's ⋯ menu and pick Return to supplier (debit note).</p>
         </div>
       ) : (
         <div className="table-scroll">

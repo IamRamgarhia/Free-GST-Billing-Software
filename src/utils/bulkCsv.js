@@ -43,6 +43,7 @@ export function parseCsv(text) {
   return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
 }
 
+const parseCsvOrRows = (input) => (Array.isArray(input) ? input : parseCsv(input));
 export const norm = (h) => String(h || '').toLowerCase().replace(/[\s_\-.%()/#*]+/g, '');
 
 // Rows as objects keyed by canonical field name. `fields` maps each canonical
@@ -198,6 +199,37 @@ const SALES_FIELDS = {
   dispatchedThrough: ['Dispatched Through', 'Courier', 'Carrier', 'Courier Name'],
 };
 
+// v1.10.86 (#213) - why a file gave nothing to import, saying what to do.
+// "The file has no rows under the header." alone left a seller with a
+// marketplace orders file stuck. Order-file columns that are not our format:
+const MARKET_COLS = ['Order Id', 'Order ID', 'Sub Order No', 'Sub Order ID', 'AWB', 'AWB No', 'AWB Number', 'SKU', 'Order Status',
+  'amazon-order-id', 'order-item-id', 'Order Item ID', 'Tracking ID', 'FSN'];
+const MARKET_NORMS = new Set(MARKET_COLS.map(norm));
+export function emptyImportMessage(input, { flipkart = false, cancelled = 0 } = {}) {
+  if (flipkart) return 'This is a Flipkart orders file, but none of its orders has an invoice number yet (orders not yet invoiced or shipped are skipped). Download the report again after the orders are invoiced.';
+  if (cancelled) return `All ${cancelled === 1 ? 'the invoices in the file are' : `${cancelled} invoices in the file are`} cancelled, so there is nothing to import.`;
+  if (unclosedQuote(input)) {
+    return 'A cell has an opening quote (") with no closing quote, so the rest of the file was read as one cell. Open the file in Excel and save it again as CSV.';
+  }
+  const cols = marketplaceColumns(parseCsvOrRows(input));
+  if (cols) return `This looks like a marketplace orders file (${cols.join(', ')}). Only Flipkart's order report can be imported directly. For others, download the Template here and copy the columns over.`;
+  return 'The file has no rows under the header.';
+}
+// An opening quote with no closing one makes the rest of the file one cell.
+const unclosedQuote = (input) => typeof input === 'string' && (input.match(/"/g) || []).length % 2 === 1
+  && parseCsv(input).length < input.split(/\r?\n/).filter((l) => l.trim()).length;
+// Nothing to import, or a file read wrongly: one message for the whole file.
+const wholeFileProblem = (input, records, colOf, market) => !records.length || unclosedQuote(input)
+  || (!market && colOf?.invoiceNumber === undefined && !!marketplaceColumns(parseCsvOrRows(input)));
+// The marketplace order columns in the file's header (2 or more), else null.
+function marketplaceColumns(table) {
+  for (const r of (table || []).slice(0, 5)) {
+    const hits = (Array.isArray(r) ? r : []).map((c) => String(c ?? '').trim()).filter((c) => MARKET_NORMS.has(norm(c)));
+    if (hits.length >= 2) return hits.slice(0, 4);
+  }
+  return null;
+}
+
 /**
  * CSV text -> sales bills ready for saveBill, built the way the invoice screen
  * builds them (computeInvoiceTotals, data.profile, stock record).
@@ -207,12 +239,16 @@ const SALES_FIELDS = {
 export function salesCsvToBills(text, { profile = {}, products = [], adjustStock = false, existingIds = new Set(), clients = [], received = null } = {}) {
   // v1.10.85 (#172) - a Flipkart orders report is read as sales invoices.
   const market = marketplaceOrdersTable(text);
-  const all = rowsToRecords(market ? market.table : text, SALES_FIELDS).records;
+  const { records: all, colOf } = rowsToRecords(market ? market.table : text, SALES_FIELDS);
   // Vyapar lists cancelled sales too ("Sale[Cancelled]"): they are not imported.
   const records = all.filter((r) => !CANCELLED.test(r.invoiceType || ''));
   const cancelled = new Set(all.filter((r) => CANCELLED.test(r.invoiceType || '')).map((r) => r.invoiceNumber)).size;
   const errors = [];
-  if (!records.length) return { bills: [], errors: ['The file has no rows under the header.'], skipped: [], newClients: [], warnings: [] };
+  // v1.10.86 (#213) - a marketplace file with no Invoice Number column: one message, not one per row.
+  if (wholeFileProblem(text, records, colOf, market)) {
+    const none = !records.length;
+    return { bills: [], errors: [emptyImportMessage(text, { flipkart: none && !!market, cancelled: none ? cancelled : 0 })], skipped: [], newClients: [], warnings: [] };
+  }
   const order = dateOrderNote(records.flatMap((r) => [r.invoiceDate, r.dueDate]));
   if (order.error) return { bills: [], errors: [order.error], skipped: [], newClients: [], warnings: [] };
   const groups = new Map();
@@ -421,9 +457,12 @@ const PAYMENT_STATUSES = ['Unpaid', 'Partial', 'Paid'];
  * `inferInterstate(gstin)` (optional) fills Inter-state when the column is blank.
  */
 export function purchaseCsvToRecords(text, { profile = {}, existing = [], inferInterstate = null } = {}) {
-  const { records } = rowsToRecords(text, PURCHASE_FIELDS);
+  const { records, colOf } = rowsToRecords(text, PURCHASE_FIELDS);
   const errors = [];
-  if (!records.length) return { purchases: [], errors: ['The file has no rows under the header.'], skipped: [], warnings: [] };
+  // v1.10.86 (#213) - say why, and what to do.
+  if (wholeFileProblem(text, records, colOf, null)) {
+    return { purchases: [], errors: [emptyImportMessage(text)], skipped: [], warnings: [] };
+  }
   const order = dateOrderNote(records.map((r) => r.date));
   if (order.error) return { purchases: [], errors: [order.error], skipped: [], warnings: [] };
   const keyOf = (gstin, name, num) => `${(gstin || name || '').trim().toUpperCase()}::${String(num || '').trim().toUpperCase()}`;
@@ -460,6 +499,8 @@ export function purchaseCsvToRecords(text, { profile = {}, existing = [], inferI
       const taxPercent = toNum(r.taxPercent, 0);
       const cessPercent = toNum(r.cessPercent, 0);
       if (!r.itemName) { fail(`row ${r._line} has no item name.`); bad = true; break; }
+      // v1.10.86 (#213) - a return in the file says where returns go.
+      if (quantity < 0) { fail(`row ${r._line}: returns (negative quantities) are not imported. Record them as a return to supplier on the bill (Purchases → bill → Return to supplier).`); bad = true; break; }
       if (![quantity, rate, taxPercent, cessPercent].every((v) => Number.isFinite(v) && v >= 0) || taxPercent > 100) {
         fail(`row ${r._line}: quantity, rate, GST % and cess % must be numbers, 0 or more.`); bad = true; break;
       }

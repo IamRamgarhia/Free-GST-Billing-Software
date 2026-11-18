@@ -5,7 +5,7 @@ import PageHeader, { BarButton } from './PageHeader';
 import { getAllPurchases, savePurchase, deletePurchase, getAllProducts, saveProduct, getProfile, getEnabledModules, getAllPurchaseOrders, savePurchaseOrder, getNextPoNumber, getAllDebitNotes, saveDebitNote } from '../store';
 import { formatCurrency, getFYOptions, belongsToProfile, isUnassignedToBusiness, isInterstateSupply, localToday, roundQty, splitPurchaseTax, isModuleEnabled, businessKeyOf, getAllUnits, TDS_SECTIONS_2025, tdsSectionsFor, movedSection, sectionOptionLabel, sectionShort } from '../utils';
 import { purchaseTdsAmount } from '../utils/tdsTcs';
-import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, purchaseUnitCost, lineDiscountFields, purchaseHasSerial, withBillDiscount } from '../utils/purchaseOrders';
+import { purchaseTotals as calcPurchaseTotal, billFormFromPo, purchaseLineTax, lineDiscountFields, purchaseHasSerial, withBillDiscount } from '../utils/purchaseOrders';
 import PurchaseOrders from './PurchaseOrders';
 import TableExport from './TableExport';
 import ActionsMenu from './ActionsMenu';
@@ -30,7 +30,7 @@ import BarcodeLabels from './BarcodeLabels';
 import { findByBarcode } from '../utils/barcode';
 // v1.10.85 (#148) - alternate units on a purchase line, and the low-stock PO
 // handed over from Products or the Dashboard.
-import { baseQty, lineFactor, altLineFields } from '../utils';
+import { lineFactor, altLineFields } from '../utils';
 import { hasAltUnit, lineInUnit } from '../utils/stock';
 import { takeReorderDraft } from '../utils/reorderDraft';
 // v1.10.86 - sort by a column header, remembered in this browser.
@@ -51,7 +51,8 @@ const SORT_GETTERS = {
 import SupplierStatement from './SupplierStatement';
 import ComboInput from './ComboInput';
 // v1.10.86 - (#175) a bill handed over from GST Returns -> GSTR-2B ("2B only").
-import { takeTwoBDraft, isTwoBPlaceholder, markBackToTwoB } from '../utils/gstr2bBill';
+import { takeTwoBDraft, markBackToTwoB } from '../utils/gstr2bBill';
+import { productKey, findLineProduct, purchaseStockPlan, purchaseStockReversal, lineProductHint } from '../utils/purchaseStock';
 
 // v1.10.31 — UI-C3: Same accent-color helper as ClientsView so the
 // Purchase Bill PDF header rule + totals line pick up the user's brand.
@@ -91,6 +92,9 @@ const PAYMENT_STATUS_COLORS = {
 // _auto marks the 18% default as not typed by the user (see isOursToReplace),
 // so picking a 12% product sets 12%. Before, the default was never replaced
 // and every product picked on a new row came in at 18%.
+// v1.10.86 (#199) - a new product's id, made here so the bill's line can keep it.
+const newProductId = () => 'prod_' + Date.now() + Math.random().toString(16).slice(2, 8);
+
 const emptyItem = { name: '', hsn: '', quantity: 1, unit: '', rate: 0, taxPercent: 18, cessPercent: 0, _auto: { taxPercent: 18 } };
 
 
@@ -763,6 +767,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       // v1.10.86 - each line keeps its part of the bill discount (billDiscShare).
       const items = withBillDiscount(form.items.map(i => ({
         name: (i.name || '').trim(),
+        // v1.10.86 (#199) - the product this line is (see utils/purchaseStock.js).
+        ...(i.productId ? { productId: i.productId } : {}),
         hsn: (i.hsn || '').trim(),
         quantity: parseFloat(i.quantity) || 0,
         rate: parseFloat(i.rate) || 0,
@@ -830,122 +836,26 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
         if (!mode) return;
         purchase = markPurchasePaid(purchaseFields, localToday(), new Date(), mode);
       }
+      // v1.10.29 - items on a purchase bill go into Products: an existing
+      // product gets the quantity and the latest cost (its selling price is
+      // left alone), a new item becomes a product. v1.10.31 - an edit moves
+      // stock by what changed. v1.10.86 (#199) - each line is matched by its
+      // productId, then name (spaces and case ignored), then barcode, and keeps
+      // the productId, so a renamed line or a new spelling no longer makes a
+      // second product. See utils/purchaseStock.js.
+      let plan = null;
+      try {
+        const priorLines = before?.items || [];
+        plan = purchaseStockPlan(await getAllProducts(), purchase.items, priorLines, newProductId);
+        purchase = { ...purchase, items: plan.items };
+      } catch (e) {
+        console.warn('Reading Products for the purchase failed (non-fatal):', e);
+      }
       await savePurchase(purchase);
       if (editingId) await restampDebitNotes([purchase]);
-
-      // v1.10.29 — reported: "items added in purchase bill also available
-      // for sale means automatically added to the product page too".
-      // On save, upsert each line item into Products. Match by trimmed
-      // lowercase name to avoid duplicates. For existing products we
-      // update purchasePrice (latest cost) but leave sellingPrice alone
-      // so we don't accidentally overwrite the user's margin. For new
-      // products we seed sellingPrice = purchasePrice as a starting
-      // point (user can raise it in Inventory later). Runs in parallel
-      // and non-fatal — a single-item failure doesn't block the
-      // purchase-bill save.
-      // v1.10.31 — Data-F10.1-3: delta-based stock sync. Previously stock
-      // was incremented only on FIRST save (create). If the user edited the
-      // purchase later — changing qty from 10 → 20, or removing a line, or
-      // renaming a line — the product's stock stayed at 10 (F10.1) or a
-      // duplicate product was created (F10.3). Now:
-      //   • Save (edit path): compute per-line delta from the pre-edit
-      //     snapshot; apply that delta to each existing product's stock.
-      //   • Save (create path): increment stock by full quantity.
-      //   • Rename detection: match by productId first (persisted below),
-      //     then by name — a rename with productId keeps the same product.
       try {
-        const existingProducts = await getAllProducts();
-        const byName = new Map(existingProducts.map(p => [(p.name || '').trim().toLowerCase(), p]));
-        const byId = new Map(existingProducts.map(p => [p.id, p]));
-
-        // Pre-edit snapshot: on edit, compute deltas per productId/name.
-        const priorLines = editingId
-          ? (purchases.find(p => p.id === editingId)?.items || [])
-          : [];
-        const priorQtyByKey = new Map();
-        for (const p of priorLines) {
-          const key = p.productId || `name:${(p.name || '').trim().toLowerCase()}`;
-          priorQtyByKey.set(key, (priorQtyByKey.get(key) || 0) + baseQty(p)); // #148 - in the base unit
-        }
-
-        // Batch stock adjustments per product so we don't race on parallel saves.
-        const stockDeltaById = new Map();
-        const productsToUpsert = new Map();
-        const seenPriorKeys = new Set();
-
-        // v1.10.86 - (#175) lines still named "... (from GSTR-2B)" are no product: no stock.
-        for (const it of purchase.items.filter(x => x.name && !isTwoBPlaceholder(x.name))) {
-          const qty = baseQty(it); // #148 - 3 boxes of 12 add 36
-          // Match order: productId (persisted below) → name (case-insensitive).
-          let existing = it.productId ? byId.get(it.productId) : null;
-          if (!existing) {
-            const key = it.name.trim().toLowerCase();
-            existing = byName.get(key);
-          }
-          if (existing) {
-            // Delta = current qty − prior qty (for this product).
-            const priorKey = it.productId
-              ? it.productId
-              : `name:${(it.name || '').trim().toLowerCase()}`;
-            const priorQty = priorQtyByKey.get(priorKey) || 0;
-            seenPriorKeys.add(priorKey);
-            const delta = qty - priorQty; // may be negative (line reduced) or zero (unchanged)
-            stockDeltaById.set(existing.id, (stockDeltaById.get(existing.id) || 0) + delta);
-            productsToUpsert.set(existing.id, {
-              ...existing,
-              purchasePrice: purchaseUnitCost(it) / lineFactor(it), // v1.10.85 (#171) after its discount; #148 per base unit
-              hsn: existing.hsn || it.hsn,
-              taxPercent: existing.taxPercent || it.taxPercent,
-              cessPercent: existing.cessPercent || it.cessPercent || 0,
-              // stock filled after we sum all deltas for this product.
-              _placeholderId: existing.id,
-            });
-          } else {
-            // New product — seed stock with the line qty (all its lines: two
-            // lines of the same new item used to keep only the last one's).
-            const newKey = `__new__::${it.name.trim().toLowerCase()}`;
-            const seeded = Number(productsToUpsert.get(newKey)?.stock) || 0;
-            productsToUpsert.set(newKey, {
-              name: it.name.trim(),
-              hsn: it.hsn || '',
-              purchasePrice: purchaseUnitCost(it),
-              sellingPrice: it.rate,
-              rate: it.rate,
-              taxPercent: it.taxPercent || 0,
-              cessPercent: it.cessPercent || 0,
-              unit: it.unit || 'Nos',
-              stock: roundQty(seeded + qty),
-              description: '',
-            });
-          }
-        }
-
-        // Rows removed while editing: their stock was added when the bill was
-        // first saved, so take it back out (it used to stay in stock forever).
-        for (const [key, priorQty] of priorQtyByKey) {
-          if (seenPriorKeys.has(key)) continue;
-          const gone = key.startsWith('name:') ? byName.get(key.slice(5)) : byId.get(key);
-          if (!gone) continue;
-          stockDeltaById.set(gone.id, (stockDeltaById.get(gone.id) || 0) - priorQty);
-          if (!productsToUpsert.has(gone.id)) productsToUpsert.set(gone.id, { ...gone, _placeholderId: gone.id });
-        }
-
-        // Apply deltas + write.
-        const upserts = [];
-        for (const [, prod] of productsToUpsert) {
-          if (prod._placeholderId) {
-            const existing = byId.get(prod._placeholderId);
-            const delta = stockDeltaById.get(prod._placeholderId) || 0;
-            // Not clamped at 0: sales may take stock below zero, and clamping
-            // here made a purchase edit and its undo leave different stock
-            // (stock 2, reduce a purchase by 5 -> 0, put it back -> 5).
-            const newStock = roundQty((Number(existing.stock) || 0) + delta);
-            upserts.push(saveProduct({ ...prod, stock: newStock, _placeholderId: undefined }));
-          } else {
-            upserts.push(saveProduct(prod));
-          }
-        }
-        await Promise.all(upserts);
+        if (!plan) throw new Error('no products');
+        await Promise.all(plan.writes.map(p => saveProduct(p)));
         toast(editingId ? 'Purchase updated' : from2b ? 'Purchase added. Back to GSTR-2B.' : 'Purchase added — items synced to Products', 'success');
       } catch (e) {
         console.warn('Products auto-sync from purchase failed (non-fatal):', e);
@@ -995,19 +905,11 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
   // Take a deleted bill's quantities back out of product stock.
   // Matches products the same way saving does: productId, then name.
   const revertPurchaseStock = async (bill) => {
-    const lines = (bill?.items || []).filter(it => it.name && baseQty(it) > 0);
-    if (!lines.length) return;
     const products = await getAllProducts();
-    const byName = new Map(products.map(p => [(p.name || '').trim().toLowerCase(), p]));
-    const byId = new Map(products.map(p => [p.id, p]));
-    const minus = new Map();
-    for (const it of lines) {
-      const prod = (it.productId && byId.get(it.productId)) || byName.get(it.name.trim().toLowerCase());
-      if (prod) minus.set(prod.id, (minus.get(prod.id) || 0) + baseQty(it)); // #148 - 3 boxes take back 36
-    }
-    await Promise.all([...minus].map(([pid, qty]) => {
-      const prod = byId.get(pid);
-      return saveProduct({ ...prod, stock: roundQty((Number(prod.stock) || 0) - qty) });
+    const minus = purchaseStockReversal(products, bill?.items);
+    await Promise.all(Object.entries(minus).map(([pid, qty]) => {
+      const prod = products.find(p => p.id === pid);
+      return saveProduct({ ...prod, stock: roundQty((Number(prod.stock) || 0) + qty) });
     }));
   };
 
@@ -1098,7 +1000,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
     for (const pr of products) {
       const name = (pr.name || '').trim();
       if (!name) continue;
-      seen.set(name.toLowerCase(), {
+      seen.set(productKey(name), {
         name,
         hsn: (pr.hsn || '').trim(),
         // purchasePrice is what we PAY a supplier; `rate`/sellingPrice is
@@ -1115,7 +1017,7 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
       for (const it of (p.items || [])) {
         const name = (it.name || '').trim();
         if (!name) continue;
-        const key = name.toLowerCase();
+        const key = productKey(name);
         if (!seen.has(key)) {
           seen.set(key, {
             name,
@@ -1202,10 +1104,16 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
   };
 
   const updateItemName = (index, value) => {
-    const match = itemHistory.find(i => i.name.toLowerCase() === value.trim().toLowerCase());
+    const match = itemHistory.find(i => productKey(i.name) === productKey(value));
+    // v1.10.86 (#199) - a product's name (or barcode) links the line to it. Any
+    // other name keeps the product already linked (a renamed line is still that
+    // product; the form says so), and a cleared name drops it.
+    const prod = findLineProduct(products, { name: value });
     setForm(prev => {
       const items = [...prev.items];
       const cur = { ...items[index], name: value };
+      if (prod) cur.productId = prod.id;
+      else if (!value.trim()) delete cur.productId;
       // #148 - a new item name starts in its own unit again.
       if (cur.unitFactor) {
         delete cur.unitFactor;
@@ -1306,24 +1214,21 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
 
       {/* v1.10.83 (#112) - Purchase bills | Purchase orders, only when the
           Purchase orders feature is on. */}
-      {/* v1.10.85 (#168) - and Returns, once there is a debit note. */}
-      {(poEnabled || debitNotes.length > 0) && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-          <button className={`btn ${tab === 'bills' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('bills')} aria-pressed={tab === 'bills'}>
-            <ShoppingCart size={16} /> Purchase bills
+      {/* v1.10.85 (#168) - and Returns. v1.10.86 (#213) - always, so a first
+          return can be found: its empty list says how to make one. */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        <button className={`btn ${tab === 'bills' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('bills')} aria-pressed={tab === 'bills'}>
+          <ShoppingCart size={16} /> Purchase bills
+        </button>
+        {poEnabled && (
+          <button className={`btn ${tab === 'orders' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('orders')} aria-pressed={tab === 'orders'}>
+            <ClipboardList size={16} /> Purchase orders
           </button>
-          {poEnabled && (
-            <button className={`btn ${tab === 'orders' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('orders')} aria-pressed={tab === 'orders'}>
-              <ClipboardList size={16} /> Purchase orders
-            </button>
-          )}
-          {debitNotes.length > 0 && (
-            <button className={`btn ${tab === 'returns' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('returns')} aria-pressed={tab === 'returns'}>
-              <RotateCcw size={16} /> Returns ({debitNotes.length})
-            </button>
-          )}
-        </div>
-      )}
+        )}
+        <button className={`btn ${tab === 'returns' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('returns')} aria-pressed={tab === 'returns'}>
+          <RotateCcw size={16} /> Returns{debitNotes.length > 0 ? ` (${debitNotes.length})` : ''}
+        </button>
+      </div>
 
       {statementFor !== null && (
         <SupplierStatement purchases={purchases} debitNotes={debitNotes} profile={ownerProfile}
@@ -1712,10 +1617,28 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                     onKeyDown={e => {
                       if (e.key !== 'Enter' || !isModuleEnabled('barcodes', getEnabledModules())) return;
                       const typed = (item.name || '').trim().toLowerCase();
-                      const hit = !products.some(pr => (pr.name || '').trim().toLowerCase() === typed) && findByBarcode(products, item.name);
+                      const hit = !products.some(pr => productKey(pr.name) === productKey(typed)) && findByBarcode(products, item.name);
                       if (hit) { e.preventDefault(); updateItemName(idx, hit.name); }
                     }}
                     placeholder={itemHistory.length ? 'Type or pick a previous item' : 'Item name'} />
+                  {/* v1.10.86 (#199) - say when saving makes a new product, or which product a renamed line still is. */}
+                  {!isPo && (() => {
+                    const hint = lineProductHint(products, item);
+                    if (!hint) return null;
+                    return (
+                      <div className="not-in-products text-muted" style={{ fontSize: '0.72rem', marginTop: 2 }}>
+                        {hint.kind === 'new' ? 'New product: added to Products when you save. To use one you have, pick it from the list.' : (
+                          <>Stock goes to {hint.product.name}.{' '}
+                            <button type="button" className="link-btn" style={{ fontSize: '0.72rem' }}
+                              onClick={() => setForm(prev => ({ ...prev, items: prev.items.map((x, i) => {
+                                if (i !== idx) return x;
+                                const { productId: _drop, ...rest } = x;
+                                return rest;
+                              }) }))}>Make it a new product</button></>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="form-group" style={{ flex: isPo ? 0.8 : 1, margin: 0 }}>
                   {idx === 0 && <label className="form-label">HSN</label>}
@@ -1735,7 +1658,8 @@ export default function PurchaseBills({ onOpenGstReturns } = {}) {
                 </div>
                 {(() => {
                   // v1.10.85 (#148) - a product with a second unit: pick Pcs or Box.
-                  const altProduct = products.find(pr => hasAltUnit(pr) && (pr.name || '').trim().toLowerCase() === (item.name || '').trim().toLowerCase());
+                  const linked = findLineProduct(products, item); // v1.10.86 (#199)
+                  const altProduct = hasAltUnit(linked) ? linked : null;
                   if (altProduct) {
                     return (
                       <div className="form-group" style={{ flex: 0.8, margin: 0 }}>
