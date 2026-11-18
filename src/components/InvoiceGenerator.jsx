@@ -5649,6 +5649,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                 const said = [
                   filled > 0 && `${filled} order / dispatch detail${filled === 1 ? '' : 's'}`,
                   ccOn && details.costCentreName && `cost centre ${details.costCentreName}`,
+                  details.ecoGstin && 'e-commerce operator GSTIN',
                   invoiceOptions.purposeCode && `purpose code ${invoiceOptions.purposeCode}`,
                   hasAccounts && invoiceOptions.showBankDetails === false && 'bank details not printed',
                   hasAccounts && invoiceOptions.showUPI === false && 'UPI QR not printed',
@@ -5690,6 +5691,27 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                                 value={invoiceOptions.purposeCode || ''}
                                 onChange={(e) => setInvoiceOptions(prev => ({ ...prev, purposeCode: e.target.value.toUpperCase().trim() }))}
                                 placeholder={accountCode ? `${accountCode} (from your bank account)` : 'e.g. P0802 software, P1006 consulting'} />
+                            </div>
+                          );
+                        })()}
+                        {/* v1.10.86 (#209) - the operator (Flipkart, Amazon...) that
+                            collects TCS on this sale: GSTR-1 Table 14. Not printed
+                            on the invoice, so it is not one of ORDER_DETAIL_FIELDS. */}
+                        {['tax-invoice', 'credit-note'].includes(invoiceType) && (profile?.country || 'India') === 'India' && (() => {
+                          const eco = details.ecoGstin || '';
+                          const ok = !eco || decodeGstin(eco)?.checksumOk;
+                          return (
+                            <div className="form-group">
+                              <label className="form-label" htmlFor="eco-gstin" style={{ fontSize: '0.78rem' }}>E-commerce operator GSTIN <HelpButton title="E-commerce operator GSTIN" doc="gst-returns#table-14" size={14} /></label>
+                              <input id="eco-gstin" type="text" className="form-input" maxLength={15} value={eco}
+                                placeholder="Only for a sale through Flipkart, Amazon..."
+                                style={ok ? undefined : { borderColor: '#f59e0b' }}
+                                onChange={e => setDetails({ ...details, ecoGstin: e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '') })} />
+                              {!ok && (
+                                <small style={{ color: '#d97706', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
+                                  ⚠ {eco.length !== 15 ? 'A GSTIN has 15 letters and digits.' : 'This GSTIN fails its own checksum. Check for a typo.'}
+                                </small>
+                              )}
                             </div>
                           );
                         })()}

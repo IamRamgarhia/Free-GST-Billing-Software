@@ -218,6 +218,18 @@ export default [
 <p>Quotations and proforma estimates are not reported. If you changed the number prefix during the period, you see two rows: that is correct.</p>
 </section>
 
+<section id="table-14">
+<h3>Table 14: sales through e-commerce operators</h3>
+<p>Do you sell through Flipkart, Amazon, Meesho or another marketplace that takes TCS from your payouts? Then GSTR-1 Table 14(a) needs the total of those sales, one row per operator GSTIN.</p>
+<ul>
+  <li><b>On the invoice</b>: open <b>More invoice details</b> and fill <b>E-commerce operator GSTIN</b>. Fill it on credit notes for returns too. Leave it blank for your own sales. It is not printed on the invoice.</li>
+  <li><b>Flipkart import</b>: type Flipkart's GSTIN once in ${ui('Settings')} → ${ui('Company')} → <b>GSTR filing details</b> → <b>Flipkart's GSTIN</b>. Every invoice from a Flipkart orders report then gets it by itself. A credit note made by scanning a return label copies it from the invoice.</li>
+  <li><b>Where Flipkart's GSTIN comes from</b>: Flipkart has a separate GSTIN in each state. Use the one for your state, as shown in your Flipkart seller panel or on Flipkart's TCS certificate. You can also check it in GSTR-2B / the TCS credit received on the portal.</li>
+</ul>
+<p>The GSTR-1 tab shows a <b>Table 14</b> card when an invoice in the period names an operator: net taxable value (invoices less credit notes), IGST, CGST, SGST and cess per operator GSTIN. The JSON file carries the same rows. These sales also stay in B2B (Table 4A) and B2C (Table 7) as before: Table 14 is an extra summary, not a move.</p>
+<p>Sales where the operator pays the tax itself (section 9(5), such as restaurant food through Swiggy or Zomato) go in Table 14(b), which the app does not fill. Enter those on the portal.</p>
+</section>
+
 <section id="gstr-1-summary">
 <h3>GSTR-1 Summary Totals</h3>
 <p>The last card adds up the return: a <b>B2B Sales</b> row, a <b>B2C Sales</b> row, and a <b>Grand Total</b>. The Grand Total takes credit notes off, so it can be lower than B2B plus B2C. Exports are not in it (they are in GSTR-3B 3.1(b)).</p>

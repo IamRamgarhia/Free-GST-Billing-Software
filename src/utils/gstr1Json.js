@@ -304,3 +304,32 @@ export const hsnRowValue = (r) => r2(r.txval + r.iamt + r.camt + r.samt + r.csam
 // (v3.1.6+). "Total Value" last or "Rate %" made the importer refuse the file.
 export const HSN_CSV_HEADERS = ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Rate', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount', 'State/UT Tax Amount', 'Cess Amount'];
 export const hsnCsvRow = (r) => [r.hsn_sc, r.desc, r.uqc, r.qty, hsnRowValue(r).toFixed(2), r.rt, r.txval.toFixed(2), r.iamt.toFixed(2), r.camt.toFixed(2), r.samt.toFixed(2), r.csamt.toFixed(2)];
+
+// v1.10.86 (#209) - Table 14(a): supplies made through an e-commerce operator
+// that collects TCS on them (section 52), one row per operator GSTIN
+// (details.ecoGstin on the invoice / credit note). Net of credit notes; taxable
+// lines only (nil-rated / exempt lines carry no TCS). The same invoices stay in
+// B2B / B2C as before: Table 14 is an extra summary, not a move. Rows as India
+// Compliance writes supeco.clttx (sections/supecom.py to_gov): etin, suppval,
+// igst, cgst, sgst, cess. UTGST goes in sgst. Sorted by GSTIN.
+export function ecoSummary(bills) {
+  const map = {};
+  for (const bill of bills || []) {
+    const etin = String(bill.data?.details?.ecoGstin || '').trim().toUpperCase();
+    if (!etin) continue;
+    const isInter = billIsInterstate(bill);
+    const sign = hsnSign(bill);
+    const r = map[etin] || (map[etin] = { etin, suppval: 0, igst: 0, cgst: 0, sgst: 0, cess: 0 });
+    for (const item of bill.data?.items || []) {
+      const treatment = lineTreatment({ invoiceType: bill.invoiceType || 'tax-invoice', isExport: isExportBill(bill), taxPercent: item.taxPercent, gstTreatment: item.gstTreatment });
+      if (treatment !== 'taxable') continue;
+      const s = billSplit(bill, item, isInter, !!bill.data?.taxInclusive, !!bill.data?.totals?.isIntraUT);
+      r.suppval += sign * s.taxable; r.igst += sign * s.igst; r.cgst += sign * s.cgst;
+      r.sgst += sign * (s.sgst + s.utgst); r.cess += sign * s.cess;
+    }
+  }
+  return Object.values(map)
+    .map((r) => ({ etin: r.etin, suppval: r2(r.suppval), igst: r2(r.igst), cgst: r2(r.cgst), sgst: r2(r.sgst), cess: r2(r.cess) }))
+    .filter((r) => r.suppval || r.igst || r.cgst || r.sgst || r.cess) // nets to nothing: nothing to report
+    .sort((a, b) => a.etin.localeCompare(b.etin));
+}
