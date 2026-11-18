@@ -12,15 +12,30 @@ import {
   getProfile, getAllBills, saveBill, getAllProducts, saveProduct, applyStockChanges,
   getAllClients, saveClient, getAllPurchases, savePurchase,
 } from '../store';
-import { belongsToProfile, isCancelledBill, isInterstateSupply, roundQty, localToday } from '../utils';
+import { belongsToProfile, isCancelledBill, isInterstateSupply, roundQty, localToday, gstinChecksumOk } from '../utils';
 import {
   salesCsvToBills, billsToSalesCsv, purchaseCsvToRecords, purchasesToCsv, SALES_TEMPLATE, PURCHASE_TEMPLATE, receivedByInvoice,
-  newProductsFromBills,
+  newProductsFromBills, marketplaceOrdersTable,
 } from '../utils/bulkCsv';
 import { fileToSheets, bestSheet } from '../utils/importFile';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import { BarButton } from './PageHeader';
+
+// v1.10.86 (#209) - a Flipkart orders report: each invoice gets Flipkart's
+// GSTIN (Settings → Company → GSTR filing details) as its e-commerce operator,
+// so the sales fill GSTR-1 Table 14. Without a valid one, a note says where to add it.
+const withFlipkartGstin = (res, gstin) => {
+  if (!gstinChecksumOk(gstin)) {
+    return { ...res, warnings: [...(res.warnings || []), "Add Flipkart's GSTIN in Settings → Company (GSTR filing details), then import, so these sales also fill GSTR-1 Table 14."] };
+  }
+  const ecoGstin = String(gstin).trim().toUpperCase();
+  return {
+    ...res,
+    bills: res.bills.map((b) => ({ ...b, data: { ...b.data, details: { ...(b.data?.details || {}), ecoGstin } } })),
+    warnings: [...(res.warnings || []), `Flipkart's GSTIN ${ecoGstin} goes on each invoice as the e-commerce operator (GSTR-1 Table 14).`],
+  };
+};
 
 const download = (text, name) => {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8;' }));
@@ -47,10 +62,13 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
     if (sales) {
       const [bills, products, clients] = await Promise.all([getAllBills(), getAllProducts().catch(() => []), getAllClients().catch(() => [])]);
       const existingIds = new Set(bills.map((b) => b.id));
-      convert = (i) => salesCsvToBills(sheets[i].rows, {
-        profile, products, clients, adjustStock: stock, existingIds,
-        received: sheets.filter((_, j) => j !== i).map((s) => receivedByInvoice(s.rows)).find((m) => m.size) || null,
-      });
+      convert = (i) => {
+        const res = salesCsvToBills(sheets[i].rows, {
+          profile, products, clients, adjustStock: stock, existingIds,
+          received: sheets.filter((_, j) => j !== i).map((s) => receivedByInvoice(s.rows)).find((m) => m.size) || null,
+        });
+        return marketplaceOrdersTable(sheets[i].rows) ? withFlipkartGstin(res, profile.flipkartGstin) : res;
+      };
     } else {
       const existing = (await getAllPurchases()).filter((p) => belongsToProfile(p, profile));
       convert = (i) => purchaseCsvToRecords(sheets[i].rows, { profile, existing, inferInterstate: (g) => isInterstateSupply(g, profile) });

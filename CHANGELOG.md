@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matching, Owed to suppliers, TDS and the products' purchase price use the
   value after it, and a return takes its part back. It cannot change once
   goods on the bill have gone back on a debit note.
+- **GSTR-1 Table 14: sales through Flipkart, Amazon and other e-commerce
+  operators** (#209): a new **E-commerce operator GSTIN** box under **More
+  invoice details** (not printed). The GSTR-1 tab adds up these sales per
+  operator, less credit notes, and the JSON file carries them for Table 14;
+  they also stay in B2B and B2C. Type **Flipkart's GSTIN** once in Settings ->
+  Company (GSTR filing details) and the Flipkart orders import fills the box on
+  every invoice; a credit note made by scanning a return label keeps it.
 - **MRP on products and on the invoice** (#189, #192): an optional MRP on
   each product (form, list, CSV / Excel import and export). It comes onto the
   invoice line when you pick the product, and you can change it there; on a

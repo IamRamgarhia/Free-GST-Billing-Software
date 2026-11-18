@@ -46,6 +46,8 @@ const draft = creditNoteDraft({ ...a, status: 'paid', payments: [{ amount: 210 }
 ok(draft.invoiceType === 'credit-note' && draft.data.invoiceType === 'credit-note', 'type is credit note');
 ok(draft.data.details.originalInvoiceRef === 'FKTEST0001', 'original invoice referenced');
 ok(draft.data.details.buyerOrderNo === 'OD100001' && draft.data.details.dispatchDocNo === 'FMPC0000001', 'order ID and AWB kept');
+// v1.10.86 (#209) - and the e-commerce operator, so the return nets off in GSTR-1 Table 14.
+ok(creditNoteDraft(inv('FKTEST0009', 'OD9', 'AWB9', { details: { ecoGstin: '29ABCDE1234F1C7' } })).data.details.ecoGstin === '29ABCDE1234F1C7', 'e-commerce operator GSTIN kept');
 ok(draft.data.client?.name === 'Asha Test' && draft.data.client.state === 'Maharashtra', 'client kept as on the invoice');
 ok(draft.data.items[0].quantity === 2 && draft.data.items[0].rate === 105 && draft.data.items[0].taxPercent === 5, 'items, quantities, rates, GST kept');
 ok(!('stockApplied' in draft.data), 'no stock record carried over');

@@ -3,8 +3,8 @@ import { FileText, Download, Upload, ExternalLink, CheckCircle, ChevronDown, Che
 import { getAllBills, getAllExpenses, getAllPurchases, getProfile, getEnabledModules, getAllDebitNotes } from '../store';
 import { purchaseReturnsTax, netItc, rcmInward, splitRcmItc } from '../utils/debitNotes';
 import { purchaseLineTax } from '../utils/purchaseOrders';
-import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, mergeHsnRows, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign } from '../utils/gstr1Json';
-import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled } from '../utils';
+import { hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSplitFrom, hsnSummary, mergeHsnRows, hsnRowValue, hsnCsvRow, HSN_CSV_HEADERS, billIsInterstate, billSplit, isExportBill, hsnSign, ecoSummary } from '../utils/gstr1Json';
+import { formatCurrency, INVOICE_TYPES, getStateCode, formatDateGST, getFilingPeriod, getFYOptions, belongsToProfile, toCsvLine, isCancelledBill, b2clThreshold, GST_PORTAL_RATES, setOffITC, placeOfSupplyLabel, countsAsSales, parseLocalDate, isModuleEnabled, gstinChecksumOk } from '../utils';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import PageHeader, { BarButton } from './PageHeader';
@@ -811,6 +811,9 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
   const hsnRows = hsnSum.rows;
   const hsnB2B = hsnRows.filter((r) => r.b2b);
   const hsnB2C = hsnRows.filter((r) => !r.b2b);
+  // v1.10.86 (#209) - Table 14(a), one row per e-commerce operator GSTIN, for
+  // the screen and the JSON (supeco.clttx).
+  const ecoRows = ecoSummary(filteredBills);
 
   // ========== Totals ==========
   // v1.10.31 — GST-C3: sumRows now carries cess. GST-H2: credit notes
@@ -1274,6 +1277,9 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
     if (noRate.length > 0) {
       blocked.push(`${noRate.length} invoice(s) in a foreign currency have no exchange rate (${noRate.slice(0, 3).map(b => b.invoiceNumber).join(', ')}). Open each: if the amounts are really in rupees, set the currency to INR; otherwise enter the exchange rate.`);
     }
+    // v1.10.86 (#209) - a mistyped operator GSTIN in Table 14 is refused.
+    const badEco = bills.filter(b => b.data?.details?.ecoGstin && !gstinChecksumOk(b.data.details.ecoGstin));
+    if (badEco.length > 0) blocked.push(`${badEco.length} invoice(s) have a wrong E-commerce operator GSTIN (${badEco.slice(0, 3).map(b => b.invoiceNumber).join(', ')}). Open each and fix it under More invoice details.`);
     const badInums = bills.filter(b => !INUM_REGEX.test(b.invoiceNumber || ''));
     if (badInums.length > 0) {
       blocked.push(`${badInums.length} invoice number(s) violate portal rules (≤16 chars, only letters, digits, "-" or "/"). First: ${badInums.slice(0, 3).map(b => b.invoiceNumber).join(', ')}`);
@@ -1505,6 +1511,8 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
       nil: nilTable(nilRows),
       hsn: hsnTable(hsnRows, fp),
       doc_issue: { doc_det: docDet },
+      // v1.10.86 (#209) - Table 14(a); left out when no invoice names an operator.
+      supeco: { clttx: ecoRows },
     });
 
     const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
@@ -1895,6 +1903,38 @@ export default function GSTReturns({ onOpenPurchases } = {}) {
               </div>
             )}
           </div>
+
+          {/* v1.10.86 (#209) - Table 14(a): sales through Flipkart, Amazon and
+              other operators that collect TCS, net of credit notes. Shown only
+              when an invoice in the period names an operator. */}
+          {ecoRows.length > 0 && (
+            <div className="glass-panel mb-4">
+              <div className="table-header">
+                <h3>Table 14: supplies through e-commerce operators<HelpButton title="Table 14" doc="gst-returns#table-14" size={16} /></h3>
+                <span className="text-muted" style={{ fontSize: '0.82rem' }}>{ecoRows.length} operator{ecoRows.length !== 1 ? 's' : ''}</span>
+              </div>
+              <p className="text-muted" style={{ padding: '0 1.25rem', margin: '0 0 0.5rem', fontSize: '0.8rem' }}>
+                Invoices less credit notes, per operator. These sales also stay in B2B and B2C above.
+              </p>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead><tr><th>Operator GSTIN</th><th style={{ textAlign: 'right' }}>Net taxable value</th><th style={{ textAlign: 'right' }}>IGST</th><th style={{ textAlign: 'right' }}>CGST</th><th style={{ textAlign: 'right' }}>SGST</th><th style={{ textAlign: 'right' }}>Cess</th></tr></thead>
+                  <tbody>
+                    {ecoRows.map(r => (
+                      <tr key={r.etin}>
+                        <td className="font-medium">{r.etin}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.suppval)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.igst)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.cgst)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.sgst)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(r.cess)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Grand Summary */}
           <div className="glass-panel">

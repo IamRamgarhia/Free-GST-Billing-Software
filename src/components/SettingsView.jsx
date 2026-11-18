@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getProfile, saveProfile, exportAllData, importData, inspectBackup, getTermsTemplates, saveTermsTemplate, deleteTermsTemplate, getAllProfiles, saveBusinessProfile, deleteBusinessProfile, getRegionMode, setRegionMode, getStockAlertSettings, saveStockAlertSettings, renameNumberSeries, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getCostCentres, saveCostCentres, setCompanyHidePin, keepOpened, hideCompaniesAgain } from '../store';
 import { ensureToken, findOrCreateFolder, uploadJSON } from '../services/googleDrive';
-import { getCountryConfig, getStatesForCountry, validateTaxId, gstinFill, getCountriesForRegion, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId, findSameBusiness, businessKeyOf, localToday } from '../utils';
+import { getCountryConfig, getStatesForCountry, validateTaxId, gstinFill, getCountriesForRegion, isModuleEnabled, getPaymentAccounts, createEmptyAccount, maskAccountNumber, reorderAccounts, setDefaultAccount, isValidUpiId, findSameBusiness, businessKeyOf, localToday, decodeGstin } from '../utils';
 import { normaliseLutArn, isLikelyLutArn, lutFyOptions, fyOf } from '../utils/lut';
 // v1.10.36 — lucide's `Image` icon was imported as `Image`, which
 // SHADOWED the browser's `HTMLImageElement` constructor. Reported:
@@ -1184,6 +1184,17 @@ export default function SettingsView({ onSaved }) {
                   </p>
                   {/* v1.10.83 (#133) - the turnover boxes (JSON gt / cur_gt) are
                       gone: those fields were only for 2017-18 returns. */}
+                  {/* v1.10.86 (#209) - the Flipkart import puts this on each
+                      invoice it makes (E-commerce operator GSTIN, Table 14). */}
+                  <label className="form-label" htmlFor="flipkart-gstin" style={{ fontSize: '0.72rem' }}>Flipkart's GSTIN (for GSTR-1 Table 14) <HelpButton title="Flipkart's GSTIN" doc="gst-returns#table-14" size={14} /></label>
+                  <input id="flipkart-gstin" type="text" className="form-input" maxLength={15} style={{ maxWidth: 260, ...(profile.flipkartGstin && !decodeGstin(profile.flipkartGstin)?.checksumOk ? { borderColor: '#f59e0b' } : {}) }}
+                    value={profile.flipkartGstin || ''}
+                    onChange={(e) => setProfile(p => ({ ...p, flipkartGstin: e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '') }))}
+                    placeholder="From your Flipkart seller panel" />
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>
+                    Only if you sell on Flipkart. Type the GSTIN shown in your Flipkart seller panel or TCS certificate for your state.
+                    {profile.flipkartGstin && !decodeGstin(profile.flipkartGstin)?.checksumOk && <span style={{ color: '#d97706' }}> ⚠ This is not a valid GSTIN. Check for a typo.</span>}
+                  </p>
                 </div>
               )}
               {/* v1.10.83 - LUT for exports / SEZ supplies (form GST RFD-11),

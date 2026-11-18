@@ -1,6 +1,6 @@
 // v1.10.83 (#133) - GSTR-1 JSON parts the GST portal is strict about.
 // Run: `node scripts/gstr1-json-test.mjs`
-import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSummary, hsnIsB2B, isExportBill, hsnCsvRow, HSN_CSV_HEADERS, mergeHsnRows } from '../src/utils/gstr1Json.js';
+import { hsnSplitFrom, hsnTable, stripEmpty, lineTreatment, nilTable, expTable, exportNote, b2bInvType, docIssueSummary, docIssueDetails, cleanGstin, gstinFormatOk, hsnSummary, hsnIsB2B, isExportBill, hsnCsvRow, HSN_CSV_HEADERS, mergeHsnRows, ecoSummary } from '../src/utils/gstr1Json.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -156,6 +156,40 @@ console.log('\n[#166 review] Before May 2025 Table 12 is one list: B2B and B2C r
   eq([old.data.length, old.data[0].txval, old.data.map((r) => r.num)], [2, 1250, [1, 2]], 'the JSON of an April 2025 return has the merged rows, numbered');
   const split = hsnTable(rows, '052025');
   eq(split.hsn_b2b.length + split.hsn_b2c.length, 3, 'from May 2025 the two lists stay apart');
+}
+
+console.log('\n[#209] Table 14: supplies through e-commerce operators (supeco.clttx)');
+{
+  const profile = { state: 'Karnataka', country: 'India' };
+  const FK = '29ABCDE1234F1C7', AMZ = '07ABCDE1234F1CD';
+  const bill = (invoiceNumber, client, items, extra = {}) => ({
+    invoiceNumber, invoiceType: 'tax-invoice', ...extra,
+    data: { profile, client, details: { placeOfSupply: client.state, ...(extra.ecoGstin ? { ecoGstin: extra.ecoGstin } : {}) }, items,
+      totals: { isInterstate: client.state !== 'Karnataka' } },
+  });
+  const walkIn = { name: 'Walk-in', state: 'Karnataka', country: 'India' };
+  const away = { name: 'Asha Test', state: 'Maharashtra', country: 'India' };
+  const reg = { name: 'DiceCodes Traders', gstin: '29ABCDE1234F1ZW', state: 'Karnataka', country: 'India' };
+  const tiffin = (quantity) => ({ name: 'Steel Tiffin', hsn: '7323', unit: 'Pcs', quantity, rate: 100, taxPercent: 18 });
+  const bills = [
+    bill('FK/1', walkIn, [tiffin(10)], { ecoGstin: FK }),
+    bill('FK/2', away, [tiffin(5), { name: 'Rice', hsn: '1006', unit: 'Kg', quantity: 4, rate: 50, taxPercent: 0 }], { ecoGstin: FK }),
+    bill('FK/3', reg, [tiffin(2)], { ecoGstin: FK }),
+    bill('CN/1', walkIn, [tiffin(1)], { ecoGstin: FK, invoiceType: 'credit-note' }),
+    bill('AM/1', away, [tiffin(3)], { ecoGstin: AMZ.toLowerCase() }),
+    bill('OWN/1', walkIn, [tiffin(7)]),
+  ];
+  const rows = ecoSummary(bills);
+  eq(rows.map((r) => r.etin), [AMZ, FK], 'one row per operator GSTIN, upper-case, sorted; own sales left out');
+  eq(rows[1], { etin: FK, suppval: 1600, igst: 90, cgst: 99, sgst: 99, cess: 0 },
+    'Flipkart: 1000 + 500 + 200 (B2B too) less the 100 credit note; the 0% rice line left out; IGST for the inter-state sale');
+  eq(rows[0], { etin: AMZ, suppval: 300, igst: 54, cgst: 0, sgst: 0, cess: 0 }, 'Amazon on its own row');
+  eq(ecoSummary([bills[0], { ...bills[3], data: { ...bills[3].data, items: [tiffin(10)] } }]), [], 'an operator whose sales are all returned: no row');
+  eq(ecoSummary([bills[5]]), [], 'no invoice names an operator: no rows');
+  const file = (eco) => stripEmpty({ gstin: '29ABCDE1234F1ZW', fp: '102026', b2b: [{ ctin: reg.gstin, inv: [{ inum: 'FK/3' }] }], supeco: { clttx: eco } });
+  eq(Object.keys(file(ecoSummary([bills[5]]))), ['gstin', 'fp', 'b2b'], 'no e-commerce sales: no supeco key at all (file unchanged)');
+  eq(file(rows).supeco, { clttx: rows }, 'with e-commerce sales: supeco.clttx holds the rows');
+  eq(file(rows).b2b[0].inv[0].inum, 'FK/3', 'the B2B e-commerce invoice is still in b2b');
 }
 
 console.log('\n────────────────────────────────────────');
