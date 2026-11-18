@@ -107,7 +107,8 @@
     "docs:zip": "node scripts/build-docs-zip.mjs",
     "help:index": "node scripts/build-help-index.mjs",
     "verify:release": "node scripts/verify-release.mjs",
-    "test:design": "node tests/design-check.mjs"
+    "test:design": "node tests/design-check.mjs",
+    "test:upgrade": "node scripts/upgrade-check.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
