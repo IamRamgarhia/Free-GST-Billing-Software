@@ -194,6 +194,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the guide covers Docker Desktop on Windows and Mac.
 - **No error reports from the developer server** (#204): its live-reload
   connection is not a problem in the app.
+- **Purchases no longer make duplicate products** (#199): each line on a bill
+  remembers the product it is, so renaming a line while editing a bill, an
+  extra space in a name, or a name from GSTR-2B or a photo no longer makes a
+  second product. A name with no product is matched by its barcode before a
+  new product is made, and the line says "New product" so you can pick the
+  one you have instead. Stock on edit, delete and returns follows the same
+  product. Old bills still match by name.
+- **Importing a file that gives nothing now says why** (#213): a Flipkart
+  report whose orders have no invoice number yet, a file where every invoice
+  is cancelled, another marketplace's orders file (use the Template), or a
+  cell with an unclosed quote. A purchase file with negative quantities says
+  to record returns with Return to supplier on the bill.
+- **The Returns tab is always on Purchases** (#213): with no returns yet, it
+  says how to make one (a purchase bill's ⋯ menu, Return to supplier).
 - **Update Now on the ZIP copy no longer stays on "Updating..." for ever**
   (ERR-089): the update finishes and the app restarts on the new version.
   Restore no longer hangs the same way.

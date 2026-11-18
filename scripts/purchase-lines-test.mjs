@@ -15,7 +15,8 @@ import { purchaseBalance, purchaseStatus, markPurchasePaid, validatePurchasePaym
 import { supplierOutstanding, periodMonths } from '../src/utils/partyOutstanding.js';
 import { releaseChallansPlan, reabsorbChallansPlan, orderStatus } from '../src/utils/salesOrders.js';
 import { ownPrefixProblem, prefixClashWarning, belongsToProfile } from '../src/utils.js';
-import { purchaseCsvToRecords } from '../src/utils/bulkCsv.js';
+import { purchaseCsvToRecords, salesCsvToBills, emptyImportMessage } from '../src/utils/bulkCsv.js';
+import { productKey, findLineProduct, purchaseStockPlan, purchaseStockReversal, lineProductHint } from '../src/utils/purchaseStock.js';
 
 let passed = 0, failed = 0;
 function eq(actual, expected, label) {
@@ -205,6 +206,69 @@ console.log('\n[v1.10.86] Discount on the whole purchase bill (before GST)');
   eq(/cannot change/.test(editProblem(dbd, dbd.items, [dn], { value: 10, type: 'fixed' })), true, '...or ₹ in place of %');
   eq(editProblem(dbd, dbd.items, [], { value: 5, type: 'percent' }), '', 'No returns: free to change');
   eq(editProblem(db, db.items, [dnOf(db, { 0: 1 })], { value: 0, type: 'percent' }), '', 'No discount before or after: fine');
+}
+
+console.log('\n[#199] One product per item from Purchases');
+{
+  let n = 0;
+  const newId = () => `prod_new${++n}`;
+  const pen = { id: 'p_pen', name: 'Blue Pen', stock: 10, purchasePrice: 5, barcode: '8901234567890' };
+  const paper = { id: 'p_paper', name: 'A4 Paper', stock: 0 };
+  const products = [pen, paper];
+  const stockOf = (plan, id) => plan.writes.find((p) => p.id === id)?.stock;
+  eq(productKey('  Blue   Pen '), 'blue pen', 'Name key: trimmed, inner spaces collapsed, lower case');
+  eq(findLineProduct(products, { name: 'blue  pen' })?.id, 'p_pen', 'Extra inner spaces still find the product');
+  eq(findLineProduct(products, { name: '8901234567890' })?.id, 'p_pen', 'A barcode typed as the name finds the product');
+  eq(findLineProduct(products, { name: 'Pen (blue)', barcode: '8901234567890' })?.id, 'p_pen', "The line's own barcode finds the product");
+  eq(findLineProduct(products, { name: 'Renamed', productId: 'p_pen' })?.id, 'p_pen', 'productId wins over the name');
+  eq(findLineProduct(products, { name: 'blue pen', productId: 'gone' })?.id, 'p_pen', 'A deleted product id falls back to the name');
+
+  const add = purchaseStockPlan(products, [{ name: 'Blue  Pen', quantity: 5, rate: 6 }, { name: 'Gel Pen', quantity: 3, rate: 10 }, { name: 'gel pen', quantity: 2, rate: 10 }], [], newId);
+  eq(add.items.map((i) => i.productId), ['p_pen', 'prod_new1', 'prod_new1'], 'New bill: each line keeps its productId (two lines of a new item share one)');
+  eq([stockOf(add, 'p_pen'), stockOf(add, 'prod_new1'), add.writes.length], [15, 5, 2], 'Stock: Blue Pen +5, one new Gel Pen with 5, no duplicate');
+  eq(add.writes.find((p) => p.id === 'p_pen').purchasePrice, 6, 'Latest cost on the existing product');
+  eq(purchaseStockPlan(products, [{ name: 'DiceCodes Pen', barcode: '8901234567890', quantity: 1, rate: 5 }], [], newId).writes.map((p) => p.id), ['p_pen'], 'Same barcode: linked, no new product');
+  eq(purchaseStockPlan(products, [{ name: 'Blue Pen (from GSTR-2B)', quantity: 1, rate: 5 }], [], newId).writes.length, 0, 'A GSTR-2B placeholder line moves no stock');
+
+  // Editing: the line renamed but still the same product (productId kept).
+  const saved = add.items;
+  const afterAdd = products.map((p) => (p.id === 'p_pen' ? { ...p, stock: 15 } : p)).concat({ id: 'prod_new1', name: 'Gel Pen', stock: 5 });
+  const renamed = purchaseStockPlan(afterAdd, [{ ...saved[0], name: 'Blue Pen 0.7mm', quantity: 7 }], [saved[0]], newId);
+  eq([renamed.items[0].productId, stockOf(renamed, 'p_pen'), renamed.writes.length], ['p_pen', 17, 1], 'Rename + qty 5 -> 7: same product, stock +2, no new product');
+  const moved = purchaseStockPlan(afterAdd, [{ name: 'A4 Paper', quantity: 5, rate: 200 }], [saved[0]], newId);
+  eq([stockOf(moved, 'p_pen'), stockOf(moved, 'p_paper')], [10, 5], 'Line changed to another product: the old one gives back 5, the new one gets 5');
+  const removed = purchaseStockPlan(afterAdd, [], [saved[0]], newId);
+  eq(stockOf(removed, 'p_pen'), 10, 'Line removed: its stock comes back out');
+  const oldBill = [{ name: 'blue pen', quantity: 4, rate: 5 }];
+  eq(stockOf(purchaseStockPlan(products, [{ name: 'Blue Pen', quantity: 6, rate: 5 }], oldBill, newId), 'p_pen'), 12, 'Old bill (no productId) edited: matched by name, stock +2');
+  eq(purchaseStockReversal(afterAdd, saved), { p_pen: -5, prod_new1: -5 }, 'Deleting the bill takes each product back out by productId');
+  eq(purchaseStockReversal(products, oldBill), { p_pen: -4 }, '...and an old bill by name');
+
+  eq(lineProductHint(products, { name: 'Notebook' }), { kind: 'new' }, 'Form hint: a name with no product is a new product');
+  eq(lineProductHint(products, { name: 'blue pen' }), null, '...no hint for a product name');
+  eq(lineProductHint(products, { name: 'Blue Pen 0.7', productId: 'p_pen' })?.product?.id, 'p_pen', '...a renamed line says which product it still is');
+  eq(lineProductHint(products, { name: '' }), null, '...nothing for an empty line');
+
+  const dn = dnOf({ ...bill, items: [{ ...bill.items[0], name: 'A4  paper', productId: 'p_paper' }] }, { 0: 2 });
+  eq(dn.items[0].productId, 'p_paper', 'A return to supplier carries the productId');
+  eq(debitNoteStock(dn, [{ ...paper, name: 'Renamed paper' }]), { p_paper: -2 }, '...and takes stock from that product even after a rename');
+}
+
+console.log('\n[#213] Import says why nothing was imported');
+{
+  const flipkartHead = 'Order Id,FSN,Tracking ID,Invoice No.,Product,Quantity,Invoice Amount\nOD1,FSN1,TRK1,,DiceCodes Pen,1,100\n';
+  eq(/Flipkart orders file, but none of its orders has an invoice number/.test(salesCsvToBills(flipkartHead).errors[0]), true, 'Flipkart file with no invoice numbers: says so');
+  const cancelled = 'Invoice Number,Invoice Date,Invoice Type,Client Name,Item Name,Quantity,Rate\nA1,2026-11-01,Sale[Cancelled],DiceCodes,Pen,1,10\n';
+  eq(salesCsvToBills(cancelled).errors, ['All the invoices in the file are cancelled, so there is nothing to import.'], 'Every row cancelled: says so');
+  const meesho = 'Reason for Credit Entry,Sub Order No,Order Date,SKU,Quantity\nDELIVERED,123_1,2026-11-01,PEN-1,1\n';
+  const m = salesCsvToBills(meesho).errors;
+  eq([m.length, /marketplace orders file \(Sub Order No, SKU\).*Template/.test(m[0])], [1, true], 'Meesho-like file: one message naming its columns and the Template');
+  eq(/marketplace orders file/.test(purchaseCsvToRecords(meesho).errors[0]), true, '...same on the purchase import');
+  const quoted = 'Invoice Number,Invoice Date,Client Name,Item Name\n"A1,2026-11-01,DiceCodes,Pen\nA2,2026-11-02,DiceCodes,Ink\n';
+  eq(/opening quote/.test(salesCsvToBills(quoted).errors[0]), true, 'An unclosed quote swallowing the file: says to save it again from Excel');
+  eq(emptyImportMessage('Invoice Number,Item Name\n'), 'The file has no rows under the header.', 'Only a header: the plain message');
+  const neg = 'Invoice Number,Invoice Date,Supplier Name,Item Name,Quantity,Rate\nS1,2026-11-01,DiceCodes Paper Mart,A4 Paper,-2,250\n';
+  eq(/returns \(negative quantities\) are not imported.*Return to supplier/.test(purchaseCsvToRecords(neg).errors[0]), true, 'A negative purchase quantity: says to use Return to supplier');
 }
 
 console.log(`\npurchase-lines-test: ${passed} passed, ${failed} failed`);

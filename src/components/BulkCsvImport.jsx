@@ -18,6 +18,7 @@ import {
   newProductsFromBills, marketplaceOrdersTable,
 } from '../utils/bulkCsv';
 import { fileToSheets, bestSheet } from '../utils/importFile';
+import { productKey } from '../utils/purchaseStock';
 import { toast } from './Toast';
 import HelpButton from './HelpButton';
 import { BarButton } from './PageHeader';
@@ -151,7 +152,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
         // As when a bill is typed in: quantities go into product stock, and a
         // new item becomes a product (Purchases > save does the same).
         const products = await getAllProducts().catch(() => []);
-        const byName = new Map(products.map((p) => [String(p.name || '').trim().toLowerCase(), { ...p }]));
+        const byName = new Map(products.map((p) => [productKey(p.name), { ...p }])); // v1.10.86 (#199) - inner spaces ignored too
         const touched = new Set();
         // As for sales: the bills saved so far get their stock even if a later
         // one fails.
@@ -160,7 +161,7 @@ export default function BulkCsvImport({ kind = 'sales', onDone }) {
             await savePurchase(purchase);
             saved += 1;
             for (const it of purchase.items) {
-              const key = it.name.trim().toLowerCase();
+              const key = productKey(it.name);
               const prev = byName.get(key) || { name: it.name.trim(), hsn: it.hsn, sellingPrice: it.rate, rate: it.rate, taxPercent: it.taxPercent, cessPercent: it.cessPercent, unit: 'Nos', stock: 0, description: '' };
               byName.set(key, { ...prev, stock: roundQty((Number(prev.stock) || 0) + it.quantity), purchasePrice: it.rate });
               touched.add(key);
