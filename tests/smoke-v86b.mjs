@@ -95,6 +95,9 @@ export async function runV86bChecks({ page, check, sleep }) {
   await guarded('v86 #202 a payment recorded on the Dashboard gets an RCP-series receipt number', async () => {
     await post('/api/bills', bill('smoketest-rcp-bill', 'SMK-RCP-202', 'Smoke Receipt Client'));
     await reopenView('Dashboard');
+    // The Dashboard remembers its filters: an earlier step's filter must not hide this bill.
+    const showAll = page.getByTestId('filters-bar').getByRole('button', { name: 'Show all' });
+    if (await showAll.count()) { await showAll.click(); await sleep(400); }
     await page.getByRole('button', { name: 'Payment for SMK-RCP-202' }).first().click();
     await sleep(800);
     const modal = page.locator('.modal-content').filter({ hasText: 'Record Payment' });

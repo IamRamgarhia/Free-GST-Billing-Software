@@ -168,7 +168,13 @@ export default function ReceiptVoucher() {
       // to" banner, never as a side effect of fixing a typo while some other
       // business happens to be selected.
       const existing = editingId ? receipts.find(r => r.id === editingId) : null;
+      // v1.10.86 - an edit keeps the fields the form does not show (billId,
+      // source, currency and the foreign-payment fields a Dashboard payment
+      // stored); the bill link goes only when the invoice was changed here.
+      const kept = existing ? { ...existing } : {};
+      if (existing && (existing.againstInvoice || '') !== (form.againstInvoice || '')) delete kept.billId;
       const receipt = {
+        ...kept,
         ...form,
         receiptNo,
         amount: parseFloat(form.amount),
