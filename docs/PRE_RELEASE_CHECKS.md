@@ -55,6 +55,14 @@ npm run test:design
 - [ ] A spacing failure is fixed in the app (src/index.css), never by loosening the check. Each one names the screen, the elements and the gap, with a screenshot that outlines them in red.
 - [ ] A "changed" failure: open its `-diff.png` (red = what changed). Only when the change was **intended** (this week's work), run `npm run test:design -- --update` and commit the new pictures with the fix. An unexpected change is a bug.
 
+Then the update check (about 3 minutes; it makes books with the last release's code and opens them with this one, on ports 47410 / 47411 in a temp folder, never yours):
+
+```
+npm run test:upgrade
+```
+
+- [ ] It must end with every line PASS. It catches a release that loses, rewrites or miscounts records made by the version users have now (totals, payments, balances, ledgers, stock, GSTR-1). Before running, check that the tag of the **last release** is the one it exports (`OLD_TAG` in `scripts/upgrade-check.mjs`, now v1.10.85), and move it on after each release.
+
 ## 4. Test on real systems (the script cannot do these)
 
 - [ ] **Docker, fresh Ubuntu install** of the exact ZIP + the smoke suite: `npm run test:fresh-linux` (Playwright image; it unpacks the ZIP, starts the app with its own Linux start script and runs tests/smoke.mjs).
