@@ -132,6 +132,9 @@ const goods = QUICK_TERMS.find((q) => q.name.startsWith('Goods'));
 eq(defaultTermsFor([seeded], 'retail_shop'), { id: 'default', name: goods.name, content: goods.content }, 'kirana: the agency wording becomes the goods terms');
 eq(termsForType('freelancer').name, 'Freelancer (Simple)', 'freelancer: the freelancer terms');
 eq(termsForType('everything'), null, 'everything: no terms of its own');
+// v1.10.86 - a restaurant and a repair shop have their own terms.
+eq([termsForType('restaurant').name, termsForType('service').name], ['Restaurant / Cafe', 'Service / Repair Shop'], 'restaurant and repair shop: their own terms');
+eq(/No refund on food/.test(termsForType('restaurant').content) && /Warranty on repair work/.test(termsForType('service').content), true, '...with their own wording');
 for (const t of BUSINESS_TYPES) if (t.id !== 'everything') eq(!!termsForType(t.id), true, `${t.id}: has matching terms`);
 eq(defaultTermsFor([{ ...seeded, content: STANDARD_TERMS + ' Edited.' }], 'retail_shop'), null, 'edited terms are never replaced');
 eq(defaultTermsFor([{ ...seeded, name: 'My terms' }], 'retail_shop'), null, 'renamed terms are never replaced');

@@ -109,21 +109,16 @@ export function BackupFiles({ status }) {
           <p className="page-subtitle mb-4">Your whole data folder as one ZIP, to keep on a pen drive or carry to a new computer.</p>
           <div className="app-actions-grid">
             <ActionCard icon={<Download size={22} />} title="Backup Data" doc="backup#backup"
-              body="Zips your data folder into Documents/FreeGSTBill Backups, with the date and time."
+              body="Zips your data folder into Documents/FreeGSTBill Backups, with the date and time. New computer? Copy that ZIP to it, install the app there, then Restore Backup."
               buttonLabel={label('backup', 'Create Backup', 'Backing up…')}
               disabled={!!busy || !can('backup')} onClick={() => runAction('backup')} />
             <ActionCard icon={<Upload size={22} />} title="Restore Backup" doc="backup#restore"
               body="Pick a backup ZIP. Your data as it is now is saved first, as a safety net."
               buttonLabel={label('restore', 'Choose Backup ZIP', 'Restoring…')}
               disabled={!!busy || !can('restore')} onClick={() => launchScript('restore')} />
-            {/* v1.10.84 (maintainer, 7 Nov) - not in the Windows Setup's app: it
-                 only said "Not available here" there; Backup + Restore move PCs. */}
-            {!status?.installed && (
-              <ActionCard icon={<Package size={22} />} title="Move to Another PC" doc="backup#move"
-                body="Your data and settings as one ZIP on your Desktop. Copy it to the new PC, install the app, then Restore."
-                buttonLabel={label('move', 'Export for Move', 'Exporting…')}
-                disabled={!!busy || !can('move')} onClick={() => launchScript('move')} />
-            )}
+            {/* v1.10.86 (maintainer, 19 Nov) - "Move to Another PC" folded into
+                 Create Backup: the same ZIP moves the books (Backup, then Restore
+                 on the new PC). The launcher keeps its own Move option. */}
             <ActionCard icon={<FolderOpen size={22} />} title="Open Data Folder" doc="backup#where-data-lives"
               body="The folder where your bills, clients, products and settings are kept."
               buttonLabel="Open" disabled={!!busy} onClick={() => runAction('open-data-folder')} />

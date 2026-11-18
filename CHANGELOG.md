@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - planned for Saturday 21 November 2026 (v1.10.86)
 
 ### Added
+- **Terms for a restaurant and a repair shop**: choosing Restaurant / cafe or
+  Service / repair shop as the business type starts new invoices with short
+  terms of their own (no refund once served; repair warranty, uncollected items),
+  and both are in Settings → Terms templates → Quick Start.
 - **Hide or show the preview with Ctrl+Shift+F** on New Invoice (#211), like
   the Hide Preview button; it is remembered and listed under Keyboard shortcuts.
 - **Discount on the whole purchase bill** (thanks @npadhya, #196): under the
@@ -131,6 +135,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (once Microsoft has listed it).
 
 ### Changed
+- **One backup button**: Settings → Data & Backups no longer has a separate
+  Move to Another PC card. Create Backup makes the same ZIP: copy it to the new
+  computer and use Restore Backup there. The launcher keeps its Move option.
+- **The Dashboard says when the list is filtered**: the filters are remembered,
+  so a bar above the list reads "Showing only: Overdue (4)" with Show all.
 - **The Windows Setup says "Updating"** when it updates the installed app
   (window title, pages and the Update button), instead of "Installing".
 - **A shorter What's new** on Support & About: only the main titles of each

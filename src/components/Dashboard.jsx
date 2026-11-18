@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload, ClipboardList, Truck } from 'lucide-react';
 import HelpButton from './HelpButton';
 import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, syncTakenChallans } from '../store';
-import { formatCurrency, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, tdsSectionsFor, findLowStock, trackedStock, billMatchesSearch } from '../utils';
+import { formatCurrency, parseLocalDate, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, tdsSectionsFor, findLowStock, trackedStock, billMatchesSearch } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
@@ -1797,6 +1797,22 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           </span>
           </>)}
         </div>
+        {/* v1.10.86 (maintainer, 19 Nov) - the filters are remembered, so say
+            plainly when the list is filtered: nobody thinks invoices are missing. */}
+        {hasListFilters && (
+          <div className="notice notice-info" data-testid="filters-bar" role="status"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', padding: '0.4rem 0.75rem', margin: '0.5rem 0', fontSize: '0.82rem', borderRadius: 6 }}>
+            <span>Showing only: <strong>{[
+              typeFilter !== 'all' && (INVOICE_TYPES[typeFilter]?.label || typeFilter),
+              statusFilter !== 'all' && (STATUS_CONFIG[statusFilter]?.label || statusFilter),
+              fyFilter !== 'all' && `FY ${fyFilter}`,
+              dateFrom && `from ${parseLocalDate(dateFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+              dateTo && `to ${parseLocalDate(dateTo).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+              centreFilter && 'one cost centre',
+            ].filter(Boolean).join(' · ')}</strong> ({filtered.length})</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>Show all</button>
+          </div>
+        )}
         {/* v1.10.86 (#197) - a scanned return label names one invoice: show it with Return / credit note. */}
         {folder !== 'trash' && scanned && (
           <ScanReturnCard found={scanned} onOpen={handleView} onReturn={(bill) => onDuplicate(creditNoteDraft(bill))} />

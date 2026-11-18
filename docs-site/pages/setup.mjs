@@ -69,7 +69,7 @@ export default [
 <p id="business-type-print">Saving a business type also:</p>
 <ul>
   <li>sets the matching <a href="print-settings.html#business-type">print style</a> (Print &amp; PDF shows <b>Print style: … (from your business type)</b>); Everything leaves your print settings alone;</li>
-  <li>rewords the <b>Standard Terms</b> a new install starts with to the matching ready-made <a href="#terms">terms</a>: <i>Goods &amp; Products</i> for a shop, wholesale or restaurant, <i>Manufacturing &amp; Trading</i>, <i>Freelancer (Simple)</i>, or <i>Services</i> for a service or repair shop. Only while those terms are still word for word as they came: terms you wrote, edited or renamed are never changed;</li>
+  <li>rewords the <b>Standard Terms</b> a new install starts with to the matching ready-made <a href="#terms">terms</a>: <i>Goods &amp; Products</i> for a shop or wholesale, <i>Restaurant / Cafe</i>, <i>Manufacturing &amp; Trading</i>, <i>Freelancer (Simple)</i>, or <i>Service / Repair Shop</i>. Only while those terms are still word for word as they came: terms you wrote, edited or renamed are never changed;</li>
   <li>for <b>Retail shop / kirana</b> and <b>Restaurant / cafe</b>, switches on <b>Start with "Cash Sale"</b> (<a href="#features">Features</a>), so a new invoice starts with the walk-in customer.</li>
 </ul>
 <h3>Something wrong?</h3>
@@ -336,7 +336,7 @@ export default [
 <p>The ${ui('Terms')} tab. The terms you print at the bottom of invoices, such as payment due dates, interest on late payment and returns, kept as templates so you pick one instead of typing it each time. On a new invoice your first template is loaded for you; see <a href="invoices.html#terms-notes">Terms and notes on an invoice</a>.</p>
 <p>A new install starts with one template, <b>Standard Terms</b>. Choosing your <a href="#business-type">business type</a> rewords it to the matching Quick Start terms while it is still unchanged.</p>
 <h3>Quick Start</h3>
-<p>Under <b>Quick Start — Pick a template for your business</b>, one click adds a ready-made set of Indian terms: <b>Services (IT, Consulting, Freelance)</b>, <b>Goods &amp; Products (Retail, Wholesale)</b>, <b>Manufacturing &amp; Trading</b>, <b>Export / International</b> or <b>Freelancer (Simple)</b>. It is saved straight away; clicking the same one again says <i>You already have this template</i>. Edit it afterwards to put in your own city, days and rates.</p>
+<p>Under <b>Quick Start — Pick a template for your business</b>, one click adds a ready-made set of Indian terms: <b>Services (IT, Consulting, Freelance)</b>, <b>Goods &amp; Products (Retail, Wholesale)</b>, <b>Manufacturing &amp; Trading</b>, <b>Export / International</b>, <b>Freelancer (Simple)</b>, <b>Restaurant / Cafe</b> or <b>Service / Repair Shop</b>. It is saved straight away; clicking the same one again says <i>You already have this template</i>. Edit it afterwards to put in your own city, days and rates.</p>
 <h3>Your own template</h3>
 <ol class="steps">
   <li><strong>Start</strong>Click ${ui('+ New Template')}.</li>
@@ -753,15 +753,15 @@ export default [
 
 <section id="move">
 <h3>Move to Another PC</h3>
+<p><b>From v1.10.86 there is no separate card:</b> use ${ui('Create Backup')} on the old computer and ${ui('Restore Backup')} on the new one; see <a href="backup.html#move-pc">Moving to a new computer</a>. The launcher (ZIP install on Windows) still has <b>More options → Move to another PC</b>, which does the following.</p>
 <p><b>What it does.</b> Saves your data as one ZIP on your Desktop named <code>MOVE-FreeGSTBill-<i>date_time</i>.zip</code>, ready to carry to a new computer.</p>
-<p><b>In the app installed with the Windows Setup:</b> this card is not there. Use ${ui('Backup Data')} on the old computer and ${ui('Restore Backup')} on the new one.</p>
 <p><b>When to use it.</b> When you buy a new computer, or want the same books on a second one.</p>
 <ol>
-  <li><b>Windows:</b> click ${ui('Export for Move')}. A black window shows the progress and the size, then a folder window opens with the ZIP highlighted on your Desktop.</li>
+  <li><b>Windows:</b> in the launcher, ${ui('More options')} → ${ui('Move to another PC')}. A black window shows the progress and the size, then a folder window opens with the ZIP highlighted on your Desktop.</li>
   <li>Copy the ZIP to a pen drive, or send it to yourself by email or cloud storage.</li>
   <li>On the new PC, install the app (<a href="install.html">Install guide</a>), open Settings → Data &amp; Backups and use ${ui('Choose Backup ZIP')} (<a href="#restore">Restore Backup</a>) to pick this file.</li>
 </ol>
-<p><b>Mac and Linux:</b> this button says <b>Not available here</b>. Follow <a href="backup.html#move-pc">Moving to a new computer</a> instead.</p>
+<p><b>Mac and Linux:</b> follow <a href="backup.html#move-pc">Moving to a new computer</a>.</p>
 <p><b>Is it safe?</b> Yes. It only makes a copy; your data here stays as it is. Keep the ZIP private, since it holds your business records.</p>
 <p><b>Something wrong?</b> If it says "No data folder to export", or the disk is full, see <a href="troubleshooting.html#disk-full">the disk is full</a>; for the restore step see <a href="troubleshooting.html#restore-failed">a backup or restore failed</a>.</p>
 </section>
@@ -870,7 +870,7 @@ export default [
 <section id="move-pc">
 <h2>Moving to a new computer</h2>
 <ol class="steps">
-  <li><strong>On the old computer</strong>Click ${ui('Export for Move')} under <a href="#backup-zip">Settings → Data &amp; Backups → Backup files (ZIP)</a>, or ${ui('Move to another PC')} in the launcher under ${ui('More options')}. It saves your data and settings as one ZIP on your Desktop. Copy it to a pen drive or cloud storage.</li>
+  <li><strong>On the old computer</strong>Click ${ui('Create Backup')} under <a href="#backup-zip">Settings → Data &amp; Backups → Backup files (ZIP)</a>, then ${ui('Open Backups Folder')}. The newest ZIP holds your data and settings. Copy it to a pen drive or cloud storage.</li>
   <li><strong>On the new computer</strong><a href="install.html">Install the app</a> as usual.</li>
   <li><strong>Bring your data in</strong>In the new copy, open Settings → Data &amp; Backups, click ${ui('Choose Backup ZIP')} under <b>Restore Backup</b> and pick the file.</li>
 </ol>
@@ -913,7 +913,7 @@ export default [
   <tr id="remove"><td>Remove the App</td><td><a href="settings.html#remove">Settings → App &amp; updates</a></td></tr>
   <tr id="backup"><td>Backup Data (${ui('Create Backup')})</td><td><a href="backup.html#backup">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
   <tr id="restore"><td>Restore Backup (${ui('Choose Backup ZIP')})</td><td><a href="backup.html#restore">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
-  <tr id="move"><td>Move to Another PC (${ui('Export for Move')})</td><td><a href="backup.html#move">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
+  <tr id="move"><td>Move to Another PC (now ${ui('Create Backup')}, then Restore on the new PC)</td><td><a href="backup.html#move">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
   <tr id="actions"><td>Open Data Folder, Open Backups Folder</td><td><a href="backup.html#backup-zip">Settings → Data &amp; Backups → Backup files (ZIP)</a></td></tr>
   <tr id="result"><td>The result panel</td><td><a href="settings.html#result">Under each card</a></td></tr>
   <tr id="scripts-missing"><td>"Update and backup scripts not found"</td><td><a href="settings.html#scripts-missing">Settings → App &amp; updates</a></td></tr>
