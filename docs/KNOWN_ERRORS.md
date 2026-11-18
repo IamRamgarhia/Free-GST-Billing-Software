@@ -730,6 +730,78 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-095 - Missing CSS classes: boxes touched side by side
+
+**Version:** for months (gap-3, p-0, p-3, btn-sm, btn-link, stat-icon-red) · fixed in v1.10.86
+**Reported by:** the maintainer, 15 Nov 2026 (New Invoice → More invoice details)
+
+**Symptom** - two-column boxes in More invoice details touched each other; small buttons were full size; one Income Tax icon had no colour.
+**Cause** - screens used utility classes that no stylesheet defined, so they did nothing.
+**Rule** - never use a spacing, grid or button class without checking it exists in src/index.css; add it there first.
+**Guard** - `scripts/css-classes-test.mjs` (in `npm run test:unit`) fails on any undefined gap / p / m / grid-cols / btn / stat-icon class.
+
+---
+
+## ERR-094 - Docker: container healthy, but "can't reach this page"
+
+**Version:** v1.10.85 (Docker image) · fixed in v1.10.86
+**Reported by:** #207 (Docker Desktop on Windows 11)
+
+**Symptom** - "Hmmm... can't reach this page / localhost refused to connect" on localhost:47443; the log said `running at http://localhost:47371`.
+**Cause** - the container was started with Docker Desktop's Run button, so docker-compose.yml's FGSB_PHONE_ACCESS, PIN and port 47443 were never set; plain HTTP answers 127.0.0.1 inside the container only, and the healthcheck tested only that.
+**Rule** - in Docker the startup log must say how to open the app (or what is missing: compose, FGSB_PIN), never an address that only works inside the container; the healthcheck must test the address users open.
+**Guard** - the Dockerfile HEALTHCHECK also connects to 47443 when FGSB_PHONE_ACCESS=1 (container shows unhealthy). By hand: `docker run` the image without compose and read the log.
+
+---
+
+## ERR-093 - Purchases made a second product for the same item
+
+**Version:** all versions with stock from purchases · fixed in v1.10.86
+**Reported by:** #199
+
+**Symptom** - "When adding products through the Purchase module, the system allows duplicate products."
+**Cause** - purchase lines never saved their productId (the code said it did), so stock was matched by the exact name only: an extra inner space, a name from GSTR-2B / a photo, or renaming a line while editing made a new product.
+**Rule** - a purchase line keeps the productId it was picked or matched with; names are compared with productKey (trim, collapse spaces, lower case), then the barcode, before a product is created.
+**Guard** - `scripts/purchase-lines-test.mjs` (rename, inner spaces, barcode, stock on edit and delete).
+
+---
+
+## ERR-092 - One client showed as two accounts; a receipt edit paid an invoice twice
+
+**Version:** all earlier versions · fixed in v1.10.86
+**Reported by:** #202
+
+**Symptom** - "the system creates a duplicate client ledger ... the transaction gets recorded in both ledgers"; "change the mode of payment from Cash to UPI ... records two separate receipts".
+**Cause** - the Clients screen grouped bills by `clientName.toLowerCase()` without trimming, while other lookups used the exact name; and the Receipts page found the invoice's payment only by receiptNo, which Dashboard and Received-now payments never stored, so an edit appended a second payment with the same id.
+**Rule** - every client match by name goes through `clientKey()`; a receipt edit finds its payment by id or receiptNo; every new payment stores its receiptNo.
+**Guard** - `scripts/client-ledger-test.mjs`.
+
+---
+
+## ERR-091 - An import that found nothing said only "no rows under the header"
+
+**Version:** all earlier versions · fixed in v1.10.86
+**Reported by:** #213 (an e-commerce seller's order CSV)
+
+**Symptom** - "Order-CSV (2).csv: 0 invoices ready. The file has no rows under the header."
+**Cause** - one message for every way of getting nothing: a Flipkart report with no invoice numbers yet, all rows cancelled, another marketplace's file, an unclosed quote swallowing the file.
+**Rule** - an import that produces nothing says which of these it is and what to do.
+**Guard** - `scripts/purchase-lines-test.mjs` (emptyImportMessage cases).
+
+---
+
+## ERR-090 - Error reports from the Vite developer server
+
+**Version:** any (someone running `npm run dev` in a cloud editor) · fixed in v1.10.86
+**Reported by:** #204
+
+**Symptom** - "Kind: uncaught. Message: WebSocket closed without opened. ... /@vite/client".
+**Cause** - the uncaught-error reporter logged the dev server's live-reload socket closing.
+**Rule** - errors whose stack is in /@vite/client or node_modules/.vite are not app problems and are not reported.
+**Guard** - none automated; `DEV_SERVER` in src/main.jsx.
+
+---
+
 ## ERR-089 - "Update Software" on the ZIP copy stayed on "Updating..." for good
 
 **Version:** v1.10.44 and later (ZIP copy on Windows) · fixed in v1.10.86
