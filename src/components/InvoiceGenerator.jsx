@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Settings, ChevronUp, ChevronDown, MessageCircle, Check, Loader, Truck, Printer, Eye, EyeOff, QrCode } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels, saveReceipt, deleteReceipt } from '../store';
+import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels, saveReceipt, deleteReceipt, reserveReceiptNo } from '../store';
 import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES, spreadBillDiscount, amountDue, withReceivedNow, receivedNowPayment } from '../utils';
-import { receiptForPayment } from '../utils/bankMatch';
+import { receiptForPayment, withNextReceiptNo } from '../utils/bankMatch';
 import { PAID_MODES, lastPaidMode, rememberPaidMode } from './askPaidMode';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
 import { fitItemTable, pdfScalePlan } from '../utils/invoiceFit';
@@ -39,7 +39,7 @@ import { changeSize, itemWithUnit, sizeSqft, sizeHasDims, SIZE_STEPS, withRftLin
 import { orderSummary, salesOrderOf, SO_STATUS_LABELS } from '../utils/salesOrders';
 // v1.10.85 - price levels and the credit-limit warning.
 import { priceForLevel } from '../utils/priceLevels';
-import { findSavedClient, paidTowards } from '../utils/clientLedger';
+import { findSavedClient, paidTowards, clientKey } from '../utils/clientLedger';
 import { START_KEY, lastInvoiceType, rememberInvoiceType, startTypeFor, startDueDate, startTaxRate, startPaidMode, startOptionsPatch, htmlLineCount, htmlFirstWords } from '../utils/invoiceStart';
 import CreditLimitWarning from './CreditLimitWarning';
 import { useInvoiceCards, InvoiceCard } from './InvoiceCards';
@@ -1338,7 +1338,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       try { want = JSON.parse(sessionStorage.getItem('gst_newInvoiceFor') || 'null'); sessionStorage.removeItem('gst_newInvoiceFor'); } catch { /* storage blocked */ }
       if (!want?.name || !blankNew) return;
       getAllClients().then((list) => {
-        const cli = (list || []).find((c) => (want.id && c.id === want.id)) || (list || []).find((c) => c.name === want.name);
+        const cli = (list || []).find((c) => (want.id && c.id === want.id)) || (list || []).find((c) => clientKey(c.name) === clientKey(want.name));
         if (cli) selectSavedClient(cli);
         else setClient((prev) => ({ ...prev, name: want.name })); // a name billed before but not saved as a client
       }).catch(() => {});
@@ -1578,7 +1578,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       setSavedClients(clients);
       // Auto-link if editing a bill with a known client
       if (client.name.trim()) {
-        const match = clients.find(c => c.name.toLowerCase() === client.name.trim().toLowerCase());
+        const match = clients.find(c => clientKey(c.name) === clientKey(client.name));
         if (match) setSelectedClientId(match.id);
       }
     });
@@ -2365,7 +2365,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       setSelectedClientId(modalClient.id);
       toast(`Client "${data.name}" updated!`, 'success');
     } else {
-      const found = updated.find(c => c.name === data.name.trim() && !savedClients.some(old => old.id === c.id));
+      const found = updated.find(c => clientKey(c.name) === clientKey(data.name) && !savedClients.some(old => old.id === c.id));
       if (found) setSelectedClientId(found.id);
       toast(`Client "${data.name}" saved!`, 'success');
     }
@@ -2540,9 +2540,14 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // v1.10.85 (#185) - offered only on a sale that had no payments when it
     // was opened (those are shown, not changed, here). Its date is the
     // invoice date.
-    const nowPayment = canReceiveNow
+    const nowBase = canReceiveNow
       ? receivedNowPayment({ id: ownNowId, amount: receivedNow.amount, mode: receivedNow.mode, date: details.invoiceDate, recordedAt: receivedPay.current?.recordedAt })
       : null;
+    // v1.10.86 (#202) - its receipt takes the next number of the RCP series,
+    // reserved once (the first save with the amount) and kept on re-saves.
+    const nowPayment = !nowBase ? null
+      : ownNowId ? (receivedPay.current?.receiptNo ? { ...nowBase, receiptNo: receivedPay.current.receiptNo } : nowBase)
+        : await withNextReceiptNo(nowBase, () => reserveReceiptNo(profile));
     if (nowPayment) seedPayments.push(nowPayment);
     // Cleared (or no longer a sale): its receipt is removed once the bill
     // without the payment is saved (review: removed first, a refused save left
@@ -2574,9 +2579,18 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ? 'overdue'
       : computedStatus;
 
+    // v1.10.86 (#202) - a typed name that is a saved client's (case and
+    // spaces aside) is that client, as if picked from the list: the bill gets
+    // their exact name, so it never starts a second ledger for them.
+    const linkedClient = !selectedClientId ? findSavedClient(savedClients, null, client.name) : null;
+    const billClient = linkedClient && linkedClient.name !== client.name ? { ...client, name: linkedClient.name } : client;
+    if (linkedClient) {
+      setSelectedClientId(linkedClient.id);
+      if (billClient !== client) setClient(billClient);
+    }
     const bill = {
       id: finalInvoiceNumber,
-      clientName: client.name,
+      clientName: billClient.name,
       invoiceNumber: finalInvoiceNumber,
       invoiceDate: details.invoiceDate,
       invoiceType,
@@ -2600,7 +2614,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
       ...((serverCopy?.einvoice || einvoice) ? { einvoice: serverCopy?.einvoice || einvoice } : {}),
       // v1.10.83 - the "TDS certificate received" tick from Reports › TDS & TCS.
       ...(ownBill && (serverCopy?.tdsCertificate || editingBill.tdsCertificate) ? { tdsCertificate: true } : {}),
-      data: { profile, client, details: { ...details, invoiceNumber: finalInvoiceNumber }, items: billItems, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive,
+      data: { profile, client: billClient, details: { ...details, invoiceNumber: finalInvoiceNumber }, items: billItems, totals, invoiceType, customTerms, customNotes, internalNote, extraSections, invoiceOptions: invoiceOptionsWithSnapshot, taxInclusive,
         // A converted quotation/proforma/challan's stock moved to its invoice:
         // its own record stays empty, or a save would take the stock twice.
         stockApplied: isIssued && (serverCopy?.convertedTo || editingBill.convertedTo) ? {} : stockEffect(items, invoiceType, seedStatus) }
@@ -2771,7 +2785,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
     // written as the Dashboard writes it (same id as the payment, so the Cash
     // book pairs them). Only after the bill: a refused save (period lock, 423)
     // has thrown before this, leaving nothing half-saved.
-    receivedPay.current = nowPayment ? { id: nowPayment.id, recordedAt: nowPayment.recordedAt } : null;
+    receivedPay.current = nowPayment ? { id: nowPayment.id, recordedAt: nowPayment.recordedAt, receiptNo: nowPayment.receiptNo } : null;
     if (removeNowReceipt) {
       try { await deleteReceipt(removeNowReceipt); } catch (err) {
         if (err?.status !== 404) toast('The invoice is saved without the payment, but its receipt could not be removed. Delete it on the Receipts page.', 'warning', 8000);
@@ -4399,7 +4413,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
               picker here only made it possible to issue the invoice from a
               company other than the one on screen. */}
           {/* Client Modal */}
-          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} defaultCountry={profile?.country} />
+          <ClientModal show={showClientModal} onClose={() => setShowClientModal(false)} onSave={handleClientModalSave} client={modalClient} isEditing={isEditingClient} defaultCountry={profile?.country} businessKey={businessKeyOf(profile)} />
 
           {/* v1.10.86 - the cards, in the order this browser keeps (InvoiceCards.jsx). */}
           {cards.order.map((cardId) => {
@@ -5082,7 +5096,8 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                     <button type="button" className="btn btn-primary" data-testid="add-client-btn"
                       style={{ fontSize: '0.75rem', padding: '0.15rem 0.55rem' }}
                       onClick={() => {
-                        if (!selectedClientId) return openAddClientModal();
+                        // v1.10.86 (#202) - a typed name that is already a saved client is not offered as a new one.
+                        if (!selectedClientId && !savedClientNow) return openAddClientModal();
                         setModalClient({ name: '', country: '' });
                         setIsEditingClient(false);
                         setShowClientModal(true);

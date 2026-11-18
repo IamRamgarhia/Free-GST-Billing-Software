@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText, Trash2, Plus, IndianRupee, Receipt, Edit3, TrendingUp, Search, Copy, X, CheckCircle, Clock, AlertTriangle, MessageCircle, Mail, StickyNote, Send, Package, Download, Printer, Ban, Undo2, Eye, QrCode, Upload, ClipboardList, Truck } from 'lucide-react';
 import HelpButton from './HelpButton';
-import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, syncTakenChallans } from '../store';
-import { formatCurrency, parseLocalDate, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, tdsSectionsFor, findLowStock, trackedStock, billMatchesSearch } from '../utils';
+import { getAllBills, saveBill, getAllProducts, applyStockChanges, getProfile, getAllClients, getStockAlertSettings, saveReceipt, deleteReceipt, getAllReceipts, reserveReceiptNo, markSavedPdfCancelled, getEnabledModules, trashBill, getTrashedBills, restoreBillFromTrash, purgeTrashedBill, syncTakenChallans } from '../store';
+import { formatCurrency, parseLocalDate, INVOICE_TYPES, getFYOptions, numberToWords, belongsToProfile, salesSign, isCancelledBill, markPaidPatch, markUnpaidPatch, stockEffect, appliedStock, stockDelta, SALES_INVOICE_TYPES, localToday, amountDue, paymentStatusFor, isModuleEnabled, TDS_SECTIONS, tdsSectionsFor, findLowStock, trackedStock, billMatchesSearch, clientKey } from '../utils';
 import { billInInr, billCurrency as fxBillCurrency, baseCurrencyOf } from '../utils/fx';
 import { withClientTds } from '../utils/tdsTcs';
 import { prepareEInvoices, parseIrpResponse, matchIrnEntries, downloadJson, einvoiceFileName } from '../utils/einvoice';
@@ -25,6 +25,8 @@ import { CostCentreFilter } from './CostCentrePicker';
 import { matchesCentre, centreFields, centreLabel, UNTAGGED } from '../utils/costCentres';
 import { isSalesOrder, orderSummary, dispatchDraft, SO_STATUS_LABELS } from '../utils/salesOrders';
 import { periodRange, inPeriod } from '../utils/period';
+import { openingOf, openingDue } from '../utils/clientLedger';
+import { paymentReceiptNo, withNextReceiptNo } from '../utils/bankMatch';
 import { askPaidMode } from './askPaidMode';
 import { reorderLines } from '../utils/stock';
 import { findScannedInvoice, creditNoteDraft } from '../utils/scanReturn';
@@ -112,7 +114,7 @@ function ReceiptModal({ target, onClose }) {
   const clientName = bill.data?.client?.name || bill.clientName || 'Client';
   const clientAddress = bill.data?.client?.address || '';
   const clientPhone = bill.data?.client?.phone || '';
-  const receiptNo = `RCPT-${(payment.id || '').replace('pay_', '').toUpperCase().slice(0, 10)}`;
+  const receiptNo = paymentReceiptNo(payment); // v1.10.86 (#202) - its RCP number when it has one
   const paymentModeLabel = {
     'bank-transfer': 'Bank Transfer', 'upi': 'UPI', 'cash': 'Cash',
     'cheque': 'Cheque', 'card': 'Card', 'other': 'Other',
@@ -418,6 +420,17 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   const [paymentInput, setPaymentInput] = useState({ amount: '', date: '', mode: 'bank-transfer', note: '' });
   const [showRemindAll, setShowRemindAll] = useState(false);
   const [clients, setClients] = useState([]);
+  // v1.10.86 (#214) - receipts (read with the bills): what was paid against
+  // clients' opening balances.
+  const [receiptsAll, setReceiptsAll] = useState([]);
+  // What is left of the clients' opening balances owed to this business
+  // ("as on" date in the cards' period) adds to Outstanding, in its currency.
+  const openingOwed = useMemo(() => Math.round(clients.reduce((s, c) => (openingOf(c, profile) > 0 && inPeriod(c.openingBalanceDate, cardRange)
+    ? s + openingDue(c, bills, receiptsAll, profile).due : s), 0) * 100) / 100, [clients, bills, receiptsAll, profile, cardRange]);
+  const outstandingShown = {
+    ...Object.fromEntries(Object.entries(stats.byCurrency).map(([cur, v]) => [cur, v.unpaid])),
+    ...(openingOwed > 0 ? { [baseCur]: (stats.byCurrency[baseCur]?.unpaid || 0) + openingOwed } : {}),
+  };
   const [productCount, setProductCount] = useState(null);   // null = not loaded yet
   const [guideDismissed, setGuideDismissed] = useState(() => {
     try { return localStorage.getItem('freegstbill_startedDismissed') === '1'; } catch { return false; }
@@ -458,6 +471,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       let reconciled = 0;
       try {
         const receipts = await getAllReceipts().catch(() => []);
+        setReceiptsAll(receipts || []);
         const receiptsByBillKey = new Map();
         for (const r of receipts) {
           const key = r.billId || r.againstInvoice;
@@ -822,12 +836,14 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       });
       if (!proceed) return;
     }
-    const paymentEntry = {
+    // v1.10.86 (#202) - with the next receipt number of the RCP series (kept
+    // on the payment too); RCPT- and its id if the counter cannot be reached.
+    const paymentEntry = await withNextReceiptNo({
       id: 'pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       amount, date: paymentInput.date, mode: paymentInput.mode,
       note: paymentInput.note, recordedAt: new Date().toISOString(),
       ...foreignReceiptFields(paymentInput),
-    };
+    }, () => reserveReceiptNo(bill.data?.profile || profile));
     const payments = [...(bill.payments || []), paymentEntry];
     const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     const updatedBill = {
@@ -844,7 +860,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       await saveReceipt({
         id: paymentEntry.id,
         date: paymentEntry.date,
-        receiptNo: `RCPT-${paymentEntry.id.replace('pay_', '').toUpperCase().slice(0, 10)}`,
+        receiptNo: paymentReceiptNo(paymentEntry),
         clientName: bill.data?.client?.name || bill.clientName || '',
         clientAddress: bill.data?.client?.address || '',
         amount: paymentEntry.amount,
@@ -886,6 +902,18 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   // one silently edited none (or all). Now the caller passes the row
   // index directly. Modern rows still have ids for the receipt modal
   // to reference, but mutation is index-based.
+  // v1.10.86 (#202) - the receipt of a payment: the payment's id, or for an
+  // older payment with no id, the receipt with its receipt number on this
+  // invoice. '' when there is none.
+  const receiptIdOf = async (bill, payment) => {
+    if (payment?.id) return payment.id;
+    if (!payment?.receiptNo) return '';
+    try {
+      return (await getAllReceipts()).find((r) => r.receiptNo === payment.receiptNo
+        && (r.billId === bill.id || r.againstInvoice === bill.invoiceNumber || r.againstInvoice === bill.id))?.id || '';
+    } catch { return ''; }
+  };
+
   const deletePaymentAt = async (bill, idx) => {
     if (!await confirmAction({
       title: 'Delete this payment?',
@@ -901,8 +929,9 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     // page stays in sync. A legacy payment with no receipt is fine.
     // v1.10.85 (#175) - the receipt goes first: if it cannot be deleted, the
     // payment stays (a receipt left behind would bring the payment back).
-    if (target?.id) {
-      try { await deleteReceipt(target.id); } catch (err) {
+    const receiptId = await receiptIdOf(bill, target);
+    if (receiptId) {
+      try { await deleteReceipt(receiptId); } catch (err) {
         if (err?.status !== 404) {
           toast(err?.status >= 400 && err.status < 500 && err.message ? err.message : 'Could not delete the payment\'s receipt, so the payment was kept. Try again.', 'error');
           return;
@@ -958,7 +987,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
       if (!ok) return;
     }
     const target = (bill.payments || [])[idx];
-    const withId = target.id || ('pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+    // v1.10.86 (#202) - an older payment with no id keeps the receipt it
+    // already has, so the edit updates that receipt instead of leaving it
+    // behind and making a second one.
+    const withId = (await receiptIdOf(bill, target)) || ('pay_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
     const payments = (bill.payments || []).map((p, i) => i === idx
       // Edited by you, so no longer the automatic "Marked paid" payment (auto is dropped).
       ? { ...p, id: withId, amount: newAmount, date: form.date, mode: form.mode, note: form.note, auto: false }
@@ -973,7 +1005,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         id: withId,
         date: form.date,
         // A receipt made on the Receipts page keeps its own number (RCP/...).
-        receiptNo: target.receiptNo || `RCPT-${withId.replace('pay_', '').toUpperCase().slice(0, 10)}`,
+        receiptNo: paymentReceiptNo({ ...target, id: withId }),
         clientName: bill.data?.client?.name || bill.clientName || '',
         clientAddress: bill.data?.client?.address || '',
         amount: newAmount,
@@ -1389,7 +1421,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
     // v1.10.74 - fill in the client's email (from the invoice, else the saved
     // client) so the mail opens addressed. Only a plain address is used, so a
     // stray "?" or "&" can't break the mailto link.
-    const rawTo = (bill.data?.client?.email || clients.find(c => c.name === bill.clientName)?.email || '').trim();
+    const rawTo = (bill.data?.client?.email || clients.find(c => clientKey(c.name) === clientKey(bill.clientName))?.email || '').trim();
     const to = /^[^\s@?&#]+@[^\s@?&#]+$/.test(rawTo) ? rawTo : '';
     window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
   };
@@ -1442,7 +1474,7 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
   const getClientPhone = (bill) => {
     if (bill.clientPhone) return bill.clientPhone;
     if (bill.data?.client?.phone) return bill.data.client.phone;
-    const savedClient = clients.find(c => c.name === bill.clientName);
+    const savedClient = clients.find(c => clientKey(c.name) === clientKey(bill.clientName));
     return savedClient?.phone || '';
   };
 
@@ -1694,12 +1726,17 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
           <div className="stat-icon stat-icon-amber"><Clock size={22} /></div>
           <div style={{ flex: 1 }}>
             <p className="stat-label">Outstanding <HelpButton title="Outstanding" doc="dashboard#outstanding" size={14} /></p>
-            {Object.entries(stats.byCurrency).map(([cur, v]) => (
-              <div key={cur} className="stat-value stat-value-amber" style={{ fontSize: Object.keys(stats.byCurrency).length > 1 ? '1.1rem' : undefined, '--len': formatCurrency(v.unpaid, cur).length }}>
-                {formatCurrency(v.unpaid, cur)}
+            {Object.entries(outstandingShown).map(([cur, unpaid]) => (
+              <div key={cur} className="stat-value stat-value-amber" style={{ fontSize: Object.keys(outstandingShown).length > 1 ? '1.1rem' : undefined, '--len': formatCurrency(unpaid, cur).length }}>
+                {formatCurrency(unpaid, cur)}
               </div>
             ))}
-            {Object.keys(stats.byCurrency).length === 0 && <h2 className="stat-value stat-value-amber">—</h2>}
+            {Object.keys(outstandingShown).length === 0 && <h2 className="stat-value stat-value-amber">—</h2>}
+            {openingOwed > 0 && (
+              <div className="text-muted" style={{ fontSize: '0.72rem', marginTop: 2 }} title="Opening balances saved on your clients, less what they paid against them">
+                Includes {formatCurrency(openingOwed, baseCur)} of opening balances
+              </div>
+            )}
           </div>
         </div>
         <div className="stat-card">

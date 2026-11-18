@@ -871,6 +871,12 @@ export const printedSubtotal = (t) => (t?.taxInclusive
   ? Math.round(((Number(t.taxableAmount) || 0) + (Number(t.totalDiscount) || 0)) * 100) / 100
   : (Number(t?.subtotal) || 0));
 
+// v1.10.86 (#202) - ONE key for a client's name, used wherever a bill, a
+// receipt or a saved client is matched by name: case, spaces at the ends and
+// extra spaces inside do not count ("ABC  Traders " is "abc traders"). Bills
+// typed with odd spacing or case fall into the same ledger as the saved client.
+export const clientKey = (name) => String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
 // What this client has already been billed in the financial year of
 // `invoiceDate` (sales only, rupees, including GST), for the ₹50L threshold of
 // sections 194Q / 206C(1H). `excludeId` leaves out the invoice being edited.
@@ -878,13 +884,13 @@ export const printedSubtotal = (t) => (t?.taxInclusive
 // count the same way (the invoice screen used to always pass 0, which made
 // TCS/TDS 0 on any invoice under ₹50L however much the client had bought).
 export const clientYearToDate = (bills, clientName, invoiceDate, excludeId = null) => {
-  const name = String(clientName || '').trim().toLowerCase();
+  const name = clientKey(clientName);
   if (!name) return 0;
   const fy = getFinancialYearLabel(invoiceDate ? parseLocalDate(invoiceDate) : new Date());
   return (bills || []).reduce((sum, b) => {
     if (!b || b.id === excludeId || !countsAsSales(b)) return sum;
     if ((b.currency || 'INR') !== 'INR') return sum;
-    if (String(b.clientName || '').trim().toLowerCase() !== name) return sum;
+    if (clientKey(b.clientName) !== name) return sum;
     if (!b.invoiceDate || getFinancialYearLabel(parseLocalDate(b.invoiceDate)) !== fy) return sum;
     // v1.10.85 (review) - only what was billed up to this invoice's date: an
     // old invoice opened again must not count the ones made after it (its

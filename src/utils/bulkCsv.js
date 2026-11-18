@@ -13,7 +13,7 @@ import { excelSerialToIso } from './xlsxRead.js';
 import { purchaseTotals } from './purchaseOrders.js';
 import {
   computeInvoiceTotals, stockEffect, toCsvLine, INVOICE_TYPES, getStateCode,
-  stateNameForCode, resolveLineDiscount, spreadBillDiscount,
+  stateNameForCode, resolveLineDiscount, spreadBillDiscount, clientKey,
 } from '../utils.js';
 
 // ---------------------------------------------------------------- parsing --
@@ -258,7 +258,8 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
     groups.get(r.invoiceNumber).push(r);
   }
   const productByName = new Map((products || []).map((p) => [String(p.name || '').trim().toLowerCase(), p]));
-  const knownClients = new Map((clients || []).map((c) => [String(c.name || '').trim().toLowerCase(), c]));
+  // v1.10.86 (#202) - by the client name key (extra spaces do not count).
+  const knownClients = new Map((clients || []).map((c) => [clientKey(c.name), c]));
   const clientByGstin = new Map((clients || []).filter((c) => String(c.gstin || '').trim()).map((c) => [String(c.gstin).trim().toUpperCase(), c]));
   const newClientByGstin = new Map();
   const bills = [];
@@ -313,7 +314,7 @@ export function salesCsvToBills(text, { profile = {}, products = [], adjustStock
     // the invoice takes the saved (or first) name, so no duplicate is made.
     const rowGstin = String(head.clientGstin || '').trim().toUpperCase();
     const byGstin = rowGstin ? (clientByGstin.get(rowGstin) || newClientByGstin.get(rowGstin)) : null;
-    const saved = byGstin || knownClients.get(head.clientName.trim().toLowerCase());
+    const saved = byGstin || knownClients.get(clientKey(head.clientName));
     const client = {
       ...(saved || {}),
       name: byGstin ? byGstin.name : head.clientName,

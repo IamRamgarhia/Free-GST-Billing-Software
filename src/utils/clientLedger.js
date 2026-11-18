@@ -4,7 +4,7 @@
 // sent with the Statement and Aging PDFs.
 // Pure functions (no fetch / React), so scripts/client-ledger-test.mjs can
 // run them in Node.
-import { amountDue, paymentStatusFor, salesSign, belongsToProfile, calculateLineItemTax, formatCurrency, isCancelledBill } from '../utils.js';
+import { amountDue, paymentStatusFor, salesSign, belongsToProfile, calculateLineItemTax, formatCurrency, isCancelledBill, clientKey, businessKeyOf } from '../utils.js';
 import { billInInr, billRate, billCurrency, baseCurrencyOf } from './fx.js';
 
 const PAYMENT_MODES = {
@@ -12,7 +12,10 @@ const PAYMENT_MODES = {
 };
 export const paymentModeName = (mode) => PAYMENT_MODES[mode] || mode || '';
 
-const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+// v1.10.86 (#202) - one name key everywhere (utils.clientKey): case and
+// spaces do not split a client's ledger.
+export { clientKey };
+const sameName = (a, b) => clientKey(a) === clientKey(b);
 
 // Money actually received. Moving a client's credit from one invoice to
 // another (credit-applied / credit-transferred-out) is no new money, so it is
@@ -25,8 +28,10 @@ const isReceived = (p) => (Number(p?.amount) || 0) > 0
 // on no invoice (an advance, a deposit). A receipt made against an invoice is
 // already one of that invoice's payments (same id, or same receipt number),
 // so it is not listed twice.
-export function clientPaymentHistory(clientName, bills, receipts = []) {
-  const rows = [];
+// v1.10.86 (#214) - the client's receipts that are on no invoice (an
+// advance, a payment on their opening balance): not one of the payments on
+// their invoices (same id, or same receipt number).
+export function onAccountReceipts(clientName, bills, receipts = []) {
   const ids = new Set();
   const receiptNos = new Set();
   for (const b of bills || []) {
@@ -34,6 +39,17 @@ export function clientPaymentHistory(clientName, bills, receipts = []) {
     for (const p of b.payments || []) {
       if (p.id) ids.add(p.id);
       if (p.receiptNo) receiptNos.add(p.receiptNo);
+    }
+  }
+  return (receipts || []).filter((r) => sameName(r.clientName, clientName) && !ids.has(r.id)
+    && !(r.receiptNo && receiptNos.has(r.receiptNo)) && (Number(r.amount) || 0) > 0);
+}
+
+export function clientPaymentHistory(clientName, bills, receipts = []) {
+  const rows = [];
+  for (const b of bills || []) {
+    if (!sameName(b.clientName, clientName)) continue;
+    for (const p of b.payments || []) {
       if (!isReceived(p)) continue;
       rows.push({
         key: `${b.id}:${p.id || rows.length}`, date: p.date || '', invoiceNumber: b.invoiceNumber || '',
@@ -42,9 +58,7 @@ export function clientPaymentHistory(clientName, bills, receipts = []) {
       });
     }
   }
-  for (const r of receipts || []) {
-    if (!sameName(r.clientName, clientName) || ids.has(r.id) || (r.receiptNo && receiptNos.has(r.receiptNo))) continue;
-    if (!((Number(r.amount) || 0) > 0)) continue;
+  for (const r of onAccountReceipts(clientName, bills, receipts)) {
     rows.push({
       key: `rcp:${r.id || r.receiptNo}`, date: r.date || '', invoiceNumber: r.againstInvoice || '',
       amount: Number(r.amount) || 0, mode: paymentModeName(r.paymentMode), note: r.note || r.referenceNo || '',
@@ -76,9 +90,12 @@ const r2 = (n) => Math.round(n * 100) / 100;
 // exchange rate, which are left out. Quotations, challans and cancelled
 // invoices owe nothing. Other businesses' invoices are left out.
 // `excludeId`: the invoice being edited, which is counted as "this invoice".
-export function clientAccount(clientName, bills, profile, excludeId = null) {
-  const out = { owed: 0, credit: 0, missing: [] };
-  if (!String(clientName || '').trim()) return out;
+// v1.10.86 (#214) - `opening`: what is left of their opening balance
+// (openingDue().due): owed when above 0, their advance (credit) when below.
+export function clientAccount(clientName, bills, profile, excludeId = null, opening = 0) {
+  const open = Number(opening) || 0;
+  const out = { owed: Math.max(0, open), credit: Math.max(0, -open), missing: [] };
+  if (!String(clientName || '').trim()) return { ...out, owed: r2(out.owed), credit: r2(out.credit) };
   const base = baseCurrencyOf(profile);
   for (const raw of bills || []) {
     if (raw.id === excludeId || !sameName(raw.clientName, clientName) || !belongsToProfile(raw, profile)) continue;
@@ -97,7 +114,61 @@ export function clientAccount(clientName, bills, profile, excludeId = null) {
 }
 
 // What a client owes the active business (clientAccount().owed).
-export const clientOutstanding = (clientName, bills, profile, excludeId = null) => clientAccount(clientName, bills, profile, excludeId).owed;
+export const clientOutstanding = (clientName, bills, profile, excludeId = null, opening = 0) => clientAccount(clientName, bills, profile, excludeId, opening).owed;
+
+// ---- v1.10.86 (#214) opening balance ----
+// What a client owed you (or had paid in advance) when you started with this
+// app, on the "as on" date: saved on the client as openingBalance (amount),
+// openingBalanceDate (YYYY-MM-DD), openingBalanceType ('receivable', the
+// default, or 'advance') and openingBalanceBusiness (the business it is with;
+// blank counts in every business).
+
+// The start of the financial year `today` is in (1 April): the "as on" date
+// an opening balance gets when none is typed.
+export const fyStartDate = (today) => {
+  const [y, m] = String(today || '').split('-').map(Number);
+  return `${m >= 4 ? y : y - 1}-04-01`;
+};
+
+// The client's opening balance with this business: owed to you (+) or their
+// advance (-); 0 when none, or when it is with another business.
+export function openingOf(client, profile) {
+  const amount = r2(Number(client?.openingBalance) || 0);
+  if (!(amount > 0)) return 0;
+  const biz = client.openingBalanceBusiness;
+  if (biz && profile && biz !== businessKeyOf(profile)) return 0;
+  return client.openingBalanceType === 'advance' ? -amount : amount;
+}
+
+// What is left of it. Money owed is paid off by the client's receipts that
+// are on no invoice (Receipts page, Against Invoice left blank), dated on or
+// after the "as on" date, oldest money first; never below 0 (more than that
+// stays an advance receipt, as before). An advance stays as it is.
+// { opening, received, due, date }: due is signed like openingOf.
+export function openingDue(client, bills, receipts, profile) {
+  const opening = openingOf(client, profile);
+  const date = client?.openingBalanceDate || '';
+  if (opening <= 0) return { opening, received: 0, due: opening, date };
+  const paid = onAccountReceipts(client.name, bills, receipts)
+    .filter((r) => (!profile || belongsToProfile(r, profile)) && String(r.date || '') >= date)
+    .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const received = r2(Math.min(opening, paid));
+  return { opening, received, due: r2(opening - received), date };
+}
+
+// The client form's opening balance as saved: a positive amount with its
+// date and kind, or the fields cleared. `businessKey`: the business it is
+// with, kept once set.
+export function openingFields(form, businessKey = '', today = '') {
+  const amount = r2(Number(form?.openingBalance) || 0);
+  if (!(amount > 0)) return { openingBalance: '', openingBalanceDate: '', openingBalanceType: '', openingBalanceBusiness: '' };
+  return {
+    openingBalance: amount,
+    openingBalanceDate: /^\d{4}-\d{2}-\d{2}$/.test(String(form.openingBalanceDate || '')) ? form.openingBalanceDate : fyStartDate(today),
+    openingBalanceType: form.openingBalanceType === 'advance' ? 'advance' : 'receivable',
+    openingBalanceBusiness: form.openingBalanceBusiness || businessKey || '',
+  };
+}
 
 // "1 invoice in USD without an exchange rate left out" - bills not counted.
 export const missingRateNote = (missing) => {
@@ -194,6 +265,8 @@ export function balanceReminderMessage(clientName, unpaid, profile, today) {
     `Hi ${clientName || 'Sir/Madam'}, this is a gentle reminder that a balance of ${fmt(total)} is pending with us:`,
     ...oldestFirst.slice(0, 5).map((u) => {
       const late = daysLate(u.dueDate);
+      // v1.10.86 (#214) - the opening balance is no invoice.
+      if (u.opening) return `- Opening balance: ${fmt(u.outstanding)}`;
       return `- Invoice ${u.number}: ${fmt(u.outstanding)}${late > 0 ? ` (due ${late} day${late === 1 ? '' : 's'} ago)` : ''}`;
     }),
     list.length > 5 && `- and ${list.length - 5} more`,

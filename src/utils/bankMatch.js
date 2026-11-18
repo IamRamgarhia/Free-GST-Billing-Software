@@ -254,10 +254,47 @@ export function withoutBankPayment(kind, doc, paymentId, before) {
 }
 
 // The receipt the Dashboard makes for a payment, so it shows in Receipts.
+// v1.10.86 (#202) - a payment's receipt number: the RCP number it was given
+// (receiptNo), else, for older payments or when the number counter could not
+// be reached, RCPT- and its id as before.
+export const paymentReceiptNo = (payment) => payment?.receiptNo
+  || `RCPT-${String(payment?.id || '').replace('pay_', '').toUpperCase().slice(0, 10)}`;
+
+// v1.10.86 (#202) - a NEW payment gets the next number of the Receipts page's
+// RCP series (same counter, same Invoice Number Settings), stored on the
+// payment so the Receipts page finds it when the receipt is edited. `reserve`
+// returns that number (store.reserveReceiptNo). If it fails the payment is
+// kept as it is (RCPT- number): saving a payment is never blocked.
+export const withNextReceiptNo = async (payment, reserve) => {
+  if (!payment || payment.receiptNo) return payment;
+  try {
+    const receiptNo = await reserve();
+    return receiptNo ? { ...payment, receiptNo } : payment;
+  } catch { return payment; }
+};
+
+// v1.10.86 (#202) - the payment on an invoice that a receipt stands for: the
+// same id (payments recorded on the Dashboard, with "Received now" or from the
+// bank statement have the receipt's id, and older ones no receipt number), or
+// the same receipt number. Matching the number only made an edit on the
+// Receipts page add a second payment: the invoice was paid twice.
+export const isReceiptsPayment = (receipt) => (p) => (!!receipt?.id && p?.id === receipt.id)
+  || (!!receipt?.receiptNo && p?.receiptNo === receipt.receiptNo);
+
+// A bill's payments with the receipt's payment (`entry`) put in: the one it
+// already has is replaced (keeping its other fields, such as its bank line,
+// and when it was first recorded), else it is added.
+export function withReceiptPayment(payments, receipt, entry) {
+  const list = Array.isArray(payments) ? payments : [];
+  const idx = list.findIndex(isReceiptsPayment(receipt));
+  if (idx < 0) return [...list, entry];
+  return list.map((p, i) => (i === idx ? { ...p, ...entry, recordedAt: p.recordedAt || entry.recordedAt } : p));
+}
+
 export const receiptForPayment = (bill, payment) => ({
   id: payment.id,
   date: payment.date,
-  receiptNo: `RCPT-${payment.id.replace('pay_', '').toUpperCase().slice(0, 10)}`,
+  receiptNo: paymentReceiptNo(payment),
   clientName: bill.data?.client?.name || bill.clientName || '',
   clientAddress: bill.data?.client?.address || '',
   amount: payment.amount,

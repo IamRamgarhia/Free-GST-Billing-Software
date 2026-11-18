@@ -609,7 +609,21 @@ app.get('/api/clients', (req, res) => {
   res.json(clients);
 });
 
+// v1.10.86 (#214) - a client's opening balance: none, or an amount of 0 or
+// more with an "as on" date (YYYY-MM-DD) and its kind (receivable / advance).
+// Returns the problem, or ''.
+const openingBalanceProblem = (c) => {
+  if (c.openingBalance === undefined || c.openingBalance === '' || c.openingBalance === null) return '';
+  const n = Number(c.openingBalance);
+  if (!Number.isFinite(n) || n < 0 || n > 1e12) return 'Opening balance must be an amount of 0 or more.';
+  if (n > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(String(c.openingBalanceDate || ''))) return 'Opening balance needs its "as on" date.';
+  if (c.openingBalanceType && !['receivable', 'advance'].includes(c.openingBalanceType)) return 'Opening balance must be owed to you or their advance.';
+  return '';
+};
+
 app.post('/api/clients', (req, res) => {
+  const problem = openingBalanceProblem(req.body || {});
+  if (problem) return res.status(400).json({ error: problem });
   const client = req.body;
   if (!client.id) client.id = 'cli_' + Date.now() + crypto.randomBytes(3).toString('hex');
   const filePath = path.join(DATA_DIR, 'clients', safeFileName(client.id) + '.json');

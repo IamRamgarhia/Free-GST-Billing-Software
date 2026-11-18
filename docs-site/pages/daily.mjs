@@ -322,7 +322,7 @@ export default [
 <p>A receipt is the paper you give a client to say you have received their money. It opens by itself after ${ui('Record Payment')}, and again from ${ui('Receipt')} under <a href="#payment-history">Payment History</a>. It shows:</p>
 <ul>
   <li>Your business name, address, GSTIN, phone and email, as saved on the invoice.</li>
-  <li><b>PAYMENT RECEIPT</b>, with the <b>Receipt No.</b> (such as RCPT-LZ8K2M4A), <b>Payment Date</b>, <b>Against Invoice</b>, <b>Payment Mode</b> and the <b>Ref / Note</b> if you gave one.</li>
+  <li><b>PAYMENT RECEIPT</b>, with the <b>Receipt No.</b> (such as RCP/2026-27/0012), <b>Payment Date</b>, <b>Against Invoice</b>, <b>Payment Mode</b> and the <b>Ref / Note</b> if you gave one.</li>
   <li>"Received with thanks from" the client's name, address and phone.</li>
   <li>The <b>Amount Received</b>, and for rupees the amount in words.</li>
   <li>The <b>Invoice Total</b>, <b>Total Paid</b> so far, and the <b>Balance</b> still owed (or <b>Overpaid</b> by how much).</li>

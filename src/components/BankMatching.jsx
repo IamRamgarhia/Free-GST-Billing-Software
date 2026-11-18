@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Landmark, Upload, Check, Search, EyeOff, Receipt, Undo2, Trash2, ArrowDownLeft, ArrowUpRight, ListChecks } from 'lucide-react';
 import {
   getAllBankStatements, saveBankStatement, deleteBankStatement, getAllBills, getAllPurchases, getAllExpenses, getAllDebitNotes, getProfile,
-  saveBill, saveReceipt, deleteReceipt, savePurchase, saveExpense, deleteExpense,
+  saveBill, saveReceipt, deleteReceipt, savePurchase, saveExpense, deleteExpense, reserveReceiptNo,
 } from '../store';
 import { formatCurrency, belongsToProfile, parseLocalDate } from '../utils';
 import { parseBankRows, BANK_NAMES } from '../utils/itr';
@@ -16,7 +16,7 @@ import { withReturns } from '../utils/debitNotes';
 import { newPurchasePaymentId } from '../utils/purchasePayments';
 import {
   toBankLines, freshLines, bookEntries, usedKeys, suggestFor, pickList, entryLabel, matchedLine, ignoredLine, expenseLine, openLine,
-  bankPayment, newInvoicePaymentId, invoiceWithPayment, receiptForPayment, expenseFromLine, bankSummary,
+  bankPayment, newInvoicePaymentId, invoiceWithPayment, receiptForPayment, expenseFromLine, bankSummary, withNextReceiptNo,
   purchaseWithPayments, payStateOf, withoutBankPayment,
 } from '../utils/bankMatch';
 import { toast } from './Toast';
@@ -179,7 +179,8 @@ export default function BankMatching({ tabs }) {
         });
         if (!ok) return;
       }
-      const payment = bankPayment(line, newInvoicePaymentId());
+      // v1.10.86 (#202) - with the next receipt number of the RCP series.
+      const payment = await withNextReceiptNo(bankPayment(line, newInvoicePaymentId()), () => reserveReceiptNo(bill.data?.profile || profile));
       const updated = invoiceWithPayment(bill, payment);
       extra.before = payStateOf(bill);
       await saveBill(updated, { overwrite: true });
