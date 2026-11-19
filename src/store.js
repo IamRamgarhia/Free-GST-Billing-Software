@@ -13,6 +13,8 @@ import { defaultTermsFor } from './utils/termsDefaults';
 
 const API = '/api';
 
+export const updateProductsFromCsv = (changes, allowStock = false) => apiFetch(`${API}/products/price-update`, { method: 'POST', body: JSON.stringify({ changes, allowStock }) });
+
 // v1.10.83 - failures that are nobody's expected answer go to the Problem
 // log: no answer at all (server stopped) and 5xx. 4xx is left alone - a 409
 // duplicate number or a 404 is an answer the caller handles. Method, path and

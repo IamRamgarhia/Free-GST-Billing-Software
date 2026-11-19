@@ -1,4 +1,5 @@
 import express from 'express';
+import { installPriceUpdates } from './src/utils/productUpdates.js';
 // v1.10.0 — `cors` package no longer imported. The CORS-lockdown
 // middleware below is intentionally custom + strict (localhost only)
 // where `cors()` echoed `*` for every origin.
@@ -359,6 +360,17 @@ function deleteFile(filePath) {
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   const parentDir = path.basename(path.dirname(filePath));
   if (DIRS.includes(parentDir)) invalidateCache(parentDir);
+}
+
+// Recover interrupted product batches and install the save guard before any
+// business routes. A failed rollback must prevent subsequent writes everywhere.
+// v1.10.86 (review of PR #215) - whatever goes wrong here, the app still starts;
+// only "Import product updates" is then unavailable.
+try {
+  installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache });
+} catch (err) {
+  console.warn(`[product updates] not available: ${err.message}`);
+  app.post('/api/products/price-update', (req, res) => res.status(503).json({ error: `Import product updates is not available: ${err.message}` }));
 }
 
 // ========================

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, Table2, Factory, Barcode, SlidersHorizontal, ClipboardList } from 'lucide-react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, Upload, FileUp, Table2, Factory, Barcode, SlidersHorizontal, ClipboardList } from 'lucide-react';
 import { getAllProducts, saveProduct, deleteProduct, getProfile, getStockAlertSettings, getEnabledModules, activePriceLevels } from '../store';
 import { cleanLevelPrices, levelCsvHeaders, levelCsvCells } from '../utils/priceLevels';
 import { PriceLevelPrices } from './PriceLevelFields';
@@ -14,6 +14,7 @@ import HelpButton from './HelpButton';
 import PageHeader, { BarButton } from './PageHeader';
 import ProductBulkEdit from './ProductBulkEdit';
 import TableExport from './TableExport';
+import ProductUpdateImport from './ProductUpdateImport';
 import BarcodeLabels from './BarcodeLabels';
 import { barcodeProblem, normaliseBarcode, nextInternalCode } from '../utils/barcode';
 import { normaliseCategory, categoryProblem, altUnitProblem, altUnitText, hasAltUnit, productMatches, reorderLines } from '../utils/stock';
@@ -299,6 +300,7 @@ export default function InventoryView({ onOpenPurchases }) {
     ...(kind === 'service' && !serviceUnits.some(u => u.label === prev.unit) ? { unit: getDefaultUnitForMode('services') } : {}),
   }));
   const [showImport, setShowImport] = useState(false);
+  const [showUpdates, setShowUpdates] = useState(false);
 
   return (
     <div className="dashboard-container">
@@ -310,6 +312,9 @@ export default function InventoryView({ onOpenPurchases }) {
         secondary={<>
           <BarButton icon={Upload} label="Import CSV" onClick={() => setShowImport(true)}
             title="Import CSV: add products from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)" />
+          {/* v1.10.86 (#208, PR #215) - change prices, HSN/SAC and stock of saved products from an edited CSV. */}
+          <BarButton icon={FileUp} label="Import product updates" onClick={() => { setShowImport(false); setShowUpdates(true); }} disabled={!products.length || bulkEdit}
+            title="Import product updates: change prices, HSN/SAC and (optional) stock of products you already have, from an edited CSV" />
           <BarButton icon={Table2} label="Bulk edit" onClick={() => setBulkEdit(true)} disabled={!products.length || bulkEdit}
             title="Bulk edit: change name, HSN, prices, GST %, unit and stock of many products at once" />
           {mfgOn && (
@@ -319,6 +324,7 @@ export default function InventoryView({ onOpenPurchases }) {
         </>}
         primary={<button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Product</button>}
       />
+      {showUpdates && <ProductUpdateImport onClose={() => setShowUpdates(false)} onDone={(result) => { setShowUpdates(false); loadProducts(); toast(`${result.updated} products updated`, 'success'); }} />}
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
           intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, MRP (optional), GST %, Stock (leave Stock blank for a service) and Barcode (optional).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}

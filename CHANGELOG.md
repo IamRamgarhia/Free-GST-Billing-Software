@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - planned for Saturday 21 November 2026 (v1.10.86)
 
 ### Added
+- **Update the products you have from a CSV** (thanks @happy-in, #208, #215):
+  Products → **Import product updates** (in the top bar). Export your products,
+  change purchase and selling prices, HSN/SAC and, only if you switch it on,
+  stock in a spreadsheet, and upload it: every change is shown old → new before
+  you confirm. A blank cell changes nothing; invoices already made keep their
+  prices; a failed save puts everything back.
 - **Terms for a restaurant and a repair shop**: choosing Restaurant / cafe or
   Service / repair shop as the business type starts new invoices with short
   terms of their own (no refund once served; repair warranty, uncollected items),
