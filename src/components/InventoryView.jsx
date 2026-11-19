@@ -13,6 +13,7 @@ import { confirmAction } from './ConfirmModal';
 import HelpButton from './HelpButton';
 import ProductBulkEdit from './ProductBulkEdit';
 import TableExport from './TableExport';
+import ProductUpdateImport from './ProductUpdateImport';
 import BarcodeLabels from './BarcodeLabels';
 import { barcodeProblem, normaliseBarcode, nextInternalCode } from '../utils/barcode';
 import { normaliseCategory, categoryProblem, altUnitProblem, altUnitText, hasAltUnit, productMatches, reorderLines } from '../utils/stock';
@@ -281,6 +282,7 @@ export default function InventoryView({ onOpenPurchases }) {
     ...(kind === 'service' && !serviceUnits.some(u => u.label === prev.unit) ? { unit: getDefaultUnitForMode('services') } : {}),
   }));
   const [showImport, setShowImport] = useState(false);
+  const [showUpdates, setShowUpdates] = useState(false);
 
   return (
     <div className="dashboard-container">
@@ -293,10 +295,11 @@ export default function InventoryView({ onOpenPurchases }) {
         </div>
         {/* Wraps on a phone: with Make there are four buttons (v1.10.83, #115). */}
         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={() => setShowImport(true)} title="Add products from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)">
+          <button className="btn btn-secondary" onClick={() => { setShowUpdates(false); setShowImport(true); }} title="Add products from a CSV, an Excel file (.xlsx, such as Vyapar's) or Tally's masters export (.xml)">
             <Upload size={16} /> Import CSV
           </button>
-          <button className="btn btn-secondary" onClick={() => setBulkEdit(true)} disabled={!products.length || bulkEdit}
+          <button className="btn btn-secondary" disabled={bulkEdit || !products.length} onClick={() => { setShowImport(false); setShowUpdates(true); }}><Upload size={16} /> Import product updates</button>
+          <button className="btn btn-secondary" onClick={() => { setShowUpdates(false); setBulkEdit(true); }} disabled={!products.length || bulkEdit}
             title="Edit name, HSN, prices, GST %, unit and stock of many products at once">
             <Table2 size={16} /> Bulk edit
           </button>
@@ -311,6 +314,7 @@ export default function InventoryView({ onOpenPurchases }) {
           </button>
         </div>
       </div>
+      {showUpdates && <ProductUpdateImport onClose={() => setShowUpdates(false)} onDone={(result) => { setShowUpdates(false); loadProducts(); toast(`${result.updated} products updated`, 'success'); }} />}
       {showImport && (
         <CsvListImport what="products" sample={PRODUCTS_SAMPLE} sampleName="Products-sample.csv" doc="products#import"
           intro={`One product or service per row: Name (required), Type (Goods or Service), HSN/SAC, Unit, Purchase Price, Selling Price, GST %, Stock (leave Stock blank for a service) and Barcode (optional).${levels.length ? ` With price levels: ${levelCsvHeaders(levels).join(', ')}.` : ''} For a product already saved, details that are empty on it are filled in from the file; nothing already filled is changed.`}
