@@ -104,7 +104,7 @@ export function installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache 
       if (!filename.endsWith('.json')) continue;
       const file = path.join(productDir, filename);
       if (fs.lstatSync(file).isSymbolicLink()) throw Error('Unexpected product storage.');
-      const product = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const product = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
       if (map.has(String(product.id))) throw Error('Duplicate product IDs need review.');
       map.set(String(product.id), { file, product });
     }
@@ -200,6 +200,9 @@ export function installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache 
       }
       res.json({ updated: plans.length, backupId: id });
     } catch (error) {
+      // A journal whose initial save or permission check failed must never
+      // later roll back an unrelated successful batch. Recover it first.
+      if (journal?.state === 'pending') recoveryRequired = true;
       res
         .status(error.status || 500)
         .json({
