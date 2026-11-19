@@ -331,6 +331,25 @@ test('failed backup does not change any product', (t) => {
   assert.deepEqual(f.read('p1'), products[0]);
 });
 
+test('an incomplete initial journal blocks later saves and recovers before reuse', (t) => {
+  const f = fixture(t, (file, data) => {
+    if (file.includes('backups')) {
+      fs.writeFileSync(file, JSON.stringify(data));
+      throw Error('Storage stopped after writing the journal');
+    }
+  });
+  assert.equal(f.request([change()]).status, 500);
+  assert.deepEqual(f.read('p1'), products[0]);
+  assert.equal(f.allowed().status, 503);
+});
+
+test('products saved with a UTF-8 byte-order mark can be updated', (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.root, 'products/p1.json'), '\uFEFF' + JSON.stringify(products[0]));
+  assert.equal(f.request([change()]).status, 200);
+  assert.equal(f.read('p1').sellingPrice, 120);
+});
+
 test('failed rollback blocks later saves until restart and successful recovery', (t) => {
   let failRollback = false;
   const f = fixture(t, (file) => {
