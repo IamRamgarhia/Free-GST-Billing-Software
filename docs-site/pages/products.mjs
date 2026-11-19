@@ -18,6 +18,7 @@ export default [
 <div class="table-wrap"><table>
   <tr><th>Button</th><th>What it does</th></tr>
   <tr><td>${ui('Import CSV')}</td><td>Adds many products at once from a spreadsheet. See <a href="#import">Importing products</a>.</td></tr>
+  <tr><td>${ui('Import product updates')}</td><td>Updates existing prices, HSN/SAC and optional stock from an edited CSV. See <a href="#import-updates">Updating products from a CSV</a>.</td></tr>
   <tr><td>${ui('Bulk edit')}</td><td>Turns the list into a grid you can type in, to change many products at once. See <a href="#bulk-edit">Bulk edit</a>. Greyed out until you have a product.</td></tr>
   <tr><td>${ui('Make')}</td><td>Only when manufacturing is turned on: records goods you made from raw materials. See <a href="#manufacturing">Manufacturing</a>.</td></tr>
   <tr><td>${ui('Add Product')}</td><td>Opens the product form. See <a href="#add-product">Adding a product or service</a>.</td></tr>
@@ -42,6 +43,18 @@ export default [
 <h3>Printing or exporting the list</h3>
 <p>${ui('Print / PDF')}, ${ui('Excel')} and ${ui('CSV')} beside the table title save the products shown, with name, type (Goods or Service), HSN/SAC, purchase price, selling price, GST %, unit and stock. Search first to save only some. ${ui('Print / PDF')} opens the print window, where you can choose a printer or <b>Save as PDF</b>. The buttons are hidden during a bulk edit.</p>
 <p>A CSV saved here can be opened in Excel, and is a handy way to send your price list to an accountant. It can also be brought back in with ${ui('Import CSV')}, or into another copy of the app.</p>
+</section>
+
+<section id="import-updates">
+<h3>Updating products from a CSV</h3>
+<p>For a supplier price change across many saved items, choose ${ui('Products')} → ${ui('Import product updates')}. This changes existing products only; use ${ui('Import CSV')} to add new ones.</p>
+<ol class="steps">
+  <li><strong>Download the current list</strong>Click ${ui('Download current products CSV')}, then edit Purchase Price, Selling Price or HSN/SAC in your spreadsheet. Keep Product ID unchanged: it identifies the product even when names are similar. Without an ID, the name must match exactly apart from case and surrounding spaces, and match just one product.</li>
+  <li><strong>Preview</strong>Choose the edited CSV. Review the old → new values and fix any errors before saving. Blank cells leave fields unchanged; 0 sets a price or stock to zero. Keep HSN/SAC as text in Excel to preserve leading zeros. Prices keep their existing before-GST or including-GST basis; this does not convert GST.</li>
+  <li><strong>Confirm and apply</strong>Tick the confirmation and click ${ui('Update … products')}. A backup of the affected records is saved first. If a value changed after your preview, the batch is refused: upload again to review the latest values. Failed writes are rolled back; an interrupted batch is recovered when the app next starts.</li>
+</ol>
+<p><b>Stock is off by default.</b> To replace stock balances, enable stock updates before choosing the CSV and give the separate stock confirmation after reviewing it. Quantities are final balances in each product's base unit, not an amount to add or a purchase receipt. Services cannot have stock. A price-only update leaves stock movements alone.</p>
+<p>Unknown IDs, ambiguous names, duplicate rows, invalid numbers and malformed CSV block saving the whole batch. Other columns are shown as ignored. GST rates, units, names, price levels and saved invoices are not changed. Up to 10,000 rows and 5 MB per CSV; prices and stock accept up to four decimal places.</p>
 </section>
 
 <section id="product-delete">
