@@ -1,4 +1,5 @@
 import express from 'express';
+import { installPriceUpdates } from './src/utils/productUpdates.js';
 // v1.10.0 — `cors` package no longer imported. The CORS-lockdown
 // middleware below is intentionally custom + strict (localhost only)
 // where `cors()` echoed `*` for every origin.
@@ -356,6 +357,10 @@ function deleteFile(filePath) {
   const parentDir = path.basename(path.dirname(filePath));
   if (DIRS.includes(parentDir)) invalidateCache(parentDir);
 }
+
+// Recover interrupted product batches and install the save guard before any
+// business routes. A failed rollback must prevent subsequent writes everywhere.
+installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache });
 
 // ========================
 // CLOSE THE BOOKS + EDIT HISTORY (v1.10.85)
