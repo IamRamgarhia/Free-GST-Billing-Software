@@ -161,7 +161,9 @@ copyFileSync(join(REPO_ROOT, 'src', 'utils', 'expensePayment.js'), join(SYSTEM, 
 // makeDir (folders one level at a time, ERR-083).
 // v1.10.85 - periodLock.js: Close the books, checked by the server;
 // installKind.js: what a .deb / AppImage / Docker / Mac app copy says on update.
-for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js', 'makeDir.js', 'phoneAccess.js', 'selfSignedCert.js', 'pairPage.js', 'periodLock.js', 'installKind.js']) {
+// v1.10.86 - productUpdates.js (PR #215 price-update route), termsDefaults.js
+// (seeded terms), pdfClipboard.js (WhatsApp: copy the PDF on the PC).
+for (const f of ['purchasePayments.js', 'purchaseOrders.js', 'appHome.js', 'serverLock.js', 'setupDownload.js', 'makeDir.js', 'phoneAccess.js', 'selfSignedCert.js', 'pairPage.js', 'periodLock.js', 'installKind.js', 'productUpdates.js', 'termsDefaults.js', 'pdfClipboard.js']) {
   copyFileSync(join(REPO_ROOT, 'src', 'utils', f), join(SYSTEM, 'src', 'utils', f));
 }
 
