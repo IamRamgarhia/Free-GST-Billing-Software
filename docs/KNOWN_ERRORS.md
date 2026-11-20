@@ -730,6 +730,18 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-096 - Settings: GET /api/templates -> 500 Internal server error
+
+**Version:** v1.10.85 and earlier · fixed in v1.10.86
+**Reported by:** #217 (Windows 11, Edge)
+
+**Symptom** - "Kind: api. Request: GET /api/templates -> 500. Message: Internal server error" on the Settings screen.
+**Cause** - with no terms template on file, the route saved the default one first; when that write failed (folder locked by OneDrive / antivirus, or missing) the whole request failed, on every visit. Sorting also threw on a template whose name was not text.
+**Rule** - a list route never fails because a best-effort seed write failed: catch it, log it, still answer; never call string methods on stored values without String().
+**Guard** - none automated; by hand: make data/templates read-only, open Settings, the default terms still show.
+
+---
+
 ## ERR-095 - Missing CSS classes: boxes touched side by side
 
 **Version:** for months (gap-3, p-0, p-3, btn-sm, btn-link, stat-icon-red) · fixed in v1.10.86

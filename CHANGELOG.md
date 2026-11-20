@@ -253,6 +253,9 @@ The next update is planned for **Saturday 28 November 2026**.
 - **Packages**: DOMPurify 3.4.18, Vite 7.3.8.
 
 ### Fixed
+- **Settings no longer shows "Internal server error"** (#217) when the starting
+  terms could not be saved (a folder locked by OneDrive or antivirus): the
+  default terms are shown and saving is tried again next time.
 - **Docker: the app could not be opened** when the container was started
   with Docker Desktop's Run button or without a PIN (#207). The log now says
   what is missing and which address to open (https://127.0.0.1:47443 on the

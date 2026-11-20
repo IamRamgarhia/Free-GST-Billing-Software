@@ -661,10 +661,19 @@ app.get('/api/templates', (req, res) => {
       name: 'Standard Terms',
       content: STANDARD_TERMS, // v1.10.86 - src/utils/termsDefaults.js (a business type rewords it)
     };
-    writeJSON(path.join(DATA_DIR, 'templates', 'default.json'), defaultTpl);
+    // v1.10.86 (#217) - a write that fails (folder missing or locked by
+    // OneDrive / antivirus) answered 500 on every Settings visit: the default
+    // terms are still returned, and the next visit tries the write again.
+    try {
+      makeDir(path.join(DATA_DIR, 'templates'));
+      writeJSON(path.join(DATA_DIR, 'templates', 'default.json'), defaultTpl);
+    } catch (err) {
+      console.warn(`[templates] could not save the default terms: ${err.code || err.message}`);
+    }
     templates = [defaultTpl];
   }
-  templates.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  // A name that is not text (a hand-edited or imported file) no longer throws.
+  templates.sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')));
   res.json(templates);
 });
 
