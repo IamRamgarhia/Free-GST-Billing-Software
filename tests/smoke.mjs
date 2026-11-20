@@ -306,8 +306,12 @@ try {
     (await gstinBox.inputValue()) === '29BBBBB1111B2Z2',
     await gstinBox.inputValue());
 
-  await page.keyboard.press('Escape');
-  await sleep(600);
+  // v1.10.86 - the supplier box is the app's own dropdown (ComboInput): the
+  // first Esc closes its open list, the next one the purchase form.
+  for (let i = 0; i < 3 && await page.locator('.modal-content').filter({ hasText: 'Add Purchase Bill' }).count(); i++) {
+    await page.keyboard.press('Escape');
+    await sleep(600);
+  }
 
   // ---- Invoice preview + PDF --------------------------------------------
   await page.getByText('New Invoice', { exact: false }).first().click();
@@ -1050,12 +1054,20 @@ try {
 
   // #156: the invoice form's WhatsApp button sends the same full message as
   // the Invoices list (client, total, status...), not the old short one.
-  await page.evaluate(() => { window.__realOpen = window.open; window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
+  // v1.10.86 - on a PC it now saves the invoice and makes the PDF first, then
+  // opens the chat (the first window.open is a blank "getting ready" tab), and
+  // copies the PDF to the clipboard: blocked here so the test never touches the
+  // real clipboard of the PC it runs on (it falls back to a download).
+  await page.evaluate(() => {
+    window.__realOpen = window.open; window.__opened = []; window.open = (u) => { window.__opened.push(u || ''); return null; };
+    window.__realFetch = window.fetch;
+    window.fetch = (u, o) => (/copy-pdf/.test(String(u)) ? Promise.resolve(new Response('{}', { status: 503 })) : window.__realFetch(u, o));
+  });
   await page.getByRole('button', { name: /WhatsApp/ }).first().click();
-  await sleep(500);
+  await page.waitForFunction(() => window.__opened.some((u) => /text=/.test(u)), null, { timeout: 30000 }).catch(() => {});
   const waText = await page.evaluate(() => {
-    window.open = window.__realOpen;
-    return decodeURIComponent(((window.__opened[0] || '').split('text=')[1]) || '');
+    window.open = window.__realOpen; window.fetch = window.__realFetch;
+    return decodeURIComponent(((window.__opened.find((u) => /text=/.test(u)) || '').split('text=')[1]) || '');
   });
   check('#156 the invoice form sends the full WhatsApp message',
     /Client: Smoke Test Client/.test(waText) && /Total: /.test(waText) && /Status: /.test(waText), waText.replace(/\n/g, ' | ').slice(0, 240));
@@ -1151,7 +1163,7 @@ try {
   await openDraft({
     invoiceType: 'tax-invoice',
     client: { name: 'Smoke Test Client', address: '', city: '', pin: '', state: 'Delhi', gstin: '', country: '', email: '', phone: '', isSEZ: false },
-    details: { invoiceNumber: 'SMOKE-DRAFT/TRADE', invoiceDate: today, placeOfSupply: 'Delhi' },
+    details: { invoiceNumber: 'SMK-DRAFT/TRADE', invoiceDate: today, placeOfSupply: 'Delhi' },
     items: [{ id: 'smk-trade', name: 'Cartons', hsn: '4819', quantity: 100, rate: 100, taxPercent: 18, discount: 0, unit: 'Pcs' }],
     taxInclusive: false,
     invoiceOptions: { invoiceDiscountValue: 1000, invoiceDiscountType: 'fixed', invoiceDiscountBeforeGst: true },
@@ -1632,7 +1644,7 @@ try {
     taxInclusive: false,
   });
   const billedTo = page.locator('.glass-panel').filter({ has: page.locator('h3.section-title', { hasText: 'Billed To' }) });
-  const fieldGroup = (label) => billedTo.locator('.form-group').filter({ has: page.locator(`label.form-label:text-is("${label}")`) });
+  const fieldGroup = (label) => billedTo.locator('.form-group:not(.inv-row3)').filter({ has: page.locator(`label.form-label:text-is("${label}")`) });
   const gstinInput = fieldGroup('GSTIN').locator('input');
   // v1.10.86 - address, state and GSTIN are folded under "More client details".
   if (!(await gstinInput.isVisible())) await billedTo.locator('summary', { hasText: 'More client details' }).click();
@@ -2200,9 +2212,9 @@ try {
     const prof77 = (await get77('/api/profile')).json;
     const today77 = new Date().toISOString().slice(0, 10);
     const bill77 = {
-      id: 'smoketest-terms77', invoiceNumber: 'smoketest-terms77', clientName: 'Smoke Test Client', invoiceDate: today77, invoiceType: 'tax-invoice',
+      id: 'smoketest-terms77', invoiceNumber: 'SMK-TERMS-77', clientName: 'Smoke Test Client', invoiceDate: today77, invoiceType: 'tax-invoice',
       status: 'unpaid', totalAmount: 1180, paidAmount: 0, payments: [],
-      data: { profile: prof77, client: { name: 'Smoke Test Client', state: prof77.state, country: 'India' }, details: { invoiceNumber: 'smoketest-terms77', invoiceDate: today77 },
+      data: { profile: prof77, client: { name: 'Smoke Test Client', state: prof77.state, country: 'India' }, details: { invoiceNumber: 'SMK-TERMS-77', invoiceDate: today77 },
         invoiceType: 'tax-invoice', invoiceOptions: {}, totals: { total: 1180 }, customTerms: '<p>SMOKE-SAVED-TERMS</p>', stockApplied: {},
         items: [{ id: 'l1', name: 'Smoke item', hsn: '9983', quantity: 1, rate: 1000, taxPercent: 18, discount: 0, unit: 'Nos' }] },
     };

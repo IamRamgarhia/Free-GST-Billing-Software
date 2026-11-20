@@ -32,7 +32,7 @@ export async function cleanupV86b(page) {
     for (const p of await list('purchases')) if (p.supplierName === 'Smoke PP Supplier') await del('purchases', p.id);
     // A line renamed into a new product (the #199 bug) makes one with a generated id.
     for (const p of await list('products')) {
-      if (String(p.id).startsWith('smoketest-') || /^smoke pen blue$/i.test(String(p.name || '').replace(/\s+/g, ' ').trim())) await del('products', p.id);
+      if (String(p.id).startsWith('smoketest-') || /^smoke pp marker blue$/i.test(String(p.name || '').replace(/\s+/g, ' ').trim())) await del('products', p.id);
     }
     for (const b of await list('bills')) if (['smoketest-rcp-bill', 'smoketest-eco'].includes(b.id)) await del('bills', b.id);
   });
@@ -126,7 +126,7 @@ export async function runV86bChecks({ page, check, sleep }) {
 
   // ---- #199 a purchase line keeps its product --------------------------------
   await guarded('v86 #199 a purchase line picked from the list is saved as that product and adds its stock', async () => {
-    await post('/api/products', { id: 'smoketest-pp', name: 'Smoke Pen', hsn: '9608', purchasePrice: 10, sellingPrice: 15, rate: 15, taxPercent: 18, unit: 'Nos', stock: 0 });
+    await post('/api/products', { id: 'smoketest-pp', name: 'Smoke PP Marker', hsn: '9608', purchasePrice: 10, sellingPrice: 15, rate: 15, taxPercent: 18, unit: 'Nos', stock: 0 });
     const stockOf = async () => (await get('/api/products')).find((p) => p.id === 'smoketest-pp')?.stock;
     const ppBill = async () => (await get('/api/purchases')).find((p) => p.invoiceNumber === 'SMK-PP-199');
     await reopenView('Purchases');
@@ -137,9 +137,9 @@ export async function runV86bChecks({ page, check, sleep }) {
     await form.locator('.form-group').filter({ hasText: 'Invoice Number *' }).locator('input').fill('SMK-PP-199');
     const name = form.locator('input[data-list="fgsb-item-history"]').first();
     await name.click();
-    await name.fill('Smoke Pe');
+    await name.fill('Smoke PP Ma');
     await sleep(600);
-    await page.locator('[role=option][data-value="Smoke Pen"]').first().click();
+    await page.locator('[role=option][data-value="Smoke PP Marker"]').first().click();
     await sleep(400);
     const row = name.locator('xpath=ancestor::div[contains(@class,"form-group")][1]/..');
     await row.locator('.form-group').filter({ hasText: 'Qty' }).locator('input').fill('5');
@@ -156,20 +156,24 @@ export async function runV86bChecks({ page, check, sleep }) {
     await page.getByRole('button', { name: 'Edit SMK-PP-199' }).first().click();
     await sleep(1000);
     const edit = page.locator('.modal-content').filter({ hasText: 'Edit Purchase Bill' });
-    await edit.locator('input[data-list="fgsb-item-history"]').first().fill('Smoke  Pen Blue');
+    await edit.locator('input[data-list="fgsb-item-history"]').first().fill('Smoke  PP Marker Blue');
     await sleep(400);
     await edit.getByRole('button', { name: /^Update$/ }).click();
     await sleep(2500);
     const renamed = await ppBill();
-    const made = (await get('/api/products')).filter((p) => /^smoke pen blue$/i.test(String(p.name || '').replace(/\s+/g, ' ').trim()));
+    const made = (await get('/api/products')).filter((p) => /^smoke pp marker blue$/i.test(String(p.name || '').replace(/\s+/g, ' ').trim()));
     const stock2 = await stockOf();
-    check('v86 #199 renaming that line ("Smoke  Pen Blue") keeps its product: no new product, stock stays 5',
+    check('v86 #199 renaming that line ("Smoke  PP Marker Blue") keeps its product: no new product, stock stays 5',
       /Blue/.test(renamed?.items?.[0]?.name || '') && renamed.items[0].productId === 'smoketest-pp' && made.length === 0 && Number(stock2) === 5,
       `line=${renamed?.items?.[0]?.name}/${renamed?.items?.[0]?.productId} new=${made.map((p) => p.name).join(',') || 'none'} stock=${stock2}`);
   });
   await cleanupV86b(page); // the Table 14 month should hold only its own invoice
 
   // ---- #209 GSTR-1 Table 14 -----------------------------------------------
+  // GSTR-1 export needs the business's GSTIN; earlier steps of the full suite
+  // can leave the test business without one: the demo GSTIN for this check only.
+  const prof209 = (await get('/api/profile')) || {};
+  if (!prof209.gstin) await post('/api/profile', { ...prof209, gstin: '29ABCDE1234F1ZW' });
   await guarded('v86 #209 GSTR-1 shows Table 14 for an invoice through an e-commerce operator', async () => {
     await post('/api/bills', bill('smoketest-eco', 'SMK-ECO-209', 'Smoke Eco Buyer', { ecoGstin: ECO_GSTIN }));
     await reopenView('GST Returns');
@@ -184,16 +188,25 @@ export async function runV86bChecks({ page, check, sleep }) {
     const row = (await card.count()) ? (await card.locator('tr', { hasText: ECO_GSTIN }).first().innerText().catch(() => '')).replace(/\s+/g, ' ') : '';
     check('v86 #209 GSTR-1 shows Table 14 for an invoice through an e-commerce operator (its GSTIN and taxable value)',
       row.includes(ECO_GSTIN) && row.includes('1,000.00'), row || 'no Table 14 card');
+    // The "export blocked" toast lasts 12 s: read it while it is on screen.
+    let blockedMsg = '';
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 20000 }).catch(() => null),
       page.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'JSON Export')?.click()),
+      (async () => {
+        for (let i = 0; i < 8 && !blockedMsg; i++) {
+          await sleep(500);
+          blockedMsg = await page.evaluate(() => document.body.innerText.match(/(GSTR-1 export blocked|No invoices)[^\n]*/)?.[0] || '');
+        }
+      })(),
     ]);
     const json = dl ? JSON.parse(readFileSync(await dl.path(), 'utf8')) : null;
     const eco = (json?.supeco?.clttx || []).find((r) => r.etin === ECO_GSTIN);
     check('v86 #209 the GSTR-1 JSON carries it in supeco.clttx (etin, suppval)',
       !!eco && eco.suppval === 1000 && eco.cgst === 90 && eco.sgst === 90,
-      dl ? JSON.stringify(json?.supeco || null) : `no download: ${await page.evaluate(() => document.body.innerText.match(/(GSTR-1 export blocked|No invoices)[^\n]*/)?.[0] || '')}`);
+      dl ? JSON.stringify(json?.supeco || null) : `no download: ${blockedMsg}`);
   });
+  if (!prof209.gstin) await post('/api/profile', prof209);
   await cleanupV86b(page);
 }
 
