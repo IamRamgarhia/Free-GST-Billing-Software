@@ -3,7 +3,7 @@ import { Maximize2, ArrowLeft, Plus, Trash2, Download, UserPlus, Pencil, Setting
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { saveBill, saveProduct, deleteBill, applyStockChanges, getNextInvoiceNumber, typedNumberInSeries, raiseInvoiceCounter, getTermsTemplates, getAllClients, saveClient, getProfile, getAllProducts, getInvoiceDisplayOptions, saveInvoiceDisplayOptions, getAllProfiles, getRegionMode, saveRecurring, getAllRecurring, getAllBills, getEnabledModules, getBusinessType, activePriceLevels, saveReceipt, deleteReceipt, reserveReceiptNo } from '../store';
-import { clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES, spreadBillDiscount, amountDue, withReceivedNow, receivedNowPayment } from '../utils';
+import { trackedStock, clientPaperPrefs, clientPaperOptions, INVOICE_TYPES, isModuleEnabled, businessKeyOf, GST_DOC_NUMBER, COUNTRIES, deliveryChargeLine, stockEffect, appliedStock, stockDelta, generateEWayBillJSON, formatCurrency, getCountryConfig, getStatesForCountry, getAllUnits, addCustomUnit, removeCustomUnit, getCountriesForRegion, TDS_SECTIONS, TCS_SECTIONS, REMOVED_TCS_SECTIONS, TDS_SECTIONS_2025, TCS_SECTIONS_2025, tdsSectionsFor, tcsSectionsFor, movedSection, sectionOptionLabel, TERMS_PRESETS, getActiveAccounts, getDefaultAccount, getAccountById, getDefaultUnitForMode, filterUnitsByMode, PAPER_SIZES, getPaperSize, computeInvoiceTotals, clientYearToDate, htmlHasText, ORDER_DETAIL_FIELDS, customFieldsOf, invoiceOptionOn, DEFAULT_DECLARATION, decodeGstin, safePageBoundaries, localToday, toLocalIsoDate, parseLocalDate, paymentStatusFor, getStateCode, SALES_INVOICE_TYPES, spreadBillDiscount, amountDue, withReceivedNow, receivedNowPayment } from '../utils';
 import { receiptForPayment, withNextReceiptNo } from '../utils/bankMatch';
 import { PAID_MODES, lastPaidMode, rememberPaidMode } from './askPaidMode';
 import { getPrintSettings, savePrintSettings } from '../utils/printSettings';
@@ -397,7 +397,15 @@ function SuggestingInput({ item, suggestions, onFieldChange, onSelectProduct, on
               style={i === activeIdx ? { background: 'var(--primary-light, rgba(30,64,175,0.12))' } : undefined}>
               <span className="product-suggestion-name">{p.name}</span>
               <span className="product-suggestion-meta">
-                {p.hsn && `HSN: ${p.hsn}`}{p.hsn && p.rate ? ' · ' : ''}{p.rate ? formatCurrency(p.rate, currency || 'INR') : ''}
+                {/* v1.10.86 (#219) - MRP and stock too, so similar names are told apart. */}
+                {[
+                  p.hsn && `HSN: ${p.hsn}`,
+                  p.rate && formatCurrency(p.rate, currency || 'INR'),
+                  Number(p.mrp) > 0 && `MRP ${formatCurrency(p.mrp, currency || 'INR')}`,
+                ].filter(Boolean).join(' · ')}
+                {trackedStock(p) !== null && (trackedStock(p) > 0
+                  ? ` · Stock ${trackedStock(p)}`
+                  : <span style={{ color: 'var(--danger)', fontWeight: 600 }}> · Out of stock</span>)}
               </span>
             </div>
           ))}

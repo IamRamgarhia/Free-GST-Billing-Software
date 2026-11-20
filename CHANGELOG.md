@@ -152,6 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Receipts page. Older receipts keep their numbers.
 
 ### Changed
+- **Product suggestions on New Invoice show MRP and stock** (#219), and
+  "Out of stock" in red, so products with similar names are easy to tell apart.
 - **One backup button**: Settings → Data & Backups no longer has a separate
   Move to Another PC card. Create Backup makes the same ZIP: copy it to the new
   computer and use Restore Backup there. The launcher keeps its Move option.
