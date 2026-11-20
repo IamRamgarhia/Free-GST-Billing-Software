@@ -7,7 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] - planned for Saturday 21 November 2026 (v1.10.86)
+## [1.10.86] - 2026-11-21
+
+### How to update
+
+**Current version:** 1.10.85  →  **New version:** 1.10.86
+
+#### If the in-app Update button works for you (1.10.73 and later)
+1. Open the app and click **Update to v1.10.86** in the menu, or
+   **Settings → App & updates → Update Now** (in 1.10.85: Control Panel →
+   **Update Software**).
+2. A progress screen shows while it updates. When it says it is done, reload
+   the page.
+
+#### Installed with the Windows Setup
+Click **Update Now** in the app (or right-click the icon near the clock →
+**Check for updates**). Nothing to download by hand.
+
+#### On 1.10.72 or older
+Use the launcher: **More options → Update to the latest version**, then
+**Open App**.
+
+#### If that does not work (or you are unsure)
+1. Download `Free-GST-Billing.zip` from the
+   [Releases page](https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest).
+2. Close the app (Control Panel → **Stop Server** in 1.10.85, or the launcher's
+   **More options → Stop the app**).
+3. **Right-click the ZIP → Extract All.** Do not open anything while still inside the ZIP.
+4. Extract over your existing Free GST Billing folder, replacing files when asked.
+5. Double-click **Free GST Billing - WINDOWS**.
+
+#### Mac
+Use the **Update** button in the app. **Never drag the new folder over the
+old one on a Mac**: Finder's Replace swaps the whole folder, including
+`_system/data` with your invoices. Step by step:
+[Updating on a Mac](https://dicecodes.com/free-gst-software-documentation/update.html#mac).
+
+#### Linux / NAS
+Run `update-unix.sh` from the `_system` folder, or extract the new ZIP over
+the old folder. Restart the app afterwards. The `.deb` and the AppImage:
+download the new file and install or use it instead of the old one.
+**Docker:** put `1.10.86` in the `image:` line of your `docker-compose.yml`,
+then `docker compose pull` and `docker compose up -d` (start it with compose,
+not Docker Desktop's Run button).
+
+Your invoices, clients, products and settings are never touched by an update;
+a backup is made first.
+
+The next update is planned for **Saturday 28 November 2026**.
 
 ### Added
 - **Update the products you have from a CSV** (thanks @happy-in, #208, #215):
