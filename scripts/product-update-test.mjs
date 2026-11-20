@@ -342,6 +342,25 @@ test('an incomplete initial journal blocks later saves and recovers before reuse
   });
   assert.equal(f.request([change()]).status, 500);
   assert.deepEqual(f.read('p1'), products[0]);
+  // v1.10.86 (review) - nothing was changed, so the half-written journal is
+  // removed (it can never roll back a later batch) and saving goes on.
+  assert.equal(f.allowed().status, 200);
+  const left = fs.existsSync(path.join(f.root, 'backups')) ? fs.readdirSync(path.join(f.root, 'backups')) : [];
+  assert.deepEqual(left, []);
+});
+
+test('an incomplete initial journal that cannot be removed still blocks later saves', (t) => {
+  const f = fixture(t, (file, data) => {
+    if (file.includes('backups')) {
+      fs.writeFileSync(file, JSON.stringify(data));
+      throw Error('Storage stopped after writing the journal');
+    }
+  });
+  const realRm = fs.rmSync;
+  fs.rmSync = () => { throw Object.assign(new Error('locked'), { code: 'EBUSY' }); };
+  t.after(() => { fs.rmSync = realRm; });
+  assert.equal(f.request([change()]).status, 500);
+  fs.rmSync = realRm;
   assert.equal(f.allowed().status, 503);
 });
 

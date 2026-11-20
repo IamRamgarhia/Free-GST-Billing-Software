@@ -167,7 +167,7 @@ export function installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache 
     }
   app.post('/api/products/price-update', (req, res) => {
     if (reviewNeeded) return res.status(409).json({ error: reviewNeeded });
-    let journal, file;
+    let journal, file, rollbackFailed = false;
     try {
       if (
         !plain(req.body) ||
@@ -204,6 +204,7 @@ export function installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache 
           journal.state = 'rolled-back';
           writeJSON(file, journal);
         } catch (rollbackError) {
+          rollbackFailed = true;
           recoveryRequired = true;
           throw rollbackError;
         }
@@ -215,7 +216,13 @@ export function installPriceUpdates(app, { DATA_DIR, writeJSON, invalidateCache 
     } catch (error) {
       // A journal whose initial save or permission check failed must never
       // later roll back an unrelated successful batch. Recover it first.
-      if (journal?.state === 'pending') recoveryRequired = true;
+      // v1.10.86 (review) - when no product is left changed (the first journal
+      // write failed, or the products were put back but the final note was not
+      // saved), remove that journal instead of blocking every save in the app;
+      // block only if it cannot be removed.
+      if (journal && !rollbackFailed && journal.state !== 'completed') {
+        try { fs.rmSync(file, { force: true }); } catch { recoveryRequired = true; }
+      }
       res
         .status(error.status || 500)
         .json({

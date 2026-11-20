@@ -5102,7 +5102,7 @@ export default function InvoiceGenerator({ onBack, profile: profileProp, editing
                   {/* v1.10.86 - add a client in the window any time, not only from the suggestions. */}
                   {!readOnlyDoc && (
                     <button type="button" className="btn btn-primary" data-testid="add-client-btn"
-                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.55rem' }}
+                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.55rem', marginBottom: '0.4rem' }}
                       onClick={() => {
                         // v1.10.86 (#202) - a typed name that is already a saved client is not offered as a new one.
                         if (!selectedClientId && !savedClientNow) return openAddClientModal();

@@ -1020,6 +1020,10 @@ export default function Dashboard({ onNew, onEdit, onPrint, onDuplicate, onConve
         // listed under every business on the Receipts page.
         ownerGstin: bill.data?.profile?.gstin || bill.ownerGstin || '',
         ownerName: bill.data?.profile?.businessName || bill.ownerName || '',
+        // v1.10.86 (review) - a foreign payment's rupee amount, bank charges and
+        // FIRC reference stay on its receipt (the payment keeps them too).
+        ...Object.fromEntries(['inrReceived', 'bankCharges', 'fircRef']
+          .filter((k) => target?.[k] !== undefined && target?.[k] !== '').map((k) => [k, target[k]])),
       });
     } catch { /* non-fatal */ }
     toast('Payment updated', 'success');
