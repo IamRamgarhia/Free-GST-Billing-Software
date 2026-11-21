@@ -43,7 +43,9 @@ set -eu
 fail() { echo "FAIL: $*"; exit 1; }
 id shop >/dev/null 2>&1 || useradd -m -s /bin/sh shop
 H=/home/shop
-as() { runuser -u shop -- env HOME=$H FGSB_NO_BROWSER=1 "$@"; }
+# v1.10.86 - Node.js 26 needs libatomic.so.1, shipped in node/lib (the launcher
+# sets this itself; the probes below run node directly).
+as() { runuser -u shop -- env HOME=$H FGSB_NO_BROWSER=1 LD_LIBRARY_PATH=/opt/free-gst-billing/node/lib:/tmp/node-probe/lib "$@"; }
 # A fake earlier ZIP install (one-line install's folder) and an unzipped copy, with DiceCodes demo books.
 as sh -c '
   for S in "$HOME/.local/share/free-gst-billing/_system" "$HOME/Free-GST-Billing/_system"; do
@@ -132,7 +134,8 @@ const APPIMAGE_SCRIPT = String.raw`
 cp /pkgs/${APPIMAGE} /tmp/app.AppImage && chmod 755 /tmp/app.AppImage
 # No FUSE in a container: the runtime extracts to /tmp and runs from there.
 N=/tmp/node-probe/node; mkdir -p /tmp/node-probe
-( cd /tmp/node-probe && /tmp/app.AppImage --appimage-extract node/bin/node >/dev/null && cp squashfs-root/node/bin/node node && chmod 755 node )
+( cd /tmp/node-probe && /tmp/app.AppImage --appimage-extract node/bin/node >/dev/null && /tmp/app.AppImage --appimage-extract node/lib/libatomic.so.1 >/dev/null \
+  && cp squashfs-root/node/bin/node node && chmod 755 node && mkdir -p lib && cp squashfs-root/node/lib/libatomic.so.1 lib/ && chmod 755 lib && chmod 644 lib/libatomic.so.1 )
 as env APPIMAGE_EXTRACT_AND_RUN=1 /tmp/app.AppImage > /tmp/launch1.log 2>&1 &
 i=0; until api /api/health >/dev/null 2>&1; do i=$((i+1)); [ $i -gt 90 ] && { cat /tmp/launch1.log; fail "AppImage did not answer"; }; sleep 1; done
 echo "OK AppImage runs without FUSE (extract-and-run)"
@@ -180,7 +183,8 @@ async function dockerTest() {
     let unpaired = {};
     for (let i = 0; i < 30 && unpaired.status !== 401; i += 1) { unpaired = await tlsFetch('/api/health'); if (unpaired.status !== 401) await new Promise((r) => setTimeout(r, 1000)); }
     record('compose: from outside, HTTPS only, and an unpaired device gets nothing (401)', unpaired.status === 401, JSON.stringify(unpaired));
-    const code = /pair\?code=([A-Z2-9]{8})/.exec(docker(['logs', c]).stdout)?.[1];
+    // v1.10.86 - the code after # (as in the QR code: never sent to a server).
+    const code = /pair[?#]code=([A-Z2-9]{8})/.exec(docker(['logs', c]).stdout)?.[1];
     const origin = `https://127.0.0.1:${HOST_PORT}`;
     const paired = await tlsFetch('/api/pair', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ code, pin: '13572468', name: 'Docker test' }) });
     const cookie = String(paired.headers?.['set-cookie'] || '').split(';')[0];
