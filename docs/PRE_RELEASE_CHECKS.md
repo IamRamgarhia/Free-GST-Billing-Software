@@ -61,7 +61,7 @@ Then the update check (about 3 minutes; it makes books with the last release's c
 npm run test:upgrade
 ```
 
-- [ ] It must end with every line PASS. It catches a release that loses, rewrites or miscounts records made by the version users have now (totals, payments, balances, ledgers, stock, GSTR-1). Before running, check that the tag of the **last release** is the one it exports (`OLD_TAG` in `scripts/upgrade-check.mjs`, now v1.10.85), and move it on after each release.
+- [ ] It must end with every line PASS. It catches a release that loses, rewrites or miscounts records made by the version users have now (totals, payments, balances, ledgers, stock, GSTR-1). Before running, check that the tag of the **last release** is the one it exports (`OLD_TAG` in `scripts/upgrade-check.mjs`, now v1.10.86), and move it on after each release.
 
 ## 4. Test on real systems (the script cannot do these)
 

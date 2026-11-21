@@ -25,7 +25,7 @@ import { spawn, execSync, execFileSync } from 'child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '..', '..');
-const OLD_TAG = 'v1.10.85';
+const OLD_TAG = 'v1.10.86';
 const OLD_PORT = 47410;
 const NEW_PORT = 47411;
 const DIR = path.resolve(process.env.UPGRADE_DIR || path.join(os.tmpdir(), 'fgsb-upgrade-check'));
