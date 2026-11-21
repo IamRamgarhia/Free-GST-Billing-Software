@@ -253,6 +253,10 @@ The next update is planned for **Saturday 28 November 2026**.
 - **Packages**: DOMPurify 3.4.18, Vite 7.3.8.
 
 ### Fixed
+- **Linux: Node.js 26 on systems without libatomic**: the .deb and the
+  AppImage carry the small libatomic library Node.js 26 needs, and the one-line
+  install uses Node.js 22 on a computer that lacks it, so minimal Debian /
+  Ubuntu systems install and start as before.
 - **Settings no longer shows "Internal server error"** (#217) when the starting
   terms could not be saved (a folder locked by OneDrive or antivirus): the
   default terms are shown and saving is tried again next time.

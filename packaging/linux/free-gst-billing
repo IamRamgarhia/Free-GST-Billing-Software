@@ -14,6 +14,9 @@
 
 APP=$(CDPATH='' cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd -P)
 NODE="$APP/node/bin/node"
+# v1.10.86 - Node.js 26 needs libatomic.so.1; a copy ships in node/lib.
+LD_LIBRARY_PATH="$APP/node/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
 KIND=$(cat "$APP/install-kind.txt" 2>/dev/null)
 FGSB_HOME=${FGSB_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/free-gst-billing-data}
 export FGSB_HOME

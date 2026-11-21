@@ -730,6 +730,18 @@ and confirm the browser opens on `http://localhost:47371` with no warning.
 
 ---
 
+## ERR-097 - Node.js 26 does not start on minimal Linux (libatomic.so.1 missing)
+
+**Version:** caught while building v1.10.86 (moving Linux to Node.js 26), never released
+**Reported by:** the release build (npm run release:linux)
+
+**Symptom** - "node: error while loading shared libraries: libatomic.so.1: cannot open shared object file".
+**Cause** - Node.js 26 Linux binaries link libatomic, which debian:bookworm-slim and minimal Debian / Ubuntu installs do not have; the build also still checked for Node 20.
+**Rule** - a Node.js bump on Linux ships every shared library the new binary needs (ldd it in debian:bookworm-slim) and moves every version check with it.
+**Guard** - packaging/linux/build-in-container.sh runs the bundled node with only node/lib after removing libatomic1 (fails the build if it cannot start); install.sh falls back to Node.js 22. By hand: install.sh in plain debian:bookworm-slim.
+
+---
+
 ## ERR-096 - Settings: GET /api/templates -> 500 Internal server error
 
 **Version:** v1.10.85 and earlier · fixed in v1.10.86

@@ -18,13 +18,22 @@ tar -xzf /work/node.tar.gz -C /build
 mkdir -p "$A/node/bin" "$A/linux"
 cp /build/node-v*-linux-x64/bin/node "$A/node/bin/node"
 cp /build/node-v*-linux-x64/LICENSE "$A/node/LICENSE"
+# v1.10.86 - Node.js 26 needs libatomic.so.1, which minimal Debian / Ubuntu
+# systems (and this image) lack: it ships next to node, and the launcher points
+# node at it (LD_LIBRARY_PATH). GCC runtime library, redistributable.
+apt-get update -qq >/dev/null
+apt-get install -y -qq --no-install-recommends libatomic1 >/dev/null
+mkdir -p "$A/node/lib"
+cp -L /usr/lib/x86_64-linux-gnu/libatomic.so.1 "$A/node/lib/libatomic.so.1"
+apt-get remove -y -qq libatomic1 >/dev/null
 cp "$P/free-gst-billing" "$A/free-gst-billing"
 cp "$P/old-installs.mjs" "$A/linux/old-installs.mjs"
 # Files from Windows carry no Unix modes: set them all.
 find "$A" -type d -exec chmod 755 {} +
 find "$A" -type f -exec chmod 644 {} +
 chmod 755 "$A/node/bin/node" "$A/free-gst-billing" "$A"/*.sh
-"$A/node/bin/node" -e 'process.exit(process.versions.node.startsWith("20.") ? 0 : 1)'
+# Runs with only the bundled library (libatomic1 was removed above).
+LD_LIBRARY_PATH="$A/node/lib" "$A/node/bin/node" -e 'process.exit(process.versions.node.startsWith("26.") ? 0 : 1)'
 # A program file with Windows line endings fails on Linux.
 if grep -rlI "$(printf '\r')" "$A/free-gst-billing" "$A/linux" "$A"/*.sh; then echo 'CRLF line endings found' >&2; exit 1; fi
 

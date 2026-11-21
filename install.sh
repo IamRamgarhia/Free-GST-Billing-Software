@@ -300,6 +300,21 @@ install_app() {
       || fail 'Node.js could not be downloaded from nodejs.org.' 'Check the internet connection, then run the install line again.'
     tar -xzf "$WORK/node.tar.gz" -C "$WORK" || fail 'The Node.js download is damaged, or the disk is full.' 'Run the install line again.'
     NODE="$WORK/node-$NODE_VERSION-$PLATFORM/bin/node"
+    # v1.10.86 - Node.js 26 needs libatomic, which minimal Linux systems lack:
+    # then the older Node.js (22) is used instead, and if that cannot run
+    # either, the message says which library to install.
+    if ! node_ok "$NODE" && "$NODE" -v 2>&1 | grep -q libatomic && [ "$NODE_VERSION" != "$NODE_OLDER" ]; then
+      rm -rf "$WORK/node-$NODE_VERSION-$PLATFORM" "$WORK/node.tar.gz"
+      NODE_VERSION=$NODE_OLDER
+      printf '        This computer lacks libatomic: using Node.js %s instead:\n' "$NODE_VERSION"
+      download "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$PLATFORM.tar.gz" "$WORK/node.tar.gz" \
+        || fail 'Node.js could not be downloaded from nodejs.org.' 'Check the internet connection, then run the install line again.'
+      tar -xzf "$WORK/node.tar.gz" -C "$WORK" || fail 'The Node.js download is damaged, or the disk is full.' 'Run the install line again.'
+      NODE="$WORK/node-$NODE_VERSION-$PLATFORM/bin/node"
+    fi
+    if ! node_ok "$NODE" && "$NODE" -v 2>&1 | grep -q libatomic; then
+      fail 'Node.js needs the libatomic library, which this computer does not have.' 'Install it (Debian / Ubuntu: sudo apt install libatomic1   Fedora: sudo dnf install libatomic), then run the install line again.'
+    fi
     node_ok "$NODE" || fail 'The downloaded Node.js does not run on this computer.' 'Install Node.js 18 or newer yourself (https://nodejs.org), then run the install line again.'
   fi
   PATH="$(dirname "$NODE"):$PATH"; export PATH
