@@ -27,6 +27,7 @@ import Dashboard from './components/Dashboard';
 import InvoiceGenerator from './components/InvoiceGenerator';
 import ToastContainer, { toast } from './components/Toast';
 import UpdateOverlay from './components/UpdateOverlay';
+import { releaseNoteTitles } from './utils/changelog';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmModalContainer, { promptAction } from './components/ConfirmModal';
 import WelcomeGuide from './components/WelcomeGuide';
@@ -1284,13 +1285,25 @@ function App() {
             <div className="notice notice-info" style={{ marginBottom: '0.85rem' }}>
               <span className="notice-icon">🔒</span>
               <div>
-                <strong>Your data is safe.</strong> Updates only refresh the app code and dependencies — your <code>data/</code> folder (invoices, clients, products, settings) and <code>Saved Invoices/</code> PDF archive are <strong>never touched</strong>. The updater pulls the latest source from GitHub and rebuilds, then restarts.
+                <strong>Your data is safe.</strong> Updates only refresh the app code and dependencies — your <code>data/</code> folder (invoices, clients, products, settings) and <code>Saved Invoices/</code> PDF archive are <strong>never touched</strong>. The updater downloads this release from GitHub, backs up your data, puts the new version in place and restarts the app.
               </div>
             </div>
 
             {/* Release notes */}
-            <div className="surface-card" style={{ maxHeight: '320px', overflowY: 'auto', whiteSpace: 'pre-wrap', fontSize: '0.82rem', lineHeight: 1.55, marginBottom: '0.85rem' }}>
-              {updateInfo.releaseNotes || (
+            {/* v1.10.87 - the main points only, as plain text (the release page
+                was shown whole, with its ## and ** marks); the full notes are a
+                click away on GitHub. */}
+            <div className="surface-card" style={{ maxHeight: '320px', overflowY: 'auto', fontSize: '0.82rem', lineHeight: 1.55, marginBottom: '0.85rem' }}>
+              {releaseNoteTitles(updateInfo.releaseNotes).length > 0 ? (
+                <>
+                  <strong style={{ display: 'block', marginBottom: '0.35rem' }}>What&apos;s new in v{updateInfo.latest}</strong>
+                  <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+                    {releaseNoteTitles(updateInfo.releaseNotes).map((t) => <li key={t} style={{ marginBottom: '0.2rem' }}>{t}</li>)}
+                  </ul>
+                  <a href={updateInfo.releaseUrl || 'https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases/latest'} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'inline-block', marginTop: '0.5rem', color: 'var(--primary)' }}>Read the full notes on GitHub</a>
+                </>
+              ) : updateInfo.releaseNotes ? <div style={{ whiteSpace: 'pre-wrap' }}>{updateInfo.releaseNotes}</div> : (
                 <span style={{ color: 'var(--text-muted)' }}>
                   No release notes available — see the full changelog at{' '}
                   <a href={updateInfo.releaseUrl || 'https://github.com/IamRamgarhia/Free-GST-Billing-Software/releases'} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>GitHub Releases</a>.

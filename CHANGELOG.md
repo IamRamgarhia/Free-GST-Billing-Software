@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - planned for Saturday 28 November 2026 (v1.10.87)
+
+### Changed
+- **The Update window shows the main points only**: a short list of what is new,
+  with **Read the full notes on GitHub**, instead of the whole release page with
+  its ## and ** marks. It also says what the updater really does (downloads the
+  release, backs up, restarts).
+
+---
+
 ## [1.10.86] - 2026-11-21
 
 ### How to update

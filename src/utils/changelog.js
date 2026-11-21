@@ -127,3 +127,22 @@ export function shouldShowWhatsNew(seen, running, existingUser) {
   if (!seen) return !!existingUser;
   return isNewerVersion(running, seen);
 }
+
+// v1.10.87 - the Update window showed the whole GitHub release page as raw
+// Markdown (## and ** marks). Its "What's new" bullets as plain text, cut at
+// 120 characters; the full notes stay one click away on GitHub.
+export function releaseNoteTitles(body, max = 10) {
+  const lines = String(body || '').replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex((l) => /^#{1,3}\s*what.s new/i.test(l.trim()));
+  const out = [];
+  for (const line of lines.slice(start + 1)) {
+    if (start >= 0 && /^#{1,3}\s/.test(line.trim())) break; // the next heading ends the list
+    const m = /^\s*[-*]\s+(.+)$/.exec(line);
+    if (m) {
+      const p = plainText(m[1]).trim();
+      out.push(p.length > 120 ? `${p.slice(0, 120).replace(/\s+\S*$/, '')}…` : p);
+    }
+    if (out.length >= max) break;
+  }
+  return out.filter(Boolean);
+}

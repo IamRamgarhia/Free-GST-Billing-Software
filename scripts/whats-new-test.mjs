@@ -1,7 +1,7 @@
 // v1.10.86 - the "What's new" slides after an update and the App colour.
 // Run: `node scripts/whats-new-test.mjs`
 
-import { parseChangelog, whatsNewSlides, isNewerVersion, shouldShowWhatsNew } from '../src/utils/changelog.js';
+import { parseChangelog, whatsNewSlides, isNewerVersion, shouldShowWhatsNew, releaseNoteTitles } from '../src/utils/changelog.js';
 import { palette, contrast, APP_COLOURS, DEFAULT_COLOUR } from '../src/utils/appLook.js';
 
 let passed = 0, failed = 0;
@@ -47,6 +47,12 @@ for (const hex of [...APP_COLOURS.map((c) => c.hex), ...odd]) {
 }
 eq(palette(DEFAULT_COLOUR).light['--primary'], DEFAULT_COLOUR, 'The default blue is kept as it is in light mode');
 eq(palette('nonsense').light['--primary'], DEFAULT_COLOUR, 'A bad value falls back to the default');
+
+// v1.10.87 - the Update window: the release page's What's new bullets as plain text.
+const notes = "## What's new in 1.10.86\n\n- **A tidier app:** one line\n- **Receipts:** `RCP/26-27/0001` [link](https://x)\n\n## Which file do I need?\n\n- not this";
+eq(releaseNoteTitles(notes), ['A tidier app: one line', 'Receipts: RCP/26-27/0001 link'], "Update window: the What's new bullets as plain text, nothing after the next heading");
+eq(releaseNoteTitles('- ' + 'word '.repeat(40))[0].length <= 121, true, 'A long bullet is cut at about 120 characters');
+eq(releaseNoteTitles('Just a sentence.'), [], 'No list: nothing (the window then shows the text as it is)');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
